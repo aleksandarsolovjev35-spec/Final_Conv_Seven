@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conveyor-compact"
+version = "0.1.0"
+description = "Модульная версия системы визуальной инспекции ConveyerSeven"
+readme = "README.md"
+requires-python = ">=3.11"
+
+[project.scripts]
+conveyor-compact = "conveyor_compact.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
