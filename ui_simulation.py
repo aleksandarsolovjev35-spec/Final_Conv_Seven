@@ -25,39 +25,22 @@ from vision.ui.server.server import CAMERA_ORDER, UIServer
 
 PROCESS_LABELS = {
     "IDLE": "Система готова к пуску",
-    "START_POSITIONING": "Возврат распределителя в рабочее положение",
     "READY": "Цикл запущен",
     "INITIAL_INSPECTION": "Контроль корпуса под INPUT без движения",
     "ROUTE_PREPARE": "Подготовка маршрута распределителя",
-    "CONVEYOR_COMMAND": "Команда движения ленты отправлена",
-    "CONVEYOR_MOVING": "Лента перемещает корпуса на следующую позицию",
     "MOTION": "Горизонтальное движение ленты",
-    "CONVEYOR_CONFIRMED": "Позиции корпусов подтверждены контроллером",
-    "PART_TRANSFER": "Корпус прошёл распределитель",
     "SETTLE": "Ожидание затухания вибрации",
-    "CAMERA_CAPTURE": "Синхронный захват камер",
     "CAPTURE": "Захват стоп-кадра камеры",
-    "INPUT_ANALYSIS": "INPUT: анализ свежего кадра",
     "INPUT_MODELS": "INPUT: запуск моделей",
-    "INPUT_PRESENCE": "INPUT: проверка наличия корпуса",
     "INPUT_GEOMETRY": "INPUT: построение геометрии и измерений",
     "INPUT_DECISION": "INPUT: решение правил сформировано",
-    "INPUT_FRAME_RECORD": "INPUT: запись кадра и разметки",
-    "INPUT_FRAME_RECORDED": "INPUT: кадр и разметка подготовлены",
     "INPUT_RESULT_RECORDED": "INPUT: решение стадии записано",
-    "SPIDER_CHECK": "SPIDER/TOP: подготовка контроля",
-    "SPIDER_ANALYSIS": "SPIDER/TOP: анализ свежего кадра",
     "SPIDER_MODELS": "SPIDER/TOP: запуск моделей",
     "SPIDER_GEOMETRY": "SPIDER/TOP: построение геометрии и измерений",
     "SPIDER_DECISION": "SPIDER/TOP: окончательное решение сформировано",
-    "SPIDER_FRAME_RECORD": "SPIDER/TOP: запись кадра и разметки",
-    "SPIDER_FRAME_RECORDED": "SPIDER/TOP: кадр и разметка подготовлены",
     "SPIDER_RESULT_RECORDED": "SPIDER/TOP: окончательное решение записано",
-    "ANALYSIS": "Анализ моделей и правил",
     "ANALYSIS_REVIEW": "Просмотр результатов анализа",
-    "STEP_COMPLETE": "Шаг полностью завершён",
     "PUBLISH": "Публикация результата контроля",
-    "FINAL_DECISION_ARCHIVED": "Финальное решение записано в архив",
     "STOPPING": "Остановка",
     "STOPPED": "Линия остановлена и пуста",
     "PAUSED": "Пауза линии",
@@ -65,8 +48,7 @@ PROCESS_LABELS = {
     "SELECTED_ANALYSIS": "Анализ выбранного стоп-кадра",
     "DISTRIBUTOR_DIAGNOSTIC": "Проверка распределителя",
     "CAMERA_DIAGNOSTIC": "Проверка семи камер",
-    "VISION_RULE_DIAGNOSTIC": "Проверка моделей и правил",
-    "DIAGNOSTIC_DONE": "Диагностика завершена",
+    "VISION_DIAGNOSTIC": "Проверка моделей и правил",
 }
 
 
@@ -112,6 +94,7 @@ class LineSimulation:
         self.dist2_position = 0
         self.dist1_state = "GOOD"
         self.dist2_state = "READY"
+        self._planned_route = "GOOD"
         self.last_distributor_action = "SIMULATION READY"
         self.jog_active = False
         self.jog_busy = False
@@ -369,7 +352,7 @@ class LineSimulation:
         self._planned_route = category
 
     def _settle_distributor(self) -> None:
-        category = getattr(self, "_planned_route", "GOOD")
+        category = self._planned_route
         self.dist1_position = 0 if category == "GOOD" else 340
         self.dist2_position = 340 if category == "CLEANUP" else 0
         self.dist1_state = "GOOD" if category == "GOOD" else "TO_DIST2"
@@ -632,7 +615,7 @@ def configure_simulated_thresholds(server: UIServer) -> None:
     server.threshold_labels = dict(loader.labels)
     server.thresholds_revision = 1
 
-    def apply(role: str, values: dict, labels: dict) -> dict:
+    def apply(role: str, values: dict, _labels: dict) -> dict:
         prefix = f"{role}."
         updated = dict(server.thresholds or {})
         for key, value in values.items():

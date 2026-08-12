@@ -85,7 +85,6 @@ class ProductionCycle:
 
         self.recent_parts = deque(maxlen=RECENT_PARTS_LIMIT)
 
-        self.force_all_bad = False
         self._pending_drop = None
 
         self._last_vision_results: dict = {}
@@ -123,11 +122,7 @@ class ProductionCycle:
 
         # Инспектор сообщает внутренние этапы (модели, геометрия,
         # решение, запись) в тот же telemetry-поток, что и движение линии.
-        set_progress_callback = getattr(
-            self.inspector, "set_progress_callback", None,
-        )
-        if callable(set_progress_callback):
-            set_progress_callback(self._on_inspection_progress)
+        self.inspector.set_progress_callback(self._on_inspection_progress)
 
         # Живой просмотр: работает и в JOG, и во время движения ленты.
         self.live = LivePreview(
@@ -221,11 +216,8 @@ class ProductionCycle:
         current = self._process
         conveyor_info = dict(status or {})
         # Expose speed for frontend animation timing (higher = faster motion)
-        try:
-            conveyor_info["speed"] = int(getattr(self.conveyor, "speed", 20000))
-            conveyor_info["normal_steps"] = int(getattr(self.conveyor, "steps_per_division", 19048))
-        except Exception:
-            conveyor_info["speed"] = 20000
+        conveyor_info["speed"] = int(self.conveyor.speed)
+        conveyor_info["normal_steps"] = int(self.conveyor.steps_per_division)
         self._set_process(
             "CONVEYOR_MOVING",
             "Лента перемещает корпуса на следующую позицию",
@@ -395,9 +387,7 @@ class ProductionCycle:
             # Сброс буфера драйвера: в IDLE/STOPPED после JOG или прогрева
             # cap.read() может вернуть устаревший кадр. См. комментарий
             # в _stage_capture().
-            drain = getattr(self.cameras, "drain_buffers", None)
-            if callable(drain):
-                drain()
+            self.cameras.drain_buffers()
             frames = self.cameras.capture_all()
             camera_rows = []
             for role, frame in frames.items():
@@ -447,9 +437,7 @@ class ProductionCycle:
             # Сброс буфера драйвера: в IDLE/STOPPED после JOG или прогрева
             # cap.read() может вернуть устаревший кадр. См. комментарий
             # в _stage_capture().
-            drain = getattr(self.cameras, "drain_buffers", None)
-            if callable(drain):
-                drain()
+            self.cameras.drain_buffers()
             frames = self.cameras.capture_all()
             vision_results = self.inspector.vision.process_all(frames)
             presence_result = prepare_presence_result(
@@ -466,7 +454,7 @@ class ProductionCycle:
                     )
                 )
             model_rows = summarize_model_health(
-                getattr(self.inspector.vision, "last_health", None)
+                self.inspector.vision.last_health
             )
             rule_rows = [
                 self._rule_report_row(result)
@@ -558,7 +546,7 @@ class ProductionCycle:
         try:
             if not self._prestart_diagnostic_allowed():
                 return False
-            available_roles = set(getattr(self.cameras, "mapping", {}))
+            available_roles = set(self.cameras.mapping)
             if not available_roles:
                 available_roles = set(
                     self.inspector.INPUT_ROLES + self.inspector.SPIDER_ROLES
@@ -573,9 +561,7 @@ class ProductionCycle:
             # Сброс буфера драйвера: после паузы live cap.read()
             # может вернуть устаревший кадр. См. комментарий
             # в _stage_capture().
-            drain = getattr(self.cameras, "drain_buffers", None)
-            if callable(drain):
-                drain((role,))
+            self.cameras.drain_buffers((role,))
 
             self._selected_analysis_active = True
             self._selected_analysis_role = role
@@ -611,7 +597,7 @@ class ProductionCycle:
 
             raw_model_health = [
                 item
-                for item in (getattr(self.inspector.vision, "last_health", None) or [])
+                for item in (self.inspector.vision.last_health or [])
                 if isinstance(item, dict)
             ]
 
@@ -904,9 +890,7 @@ class ProductionCycle:
         except Exception as e:
             errors.append(f"conveyor: {e}")
         try:
-            stop_distributor = getattr(self.distributor, "emergency_stop", None)
-            if stop_distributor is not None:
-                stop_distributor()
+            self.distributor.emergency_stop()
         except Exception as e:
             errors.append(f"distributor: {e}")
         if errors:
@@ -1064,17 +1048,8 @@ class ProductionCycle:
         # Драйвер может отдать старый кадр из буфера после движения. Дренируем
         # только нужные роли, затем получаем один свежий набор именно для
         # соответствующей стадии Part.
-        drain = getattr(self.cameras, "drain_buffers", None)
-        if callable(drain):
-            drain(roles=roles)
-        capture_roles = getattr(self.cameras, "capture_roles", None)
-        if callable(capture_roles):
-            frames = capture_roles(roles)
-        else:
-            # Совместимость со старыми test doubles; production CameraManager
-            # всегда предоставляет capture_roles().
-            frames = self.cameras.capture_all()
-            frames = {role: frames[role] for role in roles}
+        self.cameras.drain_buffers(roles)
+        frames = self.cameras.capture_roles(roles)
         if set(frames) != set(roles):
             raise RuntimeError(
                 f"Неполный набор кадров для инспекции: ожидались {sorted(roles)}, "
@@ -1084,9 +1059,7 @@ class ProductionCycle:
         # Нейросети используют только frames в памяти. Освобождаем камеры
         # немедленно: INPUT/SPIDER, не участвующие в следующем чтении,
         # уже продолжают live во время part_presence и defect rules.
-        release_capture = getattr(self.stages, "release_capture_roles", None)
-        if callable(release_capture):
-            release_capture()
+        self.stages.release_capture_roles()
         self._refresh_monitor(frames)
         return frames
 
@@ -1271,7 +1244,6 @@ class ProductionCycle:
             part_id=candidate_id,
             step=self.current_step,
             frames=frames,
-            force_bad=self.force_all_bad,
         )
         if result.is_empty_tray:
             self._record_frame_analysis("INPUT", None, result)
@@ -1345,7 +1317,6 @@ class ProductionCycle:
                 part_id=part.id,
                 step=self.current_step,
                 frames=frames,
-                force_bad=self.force_all_bad,
             )
             for defect in result.defects:
                 part.add_spider_defect(defect)
@@ -1514,10 +1485,9 @@ class ProductionCycle:
         Правая панель UI показывает анализ выбранной оператором камеры,
         поэтому результаты хранятся раздельно для ВХОДА и КОНТРОЛЯ +4.
         """
-        rows = getattr(result, "model_health", None)
-        if not isinstance(rows, list) or not rows:
-            vision = getattr(self.inspector, "vision", None)
-            rows = getattr(vision, "last_health", None) or []
+        rows = result.model_health
+        if not rows:
+            rows = self.inspector.vision.last_health or []
 
         model_details = []
         for item in rows:
@@ -1541,10 +1511,7 @@ class ProductionCycle:
 
     def _active_frame_analysis_group(self) -> str:
         """Группа камер, чей анализ показывать: за выбранной камерой UI."""
-        input_roles = set(
-            getattr(self.inspector, "INPUT_ROLES", None)
-            or ("INPUT_LEFT", "INPUT_RIGHT")
-        )
+        input_roles = set(self.inspector.INPUT_ROLES)
         try:
             role = self._get_active_camera_role()
         except Exception:
@@ -1569,7 +1536,7 @@ class ProductionCycle:
             f"(предыдущая фаза {elapsed:.2f} с)"
         )
 
-    def _on_state_change(self, old, new, action: str):
+    def _on_state_change(self, _old, new, _action: str):
         if new == State.STOPPING:
             self._set_process("DRAINING", "Остановка")
         elif new == State.STOPPED:

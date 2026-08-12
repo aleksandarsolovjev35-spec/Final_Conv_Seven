@@ -51,7 +51,6 @@ class Inspector:
         part_id: int,
         step: int,
         frames,
-        force_bad: bool = False,
     ) -> InspectionResult:
         # Строгий порядок одной стадии: кадры -> модели -> проверка
         # наличия (gate) -> геометрия/defect rules -> разметка -> результат.
@@ -116,7 +115,6 @@ class Inspector:
             vision_results=vision_results,
             rule_results=[presence_result] + defect_results,
             markup_rule_results=defect_results,
-            force_bad=force_bad,
             model_health=model_health,
         )
 
@@ -125,7 +123,6 @@ class Inspector:
         part_id: int,
         step: int,
         frames,
-        force_bad: bool = False,
     ) -> InspectionResult:
         frames = self._stage_frames(frames, self.SPIDER_ROLES, "spider")
         self._notify_progress(
@@ -159,7 +156,6 @@ class Inspector:
             vision_results=vision_results,
             rule_results=rule_results,
             markup_rule_results=rule_results,
-            force_bad=force_bad,
             model_health=model_health,
         )
 
@@ -179,7 +175,7 @@ class Inspector:
         missing = set(roles) - set(vision_results)
         if missing:
             raise RuntimeError(f"Missing vision results: {sorted(missing)}")
-        health_rows = getattr(self.vision, "last_health", None) or []
+        health_rows = self.vision.last_health or []
         return vision_results, summarize_model_health(health_rows)
 
     def _build_result(
@@ -191,13 +187,10 @@ class Inspector:
         frames: dict,
         vision_results: dict,
         rule_results: list,
-        force_bad: bool,
         model_health: list,
         markup_rule_results: list | None = None,
     ) -> InspectionResult:
         defects = [result.defect for result in rule_results if result.triggered]
-        if force_bad:
-            defects = ["forced_bad"]
 
         markup = (
             markup_rule_results

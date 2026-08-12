@@ -24,7 +24,6 @@
 .btn {
     --btn-color:      var(--text);
     --btn-fill:       var(--panel-hover);
-    --btn-fill-glow:  transparent;
 
     padding: 8px 20px;
     border: 1px solid var(--border-strong);
@@ -106,19 +105,6 @@
 
 .btn-exit:hover:not(:disabled) { color: var(--bad); border-color: var(--bad); }
 
-.hotkeys {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-    font-size: 9px;
-    letter-spacing: 0.25px;
-    text-align: right;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 /* ─── Сервисная группа футера ──────────────────────────────────
    Настройки хранения партий — сервисное действие, а не операторское
    управление: вынесены из ряда кнопок ПУСК/СТОП/ВЫХОД в правый край
@@ -147,7 +133,6 @@
 
 @media (max-width: 1100px) {
     .btn { min-width: 96px; padding-inline: 12px; }
-    .hotkeys { font-size: 8px; }
 }
 
 @media (max-width: 900px) {

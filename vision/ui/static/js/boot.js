@@ -42,7 +42,6 @@ function checkUiReady() {
     const ready = state.statusReceived && state.jogReceived && state.cameras.length > 0 && state.currentCamera !== null;
     if (!ready && !timedOut) updateSplashWaitingMessage();
     if (ready || timedOut) {
-        state.uiReady = true;
         if (timedOut && !ready) {
             console.warn('[UI] Ready timeout after boot — showing UI anyway.', {
                 statusReceived: state.statusReceived,

@@ -203,7 +203,6 @@ class SpiderContactsLongRule(BaseRule):
                 max(float(d["bbox"][2]) for d in sorted_dets),
             ),
             damper_open_max_px=damper_open_max_px,
-            gap_dev_max_px=gap_dev_max_px,
         )
         reference_missing = damper["status"] == "error"
         damper_fail = damper.get("damper_fail", False)
@@ -364,7 +363,6 @@ class SpiderContactsLongRule(BaseRule):
         rect_centers,
         contact_span,
         damper_open_max_px,
-        gap_dev_max_px,
     ):
         """Опорная линия omission + стены + соседние заслонки.
 

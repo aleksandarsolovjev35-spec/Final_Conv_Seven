@@ -201,12 +201,12 @@ class Distributor:
     def _wait_dist2(self, timeout=12.0):
         self.dist2.wait_stop(timeout=timeout, progress_callback=self._update_dist2_position)
 
-    def _update_dist1_position(self, position, moving):
+    def _update_dist1_position(self, position, _moving):
         self._check_cancelled()
         if position is not None: self._dist1_position = max(0, int(position))
         self._notify()
 
-    def _update_dist2_position(self, position, moving):
+    def _update_dist2_position(self, position, _moving):
         self._check_cancelled()
         if position is not None: self._dist2_position = max(0, int(position))
         self._notify()

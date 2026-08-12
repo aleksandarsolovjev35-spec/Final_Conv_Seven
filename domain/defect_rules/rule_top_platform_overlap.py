@@ -219,7 +219,6 @@ class TopPlatformOverlapRule(BaseRule):
         boundary = contact_boundary["points"]
         used_contacts = contact_boundary["used_contacts"]
         group_counts = contact_boundary["group_counts"]
-        anchor_points = contact_boundary["anchor_points"]
 
         shape = infer_shape([platform])
         platform_raster = rasterize_mask(platform, shape)
@@ -242,15 +241,6 @@ class TopPlatformOverlapRule(BaseRule):
             "role": role,
             "points": boundary_points,
             "anchor": "contacts_rectangle",
-            "triggered": is_triggered,
-        })
-        drawings.append({
-            "type": "platform_overlap_contact_anchors",
-            "role": role,
-            "points": [
-                [int(round(point[0])), int(round(point[1]))]
-                for point, _group in anchor_points
-            ],
             "triggered": is_triggered,
         })
         if is_triggered:

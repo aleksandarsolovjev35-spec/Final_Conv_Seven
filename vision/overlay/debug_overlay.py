@@ -222,8 +222,6 @@ class DebugOverlay:
                 PlatformOverlapRenderer.draw_platform(img, d)
             elif draw_type == "platform_overlap_boundary":
                 PlatformOverlapRenderer.draw_boundary(img, d)
-            elif draw_type == "platform_overlap_contact_anchors":
-                PlatformOverlapRenderer.draw_contact_anchors(img, d)
             elif draw_type == "platform_overlap_region":
                 PlatformOverlapRenderer.draw_region(img, d)
 

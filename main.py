@@ -756,9 +756,9 @@ def _format_warmup_reasons(reasons: dict) -> str:
 def _recover_weak_cameras_after_warmup(cameras, stats: dict, phase: str) -> dict:
     """Повторно прогреть роли без кадров и проверить их готовность.
 
-    Если менеджер поддерживает ``reopen_roles``, после неудачного прогрева
-    выполняется попытка переоткрытия. Текущий CameraManager возвращает
-    неуспех и запуск завершается ошибкой.
+    После неудачного прогрева выполняется попытка переоткрытия через
+    ``reopen_roles``. Текущий CameraManager возвращает неуспех и запуск
+    завершается ошибкой.
     """
     reasons = _weak_camera_warmup_reasons(stats)
     if not reasons:
@@ -779,21 +779,14 @@ def _recover_weak_cameras_after_warmup(cameras, stats: dict, phase: str) -> dict
     if not retry_reasons:
         return merged
 
-    # Менеджер может реализовать переоткрытие ролей; отсутствие такой
-    # возможности или повторный отказ блокируют запуск.
-    reopen = getattr(cameras, "reopen_roles", None)
-    if reopen is None:
-        raise RuntimeError(
-            f"Камеры не стабилизировались после прогрева ({phase}): "
-            f"{_format_warmup_reasons(retry_reasons)}"
-        )
+    # Повторный отказ блокирует запуск.
     stuck = tuple(retry_reasons)
     print(
         f"[CAMERA] {phase}: повторный прогрев не помог "
         f"({_format_warmup_reasons(retry_reasons)}); "
         f"пересоздаём потоки {', '.join(stuck)}"
     )
-    reopened = reopen(stuck)
+    reopened = cameras.reopen_roles(stuck)
     final_stats = cameras.warmup_roles(stuck, duration=retry_seconds)
     merged.update(final_stats)
     final_reasons = _weak_camera_warmup_reasons(final_stats)

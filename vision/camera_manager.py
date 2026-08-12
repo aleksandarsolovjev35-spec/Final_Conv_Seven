@@ -455,7 +455,7 @@ class CameraManager:
 
     # ---------- восстановление ----------
 
-    def reopen_roles(self, roles, timeout: float | None = None) -> dict:
+    def reopen_roles(self, roles) -> dict:
         """Сообщить, что переоткрытие потоков без перезапуска недоступно."""
         requested = tuple(dict.fromkeys(roles))
         return {role: False for role in requested}

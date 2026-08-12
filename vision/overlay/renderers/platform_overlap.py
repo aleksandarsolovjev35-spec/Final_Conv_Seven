@@ -52,13 +52,6 @@ class PlatformOverlapRenderer:
             )
 
     @staticmethod
-    def draw_contact_anchors(img, drawing):
-        # Точки контактов используются в details для диагностики, но в оверлее
-        # больше не рисуются: так граница rule_top_platform_overlap остаётся
-        # чистой и не закрывает сами контакты.
-        return
-
-    @staticmethod
     def draw_region(img, drawing):
         raster = drawing.get("raster")
         if raster is None:
