@@ -287,12 +287,12 @@ class LineSimulation:
         result = []
         for part in self.parts:
             result.append({"id": part.id, "position": part.position, "category": part.category,
-                           "held": False, "dropping": False})
+                           "dropping": False})
         # The output body remains logically at +7 while it visibly reaches
         # +8. This mirrors the production status contract used by the UI.
         if self.egress:
             result.append({"id": self.egress.id, "position": 7, "category": self.egress.category,
-                           "held": False, "dropping": True})
+                           "dropping": True})
         return result
 
     def _finalize_archive_batch(self) -> None:
@@ -416,13 +416,13 @@ class LineSimulation:
             "verdict": category,
             "rules": [{
                 "name": "part_presence", "title": "Наличие корпуса", "triggered": False,
-                "run_cards": [[{"type": "metric", "metrics": [{"key": "simulated_confidence", "label": "Уверенность модели", "value": "0.99", "limit": "0.40", "ok": True}]}]],
+                "measurement_cards": [{"type": "metric", "metrics": [{"key": "simulated_confidence", "label": "Уверенность модели", "value": "0.99", "limit": "0.40", "ok": True}]}],
             }, {
                 "name": "sinks" if triggered else "window_geometry",
                 "title": "Симулированная проверка",
                 "triggered": triggered,
                 "human_cause": ", ".join(defects) if defects else "Норма",
-                "run_cards": [[{"type": "metric", "metrics": [{"key": "simulated_result", "label": "Результат правила", "value": "СРАБОТАЛО" if triggered else "НОРМА", "limit": "—", "ok": not triggered}]}]],
+                "measurement_cards": [{"type": "metric", "metrics": [{"key": "simulated_result", "label": "Результат правила", "value": "СРАБОТАЛО" if triggered else "НОРМА", "limit": "—", "ok": not triggered}]}],
             }],
         }
 

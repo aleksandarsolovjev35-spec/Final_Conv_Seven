@@ -277,7 +277,7 @@ class LivePreview:
         """
         if self._monitor is None:
             return
-        self._monitor.update(vision_results={}, rule_results=[], run_frames=[])
+        self._monitor.update(vision_results={}, rule_results=[])
 
     # Внутреннее
 

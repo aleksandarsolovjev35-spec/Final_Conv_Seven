@@ -24,7 +24,6 @@
    скролл правой колонки: кастомный thresholds-scroll-track. */
 .stats-panel .stats-summary,
 .stats-panel .stats-body,
-.stats-panel .defects-section,
 .stats-panel .stats-service,
 .stats-panel .distributor-panel,
 
@@ -37,7 +36,6 @@
 }
 .stats-panel .stats-summary::-webkit-scrollbar,
 .stats-panel .stats-body::-webkit-scrollbar,
-.stats-panel .defects-section::-webkit-scrollbar,
 .stats-panel .stats-service::-webkit-scrollbar,
 .stats-panel .distributor-panel::-webkit-scrollbar,
 .stats-panel .jog-panel::-webkit-scrollbar,
@@ -93,31 +91,6 @@
     margin-top: 5px;
 }
 
-
-
-.stats-title {
-    grid-column: 1 / -1;
-    color: var(--text-dim);
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.9px;
-    text-transform: uppercase;
-    padding: 0 0 5px;
-    border-bottom: 1px solid var(--border);
-    margin: 0 0 1px;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-}
-
-.stats-title::before {
-    content: '';
-    width: 2px;
-    height: 11px;
-    background: var(--accent);
-    border-radius: 1px;
-}
-
 .stats-row {
     display: flex;
     flex-direction: column;
@@ -160,121 +133,15 @@
 
 /* ─── Line cells ──────────────────────────────────────────────────── */
 
-.line-cells-section {
-    margin-top: 16px;
-}
-
-.line-cells-section > .stats-label {
-    margin-bottom: 8px;
-    display: block;
-}
-
 .line-cells-wrapper {
     display: flex;
     flex-direction: column;
     gap: 4px;
 }
 
-.line-cells {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: 4px;
-}
-
 .line-cell {
-    height: 22px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-1);
-    transition:
-        background-color var(--t-fast) var(--ease),
-        border-color var(--t-fast) var(--ease),
-        color var(--t-fast) var(--ease);
     position: relative;
     overflow: hidden;
-}
-
-.line-cell.occupied {
-    background: var(--accent-glow);
-    border-color: var(--accent);
-    color: var(--text);
-}
-
-.line-cell.occupied::after {
-    content: none;
-}
-
-.line-cell.occupied.cell-good {
-    background: var(--ok-bg);
-    border-color: var(--ok);
-    color: var(--ok);
-}
-
-.line-cell.occupied.cell-bad {
-    background: var(--bad-bg);
-    border-color: var(--bad);
-    color: var(--bad);
-}
-
-.line-cell.occupied.cell-cleanup {
-    background: var(--warn-bg);
-    border-color: var(--warn);
-    color: var(--warn);
-}
-
-/* ─── Defects ─────────────────────────────────────────────────────── */
-
-.defects-section { margin-top: 16px; }
-.defects-section .stats-label { margin-bottom: 8px; display: block; }
-
-.defects-list { list-style: none; }
-
-.defects-list li {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 10px;
-    margin-bottom: 4px;
-    background: var(--bad-bg);
-    border: 1px solid rgba(248, 113, 113, 0.2);
-    border-radius: var(--radius-sm);
-    font-size: 12px;
-    color: var(--bad);
-    font-family: var(--font-mono);
-    transition: transform var(--t-fast);
-}
-
-.defects-list li:hover { border-color: var(--bad); }
-
-.defects-list li span {
-    min-width: 0;
-    color: inherit;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.defects-list li b {
-    flex: 0 0 auto;
-    color: var(--text);
-    font-weight: 700;
-    background: rgba(0, 0, 0, 0.3);
-    padding: 1px 8px;
-    border-radius: 999px;
-    text-align: right;
-}
-
-.defects-list li.diagnostic-error {
-    color: var(--bad);
-    border-color: var(--bad);
-}
-
-.defects-empty {
-    color: var(--text-muted);
-    font-style: italic;
-    font-size: 12px;
-    text-align: center;
-    padding: 12px;
 }
 
 /* ─── Stats service (Empty trays и т.п.) ──────────────────────────── */

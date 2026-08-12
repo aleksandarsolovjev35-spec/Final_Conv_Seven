@@ -24,22 +24,19 @@ const FA_RULE_NAMES = {
 // ——— состояние ———
 let _faLastKey = null;
 let _faLastScrollContext = null;
-let _faLastStatsKey = null;
 let _faRenderSeq = 0;
 let _faScrollBound = false;
 let _faDragState = null;
 let _faRafSync = 0;
 
 // ——— утилиты ———
-function faNewVoteSummary(vote) {
-    if (!vote) return {className: 'ok', text: '—'};
-    const total = Number(vote.total_runs) || 1;
-    const single = total <= 1;
-    const count = (v) => single ? '' : ' · ' + (v ?? 0) + '/' + total;
-    if (vote.decision === 'empty') return {className: 'warn', text: 'ПУСТО' + count(vote.empty_votes ?? vote.triggered_votes)};
-    if (vote.decision === 'present') return {className: 'ok', text: 'КОРПУС' + count(vote.present_votes ?? vote.normal_votes)};
-    if (vote.decision === 'triggered') return {className: 'bad', text: 'СРАБОТАЛО' + count(vote.triggered_votes)};
-    return {className: 'ok', text: 'НОРМА' + count(vote.normal_votes)};
+function faNewRuleBadge(rule) {
+    if (!rule) return {className: 'ok', text: '—'};
+    if (rule.part_absent) return {className: 'warn', text: 'ПУСТО'};
+    if (rule.name === 'part_presence') return {className: 'ok', text: 'КОРПУС'};
+    if (rule.triggered) return {className: 'bad', text: 'СРАБОТАЛО'};
+    if (rule.skipped) return {className: 'warn', text: 'НЕТ ИЗМЕРЕНИЯ'};
+    return {className: 'ok', text: 'НОРМА'};
 }
 
 function faNewFormatValue(v) {
@@ -54,77 +51,39 @@ function faNewFormatLimit(metric) {
     return '—';
 }
 
-function faNewCollectThresholds(runCards) {
-    // Собираем пороги из карточек единственного прогона.
-    const map = new Map();
-    const runs = Array.isArray(runCards) ? runCards : [];
-    runs.forEach((cards, runIndex) => {
-        const list = Array.isArray(cards) ? cards : [];
-        for (const card of list) {
-            const metrics = Array.isArray(card.metrics) ? card.metrics : [];
-            for (const m of metrics) {
-                const key = m.key || m.label;
-                if (!key) continue;
-                if (!map.has(key)) {
-                    map.set(key, {
-                        label: m.label || m.key || '—',
-                        key: m.key || null,
-                        limit: m.limit || null,
-                        limit_raw: m.limit_raw,
-                        runs: runs.map(() => null),
-                    });
-                }
-                const entry = map.get(key);
-                if (m.limit != null && m.limit !== '') entry.limit = m.limit;
-                if (m.limit_raw !== undefined) entry.limit_raw = m.limit_raw;
-                if (m.label) entry.label = m.label;
-                entry.runs[runIndex] = {
-                    value: m.value != null ? m.value : null,
-                    ok: m.ok == null ? null : !!m.ok,
-                    value_raw: typeof m.value_raw === 'number' ? m.value_raw : null,
-                };
-            }
-        }
-    });
-    return map;
-}
-
-function faNewCollectGroups(runCards) {
+function faNewCollectGroups(cards) {
     const generalMap = new Map();
     const objectsMap = new Map();
-    const runs = Array.isArray(runCards) ? runCards : [];
-    runs.forEach((cards) => {
-        const list = Array.isArray(cards) ? cards : [];
-        for (const card of list) {
-            const role = card.role || '';
-            const metrics = Array.isArray(card.metrics) ? card.metrics : [];
-            for (const m of metrics) {
-                const key = m.key || m.label;
-                if (!key) continue;
-                const row = {
-                    label: m.label || m.key || '—',
-                    limit: faNewFormatLimit(m),
-                    value: faNewFormatValue(m.value != null ? m.value : null),
-                    ok: m.ok == null ? null : !!m.ok,
-                    value_raw: typeof m.value_raw === 'number' ? m.value_raw : null,
-                };
-                const objectName = m.object || null;
-                if (!objectName) {
-                    if (generalMap.has(key)) continue;
-                    generalMap.set(key, row);
-                } else {
-                    const groupKey = role + '::' + objectName;
-                    let group = objectsMap.get(groupKey);
-                    if (!group) {
-                        group = {name: objectName, rowsMap: new Map()};
-                        objectsMap.set(groupKey, group);
-                    }
-                    if (group.rowsMap.has(key)) continue;
-                    group.rowsMap.set(key, row);
+    const list = Array.isArray(cards) ? cards : [];
+    for (const card of list) {
+        const role = card.role || '';
+        const metrics = Array.isArray(card.metrics) ? card.metrics : [];
+        for (const m of metrics) {
+            const key = m.key || m.label;
+            if (!key) continue;
+            const row = {
+                label: m.label || m.key || '—',
+                limit: faNewFormatLimit(m),
+                value: faNewFormatValue(m.value != null ? m.value : null),
+                ok: m.ok == null ? null : !!m.ok,
+                value_raw: typeof m.value_raw === 'number' ? m.value_raw : null,
+            };
+            const objectName = m.object || null;
+            if (!objectName) {
+                if (generalMap.has(key)) continue;
+                generalMap.set(key, row);
+            } else {
+                const groupKey = role + '::' + objectName;
+                let group = objectsMap.get(groupKey);
+                if (!group) {
+                    group = {name: objectName, rowsMap: new Map()};
+                    objectsMap.set(groupKey, group);
                 }
+                if (group.rowsMap.has(key)) continue;
+                group.rowsMap.set(key, row);
             }
         }
-    });
+    }
     return {
         general: [...generalMap.values()],
         objects: [...objectsMap.values()].map(g => ({
@@ -161,7 +120,6 @@ function faNewReportKey(report) {
             stage: report.stage,
             part_id: report.part_id,
             updated_at: report.updated_at,
-            picture_run: report.picture_run,
             rules: report.rules,
         });
     } catch (_) {
@@ -189,22 +147,6 @@ function faNewVerdict(report, ls) {
     if (rules.some(r => r && r.skipped === true)) return {cls: 'warn', text: 'ЕСТЬ ПРОПУЩЕННЫЕ ПРАВИЛА'};
     if (category === 'GOOD') return {cls: 'ok', text: 'ГОДНОЕ'};
     return {cls: 'ok', text: 'ГОДНО'};
-}
-
-function faNewUpdateStats(ls) {
-    const totalEl = document.getElementById('fa-new-stat-total');
-    if (!totalEl) return;
-    const total = ls ? (Number(ls.total) || 0) : 0;
-    const good = ls ? (Number(ls.good) || 0) : 0;
-    const bad = ls ? (Number(ls.rejected) || 0) : 0;
-    const cleanup = ls ? (Number(ls.cleanup) || 0) : 0;
-    const key = [total, good, bad, cleanup].join('|');
-    if (key === _faLastStatsKey) return;
-    _faLastStatsKey = key;
-    setIfChanged(document.getElementById('fa-new-stat-total'), total);
-    setIfChanged(document.getElementById('fa-new-stat-good'), good);
-    setIfChanged(document.getElementById('fa-new-stat-bad'), bad);
-    setIfChanged(document.getElementById('fa-new-stat-cleanup'), cleanup);
 }
 
 // ——— ползунок ———
@@ -367,7 +309,6 @@ function renderNewFrameAnalysis(report, ls) {
     if (!panel || !scroll || !tbody) return;
 
     faInitScrollHandlers();
-    faNewUpdateStats(ls);
 
     const available = report.available === true;
     if (!available) {
@@ -454,10 +395,10 @@ function renderNewFrameAnalysis(report, ls) {
         ruleName.title = FA_RULE_NAMES[rule.name] || rule.name;
         ruleHead.appendChild(ruleName);
 
-        const vote = faNewVoteSummary(rule.vote_details);
+        const badgeInfo = faNewRuleBadge(rule);
         const badge = document.createElement('span');
-        badge.className = 'fa-new-rule-badge ' + vote.className;
-        badge.textContent = vote.text;
+        badge.className = 'fa-new-rule-badge ' + badgeInfo.className;
+        badge.textContent = badgeInfo.text;
         ruleHead.appendChild(badge);
         frag.appendChild(ruleHead);
 
@@ -469,7 +410,7 @@ function renderNewFrameAnalysis(report, ls) {
             continue;
         }
 
-        const groups = faNewCollectGroups(rule.run_cards);
+        const groups = faNewCollectGroups(rule.measurement_cards);
         if (!groups.general.length && !groups.objects.length) {
             const emptyRow = document.createElement('div');
             emptyRow.className = 'fa-new-empty';
@@ -534,12 +475,9 @@ function updateNewFrameAnalysisStatus(ls) {
     renderNewFrameAnalysis(report, ls);
 }
 
-function renderFrameAnalysisPanel() { return null; }
-
 if (typeof window !== 'undefined') {
     window.renderNewFrameAnalysis = renderNewFrameAnalysis;
     window.updateNewFrameAnalysisStatus = updateNewFrameAnalysisStatus;
     window.FA_RULE_NAMES = FA_RULE_NAMES;
-    window.renderFrameAnalysisPanel = renderFrameAnalysisPanel;
     window.faSyncScroll = faSyncScroll;
 }

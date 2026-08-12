@@ -32,7 +32,7 @@ METRIC_PARAM_LABELS = {
         "Макс. открытие заслонки, px",
     ("contacts_long", "gap_dev_max_px"):
         "Макс. разброс расстояний до пропуска, px",
-    # Дополнительные метрики контактов и omission для run_cards
+    # Дополнительные метрики контактов и omission для карточек замера
     ("long_omission", "max_excess_depth_px"):
         "Макс. глубина избытка, px",
     ("long_omission", "largest_component_px"):
@@ -850,32 +850,13 @@ def _skip_summary(per_role: dict) -> tuple:
     return f"Частично выполнено: {reasons}", False
 
 
-def _status_label(rule_name: str, triggered: bool, details: dict, consensus: dict):
+def _status_label(rule_name: str, triggered: bool, details: dict):
     """Итог правила для правой панели: текст и признак нейтрального статуса."""
     if rule_name == "part_presence" and details.get("empty_tray"):
-        label = "КОРПУС НЕ ОБНАРУЖЕН"
-        if consensus:
-            label += (
-                f" · {int(consensus.get('empty_votes') or 0)}/"
-                f"{int(consensus.get('runs') or 0)}"
-            )
-        return label, True
+        return "КОРПУС НЕ ОБНАРУЖЕН", True
     if rule_name == "part_presence":
-        if not consensus:
-            return None, False
-        return (
-            "КОРПУС ОБНАРУЖЕН · "
-            f"{int(consensus.get('present_votes') or 0)}/"
-            f"{int(consensus.get('runs') or 0)}"
-        ), False
-    if not consensus:
-        return None, False
-    votes_key = "triggered_votes" if triggered else "normal_votes"
-    return (
-        ("СРАБОТАЛО" if triggered else "НОРМА")
-        + f" · {int(consensus.get(votes_key) or 0)}/"
-        f"{int(consensus.get('runs') or 0)}"
-    ), False
+        return "КОРПУС ОБНАРУЖЕН", False
+    return ("СРАБОТАЛО" if triggered else "НОРМА"), False
 
 
 # === Упрощённые человеческие причины дефектов (для быстрого понимания оператором) ===
@@ -1081,103 +1062,24 @@ def _threshold_conclusion(
     return human_cause or "Правило сработало: проверьте причину и измерения"
 
 
-def _extract_vote_details(consensus: dict, rule_name: str) -> dict | None:
-    """Извлечь детали прогона для правила из consensus.
+def _fallback_role_status(cards: list) -> list:
+    """Статус замера из карточек, если отдельный role_status не пришёл.
 
-    Возвращает структуру с результатом прогона, evidence run для
-    отображения в UI.
+    По ``ok`` карточек: «В НОРМЕ» / «ОТКЛОНЕНИЕ» / «НЕТ ИЗМЕРЕНИЯ».
     """
-    if not isinstance(consensus, dict):
-        return None
-    
-    rules_meta = consensus.get("rules", {})
-    rule_meta = rules_meta.get(rule_name) if isinstance(rules_meta, dict) else None
-
-    # part_presence uses its own vocabulary (empty/present), so it does not
-    # have the ``rules[rule_name]`` entry used by defect rules.  Dropping the
-    # vote here made the UI show a blank/green badge for an empty tray.
-    if rule_name == PART_PRESENCE_RULE and (
-        "empty_votes" in consensus or "present_votes" in consensus
-    ):
-        empty_votes = int(consensus.get("empty_votes") or 0)
-        present_votes = int(consensus.get("present_votes") or 0)
-        decision = consensus.get("decision")
-        return {
-            "triggered_votes": empty_votes,
-            "normal_votes": present_votes,
-            "empty_votes": empty_votes,
-            "present_votes": present_votes,
-            "decision": decision,
-            "states": list(consensus.get("states") or []),
-            "source_run": consensus.get("source_run"),
-            "evidence_run": consensus.get("evidence_run"),
-            "agreement_scores": consensus.get("agreement_scores") or [],
-            "picture_run": consensus.get("picture_run"),
-            "picture_reason": consensus.get("picture_reason"),
-            "total_runs": int(consensus.get("runs") or 1),
-            "required_votes": int(consensus.get("required_votes") or 1),
-        }
-
-    if not isinstance(rule_meta, dict):
-        return None
-
-    # Базовые метрики
-    triggered_votes = int(rule_meta.get("triggered_votes") or 0)
-    normal_votes = int(rule_meta.get("normal_votes") or 0)
-    decision = rule_meta.get("decision")
-    states = rule_meta.get("states") or []
-    source_run = rule_meta.get("source_run")
-    evidence_run = rule_meta.get("evidence_run")
-
-    # Сводный размер набора решающих правил.
-    agreement_scores = consensus.get("agreement_scores") or []
-
-    # Выбранный кадр из metadata инспекции.
-    picture_run = consensus.get("picture_run")
-    picture_reason = consensus.get("picture_reason")
-
-    return {
-        "triggered_votes": triggered_votes,
-        "normal_votes": normal_votes,
-        "decision": decision,
-        "states": states,
-        "source_run": source_run,
-        "evidence_run": evidence_run,
-        "agreement_scores": agreement_scores,
-        "picture_run": picture_run,
-        "picture_reason": picture_reason,
-        "total_runs": int(consensus.get("runs") or 1),
-        "required_votes": int(consensus.get("required_votes") or 1),
-    }
-
-
-def _fallback_run_status(run_cards: list) -> list:
-    """Статус одиночного запуска из карточек замеров (без consensus).
-
-    Используется для ручных/демо-строк: по ``ok`` карточек прогона —
-    «В НОРМЕ» / «ОТКЛОНЕНИЕ» / «НЕТ ИЗМЕРЕНИЯ». Отличить «область не
-    построена» от «отклонение» по карточкам нельзя (нет причины) — для
-    production-путей статус приходит точный из consensus.
-    """
-    statuses = []
-    for cards in run_cards or []:
-        if not isinstance(cards, list) or not cards:
-            statuses.append([])
+    rows = []
+    for card in cards or []:
+        if not isinstance(card, dict):
             continue
-        rows = []
-        for card in cards:
-            if not isinstance(card, dict):
-                continue
-            ok = card.get("ok")
-            role = card.get("role", "")
-            if ok is True:
-                rows.append({"role": role, "status": "В НОРМЕ", "reason": None})
-            elif ok is False:
-                rows.append({"role": role, "status": "ОТКЛОНЕНИЕ", "reason": None})
-            else:
-                rows.append({"role": role, "status": "НЕТ ИЗМЕРЕНИЯ", "reason": None})
-        statuses.append(rows)
-    return statuses
+        ok = card.get("ok")
+        role = card.get("role", "")
+        if ok is True:
+            rows.append({"role": role, "status": "В НОРМЕ", "reason": None})
+        elif ok is False:
+            rows.append({"role": role, "status": "ОТКЛОНЕНИЕ", "reason": None})
+        else:
+            rows.append({"role": role, "status": "НЕТ ИЗМЕРЕНИЯ", "reason": None})
+    return rows
 
 
 def filter_rule_report_rows(rows) -> list:
@@ -1213,29 +1115,21 @@ def _filter_role_cards(cards, role: str) -> list:
     ]
 
 
-def _filter_run_cards(run_cards, role: str) -> list:
-    if not isinstance(run_cards, list):
-        return []
-    return [_filter_role_cards(cards, role) for cards in run_cards]
+def _filter_measurement_cards(cards, role: str) -> list:
+    return _filter_role_cards(cards, role)
 
 
-def _filter_run_status(run_status, role: str) -> list:
-    if not isinstance(run_status, list):
+def _filter_role_status(rows, role: str) -> list:
+    if not isinstance(rows, list):
         return []
-    filtered = []
-    for rows in run_status:
-        if not isinstance(rows, list):
-            filtered.append([])
-            continue
-        filtered.append([
-            row for row in rows
-            if isinstance(row, dict) and (
-                row.get("role") == role
-                # part_presence пишет общий статус role=INPUT — оставляем.
-                or row.get("role") in (None, "", "INPUT")
-            )
-        ])
-    return filtered
+    return [
+        row for row in rows
+        if isinstance(row, dict) and (
+            row.get("role") == role
+            # part_presence пишет общий статус role=INPUT — оставляем.
+            or row.get("role") in (None, "", "INPUT")
+        )
+    ]
 
 
 def _scope_presence_details(details: dict, role: str) -> dict:
@@ -1262,13 +1156,17 @@ def _scope_presence_details(details: dict, role: str) -> dict:
     return scoped
 
 
-def _scope_consensus_to_role(consensus: dict, role: str) -> dict:
-    """Оставить в consensus только карточки/статусы выбранной камеры."""
-    scoped = dict(consensus)
-    if "run_cards" in scoped:
-        scoped["run_cards"] = _filter_run_cards(scoped.get("run_cards"), role)
-    if "run_status" in scoped:
-        scoped["run_status"] = _filter_run_status(scoped.get("run_status"), role)
+def _scope_measurement_to_role(details: dict, role: str) -> dict:
+    """Оставить в details только карточки/статусы выбранной камеры."""
+    scoped = dict(details)
+    if "measurement_cards" in scoped:
+        scoped["measurement_cards"] = _filter_measurement_cards(
+            scoped.get("measurement_cards"), role,
+        )
+    if "role_status" in scoped:
+        scoped["role_status"] = _filter_role_status(
+            scoped.get("role_status"), role,
+        )
     return scoped
 
 
@@ -1304,9 +1202,7 @@ def scope_rule_result_to_role(result, role: str | None):
             if isinstance(role_details, dict) and "triggered" in role_details:
                 triggered = bool(role_details.get("triggered"))
 
-    consensus = details.get("consensus")
-    if isinstance(consensus, dict):
-        details["consensus"] = _scope_consensus_to_role(consensus, role)
+    details = _scope_measurement_to_role(details, role)
 
     return SimpleNamespace(
         rule_name=rule_name,
@@ -1357,10 +1253,6 @@ def build_rule_report_row(result) -> dict:
             if failure_rows:
                 detail = "; ".join(failure_rows)
 
-    consensus = details.get("consensus")
-    if not isinstance(consensus, dict):
-        consensus = {}
-
     if rule_name == "part_presence":
         detail = (
             "КОРПУС НЕ ОБНАРУЖЕН"
@@ -1368,7 +1260,6 @@ def build_rule_report_row(result) -> dict:
             else "Корпус обнаружен"
         )
 
-    # === НОВАЯ ПРОСТАЯ ПРИЧИНА ДЛЯ ОПЕРАТОРА ===
     human_cause = None
     if triggered:
         human_cause = get_human_cause(rule_name, triggered, details)
@@ -1376,9 +1267,7 @@ def build_rule_report_row(result) -> dict:
     if not detail:
         detail = human_cause or ("Сработало" if triggered else "Норма")
 
-    status_label, neutral = _status_label(
-        rule_name, triggered, details, consensus,
-    )
+    status_label, neutral = _status_label(rule_name, triggered, details)
 
     part_absent = bool(
         rule_name == PART_PRESENCE_RULE and details.get("empty_tray")
@@ -1410,21 +1299,21 @@ def build_rule_report_row(result) -> dict:
     # как в панели «Пороги правил»; без сопоставления остаётся название
     # самой метрики.
     import copy
-    run_cards = copy.deepcopy(consensus.get("run_cards") or [])
-    for cards in run_cards:
-        for card in cards:
-            for metric in card.get("metrics") or []:
-                key = metric.get("key")
-                if not key:
-                    continue
-                label = METRIC_PARAM_LABELS.get((rule_name, key))
-                if label:
-                    metric["label"] = label
+    cards = copy.deepcopy(details.get("measurement_cards") or summary_cards)
+    if not isinstance(cards, list):
+        cards = []
+    for card in cards:
+        if not isinstance(card, dict):
+            continue
+        for metric in card.get("metrics") or []:
+            key = metric.get("key")
+            if not key:
+                continue
+            label = METRIC_PARAM_LABELS.get((rule_name, key))
+            if label:
+                metric["label"] = label
 
-    # Статус области по прогонам («ОБЛАСТЬ НЕ ПОСТРОЕНА» и т.п.). В
-    # production-путях приходит из consensus (см. combine_rule_results);
-    # для ручных/демо-строк выводим из карточек замеров.
-    run_status = consensus.get("run_status") or _fallback_run_status(run_cards)
+    role_status = details.get("role_status") or _fallback_role_status(cards)
 
     return {
         "name": result.rule_name,
@@ -1438,16 +1327,10 @@ def build_rule_report_row(result) -> dict:
         "detail_lines": detail_lines,
         "summary_lines": summary_lines,
         "summary_cards": summary_cards,
-        # Замер порога (для анализа кадра).
-        "run_cards": run_cards,
-        # Статус области по прогонам (для fail-closed дефектов).
-        "run_status": copy.deepcopy(run_status),
-        # Значения, не прошедшие проверку, их пороги и итог для HMI.
+        "measurement_cards": cards,
+        "role_status": copy.deepcopy(role_status),
         "threshold_breaches": threshold_breaches,
         "threshold_conclusion": threshold_conclusion,
-        # Детали прогона для UI анализа кадра.
-        "vote_details": _extract_vote_details(consensus, rule_name),
         "part_absent": part_absent,
         "decisive": bool(part_absent or triggered or skipped),
-        "consensus": dict(consensus),
     }

@@ -1,5 +1,3 @@
-import time
-
 from domain.part import CATEGORY_BAD, CATEGORY_CLEANUP, CATEGORY_GOOD
 
 
@@ -13,14 +11,16 @@ class Distributor:
     DIST2 (axis 1) выбирает канал только для корпуса, переданного DIST1:
     ``dist2_bad_position`` — BAD, ``dist2_cleanup_position`` — CLEANUP.
 
-    Маршрут всегда готовится *до* команды движения ленты. При смене DIST2
-    DIST1 сначала возвращается в GOOD=0: направляющая никогда не движется,
-    когда первая заслонка направляет корпус на неё.
+    Маршрут всегда готовится *до* команды движения ленты. Следующая смена
+    заслонок возможна только на ``ROUTE_PREPARE`` следующего шага — после
+    того, как выбрасывающий шаг полностью завершился. Отдельной паузы на
+    падение корпуса нет. При смене DIST2 DIST1 сначала возвращается в
+    GOOD=0: направляющая никогда не движется, когда первая заслонка
+    направляет корпус на неё.
     """
 
     def __init__(self, dist1_axis, dist2_axis, dist1_open_position: int,
-                 dist2_bad_position: int, dist2_cleanup_position: int,
-                 drop_time: float = 0.8):
+                 dist2_bad_position: int, dist2_cleanup_position: int):
         if type(dist1_open_position) is not int or dist1_open_position <= 0:
             raise ValueError("dist1_open_position должен быть положительным int")
         if type(dist2_bad_position) is not int or dist2_bad_position < 0:
@@ -34,7 +34,6 @@ class Distributor:
         self.dist1_open_position = dist1_open_position
         self.dist2_bad_position = dist2_bad_position
         self.dist2_cleanup_position = dist2_cleanup_position
-        self.drop_time = drop_time
         self.dist1_state = "GOOD"
         self.dist2_state = "IDLE"
         self.dist2_target = CATEGORY_BAD
@@ -125,12 +124,14 @@ class Distributor:
         self._notify()
 
     def confirm_transfer(self, part_id: int, category: str):
-        """Подтвердить уход корпуса после остановки ленты без смены маршрута."""
+        """Подтвердить уход корпуса после остановки ленты без смены маршрута.
+
+        Заслонки здесь не двигаются: следующая смена возможна только в
+        ``prepare_route`` следующего шага, когда выбрасывающий шаг уже
+        полностью завершён. Ждать отдельное время падения не нужно.
+        """
         if category not in (CATEGORY_GOOD, CATEGORY_BAD, CATEGORY_CLEANUP):
             raise ValueError(f"Unsupported completed category: {category}")
-        self._check_cancelled()
-        if self.drop_time:
-            time.sleep(self.drop_time)
         self._check_cancelled()
         self.last_action = f"PART #{part_id} -> {category} DONE"
         self._notify()

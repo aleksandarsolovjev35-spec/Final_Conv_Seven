@@ -80,8 +80,6 @@ def setup_api_routes(app, server):
                 "active_camera": server.active_camera_role,
                 "thresholds_revision": server.thresholds_revision,
                 "archive": server.archive_status_payload(),
-                # Число наборов кадров текущей стадии (0 или 1).
-                "frame_runs": server.get_frame_count(),
             })
 
     @app.get("/api/mode")

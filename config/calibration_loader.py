@@ -8,7 +8,6 @@ DEFAULTS = {
     "dist1_open_position":    340,
     "dist2_bad_position":     0,
     "dist2_cleanup_position": 340,
-    "drop_time":              0.8,
     "axis_speed":             300,
     "axis_accel":             100,
     "micro_steps":            500,
@@ -31,7 +30,7 @@ OPTIONAL_DEFAULTS = {
     "review_time": 2.0,
 }
 
-_FLOAT_KEYS = ("drop_time", "settle_time", "stage_trace_time", "review_time")
+_FLOAT_KEYS = ("settle_time", "stage_trace_time", "review_time")
 _INTEGER_KEYS = tuple(key for key in DEFAULTS if key not in _FLOAT_KEYS)
 
 
@@ -75,8 +74,6 @@ def _validate(data: dict) -> dict:
         raise ValueError("Позиции DIST2 не могут быть отрицательными")
     if data["dist2_bad_position"] == data["dist2_cleanup_position"]:
         raise ValueError("BAD и CLEANUP позиции должны различаться")
-    if not 0.05 <= float(data["drop_time"]) <= 30.0:
-        raise ValueError("drop_time должен быть в диапазоне 0.05..30 секунд")
     if not 0.0 <= float(data["settle_time"]) <= 5.0:
         raise ValueError("settle_time должен быть в диапазоне 0..5 секунд")
     if not 0.0 <= float(data["stage_trace_time"]) <= 5.0:

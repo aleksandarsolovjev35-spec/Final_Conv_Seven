@@ -368,7 +368,6 @@ function updateLineStatus(ls) {
 
     updateJogState(ls.jog || null);
     updateStateOverlay(ls);
-    updateJogHardware(ls);
     handleJogAutoToggle(lineState, ls.jog || null);
 
     if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();

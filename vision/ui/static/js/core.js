@@ -18,7 +18,6 @@ const LIVE_CAM_MIN_GAP     = 1000 / 30;
 
 const JOG_ALLOWED_STATES = ["IDLE", "STOPPED", "PAUSED"];
 const JOG_HEARTBEAT_INTERVAL = 100;
-const EXPECTED_CAMERAS = 7;
 
 const CAMERA_ROLE_LABELS = {
     INPUT_LEFT:   'ВХОД · СЛЕВА',
@@ -107,11 +106,6 @@ const state = {
     selectedAnalysisRole:   null,
     selectedAnalysisPending: false,
 
-    frameAnalysisRulesCache: null,
-    frameAnalysisRulesFilter: 'triggered',
-    frameAnalysisModelsCache: null,
-    lastFrameAnalysisRenderKey: null,
-
     liveFps:              0.0,
     // Backend сообщает целевой режим, но изображение меняется асинхронно.
     // Бейдж использует displayedFrameKind — режим кадра, уже загруженного в
@@ -132,7 +126,6 @@ const state = {
     activeCameraRequestBusy: false,
     thresholdsRevision:   null,
 
-    pictureRun: 0,
     mainCamMode:          'pull',
     mainCamStreamRole:    null,
     mainCamStreamView:    null,
@@ -213,20 +206,9 @@ const els = {
     processPhaseCode: $('process-phase-code'),
     processPhaseStep: $('process-phase-step'),
     processStageTrack: $('process-stage-track'),
-    defectsSection:   $('defects-section'),
-    defectsTitle:     $('defects-title'),
-    defectsList:      $('defects-list'),
 
     jogPanel:         $('jog-panel'),
-    jogLastAction:    $('jog-last-action'),
 
-    jogHwSerial:      $('jog-hw-serial'),
-    jogHwCameras:     $('jog-hw-cameras'),
-    jogHwConveyor:    $('jog-hw-conveyor'),
-    jogHwDist1:       $('jog-hw-dist1'),
-    jogHwDist2:       $('jog-hw-dist2'),
-
-    frameAnalysisPanelNew: $('frame-analysis-panel'),
     frameAnalysisPanel: $('frame-analysis-panel'),
 
     archiveSettingsOpen: $('archive-settings-open'),
@@ -239,8 +221,6 @@ const els = {
     archiveSettingsSave: $('archive-settings-save'),
     archiveRootPath: $('archive-root-path'),
     archiveJpegQuality: $('archive-jpeg-quality'),
-    archiveZipCompression: $('archive-zip-compression'),
-    archiveZipLevel: $('archive-zip-level'),
     archiveEnabled: $('archive-enabled'),
     archiveCompressOnShutdown: $('archive-compress-on-shutdown'),
     archiveDeleteOriginal: $('archive-delete-original'),
@@ -448,19 +428,6 @@ function distributorActionLabel(value) {
         .replace('CLEANUP', 'ОЧИСТКА')
         .replace('EMERGENCY STOP', 'АВАРИЙНАЯ ОСТАНОВКА');
 }
-function jogActionLabel(value) {
-    if (!value || value === '-') return '—';
-    const text = String(value);
-    if (text === 'HOLD RIGHT') return 'ДВИЖЕНИЕ ВПРАВО';
-    if (text === 'HOLD LEFT') return 'ДВИЖЕНИЕ ВЛЕВО';
-    if (text.startsWith('ERR:')) return `ОШИБКА:${text.slice(4)}`;
-    if (text.startsWith('STOP:')) {
-        if (text.includes('heartbeat timeout')) return 'ОСТАНОВЛЕНО: ПОТЕРЯ СИГНАЛА УДЕРЖАНИЯ';
-        return 'ОСТАНОВЛЕНО';
-    }
-    return text.replace('UI ONLY', 'ДЕМО-РЕЖИМ');
-}
-
 // Немедленный статус — отменяет запланированный тик и делает внеплановый запрос
 let _statusLoopTimer = null;
 let _statusImmediatePending = false;

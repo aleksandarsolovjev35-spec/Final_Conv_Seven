@@ -1,21 +1,14 @@
 /* blocks.css — блок анализа кадра и общие анти-переполнения */
 [data-ui-block] { min-width: 0; min-height: 0; isolation: isolate; }
 [data-ui-block] :where(h1, h2, h3, strong, span, b, small, button) { min-width: 0; }
-[data-ui-block] :where(.ui-text-clip,.title,.state-label,.metrics>span,.preview-cam-label,.camera-label,.mode-badge,.process-line-title,.history-title,.process-phase-title,.history-card-id,.history-card-symbol,.accordion-header span,.stats-label,.stats-service-label,.stats-service-value,.distributor-title,.axis-name,.axis-state,.axis-route span,.axis-route b,.axis-action,.jog-title,.jog-action,.jog-hint,.fa-title,.fa-verdict,.fa-rules-title,.fa-card-title,.dist-route,.hotkeys,.gallery-title,.gallery-meta>span,.gallery-card-label,.gallery-defects-items,.calibration-title-block h1,.calibration-title-block span,.calibration-state,.calibration-counter span,.panel-heading h2,.step-counter,.assigned-count,.candidate-position span,.role-name strong,.role-name span,.role-camera,.config-path,.calibration-footer>span) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-[data-ui-block] :where(.camera-overlay-sub,.control-error,.fa-picture,.fa-thr-label,.fa-detail-row,.review-message,.fatal-error,.saved-message,.preview-error,.gallery-defects) { overflow-wrap: anywhere; }
+[data-ui-block] :where(.ui-text-clip,.title,.state-label,.metrics>span,.preview-cam-label,.camera-label,.mode-badge,.process-line-title,.history-title,.process-phase-title,.history-card-id,.history-card-symbol,.accordion-header span,.stats-label,.stats-service-label,.stats-service-value,.distributor-title,.axis-name,.axis-state,.axis-route span,.axis-route b,.axis-action,.jog-title,.fa-new-verdict,.fa-new-rule-name,.dist-route,.hotkeys,.gallery-title,.gallery-meta>span,.gallery-card-label,.gallery-defects-items,.calibration-title-block h1,.calibration-title-block span,.calibration-state,.calibration-counter span,.panel-heading h2,.step-counter,.assigned-count,.candidate-position span,.role-name strong,.role-name span,.role-camera,.config-path,.calibration-footer>span) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-ui-block] :where(.camera-overlay-sub,.control-error,.review-message,.fatal-error,.saved-message,.preview-error,.gallery-defects) { overflow-wrap: anywhere; }
 [data-ui-block="calibration-assignment"] { scrollbar-gutter: stable; }
 [data-ui-block="main-camera"] { contain: layout paint; }
 [data-ui-block="process-line"] { contain: layout paint style; }
 [data-ui-block="operator-footer"] .buttons,[data-ui-block="camera-controls"],[data-ui-block="gallery"] .gallery-header,[data-ui-block="calibration-header"],[data-ui-block="calibration-footer"] { min-width: 0; }
 
-/* Legacy compat hidden */
-#frame-analysis-rules-scroll .fa-measurements,
-#frame-analysis-rules-scroll .fa-group,
-#frame-analysis-rules-scroll .fa-threshold,
-.frame-analysis-rules-scroll,
-#frame-analysis-models-scroll .frame-analysis-list { display: none; }
-
-/* === НОВЫЙ АНАЛИЗ КАДРА — переработанный, без лишних обводок === */
+/* === Анализ кадра === */
 
 .frame-analysis-panel-new {
     display: flex;
@@ -205,7 +198,6 @@
 }
 .fa-new-meas.is-ok   { color: var(--text-dim); background: transparent; }
 .fa-new-meas.is-bad  { color: var(--bad); background: var(--bad-bg); }
-.fa-new-meas.is-pic  { background: rgba(120,153,165,0.12); color: var(--accent); }
 .fa-new-meas:focus { outline: none; }
 .fa-new-meas:focus-visible { outline: none; }
 
@@ -311,44 +303,6 @@
     outline-offset: 2px;
 }
 .fa-new-scroll-track.is-idle { display: none; }
-
-/* Статистика корпусов — компактно, без лишних рамок у ячеек */
-.fa-new-stats {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1px;
-    flex: 0 0 auto;
-    padding: 0;
-    background: var(--border);
-    border-top: 1px solid var(--border);
-}
-.fa-new-stats-cell {
-    display: flex;
-    align-items: baseline;
-    justify-content: center;
-    gap: 4px;
-    padding: 5px 4px;
-    background: var(--bg-1);
-    color: var(--text-muted);
-    font: 700 7px var(--font-mono);
-    letter-spacing: 0.3px;
-    white-space: nowrap;
-    overflow: hidden;
-    border: none;
-}
-.fa-new-stats-cell b {
-    font: 700 11px var(--font-mono);
-    color: var(--text);
-}
-.fa-new-stats-cell.ok b   { color: var(--ok); }
-.fa-new-stats-cell.bad b  { color: var(--bad); }
-.fa-new-stats-cell.warn b { color: var(--warn); }
-
-/* === Legacy блоки (совместимость) — скрыты или упрощены === */
-.frame-analysis-panel { display: none; }
-.fa-thr-item { border: none; }
-.fa-thr-value { cursor: default; }
-.fa-thr-value:hover { border-color: var(--border); }
 
 /* Микро-анимации отключены для замеров — стабильность важнее */
 @media (prefers-reduced-motion: reduce) {
