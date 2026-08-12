@@ -1486,6 +1486,9 @@ class ProductionCycle:
         if part is None:
             return
         category = part.route_category
+        # Шаг ленты уже закончился. Заслонки остаются как есть до
+        # ROUTE_PREPARE следующего шага, поэтому ждать падение отдельно
+        # не нужно: к следующей смене маршрута корпус давно ушёл.
         self.distributor.confirm_transfer(part.id, category)
         if category == CATEGORY_GOOD:
             self.good_count += 1
