@@ -1,7 +1,8 @@
 """Пакет ядра линии.
 
 Импорты ленивые: ``from core.production_cycle import ProductionCycle``
-не должен тянуть YOLO/OpenCV через DecisionEngine.
+(или ``from core.cycle import ProductionCycle``) не должен тянуть
+YOLO/OpenCV через DecisionEngine.
 """
 
 __all__ = [

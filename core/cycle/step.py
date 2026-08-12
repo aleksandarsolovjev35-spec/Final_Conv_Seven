@@ -24,13 +24,6 @@ class CycleStepMixin:
         if self._cancel_motion.is_set() or self.sm.force_exit:
             raise RuntimeError("physical operation cancelled")
 
-    # Статическая фаза шага
-
-    # Core step
-
-
-    # Статическая фаза шага
-
     # Core step
 
     def _run_once(self):
@@ -69,7 +62,10 @@ class CycleStepMixin:
         self._inspection_display_roles = ()
         # Разметка прошлого шага построена по статичному кадру и на
         # движущемся изображении указывала бы мимо детали.
-        self.live.clear_overlays()
+        try:
+            self.live.clear_overlays()
+        except Exception as exc:
+            print(f"[LIVE] Не удалось снять разметку: {exc}")
 
         if self._await_initial_inspection:
             # Деталь уже стоит под входными камерами: сначала её контроль,
@@ -160,14 +156,16 @@ class CycleStepMixin:
                     "Вход: модели и правила по свежему кадру",
                 )
                 result = self._process_input_stage(frames)
-            else:
+            elif name == "SPIDER":
                 self._set_process(
                     "SPIDER_CHECK",
                     "Проверка корпуса на +4: свежий кадр",
                 )
                 result = self._run_spider_inspection(frames)
+            else:
+                raise RuntimeError(f"Неизвестная стадия инспекции: {name}")
             if result is not None:
-                display_frames.update(result.raw_frames)
+                display_frames.update(result.raw_frames or {})
                 self._refresh_monitor(display_frames)
             self._check_motion_cancelled()
         return display_frames
@@ -252,10 +250,7 @@ class CycleStepMixin:
         self._set_process("STEP_COMPLETE", "Шаг полностью завершён")
         self._refresh_monitor(display_frames)
 
-    # Пауза в рабочем цикле
-
-
-    # Пауза в рабочем цикле
+    # Пауза
 
     def _check_pause_barrier(self):
         """Пауза после полной остановки шага и до работы нейронок.
@@ -306,7 +301,10 @@ class CycleStepMixin:
         # Пауза происходит ДО анализа изображения. Разметка предыдущего
         # шага построена по статичному кадру и на live-изображении из JOG
         # указывала бы мимо детали — убираем её немедленно.
-        self.live.clear_overlays()
+        try:
+            self.live.clear_overlays()
+        except Exception as exc:
+            print(f"[LIVE] Не удалось снять разметку: {exc}")
         print("[PAUSE] линия остановлена на границе шага после полной остановки")
         self._set_process(
             "PAUSED",
@@ -318,12 +316,12 @@ class CycleStepMixin:
         if not self._pause_frame_active:
             return
         self._pause_frame_active = False
-        self.exit_jog()
+        try:
+            self.exit_jog()
+        except Exception as exc:
+            print(f"[PAUSE] Не удалось выйти из JOG: {exc}")
 
-    # Input stage
-
-
-    # Input stage
+    # INPUT
 
     def _process_input_stage(self, frames):
         """Обработать INPUT по свежему кадру."""
@@ -348,7 +346,7 @@ class CycleStepMixin:
             # на пустом лотке.
             for role in self.inspector.INPUT_ROLES:
                 self._last_vision_results[role] = []
-            self._last_rule_results.extend(result.rule_results)
+            self._last_rule_results.extend(result.rule_results or [])
             self._set_process(
                 "INPUT_RESULT_RECORDED",
                 "INPUT: пустой лоток записан",
@@ -371,16 +369,10 @@ class CycleStepMixin:
         self._record_frame_analysis("INPUT", part.id, result)
         print(f"[INPUT] Деталь #{part.id}")
 
-        self._last_vision_results.update(result.vision_results)
-        self._last_rule_results.extend(result.rule_results)
+        self._last_vision_results.update(result.vision_results or {})
+        self._last_rule_results.extend(result.rule_results or [])
 
-        if self.archive:
-            self.archive.store_frames(
-                part_id=part.id,
-                raw_frames=result.raw_frames,
-                annotated_frames=result.annotated,
-                raw_overlay_frames=result.raw_overlay_frames,
-            )
+        self._store_stage_frames(part.id, result)
         self._set_process(
             "INPUT_RESULT_RECORDED",
             "INPUT: решение стадии записано",
@@ -393,10 +385,7 @@ class CycleStepMixin:
         )
         return result
 
-    # Inspection
-
-
-    # Inspection
+    # SPIDER/TOP
 
     def _run_spider_inspection(self, frames):
         for part in self.parts:
@@ -421,16 +410,9 @@ class CycleStepMixin:
             part.mark_spider_done()
             self._record_frame_analysis("SPIDER", part.id, result)
 
-            self._last_vision_results.update(result.vision_results)
-            self._last_rule_results.extend(result.rule_results)
-
-            if self.archive:
-                self.archive.store_frames(
-                    part_id=part.id,
-                    raw_frames=result.raw_frames,
-                    annotated_frames=result.annotated,
-                    raw_overlay_frames=result.raw_overlay_frames,
-                )
+            self._last_vision_results.update(result.vision_results or {})
+            self._last_rule_results.extend(result.rule_results or [])
+            self._store_stage_frames(part.id, result)
             self._set_process(
                 "SPIDER_RESULT_RECORDED",
                 "SPIDER/TOP: окончательное решение записано",
@@ -448,10 +430,7 @@ class CycleStepMixin:
         self._frame_analysis_groups["SPIDER"] = self._empty_frame_analysis_entry()
         return None
 
-    # Distributor flow
-
-
-    # Distributor flow
+    # Распределитель
 
     def _find_pending_drop(self):
         """Вернуть корпус на +7, который на следующем шаге пройдёт заслонки."""
@@ -492,6 +471,11 @@ class CycleStepMixin:
         elif category == CATEGORY_CLEANUP:
             self.cleanup_count += 1
             print(f"[CLEANUP] #{part.id} -> CLEANUP ({self.cleanup_count})")
+        else:
+            print(f"[WARN] Деталь #{part.id} неизвестная категория {category} -> BAD")
+            part.route_category = CATEGORY_BAD
+            category = CATEGORY_BAD
+            self.bad_count += 1
         self._archive_part(part)
         self._set_process(
             "FINAL_DECISION_ARCHIVED",
@@ -502,4 +486,18 @@ class CycleStepMixin:
         self._remove_part(part)
         self._pending_drop = None
 
-    # Archive
+
+    def _store_stage_frames(self, part_id, result):
+        """Кадры стадии в архив. Сбой диска не откатывает решение Part."""
+        if not self.archive or result is None:
+            return
+        try:
+            self.archive.store_frames(
+                part_id=part_id,
+                raw_frames=result.raw_frames or {},
+                annotated_frames=result.annotated or {},
+                raw_overlay_frames=result.raw_overlay_frames or {},
+            )
+        except Exception as exc:
+            print(f"[ARCHIVE] Не удалось сохранить кадры #{part_id}: {exc}")
+

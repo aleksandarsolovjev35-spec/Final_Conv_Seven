@@ -115,4 +115,3 @@ class CycleJogMixin:
             self._refresh_monitor()
         return accepted
 
-    # Живой просмотр камер

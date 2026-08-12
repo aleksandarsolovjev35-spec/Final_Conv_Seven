@@ -39,7 +39,7 @@ class CycleStatusMixin:
         """
         self._frame_analysis_groups[group] = {
             "part_id": part_id,
-            "rule_results": list(result.rule_results),
+            "rule_results": list(getattr(result, "rule_results", None) or []),
             "updated_at": time.time(),
         }
 
@@ -89,7 +89,7 @@ class CycleStatusMixin:
             # Показываются только правила и замеры этой камеры, а не
             # всей группы (INPUT / SPIDER / TOP).
             group = self._active_frame_analysis_group()
-            entry = self._frame_analysis_groups[group]
+            entry = self._frame_analysis_groups.get(group) or self._empty_frame_analysis_entry()
             stage_label = "ВХОД" if group == "INPUT" else "КОНТРОЛЬ +4"
             try:
                 active_role = self._get_active_camera_role()
@@ -274,19 +274,23 @@ class CycleStatusMixin:
 
 
     def _refresh_monitor(self, frames: dict | None = None):
+        """Публикация в HMI. Сбой UI не должен ронять физический шаг."""
         if not self.monitor:
             return
-        status = self._build_status()
-        if frames:
-            self.monitor.update(
-                frames=frames,
-                vision_results=self._last_vision_results,
-                rule_results=self._last_rule_results,
-                line_status=status,
-                recent_parts=list(self.recent_parts),
-            )
-        else:
-            self.monitor.update(
-                line_status=status,
-                recent_parts=list(self.recent_parts),
-            )
+        try:
+            status = self._build_status()
+            if frames:
+                self.monitor.update(
+                    frames=frames,
+                    vision_results=self._last_vision_results,
+                    rule_results=self._last_rule_results,
+                    line_status=status,
+                    recent_parts=list(self.recent_parts),
+                )
+            else:
+                self.monitor.update(
+                    line_status=status,
+                    recent_parts=list(self.recent_parts),
+                )
+        except Exception as exc:
+            print(f"[UI] Не удалось опубликовать статус: {exc}")

@@ -214,12 +214,10 @@ class CycleDiagnosticsMixin:
         self._refresh_monitor()
 
     @staticmethod
-
     def _rule_report_row(result) -> dict:
         return build_rule_report_row(result)
 
     @staticmethod
-
     def _rule_report_rows(results, role: str | None = None) -> list:
         return build_rule_report_rows(results, role=role)
 
@@ -351,7 +349,10 @@ class CycleDiagnosticsMixin:
         except Exception as exc:
             self._selected_analysis_active = False
             self._selected_analysis_role = None
-            self.live.resume()
+            try:
+                self.live.resume()
+            except Exception as resume_exc:
+                print(f"[LIVE] resume after selected analysis failed: {resume_exc}")
             self._set_diagnostic_error("SELECTED_MODEL", exc)
             self._handle_fault(f"Ошибка анализа выбранного кадра: {exc}")
             raise
@@ -384,7 +385,10 @@ class CycleDiagnosticsMixin:
             # Убрать геометрию анализа с экрана: разметка построена по
             # статичному кадру и на движущемся изображении указывала бы
             # мимо детали (эффект маркера на лобовом стекле).
-            self.live.clear_overlays()
+            try:
+                self.live.clear_overlays()
+            except Exception:
+                pass
             try:
                 fresh_frames = self.cameras.capture_all()
                 # Публикуем свежие кадры без оверлеев — возврат к живому виду.

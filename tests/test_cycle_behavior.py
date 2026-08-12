@@ -357,6 +357,28 @@ class CycleBehaviorTest(unittest.TestCase):
         self.assertTrue(status["controls"]["stop"])
         self.assertTrue(status["controls"]["pause"])
 
+    def test_monitor_error_does_not_fault_step(self):
+        cycle, log = make_cycle(with_monitor=True)
+        cycle.monitor.update = lambda **kwargs: (_ for _ in ()).throw(RuntimeError("ui down"))
+        cycle.sm._state = State.RUNNING
+        cycle._await_initial_inspection = True
+        cycle._run_once_safe()
+        self.assertEqual(cycle.state, "RUNNING")
+        self.assertEqual(cycle.part_counter, 1)
+
+    def test_archive_store_error_keeps_part(self):
+        cycle, log = make_cycle()
+
+        def boom(**kwargs):
+            raise RuntimeError("disk full")
+
+        cycle.archive.store_frames = boom
+        cycle.sm._state = State.RUNNING
+        cycle._await_initial_inspection = True
+        cycle._run_once_safe()
+        self.assertEqual(cycle.state, "RUNNING")
+        self.assertEqual(len(cycle.parts), 1)
+
     def test_force_exit_cancels_motion(self):
         cycle, log = make_cycle()
         cycle.request_start()

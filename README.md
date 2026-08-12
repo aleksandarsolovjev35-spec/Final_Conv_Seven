@@ -583,12 +583,14 @@ G-коды конвейера `G0..G13`, оси `G20..G33`, информация
 main.py                 точка входа и порядок инициализации
 ui_simulation.py        автономный симулятор UI без оборудования
 config/                 загрузка и проверка JSON-конфигурации
-core/                   state machine, фазы шага, production-цикл по частям, отчёты
-  production_cycle.py   оркестратор: пуск/стоп, главный цикл, авария, архив
-  cycle_step.py         один шаг: движение, settle, инспекция, ревью, выброс
-  cycle_diagnostics.py  предстартовые проверки камер, правил и DIST
-  cycle_jog.py          ручной ход ленты
-  cycle_status.py       снимок линии и публикация в HMI
+core/                   state machine, фазы шага, отчёты
+  cycle/                производственный цикл целиком
+    orchestrator.py     пуск/стоп, главный цикл, авария, архив
+    step.py             один шаг: движение, инспекция, ревью, выброс
+    diagnostics.py      предстартовые проверки камер, правил и DIST
+    jog.py              ручной ход ленты
+    status.py           снимок линии и публикация в HMI
+  production_cycle.py   совместимый импорт ProductionCycle
 domain/
   defect_rules/         геометрические правила и маршрутизация дефектов
   geometry/             геометрические примитивы и fitting
