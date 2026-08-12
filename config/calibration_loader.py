@@ -15,12 +15,6 @@ DEFAULTS = {
     "normal_steps":           19048,
 }
 
-# Устаревшие ключи: принимаются в файле старых установок и отбрасываются.
-# drop_time ждал падения корпуса после шага. Распределитель меняет
-# положение только в prepare_route следующего шага — после полного
-# завершения текущего, поэтому отдельная пауза не нужна.
-LEGACY_IGNORED_KEYS = frozenset({"drop_time"})
-
 # Необязательные тайминги получают значения по умолчанию.
 OPTIONAL_DEFAULTS = {
     # Пауза между подтверждённой остановкой ленты и первым кадром
@@ -43,10 +37,6 @@ _INTEGER_KEYS = tuple(key for key in DEFAULTS if key not in _FLOAT_KEYS)
 def _validate(data: dict) -> dict:
     if not isinstance(data, dict):
         raise ValueError("calibration.json должен содержать объект")
-    data = {
-        key: value for key, value in data.items()
-        if key not in LEGACY_IGNORED_KEYS
-    }
     missing = set(DEFAULTS) - set(data)
     extra = set(data) - set(DEFAULTS) - set(OPTIONAL_DEFAULTS)
     if missing or extra:

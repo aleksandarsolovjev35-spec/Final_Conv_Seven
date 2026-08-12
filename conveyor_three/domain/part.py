@@ -34,9 +34,6 @@ class Part:
         self.final_decision: str = "none"
         self.route_category: str = CATEGORY_UNKNOWN
 
-        # Аудит инспекции (метаданные прогона для HMI и архива).
-        self.inspection_consensus: dict = {}
-
     # Совместимость с интерфейсом семикамерного ProductionCycle/архива.
     @property
     def input_defects(self) -> list:

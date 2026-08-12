@@ -81,32 +81,13 @@ def rule_applies_to_role(rule_name: str, role: str | None) -> bool:
     return role in roles
 
 
-def _status_label(rule_name: str, triggered: bool, details: dict, consensus: dict):
+def _status_label(rule_name: str, triggered: bool, details: dict):
     """Итог правила для правой панели: текст и признак нейтрального статуса."""
     if rule_name == PART_PRESENCE_RULE and details.get("empty_tray"):
-        label = "ДЕТАЛЬ НЕ ОБНАРУЖЕНА"
-        if consensus:
-            label += (
-                f" · {int(consensus.get('empty_votes') or 0)}/"
-                f"{int(consensus.get('runs') or 0)}"
-            )
-        return label, True
+        return "ДЕТАЛЬ НЕ ОБНАРУЖЕНА", True
     if rule_name == PART_PRESENCE_RULE:
-        if not consensus:
-            return None, False
-        return (
-            "ДЕТАЛЬ ОБНАРУЖЕНА · "
-            f"{int(consensus.get('present_votes') or 0)}/"
-            f"{int(consensus.get('runs') or 0)}"
-        ), False
-    if not consensus:
-        return None, False
-    votes_key = "triggered_votes" if triggered else "normal_votes"
-    return (
-        ("СРАБОТАЛО" if triggered else "НОРМА")
-        + f" · {int(consensus.get(votes_key) or 0)}/"
-        f"{int(consensus.get('runs') or 0)}"
-    ), False
+        return "ДЕТАЛЬ ОБНАРУЖЕНА", False
+    return ("СРАБОТАЛО" if triggered else "НОРМА"), False
 
 
 def _detail_lines(rule_name: str, per_role: dict) -> list:
@@ -170,17 +151,6 @@ def _threshold_conclusion(triggered: bool, human_cause, breaches) -> str | None:
     return "Сработало"
 
 
-def _extract_vote_details(consensus: dict, rule_name: str) -> dict:
-    if not isinstance(consensus, dict) or not consensus:
-        return {}
-    return {
-        "runs": consensus.get("runs"),
-        "triggered_votes": consensus.get("triggered_votes"),
-        "normal_votes": consensus.get("normal_votes"),
-        "decision": consensus.get("decision"),
-    }
-
-
 def _fallback_run_status(run_cards) -> list:
     if not run_cards:
         return []
@@ -200,39 +170,6 @@ def _fallback_run_status(run_cards) -> list:
             rows.append({"role": card.get("role"), "status": status, "reason": None})
         status_rows.append(rows)
     return status_rows
-
-
-def _filter_role_cards(cards, role: str) -> list:
-    if not isinstance(cards, list):
-        return []
-    return [
-        card for card in cards
-        if isinstance(card, dict) and card.get("role") == role
-    ]
-
-
-def _filter_run_cards(run_cards, role: str) -> list:
-    if not isinstance(run_cards, list):
-        return []
-    return [_filter_role_cards(cards, role) for cards in run_cards]
-
-
-def _filter_run_status(run_status, role: str) -> list:
-    if not isinstance(run_status, list):
-        return []
-    filtered = []
-    for rows in run_status:
-        if not isinstance(rows, list):
-            filtered.append([])
-            continue
-        filtered.append([
-            row for row in rows
-            if isinstance(row, dict) and (
-                row.get("role") == role
-                or row.get("role") in (None, "", "INPUT")
-            )
-        ])
-    return filtered
 
 
 def _scope_presence_details(details: dict, role: str) -> dict:
@@ -259,16 +196,6 @@ def _scope_presence_details(details: dict, role: str) -> dict:
     return scoped
 
 
-def _scope_consensus_to_role(consensus: dict, role: str) -> dict:
-    """Оставить в consensus только карточки/статусы выбранной камеры."""
-    scoped = dict(consensus)
-    if "run_cards" in scoped:
-        scoped["run_cards"] = _filter_run_cards(scoped.get("run_cards"), role)
-    if "run_status" in scoped:
-        scoped["run_status"] = _filter_run_status(scoped.get("run_status"), role)
-    return scoped
-
-
 def scope_rule_result_to_role(result, role: str | None):
     """Срез RuleResult до данных одной камеры."""
     if not role or result is None:
@@ -292,10 +219,6 @@ def scope_rule_result_to_role(result, role: str | None):
             details["per_role"] = {role: role_details}
             if isinstance(role_details, dict) and "triggered" in role_details:
                 triggered = bool(role_details.get("triggered"))
-
-    consensus = details.get("consensus")
-    if isinstance(consensus, dict):
-        details["consensus"] = _scope_consensus_to_role(consensus, role)
 
     return SimpleNamespace(
         rule_name=rule_name,
@@ -353,10 +276,6 @@ def build_rule_report_row(result) -> dict:
         if detail_lines:
             detail = "; ".join(detail_lines)
 
-    consensus = details.get("consensus")
-    if not isinstance(consensus, dict):
-        consensus = {}
-
     if rule_name == PART_PRESENCE_RULE:
         detail = (
             "ДЕТАЛЬ НЕ ОБНАРУЖЕНА"
@@ -371,9 +290,7 @@ def build_rule_report_row(result) -> dict:
     if not detail:
         detail = human_cause or ("Сработало" if triggered else "Норма")
 
-    status_label, neutral = _status_label(
-        rule_name, triggered, details, consensus,
-    )
+    status_label, neutral = _status_label(rule_name, triggered, details)
 
     part_absent = bool(
         rule_name == PART_PRESENCE_RULE and details.get("empty_tray")
@@ -400,8 +317,7 @@ def build_rule_report_row(result) -> dict:
         triggered, human_cause, threshold_breaches,
     )
 
-    # Замеры анализа кадра: подписи порогов согласованы с панелью порогов.
-    run_cards = copy.deepcopy(consensus.get("run_cards") or [])
+    run_cards = [copy.deepcopy(summary_cards)]
     for cards in run_cards:
         for card in cards:
             for metric in card.get("metrics") or []:
@@ -412,7 +328,7 @@ def build_rule_report_row(result) -> dict:
                 if label:
                     metric["label"] = label
 
-    run_status = consensus.get("run_status") or _fallback_run_status(run_cards)
+    run_status = _fallback_run_status(run_cards)
 
     return {
         "name": result.rule_name,
@@ -431,8 +347,6 @@ def build_rule_report_row(result) -> dict:
         "run_status": copy.deepcopy(run_status),
         "threshold_breaches": threshold_breaches,
         "threshold_conclusion": threshold_conclusion,
-        "vote_details": _extract_vote_details(consensus, rule_name),
         "part_absent": part_absent,
         "decisive": bool(part_absent or triggered or skipped),
-        "consensus": dict(consensus),
     }

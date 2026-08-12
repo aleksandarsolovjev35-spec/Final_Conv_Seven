@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class InspectionResult:
-    """Результат одной стадии инспекции."""
+    """Результат одной стадии инспекции по одному свежему кадру."""
 
     stage: str
     defects: list = field(default_factory=list)
@@ -16,18 +16,9 @@ class InspectionResult:
     # True устанавливается только для зоны инспекции по part_presence.
     is_empty_tray: bool = False
 
-    # Production-метаданные прогона. Для одиночной диагностики/offline-
-    # анализа остаются пустыми.
-    consensus: dict = field(default_factory=dict)
     model_health: list = field(default_factory=list)
 
-    # Набор кадров стадии (один элемент): dict {role: кадр}; только roles
-    # этой стадии (INSPECT: NEAR/MIDDLE/FAR).
+    # Снимок стадии для оверлея HMI: один набор кадров и правила разметки.
+    # Список из одного элемента — контракт UIServer.update().
     run_frames: list = field(default_factory=list)
-
-    # Правила стадии: кадр размечается drawings этих правил, чтобы оверлей
-    # совпадал с кадром. Один элемент — список RuleResult'ов.
     run_rule_results: list = field(default_factory=list)
-
-    # Детекции моделей по каждому прогону
-    run_vision_results: list = field(default_factory=list)

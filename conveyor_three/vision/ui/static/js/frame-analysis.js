@@ -23,15 +23,11 @@ let _faDragState = null;
 let _faRafSync = 0;
 
 // ——— утилиты ———
-function faNewVoteSummary(vote) {
-    if (!vote) return {className: 'ok', text: '—'};
-    const total = Number(vote.total_runs) || 1;
-    const single = total <= 1;
-    const count = (v) => single ? '' : ' · ' + (v ?? 0) + '/' + total;
-    if (vote.decision === 'empty') return {className: 'warn', text: 'ПУСТО' + count(vote.empty_votes ?? vote.triggered_votes)};
-    if (vote.decision === 'present') return {className: 'ok', text: 'КОРПУС' + count(vote.present_votes ?? vote.normal_votes)};
-    if (vote.decision === 'triggered') return {className: 'bad', text: 'СРАБОТАЛО' + count(vote.triggered_votes)};
-    return {className: 'ok', text: 'НОРМА' + count(vote.normal_votes)};
+function faRuleBadge(rule) {
+    if (rule && rule.part_absent) return {className: 'warn', text: 'ПУСТО'};
+    if (rule && rule.triggered) return {className: 'bad', text: 'СРАБОТАЛО'};
+    if (rule && rule.skipped) return {className: 'muted', text: 'НЕТ ИЗМЕРЕНИЯ'};
+    return {className: 'ok', text: 'НОРМА'};
 }
 
 function faNewFormatValue(v) {
@@ -153,7 +149,6 @@ function faNewReportKey(report) {
             stage: report.stage,
             part_id: report.part_id,
             updated_at: report.updated_at,
-            picture_run: report.picture_run,
             rules: report.rules,
         });
     } catch (_) {
@@ -446,7 +441,7 @@ function renderNewFrameAnalysis(report, ls) {
         ruleName.title = FA_RULE_NAMES[rule.name] || rule.name;
         ruleHead.appendChild(ruleName);
 
-        const vote = faNewVoteSummary(rule.vote_details);
+        const vote = faRuleBadge(rule);
         const badge = document.createElement('span');
         badge.className = 'fa-new-rule-badge ' + vote.className;
         badge.textContent = vote.text;

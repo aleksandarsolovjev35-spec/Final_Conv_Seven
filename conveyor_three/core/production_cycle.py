@@ -27,12 +27,7 @@ from core.step_stages import (
     StepSequencer,
 )
 from domain.defect_rules import PartPresenceRule
-from inspection.consensus import (
-    combine_presence_results,
-    combine_rule_results,
-    describe_picture_run,
-    summarize_model_health,
-)
+from inspection.health import summarize_model_health
 from domain.part import (
     Part,
     CATEGORY_GOOD,
@@ -616,53 +611,22 @@ class ProductionCycle:
                 )
             detection_count = len(vision_results.get(role, []))
 
-            raw_model_health = [
-                {**item, "run": 1}
-                for item in (getattr(self.inspector.vision, "last_health", None) or [])
-                if isinstance(item, dict)
-            ]
-
             presence_result = None
             rule_results = []
-            consensus = None
             if is_presence_role:
-                presence_result, presence_vote, _ = combine_presence_results(
-                    [self.inspector._evaluate_part_presence(vision_results)]
-                )
+                presence_result = self.inspector._evaluate_part_presence(vision_results)
                 if not presence_result.details.get("empty_tray"):
-                    rule_results, consensus, _ = combine_rule_results([
-                        decision.evaluate_rules_detailed(
-                            decision_rules, vision_results, frames=stage_frames,
-                        )
-                    ])
-                    consensus["part_presence"] = presence_vote
-                else:
-                    # Пустая ячейка: defect-правила не выполняются.
-                    consensus = {
-                        "runs": 1,
-                        "required_votes": 1,
-                        "evidence_run": 1,
-                        "part_presence": presence_vote,
-                        "rules": {},
-                    }
-            else:
-                rule_results, consensus, _ = combine_rule_results([
-                    decision.evaluate_rules_detailed(
+                    rule_results = decision.evaluate_rules_detailed(
                         decision_rules, vision_results, frames=stage_frames,
                     )
-                ])
+            else:
+                rule_results = decision.evaluate_rules_detailed(
+                    decision_rules, vision_results, frames=stage_frames,
+                )
 
-            picture_candidates = (
-                [presence_result] + list(rule_results)
-                if is_presence_role and presence_result is not None
-                else rule_results
+            model_rows = summarize_model_health(
+                getattr(self.inspector.vision, "last_health", None)
             )
-            consensus["picture_run"] = 1
-            consensus["picture_reason"] = describe_picture_run(
-                picture_candidates, 0,
-            )
-
-            model_rows = summarize_model_health(raw_model_health)
             if not model_rows or any(not row.get("ok") for row in model_rows):
                 raise RuntimeError(
                     f"Нет полного комплекта model health для камеры {role}"
@@ -682,9 +646,7 @@ class ProductionCycle:
                 "ok": True,
                 "width": int(width),
                 "height": int(height),
-                "runs": 1,
                 "detections": int(detection_count),
-                "detections_by_run": [int(detection_count)],
             }]
 
             self._last_vision_results = vision_results
@@ -700,9 +662,6 @@ class ProductionCycle:
                 "cameras": camera_rows,
                 "models": model_rows,
                 "rules": rule_rows,
-                "consensus": consensus,
-                "picture_run": 1,
-                "picture_reason": consensus.get("picture_reason"),
                 "updated_at": time.time(),
             }
             self._set_process(
@@ -977,9 +936,9 @@ class ProductionCycle:
         pending_id = self._stage_motion()
         self._stage_settle(pending_id, accept_input_for_this_step)
         self._check_pause_barrier()
-        frame_runs = self._stage_capture(accept_input_for_this_step)
+        frames = self._stage_capture(accept_input_for_this_step)
         display_frames = self._stage_analysis(
-            frame_runs, accept_input_for_this_step,
+            frames, accept_input_for_this_step,
         )
         self._stage_review(display_frames)
         self._stage_publish(display_frames)
@@ -1075,7 +1034,7 @@ class ProductionCycle:
             capture_roles=roles,
         )
         if not roles:
-            return [{}]
+            return {}
 
         # Драйвер может отдать старый кадр из буфера после движения. Дренируем
         # нужные роли, затем получаем один свежий набор.
@@ -1101,13 +1060,13 @@ class ProductionCycle:
             release_capture()
         # Публикуем frozen snapshot отдельным inspection-слоем.
         self._refresh_monitor(run_frames=[frames], run_rule_results=[[]])
-        return [frames]
+        return frames
 
-    def _stage_analysis(self, frame_runs, accept_input_for_this_step):
+    def _stage_analysis(self, frames, accept_input_for_this_step):
         """ANALYSIS: модели -> геометрия -> решение по уже снятым кадрам."""
         self.stages.enter_analysis()
 
-        display_frames = dict(frame_runs[-1])
+        display_frames = dict(frames)
         markup_frames = {}
         markup_rules = []
 
@@ -1121,7 +1080,7 @@ class ProductionCycle:
                 "Инспекция: модели и правила по свежему кадру",
                 positions=active_positions,
             )
-            inspect_result = self._process_inspect_stage(frame_runs)
+            inspect_result = self._process_inspect_stage(frames)
             if inspect_result is not None:
                 display_frames.update(inspect_result.raw_frames)
                 markup_frames.update(inspect_result.raw_frames)
@@ -1254,7 +1213,7 @@ class ProductionCycle:
 
     # Inspect stage (единственная стадия инспекции, +0)
 
-    def _process_inspect_stage(self, frame_runs):
+    def _process_inspect_stage(self, frames):
         """Обработать зону инспекции по свежему кадру."""
 
         candidate_id = self.part_counter + 1
@@ -1266,19 +1225,10 @@ class ProductionCycle:
             positions=[self.OFFSET_INSPECT],
         )
 
-        inspect_consensus = getattr(
-            self.inspector,
-            "inspect_consensus",
-            None,
-        )
-        if not callable(inspect_consensus):
-            raise RuntimeError(
-                "Inspector не поддерживает обязательную инспекцию"
-            )
-        result = inspect_consensus(
+        result = self.inspector.inspect(
             part_id=candidate_id,
             step=self.current_step,
-            frame_runs=frame_runs,
+            frames=frames,
             force_bad=self.force_all_bad,
         )
         if result.is_empty_tray:
@@ -1302,7 +1252,6 @@ class ProductionCycle:
 
         self.part_counter += 1
         part = Part(self.part_counter, self.current_step)
-        part.inspection_consensus["inspect"] = dict(result.consensus)
         for defect in result.defects:
             part.add_input_defect(defect)
         # Результат правил становится состоянием Part только после того,
@@ -1322,9 +1271,6 @@ class ProductionCycle:
                 raw_frames=result.raw_frames,
                 annotated_frames=result.annotated,
                 raw_overlay_frames=result.raw_overlay_frames,
-                run_frames=getattr(result, "run_frames", None),
-                run_rule_results=getattr(result, "run_rule_results", None),
-                run_vision_results=getattr(result, "run_vision_results", None),
             )
         self._set_process(
             "INSPECT_RESULT_RECORDED",
@@ -1359,7 +1305,6 @@ class ProductionCycle:
             print(f"[WARN] Деталь #{part.id} не прошла полную инспекцию -> принудительно BAD")
             part.route_category, part.final_decision, category = CATEGORY_BAD, "incomplete_inspection", CATEGORY_BAD
         # GOOD: DIST1=0. BAD/CLEANUP: сначала DIST2, затем DIST1=340.
-        # Следующая смена маршрута — только в начале следующего шага.
         self.distributor.prepare_route(category, part.id)
 
     def _execute_drop(self):
@@ -1367,10 +1312,6 @@ class ProductionCycle:
         if part is None:
             return
         category = part.route_category
-        # Маршрут уже стоит с начала шага и не двигается, пока не начнётся
-        # следующий prepare_route. К тому моменту пройдут SETTLE, CAPTURE,
-        # ANALYSIS и REVIEW — корпус давно покинул зону, ждать падение
-        # отдельно не нужно.
         self.distributor.confirm_transfer(part.id, category)
         if category == CATEGORY_GOOD:
             self.good_count += 1
@@ -1404,14 +1345,8 @@ class ProductionCycle:
             "defects": part.get_all_defects(),
             "step": part.step_created,
         }
-        archive_extra = {}
-        consensus = getattr(part, "inspection_consensus", None)
-        if consensus:
-            archive_extra["inspection_consensus"] = consensus
         if extra:
-            archive_extra.update(extra)
-        if archive_extra:
-            kwargs["extra"] = archive_extra
+            kwargs["extra"] = extra
         self.archive.finalize(**kwargs)
 
     def _archive_inflight(self, reason: str):
@@ -1457,8 +1392,6 @@ class ProductionCycle:
             "part_id": None,
             "rule_results": [],
             "models": [],
-            "picture_run": None,
-            "picture_reason": None,
             "updated_at": None,
         }
 
@@ -1477,9 +1410,6 @@ class ProductionCycle:
         if not isinstance(rows, list) or not rows:
             vision = getattr(self.inspector, "vision", None)
             rows = getattr(vision, "last_health", None) or []
-        consensus = getattr(result, "consensus", None) or {}
-
-        # Подготовить модели с детальной информацией о прогоне
         model_details = []
         for item in rows:
             if not isinstance(item, dict):
@@ -1488,26 +1418,14 @@ class ProductionCycle:
                 "role": item.get("role"),
                 "model": item.get("model"),
                 "ok": item.get("ok"),
-                "runs": item.get("runs"),
                 "elapsed_ms": item.get("elapsed_ms"),
-                "elapsed_total_ms": item.get("elapsed_total_ms"),
                 "detections": item.get("detections"),
-                "detections_by_run": item.get("detections_by_run", []),
                 "error": item.get("error"),
             })
-
         self._frame_analysis_groups[group] = {
             "part_id": part_id,
             "rule_results": list(result.rule_results),
             "models": model_details,
-            "picture_run": (
-                int(consensus.get("picture_run"))
-                if consensus.get("picture_run") else None
-            ),
-            "picture_reason": (
-                str(consensus.get("picture_reason"))
-                if consensus.get("picture_reason") else None
-            ),
             "updated_at": time.time(),
         }
 
@@ -1700,8 +1618,6 @@ class ProductionCycle:
                 "message": message,
                 "models": models,
                 "rules": rules,
-                "picture_run": entry.get("picture_run"),
-                "picture_reason": entry.get("picture_reason"),
                 "updated_at": entry["updated_at"],
             }
 
@@ -1723,8 +1639,6 @@ class ProductionCycle:
                 "cameras": [dict(item) for item in report.get("cameras", [])],
                 "models": [dict(item) for item in report.get("models", [])],
                 "rules": [dict(item) for item in report.get("rules", [])],
-                "picture_run": report.get("picture_run"),
-                "picture_reason": report.get("picture_reason"),
                 "updated_at": report.get("updated_at"),
             }
 
@@ -1738,8 +1652,6 @@ class ProductionCycle:
             "message": None,
             "models": [],
             "rules": [],
-            "picture_run": None,
-            "picture_reason": None,
             "updated_at": None,
         }
 

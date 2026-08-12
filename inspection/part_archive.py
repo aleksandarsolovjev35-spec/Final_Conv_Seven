@@ -183,9 +183,6 @@ class PartArchive:
         raw_frames: dict,
         annotated_frames: dict,
         raw_overlay_frames: dict | None = None,
-        run_frames=None,
-        run_rule_results=None,
-        run_vision_results=None,
     ):
         """Сохранить кадры стадии в буфер (JPEG-bytes)."""
         if not self.enabled:

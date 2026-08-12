@@ -2,13 +2,7 @@ from domain.defect_rules import InputPartPresenceRule
 
 from vision.overlay.raw_overlay import RawOverlay
 
-from inspection.consensus import (
-    combine_presence_results,
-    combine_rule_results,
-    describe_picture_run,
-    select_picture_run,
-    summarize_model_health,
-)
+from inspection.health import summarize_model_health
 from inspection.result import InspectionResult
 
 
@@ -48,20 +42,16 @@ class Inspector:
         except Exception as exc:
             print(f"[INSPECTION] Ошибка отображения этапа {phase}: {exc}")
 
-    # ProductionCycle передаёт один набор кадров как [frames]. Инспектор
-    # проверяет этот контракт и обрабатывает единственный элемент.
-
-    def inspect_input_consensus(
+    def inspect_input(
         self,
         part_id: int,
         step: int,
-        frame_runs,
+        frames,
         force_bad: bool = False,
     ) -> InspectionResult:
         # Строгий порядок одной стадии: кадры -> модели -> проверка
         # наличия (gate) -> геометрия/defect rules -> разметка -> результат.
-        # Все последующие шаги используют ровно этот ``frames`` snapshot.
-        frames = self._single_stage_frames(frame_runs, self.INPUT_ROLES, "input")
+        frames = self._stage_frames(frames, self.INPUT_ROLES, "input")
         self._notify_progress(
             "INPUT_MODELS",
             "INPUT: запуск моделей по свежему кадру",
@@ -77,9 +67,6 @@ class Inspector:
             roles=self.INPUT_ROLES,
         )
         presence_result = self._evaluate_part_presence(vision_results)
-        presence_result, presence_vote, _ = combine_presence_results(
-            [presence_result]
-        )
 
         if bool(presence_result.details.get("empty_tray")):
             self._notify_progress(
@@ -88,17 +75,6 @@ class Inspector:
                 part_id=part_id,
                 roles=self.INPUT_ROLES,
             )
-            consensus = {
-                "runs": 1,
-                "required_votes": 1,
-                "evidence_run": 1,
-                "part_presence": presence_vote,
-                "rules": {},
-                "picture_run": 1,
-                "picture_reason": describe_picture_run(
-                    [presence_result], 0,
-                ),
-            }
             return InspectionResult(
                 stage="input",
                 defects=[],
@@ -108,7 +84,6 @@ class Inspector:
                 raw_frames=frames,
                 raw_overlay_frames={},
                 is_empty_tray=True,
-                consensus=consensus,
                 model_health=model_health,
                 run_frames=[frames],
                 run_rule_results=[[]],
@@ -120,8 +95,8 @@ class Inspector:
             part_id=part_id,
             roles=self.INPUT_ROLES,
         )
-        defect_results, consensus, _evidence = combine_rule_results(
-            [self.decision.evaluate_all_detailed(vision_results, frames=frames)]
+        defect_results = list(
+            self.decision.evaluate_all_detailed(vision_results, frames=frames)
         )
         self._notify_progress(
             "INPUT_DECISION",
@@ -129,36 +104,26 @@ class Inspector:
             part_id=part_id,
             roles=self.INPUT_ROLES,
         )
-        consensus["part_presence"] = presence_vote
-
-        final_results = [presence_result] + defect_results
-        consensus["picture_run"] = 1
-        consensus["picture_reason"] = describe_picture_run(final_results, 0)
-
         return self._build_result(
             stage="input",
             part_id=part_id,
             step=step,
             frames=frames,
             vision_results=vision_results,
-            rule_results=final_results,
+            rule_results=[presence_result] + defect_results,
             markup_rule_results=defect_results,
             force_bad=force_bad,
-            consensus=consensus,
             model_health=model_health,
         )
 
-    def inspect_spider_consensus(
+    def inspect_spider(
         self,
         part_id: int,
         step: int,
-        frame_runs,
+        frames,
         force_bad: bool = False,
     ) -> InspectionResult:
-        # SPIDER/TOP использует тот же контракт: сначала модели на frozen
-        # кадрах, затем правила, которые строят геометрию и принимают
-        # измерительное решение, и только после этого создаётся разметка.
-        frames = self._single_stage_frames(frame_runs, self.SPIDER_ROLES, "spider")
+        frames = self._stage_frames(frames, self.SPIDER_ROLES, "spider")
         self._notify_progress(
             "SPIDER_MODELS",
             "SPIDER/TOP: запуск моделей по свежему кадру",
@@ -173,8 +138,8 @@ class Inspector:
             part_id=part_id,
             roles=self.SPIDER_ROLES,
         )
-        rule_results, consensus, _evidence = combine_rule_results(
-            [self.decision.evaluate_all_detailed(vision_results, frames=frames)]
+        rule_results = list(
+            self.decision.evaluate_all_detailed(vision_results, frames=frames)
         )
         self._notify_progress(
             "SPIDER_DECISION",
@@ -182,9 +147,6 @@ class Inspector:
             part_id=part_id,
             roles=self.SPIDER_ROLES,
         )
-        consensus["picture_run"] = 1
-        consensus["picture_reason"] = describe_picture_run(rule_results, 0)
-
         return self._build_result(
             stage="spider",
             part_id=part_id,
@@ -194,18 +156,11 @@ class Inspector:
             rule_results=rule_results,
             markup_rule_results=rule_results,
             force_bad=force_bad,
-            consensus=consensus,
             model_health=model_health,
         )
 
     @staticmethod
-    def _single_stage_frames(frame_runs, roles, stage: str) -> dict:
-        runs = list(frame_runs)
-        if len(runs) != 1:
-            raise RuntimeError(
-                f"{stage}: ожидался один набор кадров, получено {len(runs)}"
-            )
-        frames = runs[0]
+    def _stage_frames(frames, roles, stage: str) -> dict:
         if not isinstance(frames, dict):
             raise RuntimeError(f"{stage}: кадры должны быть словарём")
         missing = set(roles) - set(frames)
@@ -221,10 +176,7 @@ class Inspector:
         if missing:
             raise RuntimeError(f"Missing vision results: {sorted(missing)}")
         health_rows = getattr(self.vision, "last_health", None) or []
-        model_health = summarize_model_health(
-            [{**row, "run": 1} for row in health_rows if isinstance(row, dict)]
-        )
-        return vision_results, model_health
+        return vision_results, summarize_model_health(health_rows)
 
     def _build_result(
         self,
@@ -236,7 +188,6 @@ class Inspector:
         vision_results: dict,
         rule_results: list,
         force_bad: bool,
-        consensus: dict,
         model_health: list,
         markup_rule_results: list | None = None,
     ) -> InspectionResult:
@@ -244,10 +195,6 @@ class Inspector:
         if force_bad:
             defects = ["forced_bad"]
 
-        # Разметка строится последней: сначала ``rule_results`` уже
-        # содержат вычисленную геометрию и решение, затем эти же drawings
-        # накладываются на исходный snapshot. Служебный part_presence
-        # ничего не рисует.
         markup = markup_rule_results if markup_rule_results is not None else rule_results
         progress_prefix = "INPUT" if stage == "input" else "SPIDER"
         self._notify_progress(
@@ -278,20 +225,23 @@ class Inspector:
             raw_frames=frames,
             raw_overlay_frames=raw_overlay_frames,
             is_empty_tray=False,
-            consensus=consensus,
             model_health=model_health,
             run_frames=[frames],
             run_rule_results=[markup],
-            run_vision_results=[dict(vision_results)],
         )
-
-    # Empty tray detector
 
     def _evaluate_part_presence(self, vision_results: dict):
         rule = InputPartPresenceRule(thresholds=self.decision.thresholds)
         if not rule.enabled:
             raise RuntimeError("part_presence rule is disabled")
-        return rule.check(vision_results)
+        result = rule.check(vision_results)
+        if getattr(result, "rule_name", None) != "part_presence":
+            raise RuntimeError("part_presence: неверное правило")
+        details = getattr(result, "details", None)
+        if not isinstance(details, dict) or type(details.get("empty_tray")) is not bool:
+            raise RuntimeError("part_presence: не вернул bool empty_tray")
+        result.triggered = False
+        return result
 
     @staticmethod
     def _raw_overlays(stage_frames: dict, vision_results: dict) -> dict:
