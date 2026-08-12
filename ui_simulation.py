@@ -273,9 +273,9 @@ class LineSimulation:
     def _run_camera_stages(self) -> bool:
         """Run the visible production chain in the same order as hardware.
 
-        CAPTURE is followed by MODELS, GEOMETRY, DECISION and RECORD for each
-        occupied inspection position. INPUT is intentionally processed before
-        SPIDER/TOP, matching ``ProductionCycle._stage_analysis``.
+        Each occupied stage runs CAPTURE → MODELS → GEOMETRY → DECISION →
+        RECORD before the next stage starts. INPUT finishes before
+        SPIDER/TOP, matching ``ProductionCycle._inspect_occupied_stages``.
         """
         batches: list[tuple[SimPart, tuple[str, ...]]] = []
         input_part = next((part for part in self.parts if part.position == 0), None)

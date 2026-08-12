@@ -33,8 +33,13 @@ REVIEW_SECONDS = 2.0
 
 
 class ProductionCycle:
-    """
-    Оркестратор производственной линии.
+    """Оркестратор производственной линии.
+
+    Один шаг — абсолютная последовательность:
+    MOTION → SETTLE → для каждой занятой стадии
+    (INPUT, затем SPIDER/TOP) CAPTURE → модели → геометрия →
+    решение → запись → REVIEW → PUBLISH.
+    Live заморожен на весь инспекционный блок; USB читается по одной камере.
     """
 
     OFFSET_INPUT  = 0
@@ -97,7 +102,7 @@ class ProductionCycle:
         self._cancel_motion = threading.Event()
         self.distributor.cancel_check = self._cancel_motion.is_set
         # Снимки inspection остаются операторским стоп-кадром до следующего
-        # движения, хотя физические камеры уже вернулись в live.
+        # движения: live заморожен на весь инспекционный блок.
         self._inspection_display_roles = ()
         self._diagnostics = {
             "status": "NOT_RUN",
@@ -899,14 +904,14 @@ class ProductionCycle:
         self._last_vision_results = {}
         self._last_rule_results = []
 
-        # Каждый производственный шаг проходит одну последовательную цепочку:
-        # свежий кадр -> модели -> геометрия/правила -> решение -> архив.
+        # Абсолютная последовательность: сначала механика, затем каждая
+        # занятая стадия целиком (кадр → модели → геометрия → решение →
+        # запись). INPUT всегда заканчивается до старта SPIDER/TOP.
         pending_id = self._stage_motion()
-        self._stage_settle(pending_id, accept_input_for_this_step)
+        self._stage_settle(pending_id)
         self._check_pause_barrier()
-        frames = self._stage_capture(accept_input_for_this_step)
-        display_frames = self._stage_analysis(
-            frames, accept_input_for_this_step,
+        display_frames = self._inspect_occupied_stages(
+            accept_input_for_this_step,
         )
         self._stage_review(display_frames)
         self._stage_publish(display_frames)
@@ -954,7 +959,7 @@ class ProductionCycle:
         self.current_step += 1
         return pending_id
 
-    def _stage_settle(self, pending_id, accept_input_for_this_step: bool = False):
+    def _stage_settle(self, pending_id):
         """SETTLE: подтвердить передачу корпуса и погасить вибрацию."""
         self._set_process(
             "CONVEYOR_CONFIRMED", "Позиции корпусов подтверждены контроллером",
@@ -971,47 +976,72 @@ class ProductionCycle:
         self.stages.enter_settle()
         self._check_motion_cancelled()
 
-    def _capture_roles_for_current_step(self, accept_input_for_this_step: bool = False) -> tuple[str, ...]:
-        """Вернуть только камеры, под которыми сейчас есть корпус.
-
-        Один Part собирается в два разных момента: INPUT получает 2 кадра
-        на +0, SPIDER/TOP — 5 кадров того же Part на +4. Захватывать все
-        семь камер без корпуса под соответствующей группой нельзя: это
-        расходует USB-полосу и создаёт ложные точки отказа.
-        """
-        roles = []
-
-        # INPUT всегда входит в официальный CAPTURE текущего шага, если
-        # линия принимает новые детали. Решение о пустом лотке принимается
-        # тем же свежим кадром внутри общего pipeline.
+    def _occupied_inspection_stages(self, accept_input_for_this_step: bool):
+        """Занятые стадии этого шага в фиксированном порядке INPUT → SPIDER."""
+        stages = []
         if accept_input_for_this_step:
-            roles.extend(self.inspector.INPUT_ROLES)
+            stages.append(("INPUT", tuple(self.inspector.INPUT_ROLES)))
         if any(
             part.step_created + self.OFFSET_SPIDER == self.current_step
             for part in self.parts
         ):
-            roles.extend(self.inspector.SPIDER_ROLES)
-        return tuple(roles)
+            stages.append(("SPIDER", tuple(self.inspector.SPIDER_ROLES)))
+        return stages
 
-    def _stage_capture(self, accept_input_for_this_step: bool = False):
-        """CAPTURE: получить frozen snapshot для текущих инспекций."""
-        roles = self._capture_roles_for_current_step(accept_input_for_this_step)
-        self._inspection_display_roles = roles
-        # Пауза только у ролей, которые сейчас дают inspection-кадр.
-        # Остальные камеры продолжают live-поток для оператора.
+    def _inspect_occupied_stages(self, accept_input_for_this_step: bool):
+        """Каждая занятая стадия: свой кадр, свои модели, своё решение.
+
+        Live заморожен на весь блок. Следующая стадия не начинается,
+        пока предыдущая не записала результат.
+        """
+        display_frames = {}
+        stages = self._occupied_inspection_stages(accept_input_for_this_step)
+        if not stages:
+            self.stages.enter_capture(())
+            self.stages.enter_analysis()
+            return display_frames
+
+        for name, roles in stages:
+            frames = self._stage_capture(roles)
+            self.stages.enter_analysis()
+            if name == "INPUT":
+                self._set_process(
+                    "INPUT_ANALYSIS",
+                    "Вход: модели и правила по свежему кадру",
+                )
+                result = self._process_input_stage(frames)
+            else:
+                self._set_process(
+                    "SPIDER_CHECK",
+                    "Проверка корпуса на +4: свежий кадр",
+                )
+                result = self._run_spider_inspection(frames)
+            if result is not None:
+                display_frames.update(result.raw_frames)
+                self._refresh_monitor(display_frames)
+            self._check_motion_cancelled()
+        return display_frames
+
+    def _stage_capture(self, roles):
+        """CAPTURE: последовательный frozen snapshot одной стадии."""
+        roles = tuple(roles or ())
+        self._inspection_display_roles = tuple(dict.fromkeys(
+            (*self._inspection_display_roles, *roles)
+        ))
         self.stages.enter_capture(roles)
         self._set_process(
             "CAMERA_CAPTURE",
-            (f"Синхронный захват камер: {', '.join(roles)}" if roles
-             else "Нет корпуса под инспекционными камерами"),
+            (
+                f"Последовательный захват камер: {', '.join(roles)}"
+                if roles else "Нет корпуса под инспекционными камерами"
+            ),
             capture_roles=roles,
         )
         if not roles:
             return {}
 
-        # Драйвер может отдать старый кадр из буфера после движения. Дренируем
-        # только нужные роли, затем получаем один свежий набор именно для
-        # соответствующей стадии Part.
+        # Драйвер может отдать старый кадр из буфера после движения.
+        # Дренируем и читаем роли этой стадии строго по одной.
         self.cameras.drain_buffers(roles)
         frames = self.cameras.capture_roles(roles)
         if set(frames) != set(roles):
@@ -1020,54 +1050,10 @@ class ProductionCycle:
                 f"получены {sorted(frames)}"
             )
         self._check_motion_cancelled()
-        # Нейросети используют только frames в памяти. Освобождаем камеры
-        # немедленно: INPUT/SPIDER, не участвующие в следующем чтении,
-        # уже продолжают live во время part_presence и defect rules.
-        self.stages.release_capture_roles()
+        # Exclusive-блок не отпускаем: live не должен затирать стоп-кадр
+        # во время моделей, геометрии и ревью.
         self._refresh_monitor(frames)
         return frames
-
-    def _stage_analysis(self, frames, accept_input_for_this_step):
-        """ANALYSIS: модели -> геометрия -> решение по уже снятым кадрам.
-
-        ``Inspector`` не получает live-кадры: только frozen snapshot из
-        ``CAPTURE``. Запись разметки и состояния ``Part`` начинается после
-        завершения соответствующего набора правил.
-        """
-        self.stages.enter_analysis()
-
-        display_frames = dict(frames)
-        inspected = False
-
-        if accept_input_for_this_step:
-            self._set_process(
-                "INPUT_ANALYSIS",
-                "Вход: модели и правила по свежему кадру",
-            )
-            input_result = self._process_input_stage(frames)
-            if input_result is not None:
-                display_frames.update(input_result.raw_frames)
-                inspected = True
-            self._check_motion_cancelled()
-
-        spider_parts = [
-            part for part in self.parts
-            if part.step_created + self.OFFSET_SPIDER == self.current_step
-        ]
-        if spider_parts:
-            self._set_process(
-                "SPIDER_CHECK",
-                "Проверка корпуса на +4: свежий кадр",
-            )
-            spider_result = self._run_spider_inspection(frames)
-            if spider_result is not None:
-                display_frames.update(spider_result.raw_frames)
-                inspected = True
-            self._check_motion_cancelled()
-
-        if inspected:
-            self._refresh_monitor(display_frames)
-        return display_frames
 
     def _stage_review(self, display_frames):
         """REVIEW: пауза на просмотр работы нейросетей после анализа.
@@ -1750,8 +1736,8 @@ class ProductionCycle:
                 "active": self._selected_analysis_active,
                 "role": self._selected_analysis_role,
             },
-            # Inspection блокирует live только у захватываемых ролей.
-            # Остальные камеры продолжают поток даже на статической фазе.
+            # Inspection забирает все камеры на exclusive-блок
+            # CAPTURE…PUBLISH. Live возобновляется только на MOTION.
             "live": {
                 "running": self.live.running,
                 "streaming": self.live.running,

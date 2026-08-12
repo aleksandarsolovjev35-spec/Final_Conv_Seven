@@ -2,13 +2,14 @@
 
 При запуске для каждой роли создаётся обычный ``cv2.VideoCapture(id)``.
 Успешного ``isOpened()`` достаточно; кадры на старте не запрашиваются.
-Чтение камер во время работы защищено отдельными ролевыми блокировками.
+Чтение камер строго последовательное: один ``cap.read()`` в момент времени
+на весь менеджер. Ролевые блокировки защищают устройство от параллельного
+доступа, глобальный I/O-замок сериализует USB.
 """
 
 import json
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 
 import cv2
 import numpy as np
@@ -45,18 +46,10 @@ class CameraManager:
         self._failed_reason = None
         self._config_file = config_file
         self._capture_factory = capture_factory or self._open_capture
-        self._pool = None
+        self._io_lock = threading.Lock()
         self.load_config()
         self._role_locks = {role: threading.Lock() for role in self.mapping}
-        self._pool = ThreadPoolExecutor(
-            max_workers=max(1, len(self.mapping)),
-            thread_name_prefix="camera-read",
-        )
-        try:
-            self.open_cameras()
-        except Exception:
-            self._shutdown_pool()
-            raise
+        self.open_cameras()
 
     # ---------- инициализация ----------
 
@@ -156,7 +149,7 @@ class CameraManager:
         return results
 
     def capture_roles(self, roles) -> dict:
-        """Параллельно прочитать указанные камеры (по lock на роль)."""
+        """Прочитать указанные камеры строго по одной, в заданном порядке."""
         requested = tuple(dict.fromkeys(roles))
         if not requested:
             return {}
@@ -164,38 +157,9 @@ class CameraManager:
         if unknown:
             raise RuntimeError(f"Неизвестные камеры: {sorted(unknown)}")
         self._ensure_usable()
-        deadline = time.monotonic() + _CAPTURE_TIMEOUT
-
-        def _grab(role):
-            cap = self.cameras.get(role)
-            if cap is None:
-                raise RuntimeError(f"Камера {role} не найдена")
-            with self._role_locks[role]:
-                ok, frame = cap.read()
-            if not ok or frame is None:
-                raise RuntimeError(f"{role}: read returned no frame")
-            error = self._frame_error(frame)
-            if error is not None:
-                raise RuntimeError(f"{role}: {error}")
-            return frame
-
-        futures = {role: self._pool.submit(_grab, role) for role in requested}
-        errors = {}
         results = {}
-        for role, future in futures.items():
-            timeout = max(0.0, deadline - time.monotonic())
-            try:
-                results[role] = future.result(timeout=timeout)
-            except Exception as exc:
-                errors[role] = (
-                    str(exc) or f"{type(exc).__name__}"
-                )
-        if errors:
-            details = ", ".join(
-                f"{role}: {error}" for role, error in sorted(errors.items())
-            )
-            self._latch_failure(details)
-            raise RuntimeError(f"Ошибка камер: {details}")
+        for role in requested:
+            results[role] = self._read_role(role)
         return results
 
     def capture_single(self, role: str):
@@ -210,12 +174,36 @@ class CameraManager:
         if unknown:
             raise RuntimeError(f"Неизвестные камеры: {sorted(unknown)}")
         self._ensure_usable()
+        for role in requested:
+            self._drain_role(role)
 
-        def _drain(role):
-            cap = self.cameras.get(role)
-            if cap is None:
-                return
-            lock = self._role_locks.get(role)
+    def _read_role(self, role: str):
+        """Один последовательный USB-read указанной роли."""
+        cap = self.cameras.get(role)
+        if cap is None:
+            raise RuntimeError(f"Камера {role} не найдена")
+        started = time.monotonic()
+        with self._io_lock:
+            with self._role_locks[role]:
+                ok, frame = cap.read()
+        if time.monotonic() - started > _CAPTURE_TIMEOUT:
+            self._latch_failure(f"{role}: capture timeout")
+            raise RuntimeError(f"{role}: capture timeout")
+        if not ok or frame is None:
+            self._latch_failure(f"{role}: read returned no frame")
+            raise RuntimeError(f"{role}: read returned no frame")
+        error = self._frame_error(frame)
+        if error is not None:
+            self._latch_failure(f"{role}: {error}")
+            raise RuntimeError(f"{role}: {error}")
+        return frame
+
+    def _drain_role(self, role: str):
+        cap = self.cameras.get(role)
+        if cap is None:
+            return
+        lock = self._role_locks.get(role)
+        with self._io_lock:
             for _ in range(_BUFFER_DRAIN_COUNT):
                 try:
                     if lock is not None:
@@ -226,30 +214,17 @@ class CameraManager:
                 except Exception:
                     pass
 
-        futures = [self._pool.submit(_drain, role) for role in requested]
-        for future in futures:
-            try:
-                future.result(timeout=_CAPTURE_TIMEOUT)
-            except Exception:
-                pass
-
     # ---------- завершение ----------
 
     def release(self):
         with self._state_lock:
             self._closed = True
-        self._shutdown_pool()
         for cap in list(self.cameras.values()):
             try:
                 cap.release()
             except Exception as exc:
                 print(f"[CAMERA] Ошибка освобождения камеры: {exc}")
         self.cameras.clear()
-
-    def _shutdown_pool(self):
-        pool, self._pool = self._pool, None
-        if pool is not None:
-            pool.shutdown(wait=False)
 
     def _latch_failure(self, reason: str):
         with self._state_lock:

@@ -66,13 +66,20 @@ class DecisionEngine:
             frames=frames,
         )
 
-    def rules_for_role(self, role: str):
-        """Активные правила, в которых участвует выбранная камера."""
+    def rules_for_roles(self, roles):
+        """Активные правила, у которых есть хотя бы одна из ролей стадии."""
+        wanted = set(roles or ())
+        if not wanted:
+            return []
         return [
             rule
             for rule in self.rules
-            if role in tuple(getattr(rule, "ROLES", ()))
+            if wanted.intersection(tuple(getattr(rule, "ROLES", ())))
         ]
+
+    def rules_for_role(self, role: str):
+        """Активные правила, в которых участвует выбранная камера."""
+        return self.rules_for_roles((role,))
 
     def evaluate_rules_detailed(self, rules, vision_results, frames=None):
         """Выполнить правила по детекциям одного frozen-кадра.
