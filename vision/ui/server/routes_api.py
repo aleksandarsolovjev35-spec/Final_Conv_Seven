@@ -30,7 +30,9 @@ def setup_api_routes(app, server):
     @app.get("/api/cameras")
     async def get_cameras():
         with server.lock:
-            roles = list(server.frames.keys())
+            roles = list(dict.fromkeys(
+                [*server.camera_roles, *server.frames.keys()]
+            ))
         sorted_roles = server._sort_by_order(roles)
         return JSONResponse({"cameras": sorted_roles})
 

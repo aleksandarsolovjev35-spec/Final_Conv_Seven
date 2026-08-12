@@ -80,6 +80,9 @@ class LiveMonitor:
     def set_splash_status(self, text: str):
         self.server.set_splash_status(text)
 
+    def set_camera_roles(self, roles):
+        self.server.set_camera_roles(roles)
+
     def boot_step_start(self, key: str, message: str | None = None):
         self.server.boot_step_start(key, message)
 

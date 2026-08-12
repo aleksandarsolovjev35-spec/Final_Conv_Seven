@@ -21,12 +21,62 @@ from config.camera_mapping import (
     load_camera_mapping,
     validate_camera_mapping,
 )
-from vision.camera_manager import (
-    CameraManager,
-    _env_float,
-    _env_int,
-)
-from vision.camera_manager import default_backends as _camera_backends
+from vision.camera_manager import CameraManager
+
+
+_BACKEND_ALIASES = {
+    "dshow": "CAP_DSHOW",
+    "msmf": "CAP_MSMF",
+    "v4l2": "CAP_V4L2",
+    "avfoundation": "CAP_AVFOUNDATION",
+    "any": "CAP_ANY",
+}
+
+
+def _env_int(name: str, default: int, minimum: int = 0) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return max(minimum, int(raw))
+    except ValueError:
+        print(f"[CAMERA CALIBRATION] {name}={raw!r}: используется {default}")
+        return default
+
+
+def _env_float(name: str, default: float, minimum: float = 0.0) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return max(minimum, float(raw))
+    except ValueError:
+        print(f"[CAMERA CALIBRATION] {name}={raw!r}: используется {default}")
+        return default
+
+
+def _camera_backends() -> tuple:
+    """Backend-ы только для мастера калибровки и диагностики камер."""
+    raw = os.environ.get("CAMERA_BACKENDS")
+    if raw:
+        configured = []
+        for token in raw.split(","):
+            attribute = _BACKEND_ALIASES.get(token.strip().lower())
+            value = getattr(cv2, attribute, None) if attribute else None
+            if value is not None:
+                configured.append(value)
+        if configured:
+            return tuple(configured)
+    if sys.platform == "win32":
+        return tuple(
+            backend
+            for backend in (
+                getattr(cv2, "CAP_DSHOW", None),
+                getattr(cv2, "CAP_MSMF", None),
+            )
+            if backend is not None
+        )
+    return (getattr(cv2, "CAP_ANY", 0),)
 
 
 CAMERA_SCAN_LIMIT = 10
@@ -75,12 +125,7 @@ ROLE_LABELS = {
 
 
 def _open_capture(camera_id: int, backend=None):
-    """Открыть камеру конкретным backend-ом (None — системный по умолчанию).
-
-    Перебор backend-ов выполняется в ``_probe_camera``: мастер пробует
-    каждый backend до первого валидного кадра, ровно как production.
-    Здесь один backend — один ``cv2.VideoCapture``.
-    """
+    """Открыть камеру для калибровки выбранным backend-ом."""
     try:
         if backend is None:
             return cv2.VideoCapture(camera_id)
@@ -107,11 +152,7 @@ def _backend_label(backend) -> str:
 
 
 def _factory_supports_backend(factory) -> bool:
-    """Понять, принимает ли фабрика backend вторым аргументом.
-
-    Тесты передают простую ``lambda camera_id``; ломать их сигнатуру
-    перебором backend-ов нельзя. Та же проверка, что в CameraManager.
-    """
+    """Понять, принимает ли фабрика калибратора backend вторым аргументом."""
     try:
         signature = inspect.signature(factory)
     except (TypeError, ValueError):
@@ -135,9 +176,7 @@ def _factory_supports_backend(factory) -> bool:
 
 
 def _configure_capture(capture):
-    # Мастер и production настраивают камеру одинаково — включая жёсткое
-    # согласование MJPG: камера, молча откатившаяся в YUY2, съедает в разы
-    # больше полосы USB, и собранный с ней mapping упадёт на старте линии.
+    # Калибратор запрашивает тот же рабочий формат, что и CameraManager.
     CameraManager._configure_capture(capture)
 
 
@@ -189,24 +228,11 @@ def _safe_release(capture) -> None:
 
 
 def _probe_camera(camera_id: int, factory, *, keep: bool = False):
-    """Проверить камеру с повторными открытиями и перебором backend-ов.
+    """Подробно проверить камеру для мастера назначения ролей.
 
-    Порядок backend-ов тот же, что в runtime (CameraManager): мастер
-    обязан находить ровно те камеры, которые потом откроет линия.
-    Открытие само по себе ни о чём не говорит — известна пара DirectShow
-    против Media Foundation, когда устройство открывается под одним API
-    и молчит под другим. Поэтому перебор идёт до первого *валидного
-    кадра*, а не до первого ``isOpened()``.
-
-    Каждая попытка — это полное пересоздание VideoCapture: разовая
-    неудача резервирования изохронной полосы на USB контроллере лечится
-    именно повтором. Между попытками драйверу даётся
-    ``SCAN_RETRY_DELAY`` на освобождение устройства, но только если
-    драйвер был реально задействован: несуществующий индекс отклоняется
-    сразу и без пауз, чтобы сканирование пустых ID не растягивалось.
-
-    При ``keep=True`` успешный handle возвращается вызывающему (пул
-    предпросмотра), иначе освобождается здесь же.
+    Перебор API, повторные открытия и проверка кадра относятся только к
+    калибратору. Основной запуск линии эту процедуру не вызывает. При
+    ``keep=True`` успешный handle остаётся в пуле предпросмотра.
     """
 
     factory_takes_backend = _factory_supports_backend(factory)
@@ -268,7 +294,7 @@ def _scan_working_cameras(max_tested, factory):
     Каждая камера открывается, проверяется и сразу освобождается: во
     время проверки индекса N не стримят N-1 уже найденных соседей, и
     исправная камера не проигрывает гонку за полосу USB уже открытым.
-    Результат детерминирован: список ID, которые отвечают в production-
+    Результат детерминирован: список ID, которые отвечают в рабочем
     формате, будучи предоставленными сами себе. Это ответ на вопрос
     "сколько камер исправны вообще", а не "кто успел первым".
 
@@ -305,18 +331,16 @@ def _format_scan_failures(failures: dict, limit: int = 8) -> str:
 def _open_preview_pool(working, required_count, factory):
     """Фаза 2: одновременно открыть проверенные камеры для предпросмотра.
 
-    На этой фазе камеры остаются стримить одновременно, ровно как в
-    production: мастер обязан собрать тот набор, который потом откроет
+    На этой фазе камеры остаются стримить одновременно: мастер обязан
+    собрать тот набор, который потом будет одновременно удерживать
     CameraManager. Камера, исправная поодиночке, но потерянная здесь,
     недоступна и линии — об этом сообщается отдельно, потому что это
     симптом нехватки пропускной способности USB-контроллера, а не
     поломки устройства.
 
-    Открытие идёт волнами по три камеры, как в production-префлайте
-    (CAMERA_OPEN_CONCURRENCY=3): семь одновременно стартующих устройств
-    наперегонки запрашивают изохронную полосу, и часть из них зря
-    выпадала из набора. Волнами набор собирается быстрее, чем по одной,
-    и без повторной гонки за USB.
+    Сам мастер открывает устройства волнами по три: так набор для
+    предпросмотра собирается быстрее, чем по одной, и без одновременного
+    старта всех семи камер.
     """
 
     pool = {}
@@ -449,8 +473,8 @@ class CameraCalibrationApi:
             )
             if len(working) >= len(ROLE_ORDER):
                 print(
-                    f"[CAMERA CALIBRATION] Фаза 2: одновременное открытие "
-                    f"{REQUIRED_CAMERA_COUNT} камер (как в production)"
+                    f"[CAMERA CALIBRATION] Фаза 2: сбор пула из "
+                    f"{REQUIRED_CAMERA_COUNT} камер для предпросмотра"
                 )
                 pool, lost = _open_preview_pool(
                     working,
