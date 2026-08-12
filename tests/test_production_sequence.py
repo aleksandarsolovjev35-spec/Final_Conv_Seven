@@ -200,6 +200,21 @@ class StepSequencerSequenceTest(unittest.TestCase):
         self.assertEqual(stages.stage, StepStage.CAPTURE)
 
 
+class ProductionCyclePartsTest(unittest.TestCase):
+    def test_public_api_stays_on_orchestrator(self):
+        expected = (
+            "request_start", "request_stop", "request_pause", "request_resume",
+            "request_exit", "request_force_exit", "distributor_diagnostic",
+            "diagnostic_check_cameras", "diagnostic_check_vision_rules",
+            "enter_jog", "exit_jog", "_run_once", "_build_status",
+        )
+        for name in expected:
+            self.assertTrue(
+                callable(getattr(ProductionCycle, name, None)),
+                f"missing {name}",
+            )
+
+
 class ProductionCycleSequenceTest(unittest.TestCase):
     def _make_cycle(self):
         log = []
