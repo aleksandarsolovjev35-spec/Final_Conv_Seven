@@ -29,9 +29,24 @@ OPTIONAL_DEFAULTS = {
     # Пауза после обработки кадров нейросетями: оператор успевает
     # отсмотреть результат анализа до начала следующего шага.
     "review_time": 2.0,
+    # Задержка между отправкой G3 и первым опросом I1/I2. Защищает от
+    # гонки: прошивка выставляет MOV=1 только на следующей итерации
+    # loop(), и слишком ранний опрос принял бы «ещё не тронулся» за
+    # «уже приехал». Уменьшать только с проверкой на стенде.
+    "move_start_delay": 0.15,
+    # Пауза контроллера между ходами (G9 S<ms>). Прошивочный дефолт —
+    # 2000 мс, и всё это время I2 отвечает WAIT=1, а хост ждёт WAIT=0.
+    # Без явной установки каждый шаг удлиняется на 2 секунды.
+    "inter_move_pause_ms": 150,
 }
 
-_FLOAT_KEYS = ("drop_time", "settle_time", "stage_trace_time", "review_time")
+_FLOAT_KEYS = (
+    "drop_time",
+    "settle_time",
+    "stage_trace_time",
+    "review_time",
+    "move_start_delay",
+)
 _INTEGER_KEYS = tuple(key for key in DEFAULTS if key not in _FLOAT_KEYS)
 
 
@@ -85,6 +100,17 @@ def _validate(data: dict) -> dict:
         )
     if not 0.0 <= float(data["review_time"]) <= 30.0:
         raise ValueError("review_time должен быть в диапазоне 0..30 секунд")
+    # Ноль запрещён: без задержки опрос I1/I2 обгоняет старт движения.
+    if not 0.0 < float(data["move_start_delay"]) <= 2.0:
+        raise ValueError(
+            "move_start_delay должен быть в диапазоне (0..2] секунд"
+        )
+    if type(data["inter_move_pause_ms"]) is not int:
+        raise ValueError("inter_move_pause_ms должен быть int")
+    if not 0 <= data["inter_move_pause_ms"] <= 10_000:
+        raise ValueError(
+            "inter_move_pause_ms должен быть в диапазоне 0..10000 мс"
+        )
     return dict(data)
 
 
