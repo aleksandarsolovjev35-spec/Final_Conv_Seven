@@ -406,6 +406,8 @@ def main():
                     accel=calib["conveyor_accel"],
                     steps_per_division=calib["normal_steps"],
                     divisions_per_movement=2,
+                    move_start_delay=calib["move_start_delay"],
+                    inter_move_pause_ms=calib["inter_move_pause_ms"],
                 )
                 dist1_axis = Axis(
                     transport,
