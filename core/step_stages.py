@@ -5,18 +5,25 @@
 ```text
 MOTION    лента едет            камеры у live-просмотра
 SETTLE    лента встала          камеры у live-просмотра, гасим вибрацию
-CAPTURE   лента неподвижна      нужные роли временно у инспекции
-ANALYSIS  модели -> геометрия -> решение -> запись  сохранённые кадры; live-камеры свободны
-PUBLISH   результат на экран    камеры у live-просмотра
+CAPTURE   лента неподвижна      весь live заморожен, кадры стадии читаются по одной камере
+ANALYSIS  модели -> геометрия -> решение -> запись  live остаётся заморожен
+CAPTURE   следующая занятая стадия                  тот же exclusive-блок
+ANALYSIS  ...
+PUBLISH   результат на экран    live всё ещё заморожен (стоп-кадры)
+MOTION    следующий шаг         камеры возвращаются live-просмотру
 ```
+
+Абсолютная последовательность: INPUT полностью заканчивается
+(кадр → модели → геометрия → решение → запись), и только потом
+начинается SPIDER/TOP. Между стадиями live не возобновляется.
 
 Переход между фазами — единственное место, где меняется владелец камер.
 Поэтому «снять кадр для правил во время движения» или «читать камеру из
 двух потоков» невозможно не по договорённости, а по построению:
 
 * :meth:`StepSequencer.enter_capture` не просто ставит флаг, а дожидается
-  завершения уже начатых live-чтений и только затем отдаёт кадры
-  инспекции;
+  завершения уже начатых live-чтений и забирает **все** камеры;
+* live возвращается только в :meth:`enter_motion` / :meth:`reset`;
 * порядок фаз проверяется таблицей ``_ALLOWED``: вызов не по порядку
   поднимает :class:`StageSequenceError`, а не тихо портит шаг.
 
@@ -61,12 +68,13 @@ class StepStage(str, Enum):
 
 # Разрешённые переходы. Возврат в IDLE доступен всегда: это сброс шага
 # при STOP, FAULT и завершении работы.
+# ANALYSIS → CAPTURE: следующая занятая стадия того же шага.
 _ALLOWED = {
     StepStage.IDLE: (StepStage.MOTION,),
     StepStage.MOTION: (StepStage.SETTLE,),
     StepStage.SETTLE: (StepStage.CAPTURE,),
     StepStage.CAPTURE: (StepStage.ANALYSIS,),
-    StepStage.ANALYSIS: (StepStage.PUBLISH,),
+    StepStage.ANALYSIS: (StepStage.CAPTURE, StepStage.PUBLISH),
     StepStage.PUBLISH: (StepStage.MOTION,),
 }
 
@@ -164,26 +172,29 @@ class StepSequencer:
             self._sleep(self._settle_seconds)
 
     def enter_capture(self, roles=None):
-        """Передать inspection только нужные роли, остальные оставить live.
+        """Начать exclusive-захват официальных кадров стадии.
 
-        ``roles=None`` приостанавливает все камеры. Пустой список означает,
-        что на этой остановке production-инспекция не нужна и live не
-        прерывается.
+        Непустой ``roles`` забирает **все** камеры у live до следующего
+        ``MOTION``: USB не делят инспекция и просмотр. Пустой список
+        означает, что на этой остановке инспекция не нужна и live не
+        прерывается. Повторный вход из ``ANALYSIS`` держит тот же
+        exclusive-блок для следующей стадии.
         """
         self._switch(StepStage.CAPTURE)
-        self._acquire_static(roles)
+        requested = () if not roles else tuple(dict.fromkeys(roles))
+        if requested:
+            self._acquire_static(None)
 
     def release_capture_roles(self):
-        """Вернуть камеры в live сразу после копирования inspection-кадров.
+        """Досрочно вернуть камеры live. Production-шаг этим не пользуется.
 
-        Модели далее работают только с уже сохранёнными numpy-кадрами и не
-        требуют владения VideoCapture. Это сокращает паузу live до самого
-        чтения кадра, не смешивая корпуса.
+        Официальный exclusive-блок держится до ``enter_motion`` / ``reset``,
+        чтобы стоп-кадры анализа и ревью не затирались live-потоком.
         """
         self._release_static()
 
     def enter_analysis(self):
-        """Анализирует сохранённые кадры; камеры уже могут быть в live."""
+        """Модели и правила по уже снятым кадрам; live остаётся заморожен."""
         self._switch(StepStage.ANALYSIS)
 
     def enter_publish(self):

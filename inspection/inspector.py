@@ -97,7 +97,11 @@ class Inspector:
             roles=self.INPUT_ROLES,
         )
         defect_results = prepare_rule_results(
-            self.decision.evaluate_all_detailed(vision_results, frames=frames)
+            self.decision.evaluate_rules_detailed(
+                self.decision.rules_for_roles(self.INPUT_ROLES),
+                vision_results,
+                frames=frames,
+            )
         )
         self._notify_progress(
             "INPUT_DECISION",
@@ -137,7 +141,11 @@ class Inspector:
             roles=self.SPIDER_ROLES,
         )
         rule_results = prepare_rule_results(
-            self.decision.evaluate_all_detailed(vision_results, frames=frames)
+            self.decision.evaluate_rules_detailed(
+                self.decision.rules_for_roles(self.SPIDER_ROLES),
+                vision_results,
+                frames=frames,
+            )
         )
         self._notify_progress(
             "SPIDER_DECISION",
