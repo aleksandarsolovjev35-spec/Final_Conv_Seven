@@ -12,10 +12,9 @@ from core.step_stages import (
     StepSequencer,
 )
 from domain.defect_rules import InputPartPresenceRule
-from inspection.consensus import (
-    combine_presence_results,
-    combine_rule_results,
-    describe_picture_run,
+from inspection.run_report import (
+    prepare_presence_result,
+    prepare_rule_results,
     summarize_model_health,
 )
 from domain.part import (
@@ -611,7 +610,7 @@ class ProductionCycle:
             detection_count = len(vision_results.get(role, []))
 
             raw_model_health = [
-                {**item, "run": 1}
+                item
                 for item in (getattr(self.inspector.vision, "last_health", None) or [])
                 if isinstance(item, dict)
             ]
@@ -619,41 +618,21 @@ class ProductionCycle:
             presence_result = None
             rule_results = []
             if is_input:
-                presence_result, presence_vote, _ = combine_presence_results(
-                    [self.inspector._evaluate_part_presence(vision_results)]
+                presence_result = prepare_presence_result(
+                    self.inspector._evaluate_part_presence(vision_results)
                 )
                 if not presence_result.details.get("empty_tray"):
-                    rule_results, consensus, _ = combine_rule_results([
+                    rule_results = prepare_rule_results(
                         decision.evaluate_rules_detailed(
                             decision_rules, vision_results, frames=stage_frames,
                         )
-                    ])
-                    consensus["part_presence"] = presence_vote
-                else:
-                    # Пустой лоток: defect-правила не выполняются.
-                    consensus = {
-                        "runs": 1,
-                        "required_votes": 1,
-                        "evidence_run": 1,
-                        "part_presence": presence_vote,
-                        "rules": {},
-                    }
+                    )
             else:
-                rule_results, consensus, _ = combine_rule_results([
+                rule_results = prepare_rule_results(
                     decision.evaluate_rules_detailed(
                         decision_rules, vision_results, frames=stage_frames,
                     )
-                ])
-
-            picture_candidates = (
-                [presence_result] + list(rule_results)
-                if is_input and presence_result is not None
-                else rule_results
-            )
-            consensus["picture_run"] = 1
-            consensus["picture_reason"] = describe_picture_run(
-                picture_candidates, 0,
-            )
+                )
 
             model_rows = summarize_model_health(raw_model_health)
             if not model_rows or any(not row.get("ok") for row in model_rows):
@@ -675,9 +654,7 @@ class ProductionCycle:
                 "ok": True,
                 "width": int(width),
                 "height": int(height),
-                "runs": 1,
                 "detections": int(detection_count),
-                "detections_by_run": [int(detection_count)],
             }]
 
             self._last_vision_results = vision_results
@@ -693,9 +670,6 @@ class ProductionCycle:
                 "cameras": camera_rows,
                 "models": model_rows,
                 "rules": rule_rows,
-                "consensus": consensus,
-                "picture_run": 1,
-                "picture_reason": consensus.get("picture_reason"),
                 "updated_at": time.time(),
             }
             self._set_process(
@@ -1317,16 +1291,12 @@ class ProductionCycle:
             positions=[self.OFFSET_INPUT],
         )
 
-        inspect_consensus = getattr(
-            self.inspector,
-            "inspect_input_consensus",
-            None,
-        )
-        if not callable(inspect_consensus):
+        inspect_input = getattr(self.inspector, "inspect_input", None)
+        if not callable(inspect_input):
             raise RuntimeError(
                 "Inspector не поддерживает обязательную INPUT инспекцию"
             )
-        result = inspect_consensus(
+        result = inspect_input(
             part_id=candidate_id,
             step=self.current_step,
             frame_runs=frame_runs,
@@ -1354,7 +1324,6 @@ class ProductionCycle:
 
         self.part_counter += 1
         part = Part(self.part_counter, self.current_step)
-        part.inspection_consensus["input"] = dict(result.consensus)
         for defect in result.defects:
             part.add_input_defect(defect)
         # Результат правила становится состоянием Part только после того,
@@ -1405,22 +1374,17 @@ class ProductionCycle:
                 part_id=part.id,
                 positions=[self.OFFSET_SPIDER],
             )
-            inspect_consensus = getattr(
-                self.inspector,
-                "inspect_spider_consensus",
-                None,
-            )
-            if not callable(inspect_consensus):
+            inspect_spider = getattr(self.inspector, "inspect_spider", None)
+            if not callable(inspect_spider):
                 raise RuntimeError(
                     "Inspector не поддерживает обязательную SPIDER инспекцию"
                 )
-            result = inspect_consensus(
+            result = inspect_spider(
                 part_id=part.id,
                 step=self.current_step,
                 frame_runs=frame_runs,
                 force_bad=self.force_all_bad,
             )
-            part.inspection_consensus["spider"] = dict(result.consensus)
             for defect in result.defects:
                 part.add_spider_defect(defect)
             # После SPIDER это уже окончательное решение Part: обе стадии
@@ -1523,9 +1487,6 @@ class ProductionCycle:
             "step": part.step_created,
         }
         archive_extra = {}
-        consensus = getattr(part, "inspection_consensus", None)
-        if consensus:
-            archive_extra["inspection_consensus"] = consensus
         if extra:
             archive_extra.update(extra)
         if archive_extra:
@@ -1577,8 +1538,6 @@ class ProductionCycle:
             "part_id": None,
             "rule_results": [],
             "models": [],
-            "picture_run": None,
-            "picture_reason": None,
             "updated_at": None,
         }
 
@@ -1601,9 +1560,7 @@ class ProductionCycle:
         if not isinstance(rows, list) or not rows:
             vision = getattr(self.inspector, "vision", None)
             rows = getattr(vision, "last_health", None) or []
-        consensus = getattr(result, "consensus", None) or {}
-        
-        # Подготовить модели с детальной информацией о прогоне
+
         model_details = []
         for item in rows:
             if not isinstance(item, dict):
@@ -1612,26 +1569,15 @@ class ProductionCycle:
                 "role": item.get("role"),
                 "model": item.get("model"),
                 "ok": item.get("ok"),
-                "runs": item.get("runs"),
                 "elapsed_ms": item.get("elapsed_ms"),
-                "elapsed_total_ms": item.get("elapsed_total_ms"),
                 "detections": item.get("detections"),
-                "detections_by_run": item.get("detections_by_run", []),
                 "error": item.get("error"),
             })
-        
+
         self._frame_analysis_groups[group] = {
             "part_id": part_id,
             "rule_results": list(result.rule_results),
             "models": model_details,
-            "picture_run": (
-                int(consensus.get("picture_run"))
-                if consensus.get("picture_run") else None
-            ),
-            "picture_reason": (
-                str(consensus.get("picture_reason"))
-                if consensus.get("picture_reason") else None
-            ),
             "updated_at": time.time(),
         }
 
@@ -1850,8 +1796,6 @@ class ProductionCycle:
                 "message": message,
                 "models": models,
                 "rules": rules,
-                "picture_run": entry.get("picture_run"),
-                "picture_reason": entry.get("picture_reason"),
                 "updated_at": entry["updated_at"],
             }
 
@@ -1873,8 +1817,6 @@ class ProductionCycle:
                 "cameras": [dict(item) for item in report.get("cameras", [])],
                 "models": [dict(item) for item in report.get("models", [])],
                 "rules": [dict(item) for item in report.get("rules", [])],
-                "picture_run": report.get("picture_run"),
-                "picture_reason": report.get("picture_reason"),
                 "updated_at": report.get("updated_at"),
             }
 
@@ -1888,8 +1830,6 @@ class ProductionCycle:
             "message": None,
             "models": [],
             "rules": [],
-            "picture_run": None,
-            "picture_reason": None,
             "updated_at": None,
         }
 

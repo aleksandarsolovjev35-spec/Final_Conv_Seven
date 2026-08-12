@@ -31,15 +31,13 @@ let _faDragState = null;
 let _faRafSync = 0;
 
 // ——— утилиты ———
-function faNewVoteSummary(vote) {
-    if (!vote) return {className: 'ok', text: '—'};
-    const total = Number(vote.total_runs) || 1;
-    const single = total <= 1;
-    const count = (v) => single ? '' : ' · ' + (v ?? 0) + '/' + total;
-    if (vote.decision === 'empty') return {className: 'warn', text: 'ПУСТО' + count(vote.empty_votes ?? vote.triggered_votes)};
-    if (vote.decision === 'present') return {className: 'ok', text: 'КОРПУС' + count(vote.present_votes ?? vote.normal_votes)};
-    if (vote.decision === 'triggered') return {className: 'bad', text: 'СРАБОТАЛО' + count(vote.triggered_votes)};
-    return {className: 'ok', text: 'НОРМА' + count(vote.normal_votes)};
+function faNewRuleBadge(rule) {
+    if (!rule) return {className: 'ok', text: '—'};
+    if (rule.part_absent) return {className: 'warn', text: 'ПУСТО'};
+    if (rule.name === 'part_presence') return {className: 'ok', text: 'КОРПУС'};
+    if (rule.triggered) return {className: 'bad', text: 'СРАБОТАЛО'};
+    if (rule.skipped) return {className: 'warn', text: 'НЕТ ИЗМЕРЕНИЯ'};
+    return {className: 'ok', text: 'НОРМА'};
 }
 
 function faNewFormatValue(v) {
@@ -161,7 +159,6 @@ function faNewReportKey(report) {
             stage: report.stage,
             part_id: report.part_id,
             updated_at: report.updated_at,
-            picture_run: report.picture_run,
             rules: report.rules,
         });
     } catch (_) {
@@ -454,10 +451,10 @@ function renderNewFrameAnalysis(report, ls) {
         ruleName.title = FA_RULE_NAMES[rule.name] || rule.name;
         ruleHead.appendChild(ruleName);
 
-        const vote = faNewVoteSummary(rule.vote_details);
+        const badgeInfo = faNewRuleBadge(rule);
         const badge = document.createElement('span');
-        badge.className = 'fa-new-rule-badge ' + vote.className;
-        badge.textContent = vote.text;
+        badge.className = 'fa-new-rule-badge ' + badgeInfo.className;
+        badge.textContent = badgeInfo.text;
         ruleHead.appendChild(badge);
         frag.appendChild(ruleHead);
 

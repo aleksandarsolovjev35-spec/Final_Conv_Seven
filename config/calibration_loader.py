@@ -32,27 +32,19 @@ OPTIONAL_DEFAULTS = {
 
 _FLOAT_KEYS = ("settle_time", "stage_trace_time", "review_time")
 _INTEGER_KEYS = tuple(key for key in DEFAULTS if key not in _FLOAT_KEYS)
-# Старые calibration.json могли содержать паузу падения. Заслонки
-# меняют положение только на следующем ROUTE_PREPARE, поэтому поле
-# больше не используется и при загрузке игнорируется.
-_DEPRECATED_KEYS = frozenset({"drop_time"})
 
 
 def _validate(data: dict) -> dict:
     if not isinstance(data, dict):
         raise ValueError("calibration.json должен содержать объект")
     missing = set(DEFAULTS) - set(data)
-    extra = set(data) - set(DEFAULTS) - set(OPTIONAL_DEFAULTS) - _DEPRECATED_KEYS
+    extra = set(data) - set(DEFAULTS) - set(OPTIONAL_DEFAULTS)
     if missing or extra:
         raise ValueError(
             f"Неверные поля calibration: missing={sorted(missing)}, "
             f"extra={sorted(extra)}"
         )
-    data = {
-        key: value
-        for key, value in {**OPTIONAL_DEFAULTS, **data}.items()
-        if key not in _DEPRECATED_KEYS
-    }
+    data = {**OPTIONAL_DEFAULTS, **data}
     for key in _INTEGER_KEYS:
         if type(data[key]) is not int:
             raise ValueError(f"{key} должен быть int")
