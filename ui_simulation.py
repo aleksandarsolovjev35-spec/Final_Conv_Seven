@@ -416,13 +416,13 @@ class LineSimulation:
             "verdict": category,
             "rules": [{
                 "name": "part_presence", "title": "Наличие корпуса", "triggered": False,
-                "run_cards": [[{"type": "metric", "metrics": [{"key": "simulated_confidence", "label": "Уверенность модели", "value": "0.99", "limit": "0.40", "ok": True}]}]],
+                "measurement_cards": [{"type": "metric", "metrics": [{"key": "simulated_confidence", "label": "Уверенность модели", "value": "0.99", "limit": "0.40", "ok": True}]}],
             }, {
                 "name": "sinks" if triggered else "window_geometry",
                 "title": "Симулированная проверка",
                 "triggered": triggered,
                 "human_cause": ", ".join(defects) if defects else "Норма",
-                "run_cards": [[{"type": "metric", "metrics": [{"key": "simulated_result", "label": "Результат правила", "value": "СРАБОТАЛО" if triggered else "НОРМА", "limit": "—", "ok": not triggered}]}]],
+                "measurement_cards": [{"type": "metric", "metrics": [{"key": "simulated_result", "label": "Результат правила", "value": "СРАБОТАЛО" if triggered else "НОРМА", "limit": "—", "ok": not triggered}]}],
             }],
         }
 

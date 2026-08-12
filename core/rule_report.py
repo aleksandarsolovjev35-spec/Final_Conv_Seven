@@ -32,7 +32,7 @@ METRIC_PARAM_LABELS = {
         "Макс. открытие заслонки, px",
     ("contacts_long", "gap_dev_max_px"):
         "Макс. разброс расстояний до пропуска, px",
-    # Дополнительные метрики контактов и omission для run_cards
+    # Дополнительные метрики контактов и omission для карточек замера
     ("long_omission", "max_excess_depth_px"):
         "Макс. глубина избытка, px",
     ("long_omission", "largest_component_px"):
@@ -1062,30 +1062,24 @@ def _threshold_conclusion(
     return human_cause or "Правило сработало: проверьте причину и измерения"
 
 
-def _fallback_run_status(run_cards: list) -> list:
-    """Статус замера из карточек, если отдельный run_status не пришёл.
+def _fallback_role_status(cards: list) -> list:
+    """Статус замера из карточек, если отдельный role_status не пришёл.
 
     По ``ok`` карточек: «В НОРМЕ» / «ОТКЛОНЕНИЕ» / «НЕТ ИЗМЕРЕНИЯ».
     """
-    statuses = []
-    for cards in run_cards or []:
-        if not isinstance(cards, list) or not cards:
-            statuses.append([])
+    rows = []
+    for card in cards or []:
+        if not isinstance(card, dict):
             continue
-        rows = []
-        for card in cards:
-            if not isinstance(card, dict):
-                continue
-            ok = card.get("ok")
-            role = card.get("role", "")
-            if ok is True:
-                rows.append({"role": role, "status": "В НОРМЕ", "reason": None})
-            elif ok is False:
-                rows.append({"role": role, "status": "ОТКЛОНЕНИЕ", "reason": None})
-            else:
-                rows.append({"role": role, "status": "НЕТ ИЗМЕРЕНИЯ", "reason": None})
-        statuses.append(rows)
-    return statuses
+        ok = card.get("ok")
+        role = card.get("role", "")
+        if ok is True:
+            rows.append({"role": role, "status": "В НОРМЕ", "reason": None})
+        elif ok is False:
+            rows.append({"role": role, "status": "ОТКЛОНЕНИЕ", "reason": None})
+        else:
+            rows.append({"role": role, "status": "НЕТ ИЗМЕРЕНИЯ", "reason": None})
+    return rows
 
 
 def filter_rule_report_rows(rows) -> list:
@@ -1121,29 +1115,21 @@ def _filter_role_cards(cards, role: str) -> list:
     ]
 
 
-def _filter_run_cards(run_cards, role: str) -> list:
-    if not isinstance(run_cards, list):
-        return []
-    return [_filter_role_cards(cards, role) for cards in run_cards]
+def _filter_measurement_cards(cards, role: str) -> list:
+    return _filter_role_cards(cards, role)
 
 
-def _filter_run_status(run_status, role: str) -> list:
-    if not isinstance(run_status, list):
+def _filter_role_status(rows, role: str) -> list:
+    if not isinstance(rows, list):
         return []
-    filtered = []
-    for rows in run_status:
-        if not isinstance(rows, list):
-            filtered.append([])
-            continue
-        filtered.append([
-            row for row in rows
-            if isinstance(row, dict) and (
-                row.get("role") == role
-                # part_presence пишет общий статус role=INPUT — оставляем.
-                or row.get("role") in (None, "", "INPUT")
-            )
-        ])
-    return filtered
+    return [
+        row for row in rows
+        if isinstance(row, dict) and (
+            row.get("role") == role
+            # part_presence пишет общий статус role=INPUT — оставляем.
+            or row.get("role") in (None, "", "INPUT")
+        )
+    ]
 
 
 def _scope_presence_details(details: dict, role: str) -> dict:
@@ -1173,10 +1159,14 @@ def _scope_presence_details(details: dict, role: str) -> dict:
 def _scope_measurement_to_role(details: dict, role: str) -> dict:
     """Оставить в details только карточки/статусы выбранной камеры."""
     scoped = dict(details)
-    if "run_cards" in scoped:
-        scoped["run_cards"] = _filter_run_cards(scoped.get("run_cards"), role)
-    if "run_status" in scoped:
-        scoped["run_status"] = _filter_run_status(scoped.get("run_status"), role)
+    if "measurement_cards" in scoped:
+        scoped["measurement_cards"] = _filter_measurement_cards(
+            scoped.get("measurement_cards"), role,
+        )
+    if "role_status" in scoped:
+        scoped["role_status"] = _filter_role_status(
+            scoped.get("role_status"), role,
+        )
     return scoped
 
 
@@ -1309,20 +1299,21 @@ def build_rule_report_row(result) -> dict:
     # как в панели «Пороги правил»; без сопоставления остаётся название
     # самой метрики.
     import copy
-    run_cards = copy.deepcopy(details.get("run_cards") or [summary_cards])
-    for cards in run_cards:
-        if not isinstance(cards, list):
+    cards = copy.deepcopy(details.get("measurement_cards") or summary_cards)
+    if not isinstance(cards, list):
+        cards = []
+    for card in cards:
+        if not isinstance(card, dict):
             continue
-        for card in cards:
-            for metric in card.get("metrics") or []:
-                key = metric.get("key")
-                if not key:
-                    continue
-                label = METRIC_PARAM_LABELS.get((rule_name, key))
-                if label:
-                    metric["label"] = label
+        for metric in card.get("metrics") or []:
+            key = metric.get("key")
+            if not key:
+                continue
+            label = METRIC_PARAM_LABELS.get((rule_name, key))
+            if label:
+                metric["label"] = label
 
-    run_status = details.get("run_status") or _fallback_run_status(run_cards)
+    role_status = details.get("role_status") or _fallback_role_status(cards)
 
     return {
         "name": result.rule_name,
@@ -1336,8 +1327,8 @@ def build_rule_report_row(result) -> dict:
         "detail_lines": detail_lines,
         "summary_lines": summary_lines,
         "summary_cards": summary_cards,
-        "run_cards": run_cards,
-        "run_status": copy.deepcopy(run_status),
+        "measurement_cards": cards,
+        "role_status": copy.deepcopy(role_status),
         "threshold_breaches": threshold_breaches,
         "threshold_conclusion": threshold_conclusion,
         "part_absent": part_absent,

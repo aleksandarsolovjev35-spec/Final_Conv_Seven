@@ -132,7 +132,6 @@ const state = {
     activeCameraRequestBusy: false,
     thresholdsRevision:   null,
 
-    pictureRun: 0,
     mainCamMode:          'pull',
     mainCamStreamRole:    null,
     mainCamStreamView:    null,

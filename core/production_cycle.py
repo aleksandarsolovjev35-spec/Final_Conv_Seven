@@ -676,11 +676,7 @@ class ProductionCycle:
                 "SELECTED_MODEL_READY",
                 f"Анализ кадра {role} завершён; поток приостановлен",
             )
-            self._refresh_monitor(
-                stage_frames,
-                run_frames=[stage_frames],
-                run_rule_results=[rule_results],
-            )
+            self._refresh_monitor(stage_frames)
             return True
         except Exception as exc:
             self._selected_analysis_active = False
@@ -721,12 +717,11 @@ class ProductionCycle:
             try:
                 fresh_frames = self.cameras.capture_all()
                 # Публикуем свежие кадры без оверлеев — возврат к живому виду.
-                # Три кадра анализа больше неактуальны: очищаем.
-                self._refresh_monitor(fresh_frames, run_frames=[])
+                self._refresh_monitor(fresh_frames)
             except Exception:
                 # Если захват недоступен (камеры заняты / ошибка), хотя бы
                 # гарантируем очистку оверлеев и обновление статуса.
-                self._refresh_monitor(run_frames=[])
+                self._refresh_monitor()
             self._set_process(
                 "LIVE_SELECTED_CAMERA",
                 f"Поток восстановлен: {role}",
@@ -944,14 +939,12 @@ class ProductionCycle:
 
         # Каждый производственный шаг проходит одну последовательную цепочку:
         # свежий кадр -> модели -> геометрия/правила -> решение -> архив.
-        # Фоновых прогонов моделей для пропуска CAPTURE нет: это исключает
-        # смешивание кадров разных моментов и гонки за last_health.
         pending_id = self._stage_motion()
         self._stage_settle(pending_id, accept_input_for_this_step)
         self._check_pause_barrier()
-        frame_runs = self._stage_capture(accept_input_for_this_step)
+        frames = self._stage_capture(accept_input_for_this_step)
         display_frames = self._stage_analysis(
-            frame_runs, accept_input_for_this_step,
+            frames, accept_input_for_this_step,
         )
         self._stage_review(display_frames)
         self._stage_publish(display_frames)
@@ -1066,7 +1059,7 @@ class ProductionCycle:
             capture_roles=roles,
         )
         if not roles:
-            return [{}]
+            return {}
 
         # Драйвер может отдать старый кадр из буфера после движения. Дренируем
         # только нужные роли, затем получаем один свежий набор именно для
@@ -1094,13 +1087,10 @@ class ProductionCycle:
         release_capture = getattr(self.stages, "release_capture_roles", None)
         if callable(release_capture):
             release_capture()
-        # Публикуем frozen snapshot отдельным inspection-слоем. Live может
-        # сразу обновлять физические камеры, но UI выбранной inspection-роли
-        # видит именно кадр, по которому сейчас считается решение.
-        self._refresh_monitor(run_frames=[frames], run_rule_results=[[]])
-        return [frames]
+        self._refresh_monitor(frames)
+        return frames
 
-    def _stage_analysis(self, frame_runs, accept_input_for_this_step):
+    def _stage_analysis(self, frames, accept_input_for_this_step):
         """ANALYSIS: модели -> геометрия -> решение по уже снятым кадрам.
 
         ``Inspector`` не получает live-кадры: только frozen snapshot из
@@ -1109,11 +1099,8 @@ class ProductionCycle:
         """
         self.stages.enter_analysis()
 
-        # Единственный набор кадров стадии: он же уходит в UI и архив.
-        display_frames = dict(frame_runs[-1])
-        # Один прогон: общие кадры и общие правила для разметки стадии.
-        markup_frames = {}
-        markup_rules = []
+        display_frames = dict(frames)
+        inspected = False
 
         # Определяем активные позиции для подсветки в UI
         active_positions = []
@@ -1128,14 +1115,10 @@ class ProductionCycle:
                 "Вход: модели и правила по свежему кадру",
                 positions=active_positions,
             )
-            input_result = self._process_input_stage(frame_runs)
+            input_result = self._process_input_stage(frames)
             if input_result is not None:
                 display_frames.update(input_result.raw_frames)
-                markup_frames.update(input_result.raw_frames)
-                # Для разметки INPUT используются только defect-правила
-                # (run_rule_results), служебный part_presence не рисует.
-                if input_result.run_rule_results:
-                    markup_rules.extend(input_result.run_rule_results[0])
+                inspected = True
                 # Если деталь на входе не обнаружена, убираем подсветку
                 if input_result.is_empty_tray and self.OFFSET_INPUT in active_positions:
                     active_positions.remove(self.OFFSET_INPUT)
@@ -1151,21 +1134,14 @@ class ProductionCycle:
                 "Проверка корпуса на +4: свежий кадр",
                 positions=active_positions,
             )
-            spider_result = self._run_spider_inspection(frame_runs)
+            spider_result = self._run_spider_inspection(frames)
             if spider_result is not None:
                 display_frames.update(spider_result.raw_frames)
-                markup_frames.update(spider_result.raw_frames)
-                if spider_result.run_rule_results:
-                    markup_rules.extend(spider_result.run_rule_results[0])
+                inspected = True
             self._check_motion_cancelled()
 
-        # Набор кадров стадии уходит в UI одним снимком.
-        if markup_frames:
-            self._refresh_monitor(
-                display_frames,
-                run_frames=[markup_frames],
-                run_rule_results=[markup_rules],
-            )
+        if inspected:
+            self._refresh_monitor(display_frames)
         return display_frames
 
     def _stage_review(self, display_frames):
@@ -1279,7 +1255,7 @@ class ProductionCycle:
 
     # Input stage
 
-    def _process_input_stage(self, frame_runs):
+    def _process_input_stage(self, frames):
         """Обработать INPUT по свежему кадру."""
 
         candidate_id = self.part_counter + 1
@@ -1294,7 +1270,7 @@ class ProductionCycle:
         result = self.inspector.inspect_input(
             part_id=candidate_id,
             step=self.current_step,
-            frame_runs=frame_runs,
+            frames=frames,
             force_bad=self.force_all_bad,
         )
         if result.is_empty_tray:
@@ -1338,9 +1314,6 @@ class ProductionCycle:
                 raw_frames=result.raw_frames,
                 annotated_frames=result.annotated,
                 raw_overlay_frames=result.raw_overlay_frames,
-                run_frames=getattr(result, "run_frames", None),
-                run_rule_results=getattr(result, "run_rule_results", None),
-                run_vision_results=getattr(result, "run_vision_results", None),
             )
         self._set_process(
             "INPUT_RESULT_RECORDED",
@@ -1357,7 +1330,7 @@ class ProductionCycle:
 
     # Inspection
 
-    def _run_spider_inspection(self, frame_runs):
+    def _run_spider_inspection(self, frames):
         for part in self.parts:
             if (part.step_created + self.OFFSET_SPIDER
                     != self.current_step):
@@ -1372,7 +1345,7 @@ class ProductionCycle:
             result = self.inspector.inspect_spider(
                 part_id=part.id,
                 step=self.current_step,
-                frame_runs=frame_runs,
+                frames=frames,
                 force_bad=self.force_all_bad,
             )
             for defect in result.defects:
@@ -1392,9 +1365,6 @@ class ProductionCycle:
                     raw_frames=result.raw_frames,
                     annotated_frames=result.annotated,
                     raw_overlay_frames=result.raw_overlay_frames,
-                    run_frames=getattr(result, "run_frames", None),
-                    run_rule_results=getattr(result, "run_rule_results", None),
-                    run_vision_results=getattr(result, "run_vision_results", None),
                 )
             self._set_process(
                 "SPIDER_RESULT_RECORDED",
@@ -1985,12 +1955,7 @@ class ProductionCycle:
 
         return status
 
-    def _refresh_monitor(
-        self,
-        frames: dict | None = None,
-        run_frames: list | None = None,
-        run_rule_results: list | None = None,
-    ):
+    def _refresh_monitor(self, frames: dict | None = None):
         if not self.monitor:
             return
         status = self._build_status()
@@ -2001,13 +1966,9 @@ class ProductionCycle:
                 rule_results=self._last_rule_results,
                 line_status=status,
                 recent_parts=list(self.recent_parts),
-                run_frames=run_frames,
-                run_rule_results=run_rule_results,
             )
         else:
             self.monitor.update(
                 line_status=status,
                 recent_parts=list(self.recent_parts),
-                run_frames=run_frames,
-                run_rule_results=run_rule_results,
             )

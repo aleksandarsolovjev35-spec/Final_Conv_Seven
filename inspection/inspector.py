@@ -50,12 +50,12 @@ class Inspector:
         self,
         part_id: int,
         step: int,
-        frame_runs,
+        frames,
         force_bad: bool = False,
     ) -> InspectionResult:
         # Строгий порядок одной стадии: кадры -> модели -> проверка
         # наличия (gate) -> геометрия/defect rules -> разметка -> результат.
-        frames = self._single_stage_frames(frame_runs, self.INPUT_ROLES, "input")
+        frames = self._stage_frames(frames, self.INPUT_ROLES, "input")
         self._notify_progress(
             "INPUT_MODELS",
             "INPUT: запуск моделей по свежему кадру",
@@ -91,8 +91,6 @@ class Inspector:
                 raw_overlay_frames={},
                 is_empty_tray=True,
                 model_health=model_health,
-                run_frames=[frames],
-                run_rule_results=[[]],
             )
 
         self._notify_progress(
@@ -126,10 +124,10 @@ class Inspector:
         self,
         part_id: int,
         step: int,
-        frame_runs,
+        frames,
         force_bad: bool = False,
     ) -> InspectionResult:
-        frames = self._single_stage_frames(frame_runs, self.SPIDER_ROLES, "spider")
+        frames = self._stage_frames(frames, self.SPIDER_ROLES, "spider")
         self._notify_progress(
             "SPIDER_MODELS",
             "SPIDER/TOP: запуск моделей по свежему кадру",
@@ -166,13 +164,7 @@ class Inspector:
         )
 
     @staticmethod
-    def _single_stage_frames(frame_runs, roles, stage: str) -> dict:
-        runs = list(frame_runs)
-        if len(runs) != 1:
-            raise RuntimeError(
-                f"{stage}: ожидался один набор кадров, получено {len(runs)}"
-            )
-        frames = runs[0]
+    def _stage_frames(frames, roles, stage: str) -> dict:
         if not isinstance(frames, dict):
             raise RuntimeError(f"{stage}: кадры должны быть словарём")
         missing = set(roles) - set(frames)
@@ -242,9 +234,6 @@ class Inspector:
             raw_overlay_frames=raw_overlay_frames,
             is_empty_tray=False,
             model_health=model_health,
-            run_frames=[frames],
-            run_rule_results=[markup],
-            run_vision_results=[dict(vision_results)],
         )
 
     def _evaluate_part_presence(self, vision_results: dict):

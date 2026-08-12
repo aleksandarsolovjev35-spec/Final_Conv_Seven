@@ -17,12 +17,3 @@ class InspectionResult:
     is_empty_tray: bool = False
 
     model_health: list = field(default_factory=list)
-
-    # Набор кадров стадии: один элемент {role: кадр}.
-    run_frames: list = field(default_factory=list)
-
-    # Правила стадии для оверлея. Один элемент — список RuleResult.
-    run_rule_results: list = field(default_factory=list)
-
-    # Детекции моделей по кадрам стадии.
-    run_vision_results: list = field(default_factory=list)

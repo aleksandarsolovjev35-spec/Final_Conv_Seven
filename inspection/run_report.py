@@ -1,8 +1,8 @@
 """Карточки замеров и статус области для единственного кадра.
 
 Итог правила равен его ``triggered``. Модуль только проверяет контракт
-результата и кладёт в ``details`` поля ``run_cards`` / ``run_status``
-для правой панели HMI.
+результата и кладёт в ``details`` поля ``measurement_cards`` /
+``role_status`` для правой панели HMI.
 """
 
 from __future__ import annotations
@@ -114,8 +114,8 @@ def attach_measurement(result):
     """Дописать карточки и статус области в ``details`` результата."""
     rule_name = str(getattr(result, "rule_name", "") or "")
     details = deepcopy(getattr(result, "details", {}) or {})
-    details["run_cards"] = [_measurement_cards(rule_name, result)]
-    details["run_status"] = [_measurement_status(rule_name, result)]
+    details["measurement_cards"] = _measurement_cards(rule_name, result)
+    details["role_status"] = _measurement_status(rule_name, result)
     result.details = details
     return result
 

@@ -52,77 +52,39 @@ function faNewFormatLimit(metric) {
     return '—';
 }
 
-function faNewCollectThresholds(runCards) {
-    // Собираем пороги из карточек единственного прогона.
-    const map = new Map();
-    const runs = Array.isArray(runCards) ? runCards : [];
-    runs.forEach((cards, runIndex) => {
-        const list = Array.isArray(cards) ? cards : [];
-        for (const card of list) {
-            const metrics = Array.isArray(card.metrics) ? card.metrics : [];
-            for (const m of metrics) {
-                const key = m.key || m.label;
-                if (!key) continue;
-                if (!map.has(key)) {
-                    map.set(key, {
-                        label: m.label || m.key || '—',
-                        key: m.key || null,
-                        limit: m.limit || null,
-                        limit_raw: m.limit_raw,
-                        runs: runs.map(() => null),
-                    });
-                }
-                const entry = map.get(key);
-                if (m.limit != null && m.limit !== '') entry.limit = m.limit;
-                if (m.limit_raw !== undefined) entry.limit_raw = m.limit_raw;
-                if (m.label) entry.label = m.label;
-                entry.runs[runIndex] = {
-                    value: m.value != null ? m.value : null,
-                    ok: m.ok == null ? null : !!m.ok,
-                    value_raw: typeof m.value_raw === 'number' ? m.value_raw : null,
-                };
-            }
-        }
-    });
-    return map;
-}
-
-function faNewCollectGroups(runCards) {
+function faNewCollectGroups(cards) {
     const generalMap = new Map();
     const objectsMap = new Map();
-    const runs = Array.isArray(runCards) ? runCards : [];
-    runs.forEach((cards) => {
-        const list = Array.isArray(cards) ? cards : [];
-        for (const card of list) {
-            const role = card.role || '';
-            const metrics = Array.isArray(card.metrics) ? card.metrics : [];
-            for (const m of metrics) {
-                const key = m.key || m.label;
-                if (!key) continue;
-                const row = {
-                    label: m.label || m.key || '—',
-                    limit: faNewFormatLimit(m),
-                    value: faNewFormatValue(m.value != null ? m.value : null),
-                    ok: m.ok == null ? null : !!m.ok,
-                    value_raw: typeof m.value_raw === 'number' ? m.value_raw : null,
-                };
-                const objectName = m.object || null;
-                if (!objectName) {
-                    if (generalMap.has(key)) continue;
-                    generalMap.set(key, row);
-                } else {
-                    const groupKey = role + '::' + objectName;
-                    let group = objectsMap.get(groupKey);
-                    if (!group) {
-                        group = {name: objectName, rowsMap: new Map()};
-                        objectsMap.set(groupKey, group);
-                    }
-                    if (group.rowsMap.has(key)) continue;
-                    group.rowsMap.set(key, row);
+    const list = Array.isArray(cards) ? cards : [];
+    for (const card of list) {
+        const role = card.role || '';
+        const metrics = Array.isArray(card.metrics) ? card.metrics : [];
+        for (const m of metrics) {
+            const key = m.key || m.label;
+            if (!key) continue;
+            const row = {
+                label: m.label || m.key || '—',
+                limit: faNewFormatLimit(m),
+                value: faNewFormatValue(m.value != null ? m.value : null),
+                ok: m.ok == null ? null : !!m.ok,
+                value_raw: typeof m.value_raw === 'number' ? m.value_raw : null,
+            };
+            const objectName = m.object || null;
+            if (!objectName) {
+                if (generalMap.has(key)) continue;
+                generalMap.set(key, row);
+            } else {
+                const groupKey = role + '::' + objectName;
+                let group = objectsMap.get(groupKey);
+                if (!group) {
+                    group = {name: objectName, rowsMap: new Map()};
+                    objectsMap.set(groupKey, group);
                 }
+                if (group.rowsMap.has(key)) continue;
+                group.rowsMap.set(key, row);
             }
         }
-    });
+    }
     return {
         general: [...generalMap.values()],
         objects: [...objectsMap.values()].map(g => ({
@@ -466,7 +428,7 @@ function renderNewFrameAnalysis(report, ls) {
             continue;
         }
 
-        const groups = faNewCollectGroups(rule.run_cards);
+        const groups = faNewCollectGroups(rule.measurement_cards);
         if (!groups.general.length && !groups.objects.length) {
             const emptyRow = document.createElement('div');
             emptyRow.className = 'fa-new-empty';
