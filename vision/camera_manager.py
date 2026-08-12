@@ -90,6 +90,51 @@ _BACKEND_ALIASES = {
     "any": "CAP_ANY",
 }
 
+# Маркер → подсказка оператору в сообщении об ошибке открытия камер.
+_HINT_PATTERNS = (
+    (
+        "устройство не открылось",
+        "устройство не открылось ни под одним API: камера отключена, "
+        "без питания, занята другой программой или индекс устарел",
+    ),
+    (
+        "read returned no frame",
+        "устройство открывалось, но не отдало ни одного кадра: устаревший "
+        "индекс после переподключения USB, камера занята другой программой "
+        "или неисправна",
+    ),
+    (
+        "near-black",
+        "кадр почти чёрный: проверь крышку объектива, освещение и экспозицию",
+    ),
+    (
+        "invalid resolution",
+        "кадр не в формате 1280x720: проверь режим MJPG в драйвере камеры",
+    ),
+)
+_GENERIC_HINT = "камера не отвечает: проверь подключение и питание"
+
+
+def _build_failure_hints(attempt_errors) -> list:
+    """Собрать подсказки «что проверить» по фактическим ошибкам попыток."""
+    joined = "; ".join(attempt_errors).lower()
+    hints = [
+        text for marker, text in _HINT_PATTERNS if marker in joined
+    ]
+    if not hints:
+        hints.append(_GENERIC_HINT)
+    return hints
+
+
+def _attempts_note(count: int) -> str:
+    """«1 попытка / 2 попытки / 5 попыток» для сводки ошибки."""
+    if count == 1:
+        return " (1 попытка открытия)"
+    modulo = count % 10
+    if 2 <= modulo <= 4 and not 11 <= count % 100 <= 14:
+        return f" ({count} попытки открытия)"
+    return f" ({count} попыток открытия)"
+
 
 def _default_backends() -> tuple:
     """Порядок backend-ов для перебора при открытии камеры.
@@ -232,6 +277,7 @@ class CameraManager:
         """Открыть все камеры волнами и убедиться, что каждая отдаёт кадр."""
         started = time.monotonic()
         errors = {}
+        error_details = {}
         opened = {}
         state_lock = threading.Lock()
 
@@ -278,6 +324,7 @@ class CameraManager:
                     f"камера {cam_id} не отдала валидный кадр; "
                     + "; ".join(attempt_errors)
                 )
+                error_details[role] = list(attempt_errors)
 
         roles = list(self.mapping.items())
         for index in range(0, len(roles), _OPEN_CONCURRENCY):
@@ -319,9 +366,22 @@ class CameraManager:
             details = ", ".join(
                 f"{role}: {error}" for role, error in sorted(errors.items())
             )
+            hint_lines = []
+            for role, _error in sorted(errors.items()):
+                camera_id = self.mapping[role]
+                attempts = tuple(error_details.get(role, ()))
+                hints = _build_failure_hints(attempts)
+                hint_lines.append(
+                    f"- {role} (камера {camera_id})"
+                    + (_attempts_note(len(attempts)) if attempts else "")
+                    + ": " + "; ".join(hints)
+                )
             raise RuntimeError(
-                f"Ошибка открытия камер: {details}. "
-                "Проверь камеры (run_camera_calibration.bat) и USB-подключение."
+                f"Ошибка открытия камер: {details}.\n"
+                "Что проверить:\n"
+                + "\n".join(hint_lines)
+                + "\nПроверь камеры (run_camera_calibration.bat / "
+                "camera_check.bat) и USB-подключение."
             )
 
         elapsed = time.monotonic() - started
