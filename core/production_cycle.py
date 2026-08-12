@@ -1369,12 +1369,7 @@ class ProductionCycle:
                 part_id=part.id,
                 positions=[self.OFFSET_SPIDER],
             )
-            inspect_spider = getattr(self.inspector, "inspect_spider", None)
-            if not callable(inspect_spider):
-                raise RuntimeError(
-                    "Inspector не поддерживает обязательную SPIDER инспекцию"
-                )
-            result = inspect_spider(
+            result = self.inspector.inspect_spider(
                 part_id=part.id,
                 step=self.current_step,
                 frame_runs=frame_runs,
