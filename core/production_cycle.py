@@ -365,9 +365,8 @@ class ProductionCycle:
                 return False
             self._set_diagnostic_running("CAMERAS", "Проверка семи камер")
             self._set_process("CAMERA_DIAGNOSTIC", "Проверка семи камер")
-            # Сброс буфера драйвера: в IDLE/STOPPED после JOG или прогрева
-            # cap.read() может вернуть устаревший кадр. См. комментарий
-            # в _stage_capture().
+            # После JOG драйвер может вернуть устаревший кадр из буфера.
+            # См. комментарий в _stage_capture().
             self.cameras.drain_buffers()
             frames = self.cameras.capture_all()
             camera_rows = []
@@ -414,9 +413,8 @@ class ProductionCycle:
                 "VISION_RULE_DIAGNOSTIC",
                 "Запуск всех моделей и правил дефектов без движения линии",
             )
-            # Сброс буфера драйвера: в IDLE/STOPPED после JOG или прогрева
-            # cap.read() может вернуть устаревший кадр. См. комментарий
-            # в _stage_capture().
+            # После JOG драйвер может вернуть устаревший кадр из буфера.
+            # См. комментарий в _stage_capture().
             self.cameras.drain_buffers()
             frames = self.cameras.capture_all()
             vision_results = self.inspector.vision.process_all(frames)

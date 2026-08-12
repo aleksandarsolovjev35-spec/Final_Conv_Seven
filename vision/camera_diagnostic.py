@@ -13,16 +13,16 @@ Foundation на Windows) до первого валидного кадра 1280x
 на каком индексе. Камеры при этом не стримят одновременно — результаты
 детерминированы и не зависят от гонки за полосу USB.
 
-Фаза 2 — воспроизведение production-открытия: все семь ролей из
-camera_mapping.json открываются одновременно тем же CameraManager-ом,
-что и run.bat. Фаза выполняется, только если файл mapping существует
-(или задан через --mapping).
+Фаза 2 — воспроизведение основного запуска: семь ролей из
+camera_mapping.json последовательно проходят ``VideoCapture`` и
+``isOpened()`` через тот же CameraManager, что использует run.bat.
+Открытые устройства удерживаются до завершения фазы.
 
 Инструмент ничего не изменяет: camera_mapping.json не перезаписывается.
 Переназначение ролей выполняется мастером run_camera_calibration.bat.
 
 Код выхода: 0 — найдено не менее 7 исправных ID и (если mapping задан)
-все 7 ролей открылись одновременно; 1 — любая проблема.
+все 7 ролей открылись; 1 — любая проблема.
 """
 
 from __future__ import annotations
@@ -40,13 +40,13 @@ from vision.camera_calibration_console import (
     SCAN_PROBE_ATTEMPTS,
     SCAN_RETRY_DELAY,
     _backend_label,
+    _camera_backends,
     _configure_capture,
     _open_capture,
     _probe_capture,
     _safe_release,
 )
 from vision.camera_manager import CameraManager
-from vision.camera_manager import default_backends as _camera_backends
 
 REQUIRED_CAMERA_COUNT = len(REQUIRED_ROLES)
 DEFAULT_SCAN_LIMIT = 10
@@ -165,11 +165,7 @@ def _load_mapping(path) -> dict | None:
 
 
 def check_mapping(mapping_path, factory) -> tuple[bool, str]:
-    """Открыть все роли из mapping одновременно, как run.bat.
-
-    Возвращает (все_роли_ок, сообщение). На ошибке сообщение содержит
-    детализированный разбор от CameraManager.
-    """
+    """Последовательно открыть роли из mapping точно как run.bat."""
     try:
         manager = CameraManager(
             config_file=mapping_path, capture_factory=factory
@@ -184,18 +180,8 @@ def check_mapping(mapping_path, factory) -> tuple[bool, str]:
 
 
 def _failed_roles_from_message(message: str) -> list:
-    """Вытащить роли из разбора ошибок CameraManager.
-
-    Сообщение содержит «ROLE: подробности» для каждой упавшей роли
-    (например «SPIDER_IN: камера 5 не отдала валидный кадр; ...»).
-    Ищем именно «ROLE:» — подсказки в конце сообщения идут в формате
-    «- ROLE (камера N)» и не содержат двоеточия после имени роли.
-    """
-    failed = []
-    for role in REQUIRED_ROLES:
-        if role + ":" in message and role not in failed:
-            failed.append(role)
-    return failed
+    """Найти роль из короткой ошибки открытия CameraManager."""
+    return [role for role in REQUIRED_ROLES if role in message]
 
 
 def _bad_mapped_roles(scan_results, mapping) -> list:
@@ -258,7 +244,7 @@ def _format_report(
     lines.append("")
 
     if mapping is not None:
-        lines.append("[2/2] Проверка ролей из camera_mapping.json (открытие как в production)")
+        lines.append("[2/2] Проверка ролей из camera_mapping.json (открытие как в run.bat)")
         for line in mapping_message.splitlines():
             lines.append(f"  {line}")
         lines.append("")
@@ -314,8 +300,8 @@ def _format_report(
         )
     elif mapping_ok:
         lines.append(
-            f"  Все {REQUIRED_CAMERA_COUNT} ролей открываются одновременно — "
-            "mapping актуален, камеры готовы к запуску линии."
+            f"  Все {REQUIRED_CAMERA_COUNT} ролей открылись — mapping актуален, "
+            "камеры готовы к запуску линии."
         )
     else:
         bad_mapped = _bad_mapped_roles(scan_results, mapping)
@@ -389,7 +375,7 @@ def main(argv=None) -> int:
     mapping_message = ""
     if mapping is not None:
         print(
-            "[CAMERA DIAGNOSTIC] Фаза 2: открытие всех ролей одновременно "
+            "[CAMERA DIAGNOSTIC] Фаза 2: последовательное открытие ролей "
             "(как run.bat)"
         )
         mapping_ok, mapping_message = check_mapping(

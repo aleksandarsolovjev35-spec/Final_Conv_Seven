@@ -26,14 +26,12 @@ _STATIC_DIR    = _UI_DIR / "static"
 
 BOOT_STEPS = [
     ("cameras",       "Камеры"),
-    ("camera_warmup", "Прогрев камер"),
     ("models_load",   "Загрузка моделей"),
     ("models_warm",   "Прогрев моделей"),
     ("inspection",    "Система контроля"),
     ("serial",        "Контроллер"),
     ("hardware",      "Оборудование"),
     ("cycle",         "Производственный цикл"),
-    ("preview",       "Начальные кадры"),
     ("ready",         "Готовность"),
 ]
 
@@ -77,6 +75,7 @@ class UIServer:
 
     def __init__(self):
         self.frames: dict         = {}
+        self.camera_roles: list   = []
         self.vision_results: dict = {}
         self.rule_results: list   = []
         self.line_status: dict    = {}
@@ -297,9 +296,20 @@ class UIServer:
                     if custom:
                         metric["label"] = custom
 
+    def set_camera_roles(self, roles) -> None:
+        """Опубликовать роли открытых камер без обязательного чтения кадров."""
+        normalized = [
+            str(role) for role in dict.fromkeys(roles or ()) if role
+        ]
+        with self.lock:
+            self.camera_roles = normalized
+            if self.active_camera_role not in normalized:
+                self.active_camera_role = normalized[0] if normalized else None
+
     def set_active_camera_role(self, role: str) -> bool:
         with self.lock:
-            if not role or role not in self.frames:
+            available = set(self.camera_roles) | set(self.frames)
+            if not role or role not in available:
                 return False
             if self.active_camera_role == role:
                 return True
