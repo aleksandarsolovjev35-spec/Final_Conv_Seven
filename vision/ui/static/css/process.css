@@ -402,7 +402,7 @@
     align-content: flex-start;
 }
 .prestart-diagnostics,
-.frame-analysis-panel,
+.frame-analysis-panel-new,
 .stats-summary,
 .distributor-panel,
 .thresholds-panel,
@@ -542,30 +542,6 @@
        и стрелку падения. */
     background: var(--bg-2);
 }
-
-/* === Human-readable defect cause (simple & bold) === */
-.frame-analysis-item.has-human-cause .frame-analysis-human-cause,
-.fa-group.has-human-cause .frame-analysis-human-cause {
-    display: block;
-    min-width: 0;
-    margin-top: 3px;
-    overflow-wrap: anywhere;
-    font-size: 10px;
-    font-weight: 800;
-    color: #ff6b6b;
-    letter-spacing: 0.2px;
-    background: rgba(200, 50, 50, 0.15);
-    padding: 2px 6px;
-    border-radius: 2px;
-    border-left: 3px solid #ff6b6b;
-}
-
-.frame-analysis-item.triggered,
-.fa-group.triggered {
-    border-color: var(--bad);
-}
-
-
 
 /* ─── Заголовки панелей: равное расстояние от верха/низа ───────────
    Все надписи блоков выровнены по центру вертикали (flex center)

@@ -132,10 +132,6 @@ function showPendingSelectedFrameAnalysis() {
     }
     const ctxEl = document.getElementById('fa-new-context');
     if (ctxEl) setIfChanged(ctxEl, 'Ожидание моделей');
-
-    // Старый fallback очищаем если есть
-    const legacyRules = document.getElementById('frame-analysis-rules');
-    if (legacyRules) legacyRules.replaceChildren();
 }
 
 // ——— выбранный кадр: кнопки ———

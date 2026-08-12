@@ -107,11 +107,6 @@ const state = {
     selectedAnalysisRole:   null,
     selectedAnalysisPending: false,
 
-    frameAnalysisRulesCache: null,
-    frameAnalysisRulesFilter: 'triggered',
-    frameAnalysisModelsCache: null,
-    lastFrameAnalysisRenderKey: null,
-
     liveFps:              0.0,
     // Backend сообщает целевой режим, но изображение меняется асинхронно.
     // Бейдж использует displayedFrameKind — режим кадра, уже загруженного в
@@ -225,7 +220,6 @@ const els = {
     jogHwDist1:       $('jog-hw-dist1'),
     jogHwDist2:       $('jog-hw-dist2'),
 
-    frameAnalysisPanelNew: $('frame-analysis-panel'),
     frameAnalysisPanel: $('frame-analysis-panel'),
 
     archiveSettingsOpen: $('archive-settings-open'),

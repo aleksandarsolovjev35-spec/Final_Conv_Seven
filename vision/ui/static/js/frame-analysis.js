@@ -24,7 +24,6 @@ const FA_RULE_NAMES = {
 // ——— состояние ———
 let _faLastKey = null;
 let _faLastScrollContext = null;
-let _faLastStatsKey = null;
 let _faRenderSeq = 0;
 let _faScrollBound = false;
 let _faDragState = null;
@@ -148,22 +147,6 @@ function faNewVerdict(report, ls) {
     if (rules.some(r => r && r.skipped === true)) return {cls: 'warn', text: 'ЕСТЬ ПРОПУЩЕННЫЕ ПРАВИЛА'};
     if (category === 'GOOD') return {cls: 'ok', text: 'ГОДНОЕ'};
     return {cls: 'ok', text: 'ГОДНО'};
-}
-
-function faNewUpdateStats(ls) {
-    const totalEl = document.getElementById('fa-new-stat-total');
-    if (!totalEl) return;
-    const total = ls ? (Number(ls.total) || 0) : 0;
-    const good = ls ? (Number(ls.good) || 0) : 0;
-    const bad = ls ? (Number(ls.rejected) || 0) : 0;
-    const cleanup = ls ? (Number(ls.cleanup) || 0) : 0;
-    const key = [total, good, bad, cleanup].join('|');
-    if (key === _faLastStatsKey) return;
-    _faLastStatsKey = key;
-    setIfChanged(document.getElementById('fa-new-stat-total'), total);
-    setIfChanged(document.getElementById('fa-new-stat-good'), good);
-    setIfChanged(document.getElementById('fa-new-stat-bad'), bad);
-    setIfChanged(document.getElementById('fa-new-stat-cleanup'), cleanup);
 }
 
 // ——— ползунок ———
@@ -326,7 +309,6 @@ function renderNewFrameAnalysis(report, ls) {
     if (!panel || !scroll || !tbody) return;
 
     faInitScrollHandlers();
-    faNewUpdateStats(ls);
 
     const available = report.available === true;
     if (!available) {
@@ -493,12 +475,9 @@ function updateNewFrameAnalysisStatus(ls) {
     renderNewFrameAnalysis(report, ls);
 }
 
-function renderFrameAnalysisPanel() { return null; }
-
 if (typeof window !== 'undefined') {
     window.renderNewFrameAnalysis = renderNewFrameAnalysis;
     window.updateNewFrameAnalysisStatus = updateNewFrameAnalysisStatus;
     window.FA_RULE_NAMES = FA_RULE_NAMES;
-    window.renderFrameAnalysisPanel = renderFrameAnalysisPanel;
     window.faSyncScroll = faSyncScroll;
 }
