@@ -67,9 +67,10 @@ def _measurement_cards(rule_name: str, result) -> list:
 def _region_missing(role_details: dict) -> bool:
     if not isinstance(role_details, dict):
         return False
-    if role_details.get("valid") is False:
-        return True
+    # skipped — отдельный статус «нет измерения», не путать с fail-closed.
     if role_details.get("skipped"):
+        return False
+    if role_details.get("valid") is False:
         return True
     reason = role_details.get("reason")
     if isinstance(reason, str):

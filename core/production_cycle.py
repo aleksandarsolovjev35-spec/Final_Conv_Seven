@@ -11,7 +11,6 @@ from core.step_stages import (
     STAGE_TRACE_SECONDS,
     StepSequencer,
 )
-from domain.defect_rules import InputPartPresenceRule
 from inspection.run_report import (
     prepare_presence_result,
     prepare_rule_results,
@@ -453,21 +452,22 @@ class ProductionCycle:
                 drain()
             frames = self.cameras.capture_all()
             vision_results = self.inspector.vision.process_all(frames)
-            presence_rule = InputPartPresenceRule(
-                self.inspector.decision.thresholds
+            presence_result = prepare_presence_result(
+                self.inspector._evaluate_part_presence(vision_results)
             )
-            if not presence_rule.enabled:
-                raise RuntimeError("part_presence rule is disabled")
-            presence_result = presence_rule.check(vision_results)
             rule_results = [presence_result]
             if not presence_result.details.get("empty_tray"):
                 rule_results.extend(
-                    self.inspector.decision.evaluate_all_detailed(
-                        vision_results,
-                        frames=frames,
+                    prepare_rule_results(
+                        self.inspector.decision.evaluate_all_detailed(
+                            vision_results,
+                            frames=frames,
+                        )
                     )
                 )
-            model_rows = [dict(item) for item in self.inspector.vision.last_health]
+            model_rows = summarize_model_health(
+                getattr(self.inspector.vision, "last_health", None)
+            )
             rule_rows = [
                 self._rule_report_row(result)
                 for result in rule_results
@@ -1291,12 +1291,7 @@ class ProductionCycle:
             positions=[self.OFFSET_INPUT],
         )
 
-        inspect_input = getattr(self.inspector, "inspect_input", None)
-        if not callable(inspect_input):
-            raise RuntimeError(
-                "Inspector не поддерживает обязательную INPUT инспекцию"
-            )
-        result = inspect_input(
+        result = self.inspector.inspect_input(
             part_id=candidate_id,
             step=self.current_step,
             frame_runs=frame_runs,
