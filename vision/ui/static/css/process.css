@@ -21,50 +21,6 @@
     font-weight: 700;
     letter-spacing: 0.9px;
 }
-.line-gates {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 4px;
-    min-width: 0;
-    margin-left: auto;
-}
-.line-gate {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 0;
-    max-width: 120px;
-    min-height: 18px;
-    padding: 2px 5px;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    background: var(--bg-1);
-    color: var(--text-muted);
-    font: 700 8px var(--font-mono);
-    letter-spacing: 0.25px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    transition: color var(--t-fast) var(--ease),
-                background-color var(--t-fast) var(--ease),
-                border-color var(--t-fast) var(--ease);
-}
-.line-gate.gate-active {
-    color: var(--accent);
-    border-color: var(--accent);
-    background: var(--accent-glow);
-}
-.line-gate.gate-rejecting {
-    color: var(--bad);
-    border-color: var(--bad);
-    background: var(--bad-bg);
-}
-.line-gate.gate-cleanup {
-    color: var(--warn);
-    border-color: var(--warn);
-    background: var(--warn-bg);
-}
 .production-line-wrapper {
     position: relative;
     margin-top: 6px;
@@ -74,22 +30,17 @@
     width: 100%;
     overflow: visible;
     position: relative;
-}
-.line-conveyor-track::before {
-    content: '';
-    position: absolute;
-    left: 3%;
-    right: 3%;
-    top: 50%;
-    height: 1px;
-    background: var(--border-strong);
+    padding: 3px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
 }
 .production-line-cells {
     position: relative;
     z-index: 2;
     width: 100%;
     min-width: 0;
-    height: 34px;
+    height: 32px;
     display: grid;
     /* Девять позиций ленты (+0 … +8): +0 вход, +4 контроль, +7 сортировка,
        +8 зона сброса между +7 и +8 по фактической логике сортировки. */
@@ -98,25 +49,16 @@
     overflow: hidden;
 }
 .production-line-cells .line-cell {
-    min-height: 30px;
+    min-height: 32px;
     display: grid;
     place-items: center;
+    overflow: hidden;
     font: 700 11px var(--font-mono);
     border: 1px solid var(--border-strong);
-    background: var(--bg-1);
-    border-radius: 3px;
+    background: rgba(7, 11, 15, .72);
+    border-radius: 2px;
     position: relative;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.25);
-}
-.production-line-cells .line-cell::before {
-    content: attr(data-cell-no);
-    position: absolute;
-    top: 2px;
-    left: 4px;
-    font: 700 8.5px var(--font-mono);
-    color: var(--text-muted);
-    opacity: 0.65;
-    pointer-events: none;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.018);
 }
 .line-position-labels {
     display: grid;
@@ -137,65 +79,6 @@
 .line-position-labels .stage-position {
     color: var(--text-dim);
     font-weight: 700;
-}
-
-.line-cell.process-active { border-color: var(--ok); box-shadow: inset 0 0 0 1px var(--ok); }
-.line-cell.process-camera { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.line-cell.process-route { border-color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn); }
-
-/* ─── Зона сброса +8 (лоток между +7 и +8) ────────────────────
-   Ячейка-лоток в конце линии: сюда уезжает и здесь «падает» корпус,
-   когда DIST1 направляет корпус на DIST2. Цвет канала показывает
-   заранее подготовленный маршрут BAD/CLEANUP. */
-.production-line-cells .line-cell.line-cell-chute {
-    background: var(--bg-2);
-    border-style: dashed;
-    border-color: var(--border-strong);
-    box-shadow: none;
-}
-.production-line-cells .line-cell.line-cell-chute::before {
-    color: var(--text-muted);
-    opacity: 0.5;
-}
-.production-line-cells .line-cell.line-cell-chute .chute-symbol {
-    font: 700 13px var(--font-mono);
-    color: var(--text-muted);
-    pointer-events: none;
-    transition: opacity var(--t-fast) var(--ease);
-}
-.production-line-cells .line-cell.line-cell-chute.chute-occupied .chute-symbol {
-    opacity: 0;
-}
-.production-line-cells .line-cell.line-cell-chute.chute-bad {
-    border-color: var(--bad);
-    color: var(--bad);
-    background: var(--bad-bg);
-    box-shadow: inset 0 0 0 1px var(--bad);
-}
-.production-line-cells .line-cell.line-cell-chute.chute-bad .chute-symbol { color: var(--bad); }
-.production-line-cells .line-cell.line-cell-chute.chute-cleanup {
-    border-color: var(--warn);
-    color: var(--warn);
-    background: var(--warn-bg);
-    box-shadow: inset 0 0 0 1px var(--warn);
-}
-.production-line-cells .line-cell.line-cell-chute.chute-cleanup .chute-symbol { color: var(--warn); }
-
-/* ─── Ожидание передачи на +7 ─────────────────────────────────
-   Корпус на сортировке ожидает следующего движения ленты; заслонки
-   задают маршрут, но корпус механически не удерживается. */
-.production-line-cells .line-cell.cell-hold {
-    border-color: var(--warn);
-    box-shadow: inset 0 0 0 1px var(--warn);
-}
-.production-line-cells .line-cell.cell-hold::after {
-    content: '▽';
-    position: absolute;
-    right: 3px;
-    bottom: 1px;
-    font: 700 9px var(--font-mono);
-    color: var(--warn);
-    pointer-events: none;
 }
 
 /* ─── Persistent distributor panel in right column ──────────────
@@ -401,13 +284,11 @@
     padding: 10px;
     align-content: flex-start;
 }
-.prestart-diagnostics,
 .frame-analysis-panel-new,
 .stats-summary,
 .distributor-panel,
 .thresholds-panel,
 .jog-panel.jog-panel-embedded,
-.defects-section,
 .stats-service {
     flex: 0 0 auto;
     position: relative;
@@ -426,121 +307,9 @@
     z-index: 2;
 }
 
-/* Compact right-column additions. */
-.defects-section { margin-top: 4px; }
-.defects-list li {
-    min-height: 24px;
-    margin-bottom: 2px;
-    padding: 3px 6px;
-    font-size: 9px;
-}
 .stats-service {
     margin-top: 6px;
     padding-top: 6px;
-}
-
-/* === ЛЕНТА КОНВЕЙЕРА + МАРКЕРЫ ДЕТАЛЕЙ ===
-   Лента — спокойная статичная полоса под сеткой ячеек: без прокрутки
-   насечек и прочих циклических эффектов (строгая тема). Во время шага
-   она лишь слегка светлеет. */
-.conveyor-belt {
-    position: absolute;
-    left: 2%;
-    right: 2%;
-    top: 48%;
-    height: 4px;
-    background: rgba(140, 160, 185, 0.22);
-    border-radius: 999px;
-    z-index: 0;
-    opacity: 0.55;
-    transition: opacity 180ms ease, background-color 180ms ease;
-    pointer-events: none;
-}
-
-.conveyor-belt.moving {
-    background: rgba(140, 160, 185, 0.34);
-    opacity: 0.95;
-}
-
-/* Маркер детали (создаётся в status.js, класс .line-token): абсолютно
-   позиционирован поверх сетки ячеек и на каждом шаге линии плавно
-   скользит ровно на одну ячейку вправо — панель наглядно повторяет
-   движение конвейера. Внутри маркера только короткий ID детали «#1». */
-.line-token {
-    position: absolute;
-    z-index: 5;
-    display: grid;
-    place-items: center;
-    border: 1px solid var(--accent);
-    border-radius: 3px;
-    background: var(--accent-glow);
-    color: var(--text);
-    font: 700 11px var(--font-mono);
-    pointer-events: none;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.25);
-    transition:
-        left var(--move-duration, 420ms) cubic-bezier(0.25, 0.1, 0.25, 1),
-        top var(--move-duration, 420ms) var(--ease),
-        width var(--move-duration, 420ms) var(--ease),
-        height var(--move-duration, 420ms) var(--ease),
-        opacity calc(var(--move-duration, 420ms) * 0.75) ease;
-    will-change: left, opacity;
-}
-
-.line-token.cell-good {
-    background: var(--ok-bg);
-    border-color: var(--ok);
-    color: var(--ok);
-}
-
-.line-token.cell-bad { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); }
-.line-token.cell-cleanup { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
-/* Глиф категории в правом нижнем углу маркера. Без категории (например,
-   UNKNOWN) глифа нет — только рамка и короткий ID, без «шума». */
-.line-token::after { content: ""; position: absolute; right: 3px; bottom: 1px; font: 700 8px var(--font-mono); opacity: 0.75; }
-.line-token.cell-good::after { content: "✓"; color: var(--ok); }
-.line-token.cell-bad::after { content: "✕"; color: var(--bad); }
-.line-token.cell-cleanup::after { content: "🧹"; color: var(--warn); }
-
-/* Устаревший совместимый стиль флага held. Backend его больше не выставляет. */
-.line-token.token-hold {
-    box-shadow: 0 1px 2px rgba(0,0,0,0.25), inset 0 0 0 1px var(--warn);
-}
-.line-token.token-hold::before {
-    content: '▽';
-    position: absolute;
-    left: 3px;
-    top: 1px;
-    font: 700 9px var(--font-mono);
-    color: var(--warn);
-    pointer-events: none;
-}
-
-/* Маркер падающего корпуса: в шаге сброса лента несёт корпус от +7 к
-   лотку +8 — маркер уезжает в зону сброса и «тонет» в ней. Маркер рисуется
-   полностью непрозрачным, чтобы он не «просвечивал» залитый лоток и не
-   сливался с ним на +7/+8. */
-.line-token.token-dropping {
-    opacity: 1;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.35), inset 0 0 0 1px var(--bad);
-}
-.line-token.token-dropping.cell-cleanup {
-    box-shadow: 0 1px 3px rgba(0,0,0,0.35), inset 0 0 0 1px var(--warn);
-}
-.line-token.token-dropping::after { content: "▼"; color: inherit; opacity: 0.85; }
-
-/* В лотке маркер находится над символом ячейки. Символ скрывается классом
-   chute-occupied, а сам маркер получает непрозрачную тёмную заливку: он
-   читается как отдельный бокс поверх залитого канала лотка, а не сливается
-   с ним. Так на +7/+8 не получается «двойной заливки» одного цвета. */
-.line-token.token-in-chute {
-    z-index: 6;
-    opacity: 1;
-    /* Непрозрачная тёмная заливка: маркер в лотке читается как отдельный
-       бокс, а не просвечивает цвет канала лотка насквозь. Категория
-       остаётся видимой через border-color (cell-bad/cell-cleanup/cell-good)
-       и стрелку падения. */
-    background: var(--bg-2);
 }
 
 /* ─── Заголовки панелей: равное расстояние от верха/низа ───────────
@@ -569,7 +338,6 @@
 .axis-route span,
 .axis-route b,
 .dist-route { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.line-token { overflow: hidden; padding: 0 10px 0 3px; text-overflow: ellipsis; white-space: nowrap; }
 .axis-route span { flex: 1 1 auto; }
 .axis-route b, .dist-route { display: block; }
 
@@ -578,26 +346,6 @@
    This is a single carriage wall, not nine status cards.  The only labels
    are below the apertures; the apertures themselves never get a route state. */
 .process-line-head { justify-content: flex-start; }
-.line-gates, .conveyor-belt, .chute-symbol { display: none !important; }
-/* The legacy conveyor axis is not part of the stencil model. */
-.line-conveyor-track::before { content: none !important; display: none !important; }
-.line-conveyor-track {
-    padding: 3px;
-    background: var(--bg-2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-}
-.production-line-cells { height: 32px; }
-.production-line-cells .line-cell {
-    min-height: 32px;
-    overflow: hidden;
-    background: rgba(7, 11, 15, .72);
-    border-color: var(--border-strong);
-    border-radius: 2px;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.018);
-}
-/* Do not duplicate +0…+8 inside every aperture. */
-.production-line-cells .line-cell::before { content: none; }
 .line-position-labels { margin-top: 4px; }
 /* One .line-token-piece per aperture.  A piece is a clipped view of one
    continuous body behind the wall, not a second framed cell. */

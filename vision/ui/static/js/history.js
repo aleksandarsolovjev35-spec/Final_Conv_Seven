@@ -9,7 +9,6 @@ function updateRecentParts(parts) {
     ).join('|');
 
     if (els.historyCards.dataset.hash === hash) {
-        updateDefects(parts);
         return;
     }
     els.historyCards.dataset.hash = hash;
@@ -18,7 +17,6 @@ function updateRecentParts(parts) {
         els.historyCards.innerHTML =
             '<span class="history-empty">Корпусов пока нет</span>';
         animateUiElement(els.historyCards, 'ui-content-change');
-        updateDefects(parts);
         return;
     }
 
@@ -41,51 +39,6 @@ function updateRecentParts(parts) {
         `;
     }).join('');
     animateUiElement(els.historyCards, 'ui-content-change');
-
-    updateDefects(parts);
-}
-
-function updateDefects(parts) {
-    if (!els.defectsSection || !els.defectsList) return;
-    const working = state.lineState === 'RUNNING' || state.lineState === 'STOPPING';
-    if (!working) {
-        els.defectsSection.classList.add('is-hidden');
-        return;
-    }
-
-    setIfChanged(els.defectsTitle, 'ОСНОВНЫЕ ДЕФЕКТЫ');
-    const rows = [];
-    const counter = {};
-    for (const part of parts) {
-        // Prefer human-readable cause if available in future payloads
-        const cause = part.human_cause || part.decision;
-        if (!cause || cause === 0 || cause === '0' || cause === 'none' || cause === 'unknown') continue;
-        const key = String(cause).toUpperCase().slice(0, 42);
-        counter[key] = (counter[key] || 0) + 1;
-    }
-    for (const [name, count] of Object.entries(counter)
-        .sort((left, right) => right[1] - left[1])
-        .slice(0, 5)) {
-        rows.push({name, value: count});
-    }
-    if (!rows.length) rows.push({name: '(нет дефектов)', value: '—'});
-
-    const hash = JSON.stringify({working, rows});
-    if (els.defectsList.dataset.lastHash !== hash) {
-        els.defectsList.dataset.lastHash = hash;
-        els.defectsList.replaceChildren();
-        for (const row of rows) {
-            const item = document.createElement('li');
-            if (row.error) item.classList.add('diagnostic-error');
-            const name = document.createElement('span');
-            const value = document.createElement('b');
-            name.textContent = row.name;
-            value.textContent = row.value;
-            item.append(name, value);
-            els.defectsList.appendChild(item);
-        }
-    }
-    els.defectsSection.classList.remove('is-hidden');
 }
 
 // ─── Archive Gallery ─────────────────────────────────────────

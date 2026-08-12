@@ -1815,8 +1815,6 @@ class ProductionCycle:
                 "id": part.id,
                 "position": position,
                 "category": part.route_category,
-                # Механического удержания корпуса в этой линии нет.
-                "held": False,
                 "dropping": dropping,
             })
 

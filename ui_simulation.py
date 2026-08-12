@@ -287,12 +287,12 @@ class LineSimulation:
         result = []
         for part in self.parts:
             result.append({"id": part.id, "position": part.position, "category": part.category,
-                           "held": False, "dropping": False})
+                           "dropping": False})
         # The output body remains logically at +7 while it visibly reaches
         # +8. This mirrors the production status contract used by the UI.
         if self.egress:
             result.append({"id": self.egress.id, "position": 7, "category": self.egress.category,
-                           "held": False, "dropping": True})
+                           "dropping": True})
         return result
 
     def _finalize_archive_batch(self) -> None:

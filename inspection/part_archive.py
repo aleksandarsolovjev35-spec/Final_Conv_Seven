@@ -52,10 +52,6 @@ class PartArchive:
         batch_id: str | None = None,
         enabled: bool = True,
         jpeg_quality: int = JPEG_QUALITY,
-        # Параметры принимаются вызывающим API, но ZIP всегда использует
-        # Deflate уровня 6.
-        zip_compression: str = "deflated",
-        zip_level: int = 6,
         compress_on_shutdown: bool = True,
         delete_original_after_zip: bool = True,
     ):
