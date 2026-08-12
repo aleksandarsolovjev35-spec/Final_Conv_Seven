@@ -116,6 +116,7 @@ async function fetchCameras() {
     if (mySeq !== _camerasFetchSeq) return; // пришёл более свежий запрос
     if (!data || !data.cameras || !data.cameras.length) return;
     const changed = state.cameras.length !== data.cameras.length || state.cameras.some((c, i) => c !== data.cameras[i]);
+    state.cameraIds = (data.camera_ids && typeof data.camera_ids === 'object') ? data.camera_ids : {};
     if (!changed) return;
     state.cameras = data.cameras;
     if (!state.currentCamera || !state.cameras.includes(state.currentCamera)) {
@@ -129,12 +130,18 @@ async function fetchCameras() {
     checkUiReady();
 }
 
+function cameraIdSuffix(role) {
+    const cameraId = state.cameraIds && state.cameraIds[role];
+    if (cameraId === undefined || cameraId === null) return '';
+    return ` · CAM ${cameraId}`;
+}
+
 function renderPreviewStrip() {
     if (!els.previewStrip) return;
     els.previewStrip.innerHTML = state.cameras.map((role, i) => `
         <div class="preview-cam ${role === state.currentCamera ? 'active' : ''}" data-role="${role}" data-index="${i}">
             <img src="/frame/${role}?mode=${state.mode}&preview=1&t=${Date.now()}" alt="${cameraRoleLabel(role)}" data-frame-key="" data-requested-key="" data-requesting="0" data-req-seq="0">
-            <div class="preview-cam-label">[${i + 1}] ${cameraRoleLabel(role)}</div>
+            <div class="preview-cam-label">[${i + 1}] ${cameraRoleLabel(role)}${cameraIdSuffix(role)}</div>
         </div>
     `).join('');
     els.previewStrip.querySelectorAll('.preview-cam').forEach(el => {
@@ -167,7 +174,9 @@ function navigateCamera(direction) {
 }
 
 function updateMainCameraLabel() {
-    setIfChanged(els.cameraLabel, cameraRoleLabel(state.currentCamera));
+    const role = state.currentCamera;
+    const suffix = role ? cameraIdSuffix(role) : '';
+    setIfChanged(els.cameraLabel, `${cameraRoleLabel(role)}${suffix}`);
 }
 
 function showSelectedAnalysisFrame(role) {

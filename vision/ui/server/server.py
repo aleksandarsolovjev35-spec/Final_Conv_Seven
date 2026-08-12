@@ -76,6 +76,8 @@ class UIServer:
     def __init__(self):
         self.frames: dict         = {}
         self.camera_roles: list   = []
+        # role -> физический Camera ID (индекс устройства) из camera_mapping.json
+        self.camera_mapping: dict = {}
         self.vision_results: dict = {}
         self.rule_results: list   = []
         self.line_status: dict    = {}
@@ -297,11 +299,19 @@ class UIServer:
                         metric["label"] = custom
 
     def set_camera_roles(self, roles) -> None:
-        """Опубликовать роли открытых камер без обязательного чтения кадров."""
-        normalized = [
-            str(role) for role in dict.fromkeys(roles or ()) if role
-        ]
+        """Опубликовать роли открытых камер без обязательного чтения кадров.
+
+        ``roles`` — словарь ``{роль: Camera ID}`` из camera_mapping.json.
+        Сохраняется и сам маппинг, чтобы UI мог показать оператору, какой
+        физический Camera ID соответствует каждой роли.
+        """
+        mapping = {}
+        for role, camera_id in (roles or {}).items():
+            if role:
+                mapping[str(role)] = int(camera_id)
+        normalized = [str(role) for role in dict.fromkeys(roles or ()) if role]
         with self.lock:
+            self.camera_mapping = mapping
             self.camera_roles = normalized
             if self.active_camera_role not in normalized:
                 self.active_camera_role = normalized[0] if normalized else None

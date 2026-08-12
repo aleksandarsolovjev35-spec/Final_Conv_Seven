@@ -30,27 +30,164 @@ from __future__ import annotations
 import argparse
 import inspect
 import json
+import os
 import sys
 import time
 from pathlib import Path
 
+import cv2
+import numpy as np
+
 from config.camera_mapping import REQUIRED_ROLES, validate_camera_mapping
-from vision.camera_calibration_console import (
-    SCAN_OPEN_ATTEMPTS,
-    SCAN_PROBE_ATTEMPTS,
-    SCAN_RETRY_DELAY,
-    _backend_label,
-    _camera_backends,
-    _configure_capture,
-    _open_capture,
-    _probe_capture,
-    _safe_release,
-)
 from vision.camera_manager import CameraManager
 
 REQUIRED_CAMERA_COUNT = len(REQUIRED_ROLES)
 DEFAULT_SCAN_LIMIT = 10
 DEFAULT_MAPPING = "camera_mapping.json"
+
+
+# --- Переиспользуемая логика проверки камер, вынесенная из калибратора. ---
+# Калибратор (camera_calibration_console) упрощён до открытия камер как в
+# основной программе; подробный перебор backend-ов и проба кадров нужны
+# только диагностике и живут здесь.
+
+_BACKEND_ALIASES = {
+    "dshow": "CAP_DSHOW",
+    "msmf": "CAP_MSMF",
+    "v4l2": "CAP_V4L2",
+    "avfoundation": "CAP_AVFOUNDATION",
+    "any": "CAP_ANY",
+}
+
+EXPECTED_SIZE = (1280, 720)
+PROBE_READ_INTERVAL = 0.03
+NEAR_BLACK_MEAN_MAX = 5.0
+NEAR_BLACK_P99_MAX = 12.0
+
+
+def _env_int(name: str, default: int, minimum: int = 0) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return max(minimum, int(raw))
+    except ValueError:
+        print(f"[CAMERA DIAGNOSTIC] {name}={raw!r}: используется {default}")
+        return default
+
+
+def _env_float(name: str, default: float, minimum: float = 0.0) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return max(minimum, float(raw))
+    except ValueError:
+        print(f"[CAMERA DIAGNOSTIC] {name}={raw!r}: используется {default}")
+        return default
+
+
+SCAN_PROBE_ATTEMPTS = _env_int("CAMERA_SCAN_PROBE_ATTEMPTS", 30, minimum=1)
+SCAN_OPEN_ATTEMPTS = _env_int("CAMERA_SCAN_OPEN_ATTEMPTS", 2, minimum=1)
+SCAN_RETRY_DELAY = _env_float("CAMERA_SCAN_RETRY_DELAY", 0.25, minimum=0.0)
+
+
+def _camera_backends() -> tuple:
+    """Backend-ы для диагностики камер."""
+    raw = os.environ.get("CAMERA_BACKENDS")
+    if raw:
+        configured = []
+        for token in raw.split(","):
+            attribute = _BACKEND_ALIASES.get(token.strip().lower())
+            value = getattr(cv2, attribute, None) if attribute else None
+            if value is not None:
+                configured.append(value)
+        if configured:
+            return tuple(configured)
+    if sys.platform == "win32":
+        return tuple(
+            backend
+            for backend in (
+                getattr(cv2, "CAP_DSHOW", None),
+                getattr(cv2, "CAP_MSMF", None),
+            )
+            if backend is not None
+        )
+    return (getattr(cv2, "CAP_ANY", 0),)
+
+
+def _backend_label(backend) -> str:
+    if backend is None:
+        return "default"
+    for name in (
+        "CAP_DSHOW",
+        "CAP_MSMF",
+        "CAP_V4L2",
+        "CAP_AVFOUNDATION",
+        "CAP_GSTREAMER",
+        "CAP_ANY",
+    ):
+        if getattr(cv2, name, None) == backend:
+            return name.replace("CAP_", "")
+    return str(backend)
+
+
+def _open_capture(camera_id: int, backend=None):
+    """Открыть камеру выбранным backend-ом."""
+    try:
+        if backend is None:
+            return cv2.VideoCapture(camera_id)
+        return cv2.VideoCapture(camera_id, backend)
+    except Exception as exc:
+        print(f"[CAMERA DIAGNOSTIC] Camera {camera_id}: {exc}")
+        return None
+
+
+def _configure_capture(capture):
+    # Тот же рабочий формат, что и CameraManager в основной программе.
+    CameraManager._configure_capture(capture)
+
+
+def _frame_error(frame) -> str | None:
+    array = np.asarray(frame)
+    if array.ndim != 3 or array.shape[2] < 3:
+        return f"неверная форма кадра: {array.shape}"
+    height, width = array.shape[:2]
+    if (width, height) != EXPECTED_SIZE:
+        return (
+            f"разрешение {width}x{height}; "
+            f"требуется {EXPECTED_SIZE[0]}x{EXPECTED_SIZE[1]}"
+        )
+    sample = array[::12, ::12, :3].astype(np.float32)
+    luminance = sample.mean(axis=2)
+    mean = float(luminance.mean())
+    p99 = float(np.percentile(luminance, 99))
+    if mean <= NEAR_BLACK_MEAN_MAX and p99 <= NEAR_BLACK_P99_MAX:
+        return f"почти чёрный кадр: mean={mean:.2f}, p99={p99:.2f}"
+    return None
+
+
+def _probe_capture(capture, attempts: int = SCAN_PROBE_ATTEMPTS):
+    """Дать камере отдать валидный кадр."""
+    error = "камера не вернула кадр"
+    for _ in range(max(1, int(attempts))):
+        ok, frame = capture.read()
+        if ok and frame is not None:
+            error = _frame_error(frame)
+            if error is None:
+                return frame, None
+        time.sleep(PROBE_READ_INTERVAL)
+    return None, error
+
+
+def _safe_release(capture) -> None:
+    """Освободить handle камеры; ошибка закрытия не должна ломать сценарий."""
+    if capture is None:
+        return
+    try:
+        capture.release()
+    except Exception as exc:
+        print(f"[CAMERA DIAGNOSTIC] Ошибка освобождения камеры: {exc}")
 
 
 def _factory_takes_backend(factory) -> bool:
