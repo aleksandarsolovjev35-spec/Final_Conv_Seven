@@ -438,7 +438,6 @@ def main():
                     dist2_cleanup_position=calib[
                         "dist2_cleanup_position"
                     ],
-                    drop_time=calib["drop_time"],
                 )
                 if (
                     distributor.dist1_open_position != calib["dist1_open_position"]

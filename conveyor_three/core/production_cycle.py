@@ -1359,6 +1359,7 @@ class ProductionCycle:
             print(f"[WARN] Деталь #{part.id} не прошла полную инспекцию -> принудительно BAD")
             part.route_category, part.final_decision, category = CATEGORY_BAD, "incomplete_inspection", CATEGORY_BAD
         # GOOD: DIST1=0. BAD/CLEANUP: сначала DIST2, затем DIST1=340.
+        # Следующая смена маршрута — только в начале следующего шага.
         self.distributor.prepare_route(category, part.id)
 
     def _execute_drop(self):
@@ -1366,6 +1367,10 @@ class ProductionCycle:
         if part is None:
             return
         category = part.route_category
+        # Маршрут уже стоит с начала шага и не двигается, пока не начнётся
+        # следующий prepare_route. К тому моменту пройдут SETTLE, CAPTURE,
+        # ANALYSIS и REVIEW — корпус давно покинул зону, ждать падение
+        # отдельно не нужно.
         self.distributor.confirm_transfer(part.id, category)
         if category == CATEGORY_GOOD:
             self.good_count += 1
