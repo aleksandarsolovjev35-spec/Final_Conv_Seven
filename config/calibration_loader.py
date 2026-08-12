@@ -10,7 +10,6 @@ DEFAULTS = {
     "dist2_cleanup_position": 340,
     "axis_speed":             300,
     "axis_accel":             100,
-    "micro_steps":            500,
     "jog_hold_steps":         1_000_000,
     "normal_steps":           19048,
 }
@@ -60,14 +59,11 @@ def _validate(data: dict) -> dict:
         "dist1_open_position",
         "axis_speed",
         "axis_accel",
-        "micro_steps",
         "jog_hold_steps",
         "normal_steps",
     )
     if any(data[key] <= 0 for key in positive):
         raise ValueError("Положительные calibration-параметры должны быть > 0")
-    if not 1 <= data["micro_steps"] <= 5000:
-        raise ValueError("micro_steps должен быть в диапазоне 1..5000")
     if not 10_000 <= data["jog_hold_steps"] <= 10_000_000:
         raise ValueError("jog_hold_steps должен быть в диапазоне 10000..10000000")
     if data["dist2_bad_position"] < 0 or data["dist2_cleanup_position"] < 0:

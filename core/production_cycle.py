@@ -1310,7 +1310,6 @@ class ProductionCycle:
         if self.archive:
             self.archive.store_frames(
                 part_id=part.id,
-                stage="input",
                 raw_frames=result.raw_frames,
                 annotated_frames=result.annotated,
                 raw_overlay_frames=result.raw_overlay_frames,
@@ -1361,7 +1360,6 @@ class ProductionCycle:
             if self.archive:
                 self.archive.store_frames(
                     part_id=part.id,
-                    stage="spider",
                     raw_frames=result.raw_frames,
                     annotated_frames=result.annotated,
                     raw_overlay_frames=result.raw_overlay_frames,

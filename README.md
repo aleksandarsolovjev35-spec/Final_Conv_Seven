@@ -218,7 +218,7 @@ DIST1 → 340       # только если следующий маршрут BA
 - доступ к COM-порту контроллера;
 - локальные `.pt`-веса из раздела «Камеры и модели».
 
-Python-зависимости перечислены в `requirements.txt`: OpenCV, NumPy, pyserial, Ultralytics, FastAPI/Uvicorn, pywebview и httpx.
+Python-зависимости перечислены в `requirements.txt`: OpenCV, NumPy, pyserial, Ultralytics, FastAPI/Uvicorn и pywebview.
 
 ### Аппаратные
 
@@ -315,7 +315,6 @@ Splash-экран ведёт десять этапов инициализаци�
 
 | Поле | Назначение |
 |---|---|
-| `micro_steps` | микрошаг осей |
 | `jog_hold_steps` | длина непрерывного сегмента ручного хода |
 | `normal_steps` | шаги ленты на одно деление |
 | `conveyor_speed`, `conveyor_accel` | скорость и ускорение ленты |

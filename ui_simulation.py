@@ -108,7 +108,6 @@ class LineSimulation:
         self._wake = threading.Event()
         self._stop = threading.Event()
         self.state = "IDLE"
-        self.stop_requested = False
         self.dist1_position = 0
         self.dist2_position = 0
         self.dist1_state = "GOOD"
@@ -155,7 +154,6 @@ class LineSimulation:
                 return False
             self._open_next_archive_batch()
             self.jog_active = False
-            self.stop_requested = False
             # A launch begins with the same special initial inspection as
             # ProductionCycle: do not advance the virtual belt first.
             self._await_initial_inspection = not self.parts and self.egress is None
@@ -245,7 +243,6 @@ class LineSimulation:
         with self._lock:
             if self.state not in ("RUNNING", "PAUSED", "STOPPING"):
                 return False
-            self.stop_requested = True
             self.state = "STOPPING"
             self._wake.set()
         self._publish("STOPPING")
@@ -532,7 +529,7 @@ class LineSimulation:
         archive = self.server.archive
         if archive is not None:
             frames = dict(self.server.frames)
-            archive.store_frames(part.id, "CONTROL", frames, frames)
+            archive.store_frames(part.id, frames, frames)
 
     def _finish_egress(self) -> None:
         if not self.egress:
@@ -563,7 +560,6 @@ class LineSimulation:
                 self._finalize_archive_batch()
                 with self._lock:
                     self.state = "STOPPED"
-                    self.stop_requested = False
                 self._publish("STOPPED")
                 continue
 

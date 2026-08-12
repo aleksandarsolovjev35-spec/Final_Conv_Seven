@@ -497,11 +497,3 @@ function startStatusPolling() {
     scheduleNextStatusTick();
 }
 
-function stopStatusPolling() {
-    if (_statusLoopTimer) { clearTimeout(_statusLoopTimer); _statusLoopTimer = null; }
-    if (state.statusInterval) {
-        try { clearInterval(state.statusInterval); } catch (_) {}
-        try { clearTimeout(state.statusInterval); } catch (_) {}
-        state.statusInterval = null;
-    }
-}
