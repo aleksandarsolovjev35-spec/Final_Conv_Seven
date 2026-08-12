@@ -357,6 +357,7 @@ JSON-объект `роль → индекс устройства` для все
 | `SERIAL_PORT` | COM-порт, который нужно проверить первым |
 | `SERIAL_BAUD` | baudrate, по умолчанию `115200` |
 | `CAMERA_BACKENDS` | порядок backend-ов, например `dshow,msmf` |
+| `CAMERA_OPEN_CONCURRENCY` | сколько камер открывать одновременно (по умолчанию `1`; на Windows больше 1 часто даёт отказ DirectShow/MSMF) |
 | `CAMERA_WARMUP_SECONDS` | стартовый прогрев, по умолчанию 2.5 с |
 | `CAMERA_PRE_PREVIEW_WARMUP_SECONDS` | прогрев перед live-preview, по умолчанию 2.5 с |
 | `CAMERA_RECOVERY_WARMUP_SECONDS` | повторный прогрев камеры без кадров, по умолчанию 2.5 с |

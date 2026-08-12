@@ -63,8 +63,12 @@ _WARMUP_READ_INTERVAL = 0.05
 _BUFFER_DRAIN_COUNT = 3
 _NEAR_BLACK_MEAN_MAX = 5.0
 _NEAR_BLACK_P99_MAX = 12.0
-_OPEN_CONCURRENCY = 3
-_OPEN_RETRY_DELAY = 0.4
+# Одновременное открытие нескольких UVC-камер на Windows часто ломает
+# DirectShow/MSMF (индекс не захватывается, MF_E_HW_MFT_FAILED_START_STREAMING).
+# По умолчанию открываем по одной; параллельность задаётся CAMERA_OPEN_CONCURRENCY.
+_OPEN_CONCURRENCY = 1
+_OPEN_RETRY_DELAY = 0.8
+_BACKEND_SWITCH_DELAY = 0.35
 # Бюджет времени на всю волну открытия, а не на каждый поток: камера,
 # которая открылась, но не отдаёт кадр, ретраит до ~20 с (2 ретрая × 2
 # backend-а × 5 с preflight). Раньше join с таймаутом молча «отпускал»
@@ -72,7 +76,8 @@ _OPEN_RETRY_DELAY = 0.4
 # всплывал только на этапе «Начальные кадры» как «Неизвестные камеры».
 # Теперь поток, не уложившийся в бюджет волны, останавливается и роль
 # сразу фиксируется как ошибка — запуск падает на «Открытие камер».
-_OPEN_WAVE_TIMEOUT = _PREFLIGHT_TIMEOUT * 2 + 5.0
+# 2 ретрая × 2 backend-а × preflight + паузы между попытками.
+_OPEN_WAVE_TIMEOUT = _PREFLIGHT_TIMEOUT * 4 + 8.0
 # Сколько ждать поток после отмены, чтобы он корректно завершил текущий
 # preflight (≤ _PREFLIGHT_TIMEOUT) и освободил захваченную камеру.
 _OPEN_CANCEL_GRACE = _PREFLIGHT_TIMEOUT
@@ -137,6 +142,9 @@ class CameraManager:
         self._config_file = config_file
         self._capture_factory = capture_factory or self._open_capture
         self._backends = _default_backends() or (None,)
+        self._open_concurrency = _env_int(
+            "CAMERA_OPEN_CONCURRENCY", _OPEN_CONCURRENCY, minimum=1
+        )
         self._factory_takes_backend = self._factory_supports_backend(
             self._capture_factory
         )
@@ -237,16 +245,24 @@ class CameraManager:
                         return
                     cap = None
                     try:
+                        label = _backend_label(backend)
+                        print(
+                            f"[CAMERA] Открытие {role} id={cam_id} backend={label}"
+                        )
                         cap = self._create_capture(cam_id, backend)
                         if cap is None or not cap.isOpened():
-                            attempt_errors.append("устройство не открылось")
+                            attempt_errors.append(
+                                f"{label}: устройство не открылось"
+                            )
+                            time.sleep(_BACKEND_SWITCH_DELAY)
                             continue
                         self._configure_capture(cap)
                         error = self._wait_for_stable_preflight(cap)
                         if error is not None:
-                            attempt_errors.append(error)
+                            attempt_errors.append(f"{label}: {error}")
                             cap.release()
                             cap = None
+                            time.sleep(_BACKEND_SWITCH_DELAY)
                             continue
                         with state_lock:
                             opened[role] = cap
