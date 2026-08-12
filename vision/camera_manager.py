@@ -65,6 +65,17 @@ _NEAR_BLACK_MEAN_MAX = 5.0
 _NEAR_BLACK_P99_MAX = 12.0
 _OPEN_CONCURRENCY = 3
 _OPEN_RETRY_DELAY = 0.4
+# Бюджет времени на всю волну открытия, а не на каждый поток: камера,
+# которая открылась, но не отдаёт кадр, ретраит до ~20 с (2 ретрая × 2
+# backend-а × 5 с preflight). Раньше join с таймаутом молча «отпускал»
+# такой поток, open_cameras продолжал с неполным набором камер, и отказ
+# всплывал только на этапе «Начальные кадры» как «Неизвестные камеры».
+# Теперь поток, не уложившийся в бюджет волны, останавливается и роль
+# сразу фиксируется как ошибка — запуск падает на «Открытие камер».
+_OPEN_WAVE_TIMEOUT = _PREFLIGHT_TIMEOUT * 2 + 5.0
+# Сколько ждать поток после отмены, чтобы он корректно завершил текущий
+# preflight (≤ _PREFLIGHT_TIMEOUT) и освободил захваченную камеру.
+_OPEN_CANCEL_GRACE = _PREFLIGHT_TIMEOUT
 
 _BACKEND_ALIASES = {
     "dshow": "CAP_DSHOW",
@@ -216,10 +227,14 @@ class CameraManager:
         opened = {}
         state_lock = threading.Lock()
 
-        def _open(role, cam_id):
+        def _open(role, cam_id, cancel):
             attempt_errors = []
             for _retry in range(2):
+                if cancel.is_set():
+                    return
                 for backend in self._backends:
+                    if cancel.is_set():
+                        return
                     cap = None
                     try:
                         cap = self._create_capture(cam_id, backend)
@@ -251,14 +266,33 @@ class CameraManager:
         roles = list(self.mapping.items())
         for index in range(0, len(roles), _OPEN_CONCURRENCY):
             wave = roles[index:index + _OPEN_CONCURRENCY]
-            threads = [
-                threading.Thread(target=_open, args=(role, cam_id), daemon=True)
-                for role, cam_id in wave
-            ]
-            for t in threads:
-                t.start()
-            for t in threads:
-                t.join(_PREFLIGHT_TIMEOUT * 2 + 5.0)
+            cancel = threading.Event()
+            thread_roles = []
+            for role, cam_id in wave:
+                thread = threading.Thread(
+                    target=_open, args=(role, cam_id, cancel), daemon=True
+                )
+                thread_roles.append((thread, role))
+                thread.start()
+            deadline = time.monotonic() + _OPEN_WAVE_TIMEOUT
+            for thread, _role in thread_roles:
+                thread.join(max(0.0, deadline - time.monotonic()))
+            hung = [(t, r) for t, r in thread_roles if t.is_alive()]
+            if hung:
+                # Поток не уложился в бюджет волны: камера не отдаёт кадр.
+                # Ждать дальше бессмысленно, а молча продолжить — значит
+                # получить «Неизвестные камеры» позже, на предпросмотре.
+                # Останавливаем поток и фиксируем ошибку роли сразу.
+                cancel.set()
+                for thread, _role in hung:
+                    thread.join(_OPEN_CANCEL_GRACE)
+                for thread, role in hung:
+                    with state_lock:
+                        errors.setdefault(
+                            role,
+                            f"камера {self.mapping[role]} зависла при "
+                            f"открытии (нет кадра за {_OPEN_WAVE_TIMEOUT:.0f} с)",
+                        )
 
         self.cameras = {
             role: opened[role] for role in self.mapping if role in opened
@@ -269,7 +303,10 @@ class CameraManager:
             details = ", ".join(
                 f"{role}: {error}" for role, error in sorted(errors.items())
             )
-            raise RuntimeError(f"Ошибка открытия камер: {details}")
+            raise RuntimeError(
+                f"Ошибка открытия камер: {details}. "
+                "Проверь камеры (run_camera_calibration.bat) и USB-подключение."
+            )
 
         elapsed = time.monotonic() - started
         print(f"Открыто камер: {len(self.cameras)} за {elapsed:.1f} с")
