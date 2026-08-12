@@ -1,0 +1,10 @@
+{
+    "far_cam_minimum": 21.0,
+    "far_cam_maximum": 47.0,
+    "far_cam_difference": 11.0,
+    "near_cam_minimum": 20.0,
+    "near_cam_maximum": 42.0,
+    "near_cam_difference": 11.0,
+    "delay_after_distribution": 0.0,
+    "output_slot_index": 3
+}
