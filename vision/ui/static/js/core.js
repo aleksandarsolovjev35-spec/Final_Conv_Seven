@@ -88,7 +88,6 @@ const state = {
 
     statusReceived:      false,
     jogReceived:         false,
-    uiReady:             false,
     uiRevealed:          false,
 
     jogActive:           false,
@@ -111,7 +110,6 @@ const state = {
     // Бейдж использует displayedFrameKind — режим кадра, уже загруженного в
     // главное окно, а не только состояние камеры на сервере.
     liveStreaming:        false,
-    liveStatic:           false,
     displayedFrameKind:   null, // 'live' | 'static' | 'analysis' | null
     pendingDisplayKind:   null,
     pendingDisplaySeq:    0,
@@ -497,11 +495,3 @@ function startStatusPolling() {
     scheduleNextStatusTick();
 }
 
-function stopStatusPolling() {
-    if (_statusLoopTimer) { clearTimeout(_statusLoopTimer); _statusLoopTimer = null; }
-    if (state.statusInterval) {
-        try { clearInterval(state.statusInterval); } catch (_) {}
-        try { clearTimeout(state.statusInterval); } catch (_) {}
-        state.statusInterval = null;
-    }
-}

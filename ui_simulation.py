@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import signal
 import threading
-import time
 from dataclasses import dataclass
 
 import cv2
@@ -25,39 +24,22 @@ from vision.ui.server.server import CAMERA_ORDER, UIServer
 
 PROCESS_LABELS = {
     "IDLE": "Система готова к пуску",
-    "START_POSITIONING": "Возврат распределителя в рабочее положение",
     "READY": "Цикл запущен",
     "INITIAL_INSPECTION": "Контроль корпуса под INPUT без движения",
     "ROUTE_PREPARE": "Подготовка маршрута распределителя",
-    "CONVEYOR_COMMAND": "Команда движения ленты отправлена",
-    "CONVEYOR_MOVING": "Лента перемещает корпуса на следующую позицию",
     "MOTION": "Горизонтальное движение ленты",
-    "CONVEYOR_CONFIRMED": "Позиции корпусов подтверждены контроллером",
-    "PART_TRANSFER": "Корпус прошёл распределитель",
     "SETTLE": "Ожидание затухания вибрации",
-    "CAMERA_CAPTURE": "Синхронный захват камер",
     "CAPTURE": "Захват стоп-кадра камеры",
-    "INPUT_ANALYSIS": "INPUT: анализ свежего кадра",
     "INPUT_MODELS": "INPUT: запуск моделей",
-    "INPUT_PRESENCE": "INPUT: проверка наличия корпуса",
     "INPUT_GEOMETRY": "INPUT: построение геометрии и измерений",
     "INPUT_DECISION": "INPUT: решение правил сформировано",
-    "INPUT_FRAME_RECORD": "INPUT: запись кадра и разметки",
-    "INPUT_FRAME_RECORDED": "INPUT: кадр и разметка подготовлены",
     "INPUT_RESULT_RECORDED": "INPUT: решение стадии записано",
-    "SPIDER_CHECK": "SPIDER/TOP: подготовка контроля",
-    "SPIDER_ANALYSIS": "SPIDER/TOP: анализ свежего кадра",
     "SPIDER_MODELS": "SPIDER/TOP: запуск моделей",
     "SPIDER_GEOMETRY": "SPIDER/TOP: построение геометрии и измерений",
     "SPIDER_DECISION": "SPIDER/TOP: окончательное решение сформировано",
-    "SPIDER_FRAME_RECORD": "SPIDER/TOP: запись кадра и разметки",
-    "SPIDER_FRAME_RECORDED": "SPIDER/TOP: кадр и разметка подготовлены",
     "SPIDER_RESULT_RECORDED": "SPIDER/TOP: окончательное решение записано",
-    "ANALYSIS": "Анализ моделей и правил",
     "ANALYSIS_REVIEW": "Просмотр результатов анализа",
-    "STEP_COMPLETE": "Шаг полностью завершён",
     "PUBLISH": "Публикация результата контроля",
-    "FINAL_DECISION_ARCHIVED": "Финальное решение записано в архив",
     "STOPPING": "Остановка",
     "STOPPED": "Линия остановлена и пуста",
     "PAUSED": "Пауза линии",
@@ -65,8 +47,7 @@ PROCESS_LABELS = {
     "SELECTED_ANALYSIS": "Анализ выбранного стоп-кадра",
     "DISTRIBUTOR_DIAGNOSTIC": "Проверка распределителя",
     "CAMERA_DIAGNOSTIC": "Проверка семи камер",
-    "VISION_RULE_DIAGNOSTIC": "Проверка моделей и правил",
-    "DIAGNOSTIC_DONE": "Диагностика завершена",
+    "VISION_DIAGNOSTIC": "Проверка моделей и правил",
 }
 
 
@@ -108,20 +89,16 @@ class LineSimulation:
         self._wake = threading.Event()
         self._stop = threading.Event()
         self.state = "IDLE"
-        self.stop_requested = False
         self.dist1_position = 0
         self.dist2_position = 0
         self.dist1_state = "GOOD"
         self.dist2_state = "READY"
+        self._planned_route = "GOOD"
         self.last_distributor_action = "SIMULATION READY"
         self.jog_active = False
         self.jog_busy = False
-        self.jog_direction: str | None = None
-        self.jog_hold_steps = 0
         self.selected_role: str | None = None
-        self.last_diagnostic = "SIMULATION READY"
         self.archive_compressed = False
-        self.process_revision = 0
         self.step = 0
         self.next_id = 1
         self.slot_counter = 0
@@ -155,7 +132,6 @@ class LineSimulation:
                 return False
             self._open_next_archive_batch()
             self.jog_active = False
-            self.stop_requested = False
             # A launch begins with the same special initial inspection as
             # ProductionCycle: do not advance the virtual belt first.
             self._await_initial_inspection = not self.parts and self.egress is None
@@ -176,7 +152,6 @@ class LineSimulation:
         with self._lock:
             self.jog_active = False
             self.jog_busy = False
-            self.jog_direction = None
         self._publish("IDLE")
         return True
 
@@ -185,8 +160,6 @@ class LineSimulation:
             if not self.jog_active or self.state not in ("IDLE", "STOPPED"):
                 return False
             self.jog_busy = True
-            self.jog_direction = direction
-            self.jog_hold_steps += 1
             # JOG changes the visible virtual conveyor coordinate. It is
             # bounded exactly like a hardware axis and remains in the status.
             delta = 5 if direction == "+" else -5
@@ -199,7 +172,6 @@ class LineSimulation:
     def jog_hold_release(self, _reason: str = "") -> bool:
         with self._lock:
             self.jog_busy = False
-            self.jog_direction = None
             self.dist1_state = "GOOD" if self.dist1_position == 0 else "TO_DIST2"
         self._publish("IDLE")
         return True
@@ -209,14 +181,12 @@ class LineSimulation:
             if self.state not in ("IDLE", "STOPPED") or role not in CAMERA_ORDER:
                 return False
             self.selected_role = role
-            self.last_diagnostic = f"ANALYSIS {role}"
         self._publish("SELECTED_ANALYSIS")
         return True
 
     def release_selected_analysis(self) -> bool:
         with self._lock:
             self.selected_role = None
-            self.last_diagnostic = "LIVE STREAM RESTORED"
         self._publish("IDLE")
         return True
 
@@ -224,19 +194,14 @@ class LineSimulation:
         with self._lock:
             if self.state not in ("IDLE", "STOPPED"):
                 return False
-            self.last_diagnostic = command
         self._publish("DISTRIBUTOR_DIAGNOSTIC")
         return True
 
     def camera_diagnostic(self) -> bool:
-        with self._lock:
-            self.last_diagnostic = "CAMERAS OK · 7 / 7"
         self._publish("CAMERA_DIAGNOSTIC")
         return True
 
     def vision_rule_diagnostic(self) -> bool:
-        with self._lock:
-            self.last_diagnostic = "MODELS AND RULES OK"
         self._publish("VISION_DIAGNOSTIC")
         return True
 
@@ -245,7 +210,6 @@ class LineSimulation:
         with self._lock:
             if self.state not in ("RUNNING", "PAUSED", "STOPPING"):
                 return False
-            self.stop_requested = True
             self.state = "STOPPING"
             self._wake.set()
         self._publish("STOPPING")
@@ -372,7 +336,7 @@ class LineSimulation:
         self._planned_route = category
 
     def _settle_distributor(self) -> None:
-        category = getattr(self, "_planned_route", "GOOD")
+        category = self._planned_route
         self.dist1_position = 0 if category == "GOOD" else 340
         self.dist2_position = 340 if category == "CLEANUP" else 0
         self.dist1_state = "GOOD" if category == "GOOD" else "TO_DIST2"
@@ -402,18 +366,14 @@ class LineSimulation:
         role = self.selected_role or ("TOP" if inspection else None)
         if not role:
             return {"available": False}
-        category = inspection.category if inspection else "GOOD"
         defects = inspection.defects if inspection else []
         triggered = bool(defects)
         return {
             "available": True,
             "kind": "selected" if self.selected_role else "production",
-            "active": True,
-            "title": "СИМУЛИРОВАННЫЙ АНАЛИЗ КАДРА",
             "role": role,
             "part_id": inspection.id if inspection else None,
             "stage": "DIAGNOSTIC" if self.selected_role else "CONTROL",
-            "verdict": category,
             "rules": [{
                 "name": "part_presence", "title": "Наличие корпуса", "triggered": False,
                 "measurement_cards": [{"type": "metric", "metrics": [{"key": "simulated_confidence", "label": "Уверенность модели", "value": "0.99", "limit": "0.40", "ok": True}]}],
@@ -430,7 +390,6 @@ class LineSimulation:
         with self._lock:
             state = self.state
             line_parts = self._line_parts()
-            position = 7 if self.egress else None
             active_roles = list(inspection_roles or ())
             if not active_roles:
                 if any(part.position == 0 for part in self.parts):
@@ -443,7 +402,6 @@ class LineSimulation:
                 "INPUT_RESULT_RECORDED", "SPIDER_MODELS", "SPIDER_GEOMETRY",
                 "SPIDER_DECISION", "SPIDER_RESULT_RECORDED",
             }
-            self.process_revision += 1
             capture_roles = active_roles if phase in {
                 "CAPTURE", "ANALYSIS_REVIEW", "INPUT_MODELS", "INPUT_GEOMETRY",
                 "INPUT_DECISION", "INPUT_RESULT_RECORDED", "SPIDER_MODELS",
@@ -480,29 +438,20 @@ class LineSimulation:
                             "label": PROCESS_LABELS.get(phase, phase.replace("_", " ")),
                             "step": self.step,
                             "part_id": self.egress.id if self.egress else None,
-                            "positions": [position] if position is not None else [],
                             "capture_roles": capture_roles,
                             "inspection_roles": active_roles,
-                            "conveyor": {"speed": 18000},
-                            "revision": self.process_revision,
-                            "updated_at": time.time()},
+                            "conveyor": {"speed": 18000}},
                 "selected_analysis": {"active": self.selected_role is not None, "role": self.selected_role},
                 "diagnostic_allowed": state in ("IDLE", "STOPPED") and self.selected_role is None,
                 "diagnostic_busy": False,
-                "diagnostics": {
-                    "cameras": [{"name": role, "ok": True, "message": "SIMULATED"} for role in CAMERA_ORDER],
-                    "models": [{"name": "VISION", "ok": True, "message": "SIMULATED"}],
-                    "rules": [{"name": "RULES", "ok": True, "message": self.last_diagnostic}],
-                },
                 "frame_analysis": self._frame_analysis_payload(),
                 "live": {"running": True,
                          "static": self.selected_role is not None or inspection_static,
                          "streaming": self.selected_role is None and not inspection_static,
                          "static_roles": [self.selected_role] if self.selected_role else (active_roles if inspection_static else []),
-                         "all_roles_static": False, "fps": 25, "error": None},
+                         "all_roles_static": False, "fps": 25},
                 "jog": {"active": self.jog_active, "busy": self.jog_busy, "can_enter": state in ("IDLE", "STOPPED"),
-                        "hold_steps": self.jog_hold_steps, "direction": self.jog_direction,
-                        "last_action": self.last_distributor_action, "live_fps": 25, "error": None},
+                        "live_fps": 25},
             }
             recent = list(self.recent)
         # Publish fresh virtual camera frames on every production state change.
@@ -532,7 +481,7 @@ class LineSimulation:
         archive = self.server.archive
         if archive is not None:
             frames = dict(self.server.frames)
-            archive.store_frames(part.id, "CONTROL", frames, frames)
+            archive.store_frames(part.id, frames, frames)
 
     def _finish_egress(self) -> None:
         if not self.egress:
@@ -563,7 +512,6 @@ class LineSimulation:
                 self._finalize_archive_batch()
                 with self._lock:
                     self.state = "STOPPED"
-                    self.stop_requested = False
                 self._publish("STOPPED")
                 continue
 
@@ -636,7 +584,7 @@ def configure_simulated_thresholds(server: UIServer) -> None:
     server.threshold_labels = dict(loader.labels)
     server.thresholds_revision = 1
 
-    def apply(role: str, values: dict, labels: dict) -> dict:
+    def apply(role: str, values: dict, _labels: dict) -> dict:
         prefix = f"{role}."
         updated = dict(server.thresholds or {})
         for key, value in values.items():

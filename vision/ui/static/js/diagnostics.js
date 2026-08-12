@@ -80,7 +80,6 @@ function updateSelectedAnalysisStatus(ls) {
     // Источник главной камеры зависит от её собственной роли, а не от
     // inspection другой группы камер.
     state.liveStreaming = live.running === true && !selectedRoleStatic;
-    state.liveStatic = selectedRoleStatic;
 
     if (wasLiveStreaming !== state.liveStreaming && typeof applyMainCameraSource === 'function') {
         applyMainCameraSource();

@@ -6,7 +6,6 @@ from inspection.result import InspectionResult
 from inspection.run_report import (
     prepare_presence_result,
     prepare_rule_results,
-    summarize_model_health,
 )
 
 
@@ -51,7 +50,6 @@ class Inspector:
         part_id: int,
         step: int,
         frames,
-        force_bad: bool = False,
     ) -> InspectionResult:
         # Строгий порядок одной стадии: кадры -> модели -> проверка
         # наличия (gate) -> геометрия/defect rules -> разметка -> результат.
@@ -62,7 +60,7 @@ class Inspector:
             part_id=part_id,
             roles=self.INPUT_ROLES,
         )
-        vision_results, model_health = self._run_vision(frames, self.INPUT_ROLES)
+        vision_results = self._run_vision(frames, self.INPUT_ROLES)
 
         self._notify_progress(
             "INPUT_PRESENCE",
@@ -90,7 +88,6 @@ class Inspector:
                 raw_frames=frames,
                 raw_overlay_frames={},
                 is_empty_tray=True,
-                model_health=model_health,
             )
 
         self._notify_progress(
@@ -116,8 +113,6 @@ class Inspector:
             vision_results=vision_results,
             rule_results=[presence_result] + defect_results,
             markup_rule_results=defect_results,
-            force_bad=force_bad,
-            model_health=model_health,
         )
 
     def inspect_spider(
@@ -125,7 +120,6 @@ class Inspector:
         part_id: int,
         step: int,
         frames,
-        force_bad: bool = False,
     ) -> InspectionResult:
         frames = self._stage_frames(frames, self.SPIDER_ROLES, "spider")
         self._notify_progress(
@@ -134,7 +128,7 @@ class Inspector:
             part_id=part_id,
             roles=self.SPIDER_ROLES,
         )
-        vision_results, model_health = self._run_vision(frames, self.SPIDER_ROLES)
+        vision_results = self._run_vision(frames, self.SPIDER_ROLES)
 
         self._notify_progress(
             "SPIDER_GEOMETRY",
@@ -159,8 +153,6 @@ class Inspector:
             vision_results=vision_results,
             rule_results=rule_results,
             markup_rule_results=rule_results,
-            force_bad=force_bad,
-            model_health=model_health,
         )
 
     @staticmethod
@@ -179,8 +171,7 @@ class Inspector:
         missing = set(roles) - set(vision_results)
         if missing:
             raise RuntimeError(f"Missing vision results: {sorted(missing)}")
-        health_rows = getattr(self.vision, "last_health", None) or []
-        return vision_results, summarize_model_health(health_rows)
+        return vision_results
 
     def _build_result(
         self,
@@ -191,13 +182,9 @@ class Inspector:
         frames: dict,
         vision_results: dict,
         rule_results: list,
-        force_bad: bool,
-        model_health: list,
         markup_rule_results: list | None = None,
     ) -> InspectionResult:
         defects = [result.defect for result in rule_results if result.triggered]
-        if force_bad:
-            defects = ["forced_bad"]
 
         markup = (
             markup_rule_results
@@ -233,7 +220,6 @@ class Inspector:
             raw_frames=frames,
             raw_overlay_frames=raw_overlay_frames,
             is_empty_tray=False,
-            model_health=model_health,
         )
 
     def _evaluate_part_presence(self, vision_results: dict):

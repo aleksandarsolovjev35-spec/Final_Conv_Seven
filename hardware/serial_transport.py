@@ -11,8 +11,6 @@ class SerialTransport:
     """
 
     def __init__(self, port: str = "COM4", baudrate: int = 115200):
-        self.port     = port
-        self.baudrate = baudrate
         self.lock     = threading.Lock()
         self.ser      = self._open(port, baudrate)
 

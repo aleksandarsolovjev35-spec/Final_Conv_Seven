@@ -16,4 +16,3 @@ class InspectionResult:
     # True устанавливается только для INPUT по part_presence.
     is_empty_tray: bool = False
 
-    model_health: list = field(default_factory=list)

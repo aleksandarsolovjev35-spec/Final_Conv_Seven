@@ -756,9 +756,9 @@ def _format_warmup_reasons(reasons: dict) -> str:
 def _recover_weak_cameras_after_warmup(cameras, stats: dict, phase: str) -> dict:
     """Повторно прогреть роли без кадров и проверить их готовность.
 
-    Если менеджер поддерживает ``reopen_roles``, после неудачного прогрева
-    выполняется попытка переоткрытия. Текущий CameraManager возвращает
-    неуспех и запуск завершается ошибкой.
+    После неудачного прогрева выполняется попытка переоткрытия через
+    ``reopen_roles``. Текущий CameraManager возвращает неуспех и запуск
+    завершается ошибкой.
     """
     reasons = _weak_camera_warmup_reasons(stats)
     if not reasons:
@@ -779,21 +779,14 @@ def _recover_weak_cameras_after_warmup(cameras, stats: dict, phase: str) -> dict
     if not retry_reasons:
         return merged
 
-    # Менеджер может реализовать переоткрытие ролей; отсутствие такой
-    # возможности или повторный отказ блокируют запуск.
-    reopen = getattr(cameras, "reopen_roles", None)
-    if reopen is None:
-        raise RuntimeError(
-            f"Камеры не стабилизировались после прогрева ({phase}): "
-            f"{_format_warmup_reasons(retry_reasons)}"
-        )
+    # Повторный отказ блокирует запуск.
     stuck = tuple(retry_reasons)
     print(
         f"[CAMERA] {phase}: повторный прогрев не помог "
         f"({_format_warmup_reasons(retry_reasons)}); "
         f"пересоздаём потоки {', '.join(stuck)}"
     )
-    reopened = reopen(stuck)
+    reopened = cameras.reopen_roles(stuck)
     final_stats = cameras.warmup_roles(stuck, duration=retry_seconds)
     merged.update(final_stats)
     final_reasons = _weak_camera_warmup_reasons(final_stats)
@@ -863,18 +856,12 @@ def _make_idle_status(distributor) -> dict:
         "dist2_state":    "IDLE",
         "dist2_target":   "BAD",
         "last_distributor_action": "-",
-        "axis_position":     0,
-        "axis_max":          distributor.dist1_open_position,
-        "distributor_state": "IDLE",
         "process": {
             "phase": "IDLE",
             "label": "Система готова к пуску",
             "step": 0,
             "part_id": None,
-            "positions": [],
             "conveyor": {},
-            "revision": 0,
-            "updated_at": time.time(),
         },
         "diagnostic_allowed": False,
         "diagnostic_busy": False,
@@ -898,33 +885,16 @@ def _make_idle_status(distributor) -> dict:
             "streaming": False,
             "static": False,
             "fps": 0.0,
-            "error": None,
         },
         "frame_analysis": {
             "available": False,
             "kind": None,
-            "active": False,
-            "models": [],
             "rules": [],
-        },
-        "diagnostics": {
-            "status": "NOT_RUN",
-            "kind": None,
-            "message": "Проверки ещё не запускались",
-            "cameras": [],
-            "models": [],
-            "rules": [],
-            "updated_at": None,
         },
         "jog": {
             "active":      False,
             "can_enter":   False,
-            "hold_steps":  0,
-            "last_action": "-",
             "busy":        False,
-            "direction":   None,
-            "error":       None,
-            "live_fps":    0.0,
         },
     }
 

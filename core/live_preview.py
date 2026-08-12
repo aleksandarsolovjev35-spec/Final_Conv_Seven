@@ -99,10 +99,6 @@ class LiveCaptureGate:
             self._role_pause_depth.clear()
             self._condition.notify_all()
 
-    def is_live_allowed(self, role) -> bool:
-        with self._condition:
-            return self._pause_depth == 0 and self._role_pause_depth.get(role, 0) == 0
-
     @contextlib.contextmanager
     def live_read(self, role=None):
         """Занять слот live-чтения одной роли; False означает паузу роли."""
@@ -282,7 +278,7 @@ class LivePreview:
     # Внутреннее
 
     def _available_roles(self) -> list:
-        return list(getattr(self._cameras, "mapping", {}) or {})
+        return list(self._cameras.mapping)
 
     def _active_role(self, available_roles: list):
         try:
@@ -342,9 +338,5 @@ class LivePreview:
             with self.gate.live_reads(auxiliary_roles) as allowed_roles:
                 if not allowed_roles:
                     return None
-                capture_roles = getattr(self._cameras, "capture_roles", None)
-                if callable(capture_roles):
-                    return capture_roles(allowed_roles)
-                return {role: frame for role, frame in self._cameras.capture_all().items()
-                        if role in allowed_roles}
+                return self._cameras.capture_roles(allowed_roles)
         self._run_loop(LIVE_AUX_BATCH_INTERVAL, iteration, "auxiliary loop")

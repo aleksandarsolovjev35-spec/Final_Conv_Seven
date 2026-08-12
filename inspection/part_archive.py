@@ -75,16 +75,14 @@ class PartArchive:
         self._archived: list[dict] = []
         self._batch_parts: list[dict] = []
         self._batch_stats = {"total": 0, "good": 0, "bad": 0, "cleanup": 0}
-        self._finalized_count = 0
 
         self.stats: dict = self._load_stats()
 
-        self.startup_error = None
         if self.enabled:
             try:
                 os.makedirs(self.root_folder, exist_ok=True)
             except OSError as exc:
-                self.startup_error = str(exc)
+                print(f"[ARCHIVE] Папка архива недоступна: {exc}")
 
     # ---------- свойства ----------
 
@@ -138,7 +136,6 @@ class PartArchive:
             )
         checked = self.validate_root(root_folder)
         self.root_folder = checked["path"]
-        self.startup_error = None
         self.enabled = bool(enabled)
         self.jpeg_quality = max(70, min(98, int(jpeg_quality)))
         self.stats = self._load_stats()
@@ -175,7 +172,6 @@ class PartArchive:
     def store_frames(
         self,
         part_id: int,
-        stage: str,
         raw_frames: dict,
         annotated_frames: dict,
         raw_overlay_frames: dict | None = None,
@@ -267,7 +263,6 @@ class PartArchive:
         }
         self._archived.append(item)
         self._batch_parts.append(dict(item))
-        self._finalized_count += 1
 
         self.stats["total"] = int(self.stats.get("total") or 0) + 1
         category_key = {
@@ -310,12 +305,6 @@ class PartArchive:
             if entry:
                 result[role] = entry
         return result
-
-    def get_batch_stats(self) -> dict:
-        return dict(self._batch_stats)
-
-    def get_stats(self) -> dict:
-        return dict(self.stats)
 
     # ---------- статистика и манифест ----------
 
