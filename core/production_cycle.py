@@ -96,7 +96,6 @@ class ProductionCycle:
         self._operation_lock = threading.Lock()
         self._cancel_motion = threading.Event()
         self.distributor.cancel_check = self._cancel_motion.is_set
-        self._process_revision = 0
         # Снимки inspection остаются операторским стоп-кадром до следующего
         # движения, хотя физические камеры уже вернулись в live.
         self._inspection_display_roles = ()
@@ -114,10 +113,7 @@ class ProductionCycle:
             "label": "Система готова к пуску",
             "step": 0,
             "part_id": None,
-            "positions": [],
             "conveyor": {},
-            "revision": 0,
-            "updated_at": time.time(),
         }
 
         # Инспектор сообщает внутренние этапы (модели, геометрия,
@@ -163,24 +159,19 @@ class ProductionCycle:
         label: str,
         *,
         part_id=None,
-        positions=None,
         conveyor_status=None,
         capture_roles=None,
     ):
-        self._process_revision += 1
         self._process = {
             "phase": phase,
             "label": label,
             "step": self.current_step,
             "part_id": part_id,
-            "positions": list(positions or []),
             "conveyor": dict(conveyor_status or {}),
             # Роли только что захваченных камер. UI использует это, чтобы
             # оператор видел, какая стадия Part действительно снималась.
             "capture_roles": list(capture_roles or []),
             "inspection_roles": list(self._inspection_display_roles),
-            "revision": self._process_revision,
-            "updated_at": time.time(),
         }
         self._refresh_monitor()
 
@@ -199,16 +190,10 @@ class ProductionCycle:
         обработки.
         """
         prefix = str(phase or "").upper()
-        positions = (
-            [self.OFFSET_INPUT]
-            if prefix.startswith("INPUT")
-            else [self.OFFSET_SPIDER]
-        )
         self._set_process(
             prefix,
             label,
             part_id=part_id,
-            positions=positions,
             capture_roles=roles,
         )
 
@@ -217,12 +202,10 @@ class ProductionCycle:
         conveyor_info = dict(status or {})
         # Expose speed for frontend animation timing (higher = faster motion)
         conveyor_info["speed"] = int(self.conveyor.speed)
-        conveyor_info["normal_steps"] = int(self.conveyor.steps_per_division)
         self._set_process(
             "CONVEYOR_MOVING",
             "Лента перемещает корпуса на следующую позицию",
             part_id=current.get("part_id"),
-            positions=range(self.OFFSET_REJECT + 1),
             conveyor_status=conveyor_info,
         )
 
@@ -307,7 +290,6 @@ class ProductionCycle:
         self._set_process(
             "PAUSE_REQUESTED",
             "Пауза будет применена перед началом нового цикла анализа",
-            positions=range(self.OFFSET_REJECT + 1),
         )
         self._refresh_monitor()
         return True
@@ -332,7 +314,6 @@ class ProductionCycle:
             self._set_process(
                 "RESUMED",
                 "Работа возобновлена после паузы",
-                positions=range(self.OFFSET_REJECT + 1),
             )
             self._refresh_monitor()
             return True
@@ -432,7 +413,6 @@ class ProductionCycle:
             self._set_process(
                 "VISION_RULE_DIAGNOSTIC",
                 "Запуск всех моделей и правил дефектов без движения линии",
-                positions=[self.OFFSET_INPUT, self.OFFSET_SPIDER],
             )
             # Сброс буфера драйвера: в IDLE/STOPPED после JOG или прогрева
             # cap.read() может вернуть устаревший кадр. См. комментарий
@@ -949,7 +929,6 @@ class ProductionCycle:
             self._set_process(
                 "INITIAL_INSPECTION",
                 "Корпус уже под камерами: контроль без движения ленты",
-                positions=[self.OFFSET_INPUT, self.OFFSET_SPIDER],
             )
             self._check_motion_cancelled()
             return None
@@ -960,7 +939,6 @@ class ProductionCycle:
             "ROUTE_PREPARE",
             "Подготовка маршрута распределителя",
             part_id=pending_id,
-            positions=[self.OFFSET_REJECT] if pending_id else [],
         )
         self._prepare_drop()
         self._check_motion_cancelled()
@@ -969,7 +947,6 @@ class ProductionCycle:
             "CONVEYOR_COMMAND",
             "Команда движения ленты отправлена",
             part_id=pending_id,
-            positions=range(self.OFFSET_REJECT + 1),
         )
         self.conveyor.move_step()
         self.conveyor.wait_stop(progress_callback=self._on_conveyor_progress)
@@ -983,20 +960,16 @@ class ProductionCycle:
         """SETTLE: подтвердить передачу корпуса и погасить вибрацию."""
         self._set_process(
             "CONVEYOR_CONFIRMED", "Позиции корпусов подтверждены контроллером",
-            part_id=pending_id, positions=range(self.OFFSET_REJECT + 1),
+            part_id=pending_id,
         )
         if self._pending_drop is not None:
             self._set_process(
                 "PART_TRANSFER", "Корпус прошёл распределитель",
-                part_id=pending_id, positions=[self.OFFSET_REJECT],
+                part_id=pending_id,
             )
         self._execute_drop()
         self._check_motion_cancelled()
-        active_cam_positions = []
-        if accept_input_for_this_step: active_cam_positions.append(self.OFFSET_INPUT)
-        if any(p.step_created + self.OFFSET_SPIDER == self.current_step for p in self.parts):
-            active_cam_positions.append(self.OFFSET_SPIDER)
-        self._set_process("SETTLE", "Ожидание затухания вибрации перед съёмкой", positions=active_cam_positions)
+        self._set_process("SETTLE", "Ожидание затухания вибрации перед съёмкой")
         self.stages.enter_settle()
         self._check_motion_cancelled()
 
@@ -1029,17 +1002,10 @@ class ProductionCycle:
         # Пауза только у ролей, которые сейчас дают inspection-кадр.
         # Остальные камеры продолжают live-поток для оператора.
         self.stages.enter_capture(roles)
-        active_cam_positions = []
-        if accept_input_for_this_step:
-            active_cam_positions.append(self.OFFSET_INPUT)
-        if any(part.step_created + self.OFFSET_SPIDER == self.current_step for part in self.parts):
-            active_cam_positions.append(self.OFFSET_SPIDER)
-
         self._set_process(
             "CAMERA_CAPTURE",
             (f"Синхронный захват камер: {', '.join(roles)}" if roles
              else "Нет корпуса под инспекционными камерами"),
-            positions=active_cam_positions,
             capture_roles=roles,
         )
         if not roles:
@@ -1075,26 +1041,15 @@ class ProductionCycle:
         display_frames = dict(frames)
         inspected = False
 
-        # Определяем активные позиции для подсветки в UI
-        active_positions = []
-        if accept_input_for_this_step:
-            active_positions.append(self.OFFSET_INPUT)
-        if any((p.step_created + self.OFFSET_SPIDER == self.current_step) for p in self.parts):
-            active_positions.append(self.OFFSET_SPIDER)
-
         if accept_input_for_this_step:
             self._set_process(
                 "INPUT_ANALYSIS",
                 "Вход: модели и правила по свежему кадру",
-                positions=active_positions,
             )
             input_result = self._process_input_stage(frames)
             if input_result is not None:
                 display_frames.update(input_result.raw_frames)
                 inspected = True
-                # Если деталь на входе не обнаружена, убираем подсветку
-                if input_result.is_empty_tray and self.OFFSET_INPUT in active_positions:
-                    active_positions.remove(self.OFFSET_INPUT)
             self._check_motion_cancelled()
 
         spider_parts = [
@@ -1105,7 +1060,6 @@ class ProductionCycle:
             self._set_process(
                 "SPIDER_CHECK",
                 "Проверка корпуса на +4: свежий кадр",
-                positions=active_positions,
             )
             spider_result = self._run_spider_inspection(frames)
             if spider_result is not None:
@@ -1148,7 +1102,6 @@ class ProductionCycle:
                     "ANALYSIS_REVIEW",
                     "Просмотр результатов анализа: "
                     f"{whole} с до следующего шага",
-                    positions=[self.OFFSET_INPUT, self.OFFSET_SPIDER],
                 )
             time.sleep(min(0.1, max(remaining, 0.01)))
         # FORCE EXIT во время паузы сбрасывает цепочку фаз: выходить нужно
@@ -1217,7 +1170,6 @@ class ProductionCycle:
         self._set_process(
             "PAUSED",
             "Пауза: доступна ручная коррекция ленты с помощью JOG",
-            positions=range(self.OFFSET_REJECT + 1),
         )
 
     def _stop_pause_frame_loop(self):
@@ -1237,7 +1189,6 @@ class ProductionCycle:
             "INPUT_ANALYSIS",
             f"Вход: анализ кандидата #{candidate_id}",
             part_id=candidate_id,
-            positions=[self.OFFSET_INPUT],
         )
 
         result = self.inspector.inspect_input(
@@ -1256,7 +1207,6 @@ class ProductionCycle:
             self._set_process(
                 "INPUT_RESULT_RECORDED",
                 "INPUT: пустой лоток записан",
-                positions=[self.OFFSET_INPUT],
             )
             print(
                 f"[EMPTY] Пустой лоток на step {self.current_step} "
@@ -1290,7 +1240,6 @@ class ProductionCycle:
             "INPUT_RESULT_RECORDED",
             "INPUT: решение стадии записано",
             part_id=part.id,
-            positions=[self.OFFSET_INPUT],
         )
 
         print(
@@ -1311,7 +1260,6 @@ class ProductionCycle:
                 "SPIDER_ANALYSIS",
                 f"Контроль корпуса #{part.id}",
                 part_id=part.id,
-                positions=[self.OFFSET_SPIDER],
             )
             result = self.inspector.inspect_spider(
                 part_id=part.id,
@@ -1339,7 +1287,6 @@ class ProductionCycle:
                 "SPIDER_RESULT_RECORDED",
                 "SPIDER/TOP: окончательное решение записано",
                 part_id=part.id,
-                positions=[self.OFFSET_SPIDER],
             )
 
             print(
@@ -1397,7 +1344,6 @@ class ProductionCycle:
             "FINAL_DECISION_ARCHIVED",
             f"Финальное решение #{part.id}: {category} записано в архив",
             part_id=part.id,
-            positions=[self.OFFSET_REJECT],
         )
         self._register_finished(part)
         self._remove_part(part)
@@ -1466,7 +1412,6 @@ class ProductionCycle:
         return {
             "part_id": None,
             "rule_results": [],
-            "models": [],
             "updated_at": None,
         }
 
@@ -1485,27 +1430,9 @@ class ProductionCycle:
         Правая панель UI показывает анализ выбранной оператором камеры,
         поэтому результаты хранятся раздельно для ВХОДА и КОНТРОЛЯ +4.
         """
-        rows = result.model_health
-        if not rows:
-            rows = self.inspector.vision.last_health or []
-
-        model_details = []
-        for item in rows:
-            if not isinstance(item, dict):
-                continue
-            model_details.append({
-                "role": item.get("role"),
-                "model": item.get("model"),
-                "ok": item.get("ok"),
-                "elapsed_ms": item.get("elapsed_ms"),
-                "detections": item.get("detections"),
-                "error": item.get("error"),
-            })
-
         self._frame_analysis_groups[group] = {
             "part_id": part_id,
             "rule_results": list(result.rule_results),
-            "models": model_details,
             "updated_at": time.time(),
         }
 
@@ -1621,7 +1548,6 @@ class ProductionCycle:
                 self._set_process(
                     "JOG_HOLD",
                     label,
-                    positions=range(self.OFFSET_REJECT + 1),
                 )
             else:
                 self._refresh_monitor()
@@ -1682,45 +1608,15 @@ class ProductionCycle:
                 active_role = self._get_active_camera_role()
             except Exception:
                 active_role = None
-            models = [
-                dict(item) for item in entry["models"]
-                if not active_role or item.get("role") == active_role
-            ]
-            rules = self._rule_report_rows(
-                entry["rule_results"], role=active_role,
-            )
-            has_data = (
-                entry["updated_at"] is not None
-                and bool(
-                    rules
-                    or models
-                    or entry["rule_results"]
-                    or entry["models"]
-                )
-            )
-            role_suffix = f" · {active_role}" if active_role else ""
-            if has_data:
-                message = (
-                    f"{stage_label}{role_suffix}: итог по свежему кадру; "
-                    "правила считаются по единственному замеру"
-                )
-            else:
-                message = (
-                    f"{stage_label}{role_suffix}: "
-                    "результатов анализа пока нет"
-                )
             return {
                 "available": True,
                 "kind": "CYCLE",
-                "active": True,
-                "title": "АНАЛИЗ ТЕКУЩЕГО КАДРА",
                 "role": active_role,
-                "group": group,
                 "stage": stage_label,
                 "part_id": entry["part_id"],
-                "message": message,
-                "models": models,
-                "rules": rules,
+                "rules": self._rule_report_rows(
+                    entry["rule_results"], role=active_role,
+                ),
                 "updated_at": entry["updated_at"],
             }
 
@@ -1730,17 +1626,11 @@ class ProductionCycle:
             return {
                 "available": True,
                 "kind": "SELECTED",
-                "active": self._selected_analysis_active,
-                "title": "АНАЛИЗ КАДРА",
                 "role": (
                     report.get("selected_role")
                     or self._selected_analysis_role
                 ),
                 "part_id": None,
-                "message": report.get("message") or "Анализ кадра",
-                "status": report.get("status"),
-                "cameras": [dict(item) for item in report.get("cameras", [])],
-                "models": [dict(item) for item in report.get("models", [])],
                 "rules": [dict(item) for item in report.get("rules", [])],
                 "updated_at": report.get("updated_at"),
             }
@@ -1748,12 +1638,8 @@ class ProductionCycle:
         return {
             "available": False,
             "kind": None,
-            "active": False,
-            "title": None,
             "role": None,
             "part_id": None,
-            "message": None,
-            "models": [],
             "rules": [],
             "updated_at": None,
         }
@@ -1858,9 +1744,6 @@ class ProductionCycle:
             "cleanup": self.cleanup_count,
             "empty": self.empty_count,
             **dist,
-            "axis_position": dist["dist1_position"],
-            "axis_max": dist["dist1_max"],
-            "distributor_state": dist["dist1_state"],
             "process": dict(self._process),
             "diagnostic_allowed": diagnostic_allowed,
             "diagnostic_busy": operation_busy,
@@ -1877,43 +1760,26 @@ class ProductionCycle:
                 "static": self.stages.static,
                 "static_roles": list(self.stages.static_roles or ()),
                 "all_roles_static": self.stages.static and self.stages.static_roles is None,
-                "stage": self.stages.stage.value,
                 "fps": self._current_live_fps(),
-                "error": self.live.error,
             },
             "frame_analysis": self._build_frame_analysis(state_name),
-            "diagnostics": {
-                **self._diagnostics,
-                "cameras": [dict(item) for item in self._diagnostics["cameras"]],
-                "models": [dict(item) for item in self._diagnostics["models"]],
-                "rules": [dict(item) for item in self._diagnostics["rules"]],
-            },
         }
 
         if self.jog is not None:
             state_ok = (
                 sm_snap["state"] in self.JOG_ALLOWED_STATES
             )
-            jog_status = self.jog.status
             status["jog"] = {
                 "active":      bool(self.jog_active and state_ok),
                 "can_enter":   self.can_enter_jog(),
-                "hold_steps":  jog_status["hold_steps"],
-                "last_action": jog_status["last_action"],
-                "busy":        jog_status["busy"],
-                "direction":   jog_status["direction"],
-                "error":       jog_error,
+                "busy":        self.jog.status["busy"],
                 "live_fps":    self._current_live_fps(),
             }
         else:
             status["jog"] = {
                 "active":      False,
                 "can_enter":   False,
-                "hold_steps":  0,
-                "last_action": "-",
                 "busy":        False,
-                "direction":   None,
-                "error":       None,
             }
 
         return status
