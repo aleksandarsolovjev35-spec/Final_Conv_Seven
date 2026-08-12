@@ -66,6 +66,8 @@ const UI_READY_CHECK_INT = 100;
 
 const state = {
     cameras:             [],
+    // role -> физический Camera ID (из camera_mapping.json), для показа оператору
+    cameraIds:           {},
     currentCamera:       null,
     mode:                'RULES',
     modePending:         false,

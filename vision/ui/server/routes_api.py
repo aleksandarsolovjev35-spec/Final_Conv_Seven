@@ -33,8 +33,12 @@ def setup_api_routes(app, server):
             roles = list(dict.fromkeys(
                 [*server.camera_roles, *server.frames.keys()]
             ))
+            camera_ids = dict(server.camera_mapping)
         sorted_roles = server._sort_by_order(roles)
-        return JSONResponse({"cameras": sorted_roles})
+        return JSONResponse({
+            "cameras": sorted_roles,
+            "camera_ids": camera_ids,
+        })
 
     @app.get("/api/boot")
     async def get_boot():

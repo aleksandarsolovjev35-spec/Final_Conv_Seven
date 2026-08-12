@@ -650,6 +650,11 @@ def main() -> None:
     server.on_selected_model_release = simulation.release_selected_analysis
     configure_simulated_thresholds(server)
     server.update(frames=demo_frames())
+    # Имитируем camera_mapping.json: роль -> физический Camera ID, чтобы
+    # оператор видел соответствие (CAM id в превью) как в production.
+    server.set_camera_roles({
+        role: index for index, role in enumerate(CAMERA_ORDER)
+    })
     server.set_active_camera_role(CAMERA_ORDER[0])
     for key, _ in server.BOOT_STEPS:
         server.boot_step_done(key, "Симулятор UI готов")
