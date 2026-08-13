@@ -1,10 +1,12 @@
 """Golden-master для :mod:`core.rule_report`.
 
-Снапшот снят перед разрезанием ``core/rule_report.py`` на пакет
-``core/rule_report/``: корпус синтетических RuleResult-ов покрывает все
-правила и все ветки причин срабатывания. Любое расхождение с фикстурой —
-либо намеренное изменение формата строк (тогда обнови фикстуру), либо
-регрессия.
+Корпус синтетических RuleResult-ов покрывает все правила, все ветки
+причин срабатывания и краевые случаи (частичный skip, нераспознанные
+reason, пустые hits/pairs, срезы по ролям). Перед коммитом корпус
+прогоняется дифференциально против старого модуля ``rule_report_old``
+из git-истории, поэтому фикстура фиксирует именно дорефакторинговое
+поведение. Любое расхождение с фикстурой — либо намеренное изменение
+формата строк (тогда обнови фикстуру), либо регрессия.
 
 Обновление фикстуры после намеренного изменения формата:
     python -m tests.test_rule_report_golden
@@ -44,6 +46,12 @@ CASES = [
                                      {"INPUT_LEFT": 3, "INPUT_RIGHT": 3}}),
     res("part_presence", True, {"empty_tray": True, "flatness_left": None,
                                 "flatness_right": None}),
+    # role_status с общей ролью INPUT (ветка _filter_role_status)
+    res("part_presence", False, {"empty_tray": False, "flatness_left": 1,
+                                 "flatness_right": 2,
+                                 "role_status": [{"role": "INPUT",
+                                                  "status": "В НОРМЕ",
+                                                  "reason": None}]}),
     # --- window_geometry ---
     res("window_geometry", True, {"per_role": role("INPUT_LEFT",
         found=5, expected_count=7, reason=None, top_limits_px=[10, 40],
@@ -59,6 +67,10 @@ CASES = [
                          "reason": None}]}),
     res("window_geometry", True, {"per_role": role("INPUT_RIGHT",
         found=3, expected_count=7, reason="wrong_count")}),
+    # краевая ветка: limits есть, items пусто
+    res("window_geometry", False, {"per_role": role("INPUT_LEFT",
+        triggered=False, reason=None, top_limits_px=[10, 40],
+        bottom_limits_px=[5, 30], ignored=0, items=[])}),
     # --- window_sinks ---
     res("window_sinks", True, {"per_role": role("INPUT_LEFT", triggered=True,
         reason="invalid_window_reference_count", selected_windows=3)}),
@@ -70,6 +82,11 @@ CASES = [
         overlap_min_px=40,
         hits=[{"sink_index": 1, "window_index": 3, "overlap_px": 55}]),
         "measurement_cards": []}),
+    # краевые ветки window_sinks
+    res("window_sinks", True, {"per_role": role("INPUT_LEFT", triggered=True,
+        reason="unrecognized_reason")}),
+    res("window_sinks", True, {"per_role": role("INPUT_LEFT", triggered=True,
+        reason=None, hits=[], overlap_min_px=0)}),
     # --- contacts_long ---
     res("contacts_long", True, {"per_role": role("SPIDER_LEFT",
         triggered=True, reason="wrong_count: found 4", found=4)}),
@@ -83,9 +100,20 @@ CASES = [
         items=[{"index": 0, "omission_distance_px": 7.5,
                 "gap_deviation_px": -2.5, "rect_fits": True},
                {"index": 1, "omission_distance_px": None,
-                "gap_deviation_px": None, "rect_fits": False}])}),
+                "gap_deviation_px": None, "rect_fits": False}]),
+        "measurement_cards": [{"role": "SPIDER_LEFT", "ok": False,
+                               "metrics": [
+                                   {"label": "Ширина", "key": "rect_width_px",
+                                    "value": 38.0, "limit": 40.0,
+                                    "ok": True},
+                                   {"label": "Высота", "key": "rect_height_px",
+                                    "value": 121.0, "limit": 120.0,
+                                    "ok": False}]}]}),
     res("contacts_long", True, {"per_role": role("SPIDER_LEFT",
         triggered=True, reason="no_valid_omission_top_line",
+        rect_width_px=38.0, rect_height_px=120.0)}),
+    res("contacts_long", True, {"per_role": role("SPIDER_LEFT",
+        triggered=True, reason="omission_reference_too_short",
         rect_width_px=38.0, rect_height_px=120.0)}),
     # --- contacts_short ---
     res("contacts_short", True, {"per_role": role("SPIDER_IN", triggered=True,
@@ -148,9 +176,17 @@ CASES = [
     res("top_platform", True, {"per_role": role(triggered=True,
         placement="shifted", rect_width_px=210.0, rect_height_px=150.0,
         angle_deg=2.5, shift_distance_px=6.4)}),
+    res("top_platform", True, {"per_role": role(triggered=True,
+        placement="not_fitted", rect_width_px=210.0, rect_height_px=150.0,
+        angle_deg=0.0, shift_distance_px=0.0)}),
+    res("top_platform", False, {"per_role": role(triggered=False,
+        placement="centered", rect_width_px=210.0, rect_height_px=150.0,
+        angle_deg=0.1, shift_distance_px=0.3)}),
     # --- platform_contacts_overlap ---
     res("platform_contacts_overlap", True, {"per_role": role(triggered=True,
         reason="no_valid_platform")}),
+    res("platform_contacts_overlap", True, {"per_role": role(triggered=True,
+        reason="invalid_platform_orientation")}),
     res("platform_contacts_overlap", True, {"per_role": role(triggered=True,
         reason="contact_boundary_not_built",
         contact_groups={"L": 5, "R": 5, "T": 2, "B": 2})}),
@@ -176,11 +212,27 @@ CASES = [
         hits=[{"sink_index": 1, "forbidden_pixels": 120,
                "central_overlap_px": 30, "platform_overlap_px": 5,
                "contacts_overlap_px": 40}])}),
+    # краевые ветки sinks
+    res("sinks", True, {"per_role": role(triggered=True,
+        reason="unrecognized_reason")}),
+    res("sinks", True, {"per_role": role(triggered=True, reason=None,
+        hits=[])}),
+    res("sinks", True, {"per_role": role(triggered=True, reason=None,
+        hits=[{"sink_index": 2, "forbidden_pixels": 0,
+               "central_overlap_px": 0, "platform_overlap_px": 0,
+               "contacts_overlap_px": 10}])}),
     # --- glass ---
     res("glass", True, {"per_role": role(triggered=True,
         hits=[{"glass_index": 1, "platform_overlap_px": 200,
                "pin_overlap_px": 100, "ring_overlap_px": 50,
                "cleanup_overlap_px": 350}])}),
+    # краевые ветки glass: reason задан, hits есть/нет
+    res("glass", True, {"per_role": role(triggered=True, reason="weird",
+        hits=[{"glass_index": 2, "platform_overlap_px": 10,
+               "pin_overlap_px": 0, "ring_overlap_px": 0,
+               "cleanup_overlap_px": 10}])}),
+    res("glass", True, {"per_role": role(triggered=True, reason="weird",
+        hits=[])}),
     # --- glass_on_contacts ---
     res("glass_on_contacts", True, {"per_role": role(triggered=True,
         reason="missing_glass_mask", invalid_glass_indices=[0])}),
@@ -209,13 +261,50 @@ CASES = [
         pairs=[{"glass_index": 1, "contact_index": 3, "overlap_pixels": 250},
                {"glass_index": 2, "contact_index": 7,
                 "overlap_pixels": 180}])}),
-    # --- skipped rule (нет измерения) ---
+    # краевые ветки glass_on_contacts
+    res("glass_on_contacts", True, {"per_role": role(triggered=True,
+        reason="unrecognized_reason")}),
+    res("glass_on_contacts", True, {"per_role": role(triggered=True,
+        reason=None, pairs=[])}),
+    # --- skip-ветки ---
     res("window_sinks", False, {"per_role": {
         "INPUT_LEFT": {"skipped": True, "reason": "no_frame"},
         "INPUT_RIGHT": {"skipped": True, "reason": "camera_error"}}}),
-    # --- правило без форматтера, просто reason ---
+    # частичный skip (вторая ветка _skip_summary)
+    res("window_sinks", False, {"per_role": {
+        "INPUT_LEFT": {"skipped": True, "reason": "no_frame"},
+        "INPUT_RIGHT": {"skipped": False, "triggered": False}}}),
+    res("window_sinks", False, {"per_role": {
+        "INPUT_LEFT": {"skipped": True, "reason": None},
+        "INPUT_RIGHT": {"skipped": False, "triggered": False}}}),
+    # --- правило без форматтера ---
     res("unknown_rule", True, {"per_role": role(triggered=True,
         reason="some_failure")}),
+    res("unknown_rule", False, {"per_role": role(triggered=False,
+        reason="some_failure")}),
+    # --- details без per_role вообще ---
+    res("unknown_rule", True, {"reason": "top-level-reason"}),
+    res("contacts_long", False, {}),
+    res("contacts_long", False, {"per_role": {}}),
+    res("contacts_long", True, {"per_role": {"SPIDER_LEFT": "not-a-dict"}}),
+    # --- fallback role_status по measurement_cards (ok True/False/None) ---
+    res("contacts_long", True, {"per_role": role("SPIDER_LEFT",
+        triggered=True, reason="wrong_count: found 4", found=4),
+        "measurement_cards": [
+            {"role": "SPIDER_LEFT", "ok": True, "metrics": []},
+            {"role": "SPIDER_IN", "ok": False, "metrics": []},
+            {"role": "SPIDER_OUT", "ok": None, "metrics": []}]}),
+    # --- threshold_breaches: metric ok=None и ok=True не попадают ---
+    res("contacts_long", True, {"per_role": role("SPIDER_LEFT",
+        triggered=True, reason="wrong_count: found 4", found=4),
+        "measurement_cards": [{"role": "SPIDER_LEFT", "ok": False,
+                               "metrics": [
+                                   {"label": "A", "key": "k1", "value": 1,
+                                    "limit": 2, "ok": True},
+                                   {"label": "B", "key": "k2", "value": 3,
+                                    "limit": 2, "ok": False},
+                                   {"label": "C", "key": "k3", "value": None,
+                                    "limit": None, "ok": None}]}]}),
 ]
 
 
