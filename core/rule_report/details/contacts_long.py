@@ -3,7 +3,6 @@ from core.rule_report.details.common import _reference_missing_lines
 from core.rule_report.metrics import Metrics, metric, within
 
 
-
 def _detail_contacts_long(per_role: dict) -> list:
     detail_lines = []
     for role, role_details in per_role.items():

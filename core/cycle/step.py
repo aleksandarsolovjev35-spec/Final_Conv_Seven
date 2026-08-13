@@ -19,7 +19,6 @@ from domain.part import (
 class CycleStepMixin:
     """Последовательный шаг ленты, инспекции и распределителя."""
 
-
     def _check_motion_cancelled(self):
         if self._cancel_motion.is_set() or self.sm.force_exit:
             raise RuntimeError("physical operation cancelled")
@@ -54,7 +53,6 @@ class CycleStepMixin:
         )
         self._stage_review(display_frames)
         self._stage_publish(display_frames)
-
 
     def _stage_motion(self):
         """MOTION: подготовить маршрут и переместить ленту на шаг."""
@@ -102,7 +100,6 @@ class CycleStepMixin:
         self.current_step += 1
         return pending_id
 
-
     def _stage_settle(self, pending_id):
         """SETTLE: подтвердить передачу корпуса и погасить вибрацию."""
         self._set_process(
@@ -120,7 +117,6 @@ class CycleStepMixin:
         self.stages.enter_settle()
         self._check_motion_cancelled()
 
-
     def _occupied_inspection_stages(self, accept_input_for_this_step: bool):
         """Занятые стадии этого шага в фиксированном порядке INPUT → SPIDER."""
         stages = []
@@ -132,7 +128,6 @@ class CycleStepMixin:
         ):
             stages.append(("SPIDER", tuple(self.inspector.SPIDER_ROLES)))
         return stages
-
 
     def _inspect_occupied_stages(self, accept_input_for_this_step: bool):
         """Каждая занятая стадия: свой кадр, свои модели, своё решение.
@@ -170,7 +165,6 @@ class CycleStepMixin:
             self._check_motion_cancelled()
         return display_frames
 
-
     def _stage_capture(self, roles):
         """CAPTURE: последовательный frozen snapshot одной стадии."""
         roles = tuple(roles or ())
@@ -203,7 +197,6 @@ class CycleStepMixin:
         # во время моделей, геометрии и ревью.
         self._refresh_monitor(frames)
         return frames
-
 
     def _stage_review(self, display_frames):
         """REVIEW: пауза на просмотр работы нейросетей после анализа.
@@ -241,7 +234,6 @@ class CycleStepMixin:
         # FORCE EXIT во время паузы сбрасывает цепочку фаз: выходить нужно
         # штатной ошибкой отмены до входа в PUBLISH, а не сбросом шага.
         self._check_motion_cancelled()
-
 
     def _stage_publish(self, display_frames):
         """PUBLISH: маршрут годных деталей и вывод результата на экран."""
@@ -292,7 +284,6 @@ class CycleStepMixin:
         if self._pause_frame_active:
             self._stop_pause_frame_loop()
 
-
     def _enter_pause_frame(self):
         """Включить режим JOG и отображение состояния паузы."""
         if not self._pause_frame_active:
@@ -310,7 +301,6 @@ class CycleStepMixin:
             "PAUSED",
             "Пауза: доступна ручная коррекция ленты с помощью JOG",
         )
-
 
     def _stop_pause_frame_loop(self):
         if not self._pause_frame_active:
@@ -439,7 +429,6 @@ class CycleStepMixin:
                 return part
         return None
 
-
     def _prepare_drop(self):
         part = self._pending_drop
         if part is None:
@@ -447,11 +436,15 @@ class CycleStepMixin:
             return
         category = part.route_category
         if category == CATEGORY_UNKNOWN:
-            print(f"[WARN] Деталь #{part.id} не прошла полную инспекцию -> принудительно BAD")
-            part.route_category, part.final_decision, category = CATEGORY_BAD, "incomplete_inspection", CATEGORY_BAD
+            print(
+                f"[WARN] Деталь #{part.id} не прошла полную инспекцию "
+                "-> принудительно BAD"
+            )
+            part.route_category = CATEGORY_BAD
+            part.final_decision = "incomplete_inspection"
+            category = CATEGORY_BAD
         # GOOD: DIST1=0. BAD/CLEANUP: сначала DIST2, затем DIST1=340.
         self.distributor.prepare_route(category, part.id)
-
 
     def _execute_drop(self):
         part = self._pending_drop
@@ -486,7 +479,6 @@ class CycleStepMixin:
         self._remove_part(part)
         self._pending_drop = None
 
-
     def _store_stage_frames(self, part_id, result):
         """Кадры стадии в архив. Сбой диска не откатывает решение Part."""
         if not self.archive or result is None:
@@ -500,4 +492,3 @@ class CycleStepMixin:
             )
         except Exception as exc:
             print(f"[ARCHIVE] Не удалось сохранить кадры #{part_id}: {exc}")
-

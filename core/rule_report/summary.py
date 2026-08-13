@@ -7,7 +7,6 @@ from core.rule_report.constants import (
 from core.rule_report.details.generic import _generic_failure_rows
 
 
-
 def _skip_summary(per_role: dict) -> tuple:
     """Вернуть ``(текст, все_ли_роли_пропущены)`` для правила без измерений."""
     skipped_rows = [
@@ -23,19 +22,19 @@ def _skip_summary(per_role: dict) -> tuple:
     )
     if len(skipped_rows) == len(per_role):
 
-
         return f"Не выполнено: {reasons}", True
     return f"Частично выполнено: {reasons}", False
+
 
 def _status_label(rule_name: str, triggered: bool, details: dict):
     """Итог правила для правой панели: текст и признак нейтрального статуса."""
     if rule_name == "part_presence" and details.get("empty_tray"):
 
-
         return "КОРПУС НЕ ОБНАРУЖЕН", True
     if rule_name == "part_presence":
         return "КОРПУС ОБНАРУЖЕН", False
     return ("СРАБОТАЛО" if triggered else "НОРМА"), False
+
 
 def _presence_summary(details: dict) -> list:
     """Короткая сводка по правилу присутствия детали."""
@@ -53,15 +52,14 @@ def _presence_summary(details: dict) -> list:
             continue
         found = int(raw or 0)
 
-
         limit = limits.get(role)
         limit_text = (
             f" (порог ложных {int(limit)})" if isinstance(limit, int) else ""
         )
         lines.append(f"{role}: flatness {found}{limit_text}")
 
-
     return lines
+
 
 def _failing_roles(per_role: dict) -> set:
     return {
@@ -69,6 +67,7 @@ def _failing_roles(per_role: dict) -> set:
         for role, role_details in per_role.items()
         if isinstance(role_details, dict) and role_details.get("triggered")
     }
+
 
 def _summary_lines(
     rule_name: str,

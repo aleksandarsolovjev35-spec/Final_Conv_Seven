@@ -5,7 +5,6 @@ from types import SimpleNamespace
 from core.rule_report.constants import PART_PRESENCE_RULE, RULE_CAMERA_ROLES
 
 
-
 # Поля part_presence, привязанные к конкретной INPUT-камере.
 _PRESENCE_ROLE_FIELDS = {
     "INPUT_LEFT": {
@@ -18,9 +17,9 @@ _PRESENCE_ROLE_FIELDS = {
         "effective": "effective_flatness_right",
         "ignored": "false_positive_ignored_right",
 
-
     },
 }
+
 
 def filter_rule_report_rows(rows) -> list:
     """Оставить только решающие правила.
@@ -30,16 +29,15 @@ def filter_rule_report_rows(rows) -> list:
     """
     rows = list(rows or [])
 
-
     for row in rows:
         if row.get("name") == PART_PRESENCE_RULE and row.get("part_absent"):
             return [row]
     return rows
 
+
 def rule_applies_to_role(rule_name: str, role: str | None) -> bool:
     """Правило относится к выбранной камере (или роль не задана)."""
     if not role:
-
 
         return True
     roles = RULE_CAMERA_ROLES.get(rule_name)
@@ -57,12 +55,13 @@ def _filter_role_cards(cards, role: str) -> list:
         if isinstance(card, dict) and card.get("role") == role
     ]
 
+
 def _filter_measurement_cards(cards, role: str) -> list:
     return _filter_role_cards(cards, role)
 
+
 def _filter_role_status(rows, role: str) -> list:
     if not isinstance(rows, list):
-
 
         return []
     return [
@@ -73,6 +72,7 @@ def _filter_role_status(rows, role: str) -> list:
             or row.get("role") in (None, "", "INPUT")
         )
     ]
+
 
 def _scope_presence_details(details: dict, role: str) -> dict:
     """Оставить в part_presence только поля выбранной INPUT-камеры."""
@@ -86,7 +86,6 @@ def _scope_presence_details(details: dict, role: str) -> dict:
         "presence_by_role",
     ):
 
-
         raw = details.get(details_key)
         if isinstance(raw, dict):
             scoped[details_key] = {
@@ -98,7 +97,6 @@ def _scope_presence_details(details: dict, role: str) -> dict:
     for key in _PRESENCE_ROLE_FIELDS[other].values():
         scoped[key] = None
     return scoped
-
 
 
 def _scope_measurement_to_role(details: dict, role: str) -> dict:
@@ -114,6 +112,7 @@ def _scope_measurement_to_role(details: dict, role: str) -> dict:
         )
     return scoped
 
+
 def scope_rule_result_to_role(result, role: str | None):
     """Срез RuleResult до данных одной камеры.
 
@@ -127,7 +126,6 @@ def scope_rule_result_to_role(result, role: str | None):
     rule_name = getattr(result, "rule_name", "") or ""
     if not rule_applies_to_role(rule_name, role):
         return None
-
 
     details = copy.deepcopy(getattr(result, "details", {}) or {})
     triggered = bool(getattr(result, "triggered", False))

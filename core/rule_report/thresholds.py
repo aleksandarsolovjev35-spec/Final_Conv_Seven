@@ -1,7 +1,6 @@
 """Пороговые отклонения правила и короткий вывод по ним."""
 
 
-
 def _threshold_breaches(summary_cards: list) -> list:
     """Выделить только показатели, из-за которых правило не прошло.
 
@@ -26,17 +25,18 @@ def _threshold_breaches(summary_cards: list) -> list:
             })
     return breaches
 
+
 def _threshold_conclusion(
     triggered: bool, human_cause: str | None, breaches: list,
 ) -> str:
     """Короткий вывод, связывающий отклонение с результатом правила."""
     if not triggered:
 
-
         return "Показатели укладываются в заданные пороги"
     if breaches:
         return human_cause or "Значение вышло за заданный порог — правило сработало"
     return human_cause or "Правило сработало: проверьте причину и измерения"
+
 
 def _fallback_role_status(cards: list) -> list:
     """Статус замера из карточек, если отдельный role_status не пришёл.

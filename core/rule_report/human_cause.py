@@ -34,7 +34,6 @@ def role_reason_text(reason) -> str:
     return text.replace("_", " ")
 
 
-
 # === Упрощённые человеческие причины дефектов (для быстрого понимания оператором) ===
 HUMAN_CAUSE_MAP = {
     # INPUT
@@ -52,9 +51,9 @@ HUMAN_CAUSE_MAP = {
     ("sinks", True): "РАКОВИНА ВНУТРИ КОРПУСА",
     ("glass", True): "СТЕКЛО НА ПЛАТФОРМЕ / ШТИФТАХ",
 
-
     ("glass_on_contacts", True): "СТЕКЛО НА КОНТАКТАХ",
 }
+
 
 def get_human_cause(rule_name: str, triggered: bool, details: dict) -> str | None:
     """Возвращает короткую читаемую причину дефекта."""

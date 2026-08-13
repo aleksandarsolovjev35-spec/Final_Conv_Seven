@@ -27,7 +27,6 @@ from core.rule_report.thresholds import (
 )
 
 
-
 def build_rule_report_rows(results, role: str | None = None) -> list:
     """Собрать строки отчёта; при ``role`` — только выбранная камера."""
     rows = []
@@ -38,10 +37,9 @@ def build_rule_report_rows(results, role: str | None = None) -> list:
                 continue
             rows.append(build_rule_report_row(scoped))
         else:
-
-
             rows.append(build_rule_report_row(result))
     return filter_rule_report_rows(rows)
+
 
 def build_rule_report_row(result) -> dict:
     """Собрать одну строку отчёта по правилу для HMI и диагностики."""

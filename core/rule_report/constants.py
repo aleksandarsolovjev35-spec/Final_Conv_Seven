@@ -2,7 +2,6 @@
 правил с детальной телеметрией, привязка правил к ролям камер."""
 
 
-
 # Названия порогов для анализа кадра: (правило, ключ метрики) -> понятный
 # оператору label (как в панели «Пороги правил»). UI показывает порог
 # рядом с названием правила и замер под ним.
@@ -69,91 +68,7 @@ METRIC_PARAM_LABELS = {
         "Группа T: макс. отклонение, px",
     ("top_contacts", "group_B_deviation_px"):
         "Группа B: макс. отклонение, px",
-    # top_contacts по контактам
-    ("top_contacts", "contact_1_distance_px"):
-        "Контакт #1: дистанция до края, px",
-    ("top_contacts", "contact_2_distance_px"):
-        "Контакт #2: дистанция до края, px",
-    ("top_contacts", "contact_3_distance_px"):
-        "Контакт #3: дистанция до края, px",
-    ("top_contacts", "contact_4_distance_px"):
-        "Контакт #4: дистанция до края, px",
-    ("top_contacts", "contact_5_distance_px"):
-        "Контакт #5: дистанция до края, px",
-    ("top_contacts", "contact_6_distance_px"):
-        "Контакт #6: дистанция до края, px",
-    ("top_contacts", "contact_7_distance_px"):
-        "Контакт #7: дистанция до края, px",
-    ("top_contacts", "contact_8_distance_px"):
-        "Контакт #8: дистанция до края, px",
-    ("top_contacts", "contact_9_distance_px"):
-        "Контакт #9: дистанция до края, px",
-    ("top_contacts", "contact_10_distance_px"):
-        "Контакт #10: дистанция до края, px",
-    ("top_contacts", "contact_11_distance_px"):
-        "Контакт #11: дистанция до края, px",
-    ("top_contacts", "contact_12_distance_px"):
-        "Контакт #12: дистанция до края, px",
-    ("top_contacts", "contact_13_distance_px"):
-        "Контакт #13: дистанция до края, px",
-    ("top_contacts", "contact_14_distance_px"):
-        "Контакт #14: дистанция до края, px",
-    ("top_contacts", "contact_1_deviation_px"):
-        "Контакт #1: отклонение, px",
-    ("top_contacts", "contact_2_deviation_px"):
-        "Контакт #2: отклонение, px",
-    ("top_contacts", "contact_3_deviation_px"):
-        "Контакт #3: отклонение, px",
-    ("top_contacts", "contact_4_deviation_px"):
-        "Контакт #4: отклонение, px",
-    ("top_contacts", "contact_5_deviation_px"):
-        "Контакт #5: отклонение, px",
-    ("top_contacts", "contact_6_deviation_px"):
-        "Контакт #6: отклонение, px",
-    ("top_contacts", "contact_7_deviation_px"):
-        "Контакт #7: отклонение, px",
-    ("top_contacts", "contact_8_deviation_px"):
-        "Контакт #8: отклонение, px",
-    ("top_contacts", "contact_9_deviation_px"):
-        "Контакт #9: отклонение, px",
-    ("top_contacts", "contact_10_deviation_px"):
-        "Контакт #10: отклонение, px",
-    ("top_contacts", "contact_11_deviation_px"):
-        "Контакт #11: отклонение, px",
-    ("top_contacts", "contact_12_deviation_px"):
-        "Контакт #12: отклонение, px",
-    ("top_contacts", "contact_13_deviation_px"):
-        "Контакт #13: отклонение, px",
-    ("top_contacts", "contact_14_deviation_px"):
-        "Контакт #14: отклонение, px",
-    ("top_contacts", "contact_1_rect_fits"):
-        "Контакт #1: прямоугольник",
-    ("top_contacts", "contact_2_rect_fits"):
-        "Контакт #2: прямоугольник",
-    ("top_contacts", "contact_3_rect_fits"):
-        "Контакт #3: прямоугольник",
-    ("top_contacts", "contact_4_rect_fits"):
-        "Контакт #4: прямоугольник",
-    ("top_contacts", "contact_5_rect_fits"):
-        "Контакт #5: прямоугольник",
-    ("top_contacts", "contact_6_rect_fits"):
-        "Контакт #6: прямоугольник",
-    ("top_contacts", "contact_7_rect_fits"):
-        "Контакт #7: прямоугольник",
-    ("top_contacts", "contact_8_rect_fits"):
-        "Контакт #8: прямоугольник",
-    ("top_contacts", "contact_9_rect_fits"):
-        "Контакт #9: прямоугольник",
-    ("top_contacts", "contact_10_rect_fits"):
-        "Контакт #10: прямоугольник",
-    ("top_contacts", "contact_11_rect_fits"):
-        "Контакт #11: прямоугольник",
-    ("top_contacts", "contact_12_rect_fits"):
-        "Контакт #12: прямоугольник",
-    ("top_contacts", "contact_13_rect_fits"):
-        "Контакт #13: прямоугольник",
-    ("top_contacts", "contact_14_rect_fits"):
-        "Контакт #14: прямоугольник",
+    # top_contacts по контактам: см. _CONTACT_LABELS ниже.
     # top_platform
     ("top_platform", "placement"):
         "Положение эталона",
@@ -221,21 +136,65 @@ METRIC_PARAM_LABELS = {
         "Пинов, шт",
     ("glass_on_contacts", "glass_contact_pairs"):
         "Пар стекло/контакт, шт",
-    ("glass_on_contacts", "glass_1_contact_1_overlap_px"):
-        "Стекло #1 → контакт #1: перехл., px",
-    ("glass_on_contacts", "glass_1_contact_2_overlap_px"):
-        "Стекло #1 → контакт #2: перехл., px",
-    ("glass_on_contacts", "glass_2_contact_1_overlap_px"):
-        "Стекло #2 → контакт #1: перехл., px",
-    ("glass_on_contacts", "glass_2_contact_2_overlap_px"):
-        "Стекло #2 → контакт #2: перехл., px",
     ("window_geometry", "top_px_min"): "T до перекладины: мин., px",
     ("window_geometry", "top_px_max"): "T до перекладины: макс., px",
     ("window_geometry", "bottom_px_min"): "B после перекладины: мин., px",
 
-
     ("window_geometry", "bottom_px_max"): "B после перекладины: макс., px",
 }
+
+
+# Метрики, которые правило отдаёт по каждому найденному объекту. Подписи
+# отличаются только индексом, поэтому разворачиваются циклом: ручной список
+# на 14 контактов расходился с правилами при смене количества.
+CONTACTS_PER_PLATFORM = 14
+GLASSES_PER_FRAME = 2
+SINKS_PER_FRAME = 2
+
+_CONTACT_LABELS = {
+    "distance_px": "Контакт #%d: дистанция до края, px",
+    "deviation_px": "Контакт #%d: отклонение, px",
+    "rect_fits": "Контакт #%d: прямоугольник",
+}
+
+_SINK_LABELS = {
+    "forbidden_px": "Раковина #%d: запрещ. пиксели, px",
+    "central_px": "Раковина #%d: центр. перехл., px",
+    "platform_px": "Раковина #%d: платформа, px",
+    "contacts_px": "Раковина #%d: контакты, px",
+}
+
+_GLASS_LABELS = {
+    "platform_px": "Стекло #%d: платформа, px",
+    "pin_px": "Стекло #%d: пины, px",
+    "ring_px": "Стекло #%d: кольцо, px",
+    "union_px": "Стекло #%d: union, px",
+}
+
+
+def _indexed_labels() -> dict:
+    labels = {}
+    for index in range(1, CONTACTS_PER_PLATFORM + 1):
+        for suffix, template in _CONTACT_LABELS.items():
+            labels[("top_contacts", f"contact_{index}_{suffix}")] = (
+                template % index
+            )
+    for index in range(1, SINKS_PER_FRAME + 1):
+        for suffix, template in _SINK_LABELS.items():
+            labels[("sinks", f"shell_{index}_{suffix}")] = template % index
+    for index in range(1, GLASSES_PER_FRAME + 1):
+        for suffix, template in _GLASS_LABELS.items():
+            labels[("glass", f"glass_{index}_{suffix}")] = template % index
+    for glass in range(1, GLASSES_PER_FRAME + 1):
+        for contact in range(1, GLASSES_PER_FRAME + 1):
+            labels[(
+                "glass_on_contacts",
+                f"glass_{glass}_contact_{contact}_overlap_px",
+            )] = f"Стекло #{glass} → контакт #{contact}: перехл., px"
+    return labels
+
+
+METRIC_PARAM_LABELS.update(_indexed_labels())
 
 # Правила, у которых есть развёрнутая построчная телеметрия в правой панели.
 DETAILED_RULES = (
@@ -245,10 +204,8 @@ DETAILED_RULES = (
     "top_contacts",
     "top_platform",
 
-
     "platform_contacts_overlap",
     "long_omission",
-
 
     "short_omission",
 )

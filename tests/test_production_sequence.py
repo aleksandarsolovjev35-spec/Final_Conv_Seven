@@ -23,13 +23,6 @@ class FakeLive:
     def resume(self):
         self.events.append("resume_all")
 
-    def pause_roles(self, roles, timeout=5.0):
-        self.events.append(("pause_roles", tuple(roles)))
-        return True
-
-    def resume_roles(self, roles):
-        self.events.append(("resume_roles", tuple(roles)))
-
     def clear_overlays(self):
         self.events.append("clear_overlays")
 

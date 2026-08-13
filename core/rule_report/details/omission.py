@@ -2,7 +2,6 @@
 from core.rule_report.metrics import Metrics, at_least, metric
 
 
-
 def _detail_omission(per_role: dict) -> list:
     detail_lines = []
     for role, role_details in per_role.items():
