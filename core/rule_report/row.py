@@ -1,7 +1,7 @@
 """Сборка строк отчёта по результатам правил."""
 import copy
 
-from core.rule_summary import build_presence_summary, build_rule_summary
+from core.rule_report.cards import build_presence_summary, build_rule_summary
 
 from core.rule_report.constants import (
     DETAILED_RULES,

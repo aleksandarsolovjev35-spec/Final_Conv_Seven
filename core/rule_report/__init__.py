@@ -25,7 +25,7 @@ from core.rule_report.scope import (
     rule_applies_to_role,
     scope_rule_result_to_role,
 )
-from core.rule_summary import build_presence_summary, build_rule_summary
+from core.rule_report.cards import build_presence_summary, build_rule_summary
 
 __all__ = [
     "build_presence_summary",

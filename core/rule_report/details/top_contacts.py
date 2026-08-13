@@ -1,4 +1,5 @@
 """Развёрнутые строки телеметрии правила ``top_contacts``."""
+from core.rule_report.metrics import Metrics, metric, within
 
 
 
@@ -69,3 +70,71 @@ def _detail_top_contacts(per_role: dict) -> list:
                 f"{'OK' if item.get('rect_fits') else 'FAIL'}"
             )
     return detail_lines
+
+
+def top_contacts_metrics(role_details: dict) -> list:
+    """Метрики правила ``top_contacts`` (контакты сверху, 14 шт)."""
+    metrics = Metrics()
+
+    found = role_details.get("found")
+    found_raw = role_details.get("found_raw")
+    if found is not None:
+        metrics.add(metric(
+            "Валидных контактов, шт", found, 14,
+            ok=int(found) == 14, key="found",
+        ))
+    elif found_raw is not None:
+        metrics.add(metric(
+            "Найдено контактов, шт", found_raw, 14,
+            ok=int(found_raw) == 14, key="found_raw",
+        ))
+    for group in ("L", "R", "T", "B"):
+        check = (role_details.get("group_checks") or {}).get(group) or {}
+        deviation = check.get("max_deviation_px")
+        allowed = check.get("allowed_deviation_px")
+        median = check.get("median_distance_px")
+        if median is not None:
+            metrics.add(metric(
+                f"Группа {group}: медиана дист., px", median,
+                unit=" px", key=f"group_{group}_median_px",
+            ))
+        if deviation is None:
+            continue
+        metrics.add(metric(
+            f"Группа {group}: откл., px", deviation, allowed,
+            ok=within(deviation, allowed), unit=" px",
+            key=f"group_{group}_deviation_px",
+        ))
+    items = role_details.get("items") or []
+    for it in items:
+        idx = int(it.get("index") or 0)
+        group = it.get("group") or ""
+        distance = it.get("distance_px")
+        deviation = it.get("deviation_px")
+        allowed = it.get("allowed_deviation_px")
+        rect_fits = it.get("rect_fits")
+        if idx:
+            lab = f"Контакт #{idx} {group}".strip() + ":"
+            obj = f"Контакт #{idx} ({group})" if group else f"Контакт #{idx}"
+        else:
+            lab = f"Контакт {group}:"
+            obj = f"Контакт ({group})" if group else None
+        if distance is not None:
+            metrics.add(metric(
+                f"{lab} дист. до края, px", distance,
+                unit=" px", key=f"contact_{idx}_distance_px", object=obj,
+            ))
+        if deviation is not None:
+            metrics.add(metric(
+                f"{lab} откл., px", deviation, allowed,
+                ok=within(deviation, allowed), unit=" px",
+                key=f"contact_{idx}_deviation_px", object=obj,
+            ))
+        if rect_fits is not None:
+            metrics.add(metric(
+                f"{lab} прямоугольник",
+                1 if rect_fits else 0, 1, ok=bool(rect_fits),
+                key=f"contact_{idx}_rect_fits", object=obj,
+            ))
+
+    return metrics
