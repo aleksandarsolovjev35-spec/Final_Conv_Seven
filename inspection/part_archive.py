@@ -42,7 +42,7 @@ class PartArchive:
     CATEGORY_LABELS = {
         "GOOD": "ГОДНОЕ",
         "BAD": "БРАК",
-        "CLEANUP": "ОЧИСТКА",
+        "CLEANUP": "ЗАЧИСТКА",
     }
     STATS_FILE = "stats.json"
 

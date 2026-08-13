@@ -26,7 +26,7 @@ function updateRecentParts(parts) {
         const cat = (p.category || 'GOOD').toLowerCase();
         let symbol = 'ГОДНО';
         if (cat === 'bad')     symbol = 'БРАК';
-        if (cat === 'cleanup') symbol = 'ОЧИСТКА';
+        if (cat === 'cleanup') symbol = 'ЗАЧИСТКА';
 
         return `
             <div class="history-card cat-${cat}"

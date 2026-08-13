@@ -24,7 +24,7 @@ from core.rule_report import (
     scope_rule_result_to_role,
 )
 
-GOLDEN_SHA256 = "b47e661c3b8c89511464914427191c6fc53f2389dd1c6e7d8a68bf1d2a546416"
+GOLDEN_SHA256 = "cf039528af7cc67e74f41800108aa114f9ddb973d85c9e66ebc607ad64663557"
 
 
 def res(name, triggered, details):

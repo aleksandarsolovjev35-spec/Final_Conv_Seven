@@ -139,7 +139,7 @@ function faNewVerdict(report, ls) {
         const part = parts.find(p => Number(p.id) === Number(report.part_id));
         if (part) category = String(part.category || '').toUpperCase();
     }
-    if (category === 'CLEANUP') return {cls: 'warn', text: 'ОЧИСТКА'};
+    if (category === 'CLEANUP') return {cls: 'warn', text: 'ЗАЧИСТКА'};
     if (triggered.length) {
         const names = triggered.map(r => FA_RULE_NAMES[r.name] || r.name).join(', ');
         return {cls: 'bad', text: 'БРАК: ' + names};

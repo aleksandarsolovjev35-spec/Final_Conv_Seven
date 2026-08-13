@@ -9,12 +9,12 @@
     <link rel="stylesheet" href="/static/css/blocks.css?v=26">
     <link rel="stylesheet" href="/static/css/camera.css?v=34">
     <link rel="stylesheet" href="/static/css/axis.css?v=33">
-    <link rel="stylesheet" href="/static/css/history-strip.css?v=38">
+    <link rel="stylesheet" href="/static/css/history-strip.css?v=39">
     <link rel="stylesheet" href="/static/css/stats.css?v=44">
     <link rel="stylesheet" href="/static/css/jog.css?v=32">
     <link rel="stylesheet" href="/static/css/controls.css?v=32">
     <link rel="stylesheet" href="/static/css/gallery.css?v=31">
-    <link rel="stylesheet" href="/static/css/process.css?v=46">
+    <link rel="stylesheet" href="/static/css/process.css?v=48">
     <link rel="stylesheet" href="/static/css/motion.css?v=35">
     <link rel="stylesheet" href="/static/css/thresholds.css?v=20">
     <link rel="stylesheet" href="/static/css/archive.css?v=1">
@@ -144,7 +144,7 @@
                         <div class="stats-row stats-half"><span class="stats-label">На линии</span><span id="stat-inline" class="stats-value">0 / 8</span></div>
                         <div class="stats-row stats-third"><span class="stats-label">Годные</span><span id="stat-good" class="stats-value good">0</span></div>
                         <div class="stats-row stats-third"><span class="stats-label">Брак</span><span id="stat-bad" class="stats-value bad">0</span></div>
-                        <div class="stats-row stats-third"><span class="stats-label">На очистку</span><span id="stat-cleanup" class="stats-value warn">0</span></div>
+                        <div class="stats-row stats-third"><span class="stats-label">На зачистку</span><span id="stat-cleanup" class="stats-value warn">0</span></div>
                     </div>
                 </section>
 
@@ -161,36 +161,31 @@
                         <span id="dist-route" class="dist-route"></span>
                     </div>
                     <div class="blade-card">
-                        <div class="axis-row">
-                            <span class="axis-name">DIST1 · ЗАСЛОНКА СБРОСА</span>
-                            <span id="dist1-state" class="axis-state">В ПОЗИЦИИ</span>
-                            <span><b id="dist1-pos">0</b> / <b id="dist1-max">340</b></span>
-                        </div>
                         <div class="blade-track">
                             <div id="dist1-blade" class="blade-marker"></div>
                         </div>
-                        <div class="axis-route"><span>ТЕКУЩЕЕ ПОЛОЖЕНИЕ</span><b id="dist1-target">ПРОХОД</b></div>
+                        <div class="blade-track-labels" aria-hidden="true">
+                            <span>ГОДНО</span>
+                            <span>БРАК</span>
+                        </div>
                         <div class="diagnostic-grid blade-diagnostic-grid ui-collapse">
                             <button data-distributor-command="DIST1_HOME" disabled>ГОДНО</button>
-                            <button data-distributor-command="DIST1_OPEN" disabled>НА DIST2</button>
+                            <button data-distributor-command="DIST1_OPEN" disabled>БРАК</button>
                         </div>
                     </div>
                     <div class="blade-card">
-                        <div class="axis-row">
-                            <span class="axis-name">DIST2 · ВЫБОР КАНАЛА</span>
-                            <span id="dist2-state" class="axis-state">В ПОЗИЦИИ</span>
-                            <span><b id="dist2-pos">0</b> / <b id="dist2-max">340</b></span>
-                        </div>
                         <div class="blade-track">
                             <div id="dist2-blade" class="blade-marker"></div>
                         </div>
-                        <div class="axis-route"><span>ТЕКУЩИЙ КАНАЛ</span><b id="dist2-target">БРАК</b></div>
+                        <div class="blade-track-labels" aria-hidden="true">
+                            <span>БРАК</span>
+                            <span>ЗАЧИСТКА</span>
+                        </div>
                         <div class="diagnostic-grid blade-diagnostic-grid ui-collapse">
                             <button data-distributor-command="DIST2_BAD" disabled>БРАК</button>
-                            <button data-distributor-command="DIST2_CLEANUP" disabled>ОЧИСТКА</button>
+                            <button data-distributor-command="DIST2_CLEANUP" disabled>ЗАЧИСТКА</button>
                         </div>
                     </div>
-                    <div class="axis-action">ПОСЛЕДНЯЯ КОМАНДА: <span id="dist-action">—</span></div>
                 </section>
 
                 <!-- Пороги правил выбранной (главной) камеры: над кнопками
@@ -303,7 +298,7 @@
                     <span>ТЕКУЩАЯ ПАРТИЯ: <b id="archive-batch-id">—</b></span>
                     <span>ГОДНОЕ <b id="archive-batch-good">0</b></span>
                     <span>БРАК <b id="archive-batch-bad">0</b></span>
-                    <span>ОЧИСТКА <b id="archive-batch-cleanup">0</b></span>
+                    <span>ЗАЧИСТКА <b id="archive-batch-cleanup">0</b></span>
                 </div>
             </div>
             <div class="archive-settings-actions">
@@ -341,16 +336,16 @@
         </div>
     </div>
 
-    <script src="/static/js/core.js?v=46"></script>
+    <script src="/static/js/core.js?v=48"></script>
     <script src="/static/js/boot.js?v=31"></script>
     <script src="/static/js/diagnostics.js?v=50"></script>
-    <script src="/static/js/status.js?v=49"></script>
+    <script src="/static/js/status.js?v=51"></script>
     <script src="/static/js/controls.js?v=35"></script>
     <script src="/static/js/thresholds.js?v=18"></script>
     <script src="/static/js/cameras.js?v=36"></script>
-    <script src="/static/js/frame-analysis.js?v=11"></script>
+    <script src="/static/js/frame-analysis.js?v=12"></script>
     <script src="/static/js/jog.js?v=35"></script>
-    <script src="/static/js/history.js?v=33"></script>
+    <script src="/static/js/history.js?v=34"></script>
     <script src="/static/js/archive.js?v=1"></script>
     <script src="/static/js/bootstrap.js?v=35"></script>
 </body>

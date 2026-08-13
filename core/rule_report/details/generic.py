@@ -101,7 +101,7 @@ def _sinks_failures(reason, role_details: dict) -> list:
 def _glass_failures(_reason, role_details: dict) -> list:
     """Причины срабатывания правила ``glass`` (все пересечения стекла)."""
     return [
-        f"glass #{hit.get('glass_index')} -> ОЧИСТКА: "
+        f"glass #{hit.get('glass_index')} -> ЗАЧИСТКА: "
 
         f"platform {hit.get('platform_overlap_px')} px; "
         f"pin {hit.get('pin_overlap_px')} px; "
