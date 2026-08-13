@@ -1,5 +1,38 @@
 """Короткие человеческие причины дефектов для оператора."""
 
+ROLE_REASON_TEXT = {
+    "no_valid_platform": "не найдена платформа",
+    "invalid_platform_bbox": "некорректная платформа",
+    "invalid_platform_orientation": "не определена ориентация",
+    "invalid_contact_masks": "нет масок контактов",
+    "insufficient_valid_contact_masks": "мало валидных контактов",
+    "insufficient_valid_contacts": "мало валидных контактов",
+    "invalid_contact_layout": "нарушена раскладка контактов",
+    "layout_groups_failed": "нарушена раскладка контактов",
+    "missing_glass_mask": "нет маски стекла",
+    "missing_pin_mask": "нет маски штифта",
+    "empty_case_ring": "пустое кольцо корпуса",
+    "case_central_not_inside_case": "смещён центр корпуса",
+    "inner_platform_reference_not_fitted": "не построен эталон платформы",
+    "contact_boundary_not_built": "область по контактам не построена",
+}
+
+
+def role_reason_text(reason) -> str:
+    """Перевести машинный ``reason`` роли в короткую подпись вердикта."""
+    if not reason:
+        return ""
+    text = str(reason)
+    if text in ROLE_REASON_TEXT:
+        return ROLE_REASON_TEXT[text]
+    if text.startswith("wrong_count"):
+        return "неверное количество объектов"
+    if text.startswith("wrong_pin_count"):
+        return "неверное количество пинов"
+    if text.startswith("invalid_case"):
+        return "некорректный корпус"
+    return text.replace("_", " ")
+
 
 
 # === Упрощённые человеческие причины дефектов (для быстрого понимания оператором) ===

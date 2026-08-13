@@ -1,4 +1,5 @@
 """Развёрнутые строки телеметрии правил omission (``long_omission`` / ``short_omission``)."""
+from core.rule_report.metrics import Metrics, at_least, metric
 
 
 
@@ -40,3 +41,57 @@ def _detail_omission(per_role: dict) -> list:
             f"{float(role_details.get('max_excess_depth_px') or 0):.1f} px"
         )
     return detail_lines
+
+
+def omission_metrics(role_details: dict) -> list:
+    """Метрики правил ``long_omission`` / ``short_omission``."""
+    metrics = Metrics()
+
+    thickness = role_details.get("allowed_thickness_px")
+    excess = role_details.get("excess_pixels")
+    component_min = role_details.get("excess_component_min_px")
+    metrics.add(metric(
+        "избыток", excess, component_min,
+        ok=(
+            not role_details.get("triggered")
+            if excess is not None else None
+        ),
+        unit=" px",
+        key="excess_component_min_px",
+    ))
+    metrics.add(metric(
+        "доп. толщина", thickness, unit=" px",
+        key="allowed_thickness_px",
+    ))
+    metrics.add(metric(
+        "глубина", role_details.get("max_excess_depth_px"),
+        unit=" px", key="max_excess_depth_px",
+    ))
+    residual = role_details.get("top_line_actual_max_residual_px")
+    residual_max = role_details.get("top_line_max_residual_px")
+    metrics.add(metric(
+        "отклонение линии", residual, residual_max,
+        unit=" px",
+        key="top_line_max_residual_px",
+    ))
+    inlier_ratio = role_details.get("top_line_actual_inlier_ratio")
+    inlier_ratio_min = role_details.get("top_line_min_inlier_ratio")
+    metrics.add(metric(
+        "доля у линии", inlier_ratio, inlier_ratio_min,
+        ok=at_least(inlier_ratio, inlier_ratio_min),
+        key="top_line_min_inlier_ratio",
+    ))
+    metrics.add(metric(
+        "крупн. фрагмент",
+        role_details.get("largest_component_pixels"),
+        unit=" px",
+        key="largest_component_px",
+    ))
+    if role_details.get("found") is not None:
+        expected = role_details.get("expected_count")
+        metrics.add(metric(
+            "Найдено, шт", role_details.get("found"), expected,
+            key="found",
+        ))
+
+    return metrics

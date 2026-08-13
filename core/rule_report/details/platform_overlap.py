@@ -1,4 +1,5 @@
 """Развёрнутые строки телеметрии правила ``platform_contacts_overlap``."""
+from core.rule_report.metrics import Metrics, metric
 
 
 
@@ -40,3 +41,34 @@ def _detail_platform_overlap(per_role: dict) -> list:
             f"{int(role_details.get('excess_pixels') or 0)} px"
         )
     return detail_lines
+
+
+def platform_contacts_overlap_metrics(role_details: dict) -> list:
+    """Метрики правила ``platform_contacts_overlap`` (заплыв платформы)."""
+    metrics = Metrics()
+
+    metrics.add(metric(
+        "Заплыв, px", role_details.get("excess_pixels"),
+        role_details.get("excess_component_min_px"),
+        ok=not role_details.get("triggered"), unit=" px",
+        key="excess_component_min_px",
+    ))
+    metrics.add(metric(
+        "Макс. компонент, px",
+        role_details.get("largest_component_pixels"),
+        unit=" px", key="largest_component_px",
+    ))
+    metrics.add(metric(
+        "Контакты области, шт", role_details.get("used_contacts"),
+        unit="", key="used_contacts",
+    ))
+    metrics.add(metric(
+        "Ширина области, px", role_details.get("boundary_width_px"),
+        unit=" px", key="boundary_width_px",
+    ))
+    metrics.add(metric(
+        "Высота области, px", role_details.get("boundary_height_px"),
+        unit=" px", key="boundary_height_px",
+    ))
+
+    return metrics

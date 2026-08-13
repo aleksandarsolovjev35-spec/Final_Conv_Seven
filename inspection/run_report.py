@@ -53,7 +53,7 @@ def summarize_model_health(model_health) -> list[dict]:
 
 
 def _measurement_cards(rule_name: str, result) -> list:
-    from core.rule_summary import build_presence_summary, build_rule_summary
+    from core.rule_report.cards import build_presence_summary, build_rule_summary
 
     details = getattr(result, "details", {}) or {}
     if rule_name == "part_presence":
