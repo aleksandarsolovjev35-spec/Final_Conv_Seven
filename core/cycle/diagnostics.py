@@ -5,18 +5,42 @@
 
 import time
 
-from domain.part import CATEGORY_BAD, CATEGORY_CLEANUP
-from inspection.run_report import (
-    prepare_presence_result,
-    prepare_rule_results,
-    summarize_model_health,
-)
 from core.rule_report import build_rule_report_row, build_rule_report_rows
+from domain.part import CATEGORY_BAD, CATEGORY_CLEANUP
+
+
+def make_diagnostics(
+    status: str = "NOT_RUN",
+    kind=None,
+    message: str = "Проверки ещё не запускались",
+    *,
+    cameras=None,
+    models=None,
+    rules=None,
+    updated_at=None,
+    **extra,
+) -> dict:
+    """Снимок диагностики для HMI.
+
+    Единственное место, где задаётся форма этого словаря: UI полагается на
+    полный набор ключей, поэтому пустые списки подставляются всегда, а не
+    по месту вызова.
+    """
+    report = {
+        "status": status,
+        "kind": kind,
+        "message": message,
+        "cameras": list(cameras or []),
+        "models": list(models or []),
+        "rules": list(rules or []),
+        "updated_at": updated_at,
+    }
+    report.update(extra)
+    return report
 
 
 class CycleDiagnosticsMixin:
     """Предстартовые проверки без движения линии."""
-
 
     def distributor_diagnostic(self, command: str) -> bool:
         if not self._operation_lock.acquire(blocking=False):
@@ -55,7 +79,6 @@ class CycleDiagnosticsMixin:
         finally:
             self._operation_lock.release()
 
-
     def diagnostic_check_cameras(self) -> bool:
         if not self._operation_lock.acquire(blocking=False):
             return False
@@ -79,15 +102,12 @@ class CycleDiagnosticsMixin:
                 })
             self._last_vision_results = {}
             self._last_rule_results = []
-            self._diagnostics = {
-                "status": "PASSED",
-                "kind": "CAMERAS",
-                "message": f"Камеры: {len(camera_rows)}/{len(camera_rows)} OK",
-                "cameras": camera_rows,
-                "models": [],
-                "rules": [],
-                "updated_at": time.time(),
-            }
+            self._diagnostics = make_diagnostics(
+                "PASSED", "CAMERAS",
+                f"Камеры: {len(camera_rows)}/{len(camera_rows)} OK",
+                cameras=camera_rows,
+                updated_at=time.time(),
+            )
             self._set_process("DIAGNOSTIC_DONE", "Семь камер проверены")
             self._refresh_monitor(frames)
             return True
@@ -97,7 +117,6 @@ class CycleDiagnosticsMixin:
             raise
         finally:
             self._operation_lock.release()
-
 
     def diagnostic_check_vision_rules(self) -> bool:
         if not self._operation_lock.acquire(blocking=False):
@@ -117,22 +136,8 @@ class CycleDiagnosticsMixin:
             # См. комментарий в _stage_capture().
             self.cameras.drain_buffers()
             frames = self.cameras.capture_all()
-            vision_results = self.inspector.vision.process_all(frames)
-            presence_result = prepare_presence_result(
-                self.inspector._evaluate_part_presence(vision_results)
-            )
-            rule_results = [presence_result]
-            if not presence_result.details.get("empty_tray"):
-                rule_results.extend(
-                    prepare_rule_results(
-                        self.inspector.decision.evaluate_all_detailed(
-                            vision_results,
-                            frames=frames,
-                        )
-                    )
-                )
-            model_rows = summarize_model_health(
-                self.inspector.vision.last_health
+            vision_results, rule_results, model_rows = (
+                self.inspector.evaluate_all(frames)
             )
             rule_rows = [
                 self._rule_report_row(result)
@@ -151,18 +156,17 @@ class CycleDiagnosticsMixin:
             self._last_vision_results = vision_results
             self._last_rule_results = rule_results
             triggered = sum(row["triggered"] for row in rule_rows)
-            self._diagnostics = {
-                "status": "PASSED",
-                "kind": "VISION_RULES",
-                "message": (
+            self._diagnostics = make_diagnostics(
+                "PASSED", "VISION_RULES",
+                (
                     f"Модели: {len(model_rows)} исправны; "
                     f"правил: {len(rule_rows)}, сработало: {triggered}"
                 ),
-                "cameras": camera_rows,
-                "models": model_rows,
-                "rules": rule_rows,
-                "updated_at": time.time(),
-            }
+                cameras=camera_rows,
+                models=model_rows,
+                rules=rule_rows,
+                updated_at=time.time(),
+            )
             self._set_process(
                 "DIAGNOSTIC_DONE",
                 "Модели и правила дефектов выполнены",
@@ -176,7 +180,6 @@ class CycleDiagnosticsMixin:
         finally:
             self._operation_lock.release()
 
-
     def _prestart_diagnostic_allowed(self) -> bool:
         return (
             self.state in ("IDLE", "STOPPED")
@@ -187,30 +190,17 @@ class CycleDiagnosticsMixin:
             and not (self.jog is not None and self.jog.busy)
         )
 
-
     def _set_diagnostic_running(self, kind: str, message: str):
-        self._diagnostics = {
-            "status": "RUNNING",
-            "kind": kind,
-            "message": message,
-            "cameras": [],
-            "models": [],
-            "rules": [],
-            "updated_at": time.time(),
-        }
+        self._diagnostics = make_diagnostics(
+            "RUNNING", kind, message, updated_at=time.time(),
+        )
         self._refresh_monitor()
 
-
     def _set_diagnostic_error(self, kind: str, exc: Exception):
-        self._diagnostics = {
-            "status": "ERROR",
-            "kind": kind,
-            "message": f"{type(exc).__name__}: {exc}",
-            "cameras": [],
-            "models": [],
-            "rules": [],
-            "updated_at": time.time(),
-        }
+        self._diagnostics = make_diagnostics(
+            "ERROR", kind, f"{type(exc).__name__}: {exc}",
+            updated_at=time.time(),
+        )
         self._refresh_monitor()
 
     @staticmethod
@@ -220,7 +210,6 @@ class CycleDiagnosticsMixin:
     @staticmethod
     def _rule_report_rows(results, role: str | None = None) -> list:
         return build_rule_report_rows(results, role=role)
-
 
     def diagnostic_analyze_selected_camera(self, role: str) -> bool:
         if not self._operation_lock.acquire(blocking=False):
@@ -277,32 +266,20 @@ class CycleDiagnosticsMixin:
                 )
             detection_count = len(vision_results.get(role, []))
 
-            raw_model_health = [
-                item
-                for item in (self.inspector.vision.last_health or [])
-                if isinstance(item, dict)
-            ]
-
             presence_result = None
             rule_results = []
             if is_input:
-                presence_result = prepare_presence_result(
-                    self.inspector._evaluate_part_presence(vision_results)
+                presence_result = self.inspector.evaluate_presence(
+                    vision_results
                 )
-                if not presence_result.details.get("empty_tray"):
-                    rule_results = prepare_rule_results(
-                        decision.evaluate_rules_detailed(
-                            decision_rules, vision_results, frames=stage_frames,
-                        )
-                    )
-            else:
-                rule_results = prepare_rule_results(
-                    decision.evaluate_rules_detailed(
-                        decision_rules, vision_results, frames=stage_frames,
-                    )
+            if presence_result is None or not presence_result.details.get(
+                "empty_tray"
+            ):
+                rule_results = self.inspector.evaluate_rules(
+                    vision_results, frames=stage_frames, roles=(role,),
                 )
 
-            model_rows = summarize_model_health(raw_model_health)
+            model_rows = self.inspector.model_health()
             if not model_rows or any(not row.get("ok") for row in model_rows):
                 raise RuntimeError(
                     f"Нет полного комплекта model health для камеры {role}"
@@ -327,19 +304,18 @@ class CycleDiagnosticsMixin:
 
             self._last_vision_results = vision_results
             self._last_rule_results = rule_results
-            self._diagnostics = {
-                "status": "PASSED",
-                "kind": "SELECTED_MODEL",
-                "message": (
+            self._diagnostics = make_diagnostics(
+                "PASSED", "SELECTED_MODEL",
+                (
                     f"{role}: свежий кадр; моделей {len(model_rows)}; "
                     f"правил {len(rule_rows)}; объекты {detection_count}"
                 ),
-                "selected_role": role,
-                "cameras": camera_rows,
-                "models": model_rows,
-                "rules": rule_rows,
-                "updated_at": time.time(),
-            }
+                cameras=camera_rows,
+                models=model_rows,
+                rules=rule_rows,
+                updated_at=time.time(),
+                selected_role=role,
+            )
             self._set_process(
                 "SELECTED_MODEL_READY",
                 f"Анализ кадра {role} завершён; поток приостановлен",
@@ -359,7 +335,6 @@ class CycleDiagnosticsMixin:
         finally:
             self._operation_lock.release()
 
-
     def diagnostic_release_selected_camera(self) -> bool:
         if not self._operation_lock.acquire(blocking=False):
             return False
@@ -372,15 +347,9 @@ class CycleDiagnosticsMixin:
             self._last_vision_results = {}
             self._last_rule_results = []
             self._reset_frame_analysis()
-            self._diagnostics = {
-                "status": "NOT_RUN",
-                "kind": None,
-                "message": "Анализ кадра не выполнялся",
-                "cameras": [],
-                "models": [],
-                "rules": [],
-                "updated_at": None,
-            }
+            self._diagnostics = make_diagnostics(
+                message="Анализ кадра не выполнялся",
+            )
             self.live.resume()
             # Убрать геометрию анализа с экрана: разметка построена по
             # статичному кадру и на движущемся изображении указывала бы

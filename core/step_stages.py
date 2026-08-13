@@ -105,7 +105,6 @@ class StepSequencer:
         self._lock = threading.Lock()
         self._stage = StepStage.IDLE
         self._static_held = False
-        self._static_roles = None
         self._stage_started_at = time.monotonic()
         # Номер поколения шага. reset() увеличивает его, поэтому передача
         # камер, начатая до сброса, понимает, что её результат уже неактуален.
@@ -118,15 +117,19 @@ class StepSequencer:
 
     @property
     def static(self) -> bool:
-        """True, когда хотя бы одна роль принадлежит inspection."""
+        """True, когда камеры принадлежат inspection, а не live."""
         with self._lock:
             return self._static_held
 
     @property
     def static_roles(self):
-        """Роли в inspection; ``None`` означает глобальную паузу."""
-        with self._lock:
-            return self._static_roles
+        """Роли в inspection.
+
+        Всегда ``None``: инспекция забирает камеры целиком. Свойство
+        сохранено как контракт статуса для HMI, где ``None`` означает
+        «заморожены все роли» (``all_roles_static``).
+        """
+        return None
 
     def _switch(self, target: StepStage):
         """Перейти в фазу, выдержав наблюдательную паузу перед ней.
@@ -181,17 +184,8 @@ class StepSequencer:
         exclusive-блок для следующей стадии.
         """
         self._switch(StepStage.CAPTURE)
-        requested = () if not roles else tuple(dict.fromkeys(roles))
-        if requested:
-            self._acquire_static(None)
-
-    def release_capture_roles(self):
-        """Досрочно вернуть камеры live. Production-шаг этим не пользуется.
-
-        Официальный exclusive-блок держится до ``enter_motion`` / ``reset``,
-        чтобы стоп-кадры анализа и ревью не затирались live-потоком.
-        """
-        self._release_static()
+        if roles:
+            self._acquire_static()
 
     def enter_analysis(self):
         """Модели и правила по уже снятым кадрам; live остаётся заморожен."""
@@ -208,46 +202,33 @@ class StepSequencer:
             self._generation += 1
         self._release_static()
 
-    def _acquire_static(self, roles=None):
-        roles = None if roles is None else tuple(dict.fromkeys(roles))
-        if roles == ():
-            return
+    def _acquire_static(self):
+        """Забрать все камеры у live-просмотра до конца инспекции."""
         with self._lock:
             if self._static_held:
                 return
             generation = self._generation
 
-        paused = (
-            self._live.pause(self._handover_timeout)
-            if roles is None
-            else self._live.pause_roles(roles, self._handover_timeout)
-        )
-        if not paused:
-            target = "камеры" if roles is None else f"роли {', '.join(roles)}"
+        if not self._live.pause(self._handover_timeout):
             raise StageSequenceError(
-                f"Live-просмотр не освободил {target} за "
+                f"Live-просмотр не освободил камеры за "
                 f"{self._handover_timeout}s; шаг остановлен"
             )
         with self._lock:
-            if generation != self._generation:
-                stale = True
-            else:
-                stale = False
+            stale = generation != self._generation
+            if not stale:
                 self._static_held = True
-                self._static_roles = roles
         if stale:
-            if roles is None: self._live.resume()
-            else: self._live.resume_roles(roles)
-            raise StageSequenceError("Шаг сброшен во время передачи камер инспекции")
+            # reset() успел пройти, пока live отдавал камеры: удерживать
+            # паузу от имени отменённого шага нельзя.
+            self._live.resume()
+            raise StageSequenceError(
+                "Шаг сброшен во время передачи камер инспекции"
+            )
 
     def _release_static(self):
         with self._lock:
             if not self._static_held:
                 return
-            roles = self._static_roles
             self._static_held = False
-            self._static_roles = None
-        if roles is None:
-            self._live.resume()
-        else:
-            self._live.resume_roles(roles)
+        self._live.resume()

@@ -6,6 +6,7 @@ from inspection.result import InspectionResult
 from inspection.run_report import (
     prepare_presence_result,
     prepare_rule_results,
+    summarize_model_health,
 )
 
 
@@ -30,6 +31,57 @@ class Inspector:
 
     def set_progress_callback(self, callback):
         self.on_progress = callback
+
+    # Публичный API для диагностики без движения линии.
+    #
+    # ProductionCycle прогоняет те же модели и правила, что и рабочий шаг,
+    # но не создаёт Part и не пишет архив. Чтобы предстартовая проверка и
+    # production не разошлись в трактовке результатов, порядок «наличие
+    # корпуса -> defect rules» и проверка контракта результата живут здесь,
+    # а не в вызывающем коде.
+
+    def evaluate_presence(self, vision_results: dict):
+        """Проверить наличие корпуса и вернуть результат с карточками."""
+        return prepare_presence_result(
+            self._evaluate_part_presence(vision_results)
+        )
+
+    def evaluate_rules(self, vision_results: dict, frames=None, roles=None):
+        """Выполнить defect rules и вернуть их с карточками замера.
+
+        ``roles`` ограничивает набор правил камерами стадии; без него
+        берутся все активные правила.
+        """
+        rules = (
+            self.decision.rules_for_roles(roles)
+            if roles is not None
+            else self.decision.rules
+        )
+        return prepare_rule_results(
+            self.decision.evaluate_rules_detailed(
+                rules, vision_results, frames=frames,
+            )
+        )
+
+    def evaluate_all(self, frames: dict):
+        """Полный прогон диагностики по готовым кадрам.
+
+        Возвращает ``(vision_results, rule_results, model_rows)``. Пустой
+        лоток обрывает цепочку на наличии корпуса — ровно как в рабочем
+        шаге, где defect rules по пустому лотку не считаются.
+        """
+        vision_results = self.vision.process_all(frames)
+        presence_result = self.evaluate_presence(vision_results)
+        rule_results = [presence_result]
+        if not presence_result.details.get("empty_tray"):
+            rule_results.extend(
+                self.evaluate_rules(vision_results, frames=frames)
+            )
+        return vision_results, rule_results, self.model_health()
+
+    def model_health(self) -> list:
+        """Строки состояния моделей последнего прогона для HMI."""
+        return summarize_model_health(self.vision.last_health)
 
     def _notify_progress(self, phase, label, *, part_id=None, roles=()):
         callback = self.on_progress

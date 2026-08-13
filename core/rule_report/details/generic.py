@@ -6,8 +6,6 @@
 """
 
 
-
-
 def _window_sinks_failures(reason, role_details: dict) -> list:
     """Причины срабатывания правила ``window_sinks``."""
     if reason and str(reason).startswith("invalid_window_reference_count"):
@@ -43,7 +41,6 @@ def _window_sinks_failures(reason, role_details: dict) -> list:
             f"overlap {hit.get('overlap_px')} px "
             f">= {threshold} px"
             for hit in role_details.get("hits") or []
-
 
         ]
     return []
@@ -105,7 +102,6 @@ def _glass_failures(_reason, role_details: dict) -> list:
     """Причины срабатывания правила ``glass`` (все пересечения стекла)."""
     return [
         f"glass #{hit.get('glass_index')} -> ОЧИСТКА: "
-
 
         f"platform {hit.get('platform_overlap_px')} px; "
         f"pin {hit.get('pin_overlap_px')} px; "
@@ -172,14 +168,12 @@ def _glass_on_contacts_failures(reason, role_details: dict) -> list:
     if reason == "empty_case_ring":
         return ["empty case ring"]
 
-
     if not reason:
         return [
             f"glass #{pair.get('glass_index')} -> "
             f"contact #{pair.get('contact_index')}: "
             f"overlap {pair.get('overlap_pixels')} px -> БРАК"
             for pair in role_details.get("pairs") or []
-
 
         ]
     return []

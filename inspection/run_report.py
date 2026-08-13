@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from core.rule_report.cards import build_presence_summary, build_rule_summary
+
 
 # Причины, по которым правило «не смогло построить область» (fail-closed):
 # отсутствие/невалидность области означает срабатывание, а не пропуск.
@@ -53,8 +55,6 @@ def summarize_model_health(model_health) -> list[dict]:
 
 
 def _measurement_cards(rule_name: str, result) -> list:
-    from core.rule_report.cards import build_presence_summary, build_rule_summary
-
     details = getattr(result, "details", {}) or {}
     if rule_name == "part_presence":
         return build_presence_summary(details)

@@ -26,12 +26,6 @@ class FakeLive:
     def resume(self):
         self.events.append("resume_all")
 
-    def pause_roles(self, roles, timeout=5.0):
-        return True
-
-    def resume_roles(self, roles):
-        return None
-
     def clear_overlays(self):
         self.events.append("clear")
 
@@ -324,8 +318,9 @@ class CycleBehaviorTest(unittest.TestCase):
         before = cycle.part_counter
         cycle._run_once()
         self.assertEqual(cycle.part_counter, before)
+        first_input = log.index(("input", ("INPUT_LEFT", "INPUT_RIGHT"), 1, 0))
         self.assertFalse(any(
-            item[0] == "input" for item in log[log.index(("input", ("INPUT_LEFT", "INPUT_RIGHT"), 1, 0)) + 1:]
+            item[0] == "input" for item in log[first_input + 1:]
             if isinstance(item, tuple)
         ))
 

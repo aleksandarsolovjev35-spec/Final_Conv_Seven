@@ -2,7 +2,6 @@
 from core.rule_report.metrics import Metrics, metric
 
 
-
 def _detail_top_platform(per_role: dict) -> list:
     detail_lines = []
     for role, role_details in per_role.items():

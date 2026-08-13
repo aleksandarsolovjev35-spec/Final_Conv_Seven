@@ -15,7 +15,7 @@ import threading
 import traceback
 from collections import deque
 
-from core.cycle.diagnostics import CycleDiagnosticsMixin
+from core.cycle.diagnostics import CycleDiagnosticsMixin, make_diagnostics
 from core.cycle.jog import CycleJogMixin
 from core.cycle.status import CycleStatusMixin
 from core.cycle.step import CycleStepMixin
@@ -63,7 +63,6 @@ class ProductionCycle(
 
     FRAME_ANALYSIS_GROUPS = ("INPUT", "SPIDER")
 
-
     def __init__(
         self,
         conveyor,
@@ -77,19 +76,32 @@ class ProductionCycle(
         stage_trace_seconds=STAGE_TRACE_SECONDS,
         review_seconds=REVIEW_SECONDS,
     ):
-        self.conveyor     = conveyor
-        self.cameras      = cameras
-        self.inspector    = inspector
-        self.distributor  = distributor
-        self.monitor      = monitor
-        self.archive      = archive
-        self.jog          = jog
+        self.conveyor    = conveyor
+        self.cameras     = cameras
+        self.inspector   = inspector
+        self.distributor = distributor
+        self.monitor     = monitor
+        self.archive     = archive
+        self.jog         = jog
         self.review_seconds = max(0.0, float(review_seconds))
-
-        self.distributor.on_state_changed = self._refresh_monitor
 
         self.sm = StateMachine(on_transition=self._on_state_change)
 
+        self._init_counters()
+        self._init_runtime_state()
+        self._init_camera_pipeline(settle_seconds, stage_trace_seconds)
+
+        # Распределитель сообщает о смене заслонок в HMI и умеет прервать
+        # движение по запросу отмены.
+        self.distributor.on_state_changed = self._refresh_monitor
+        self.distributor.cancel_check = self._cancel_motion.is_set
+
+        # Инспектор сообщает внутренние этапы (модели, геометрия,
+        # решение, запись) в тот же telemetry-поток, что и движение линии.
+        self.inspector.set_progress_callback(self._on_inspection_progress)
+
+    def _init_counters(self):
+        """Учёт деталей на линии и итоги партии."""
         self.parts: list = []
         self.part_counter = 0
         self.current_step = 0
@@ -100,9 +112,10 @@ class ProductionCycle(
         self.empty_count   = 0   # счётчик пустых лотков
 
         self.recent_parts = deque(maxlen=RECENT_PARTS_LIMIT)
-
         self._pending_drop = None
 
+    def _init_runtime_state(self):
+        """Состояние шага, блокировки и телеметрия для HMI."""
         self._last_vision_results: dict = {}
         self._last_rule_results: list = []
         self._frame_analysis_groups = self._empty_frame_analysis_groups()
@@ -111,19 +124,11 @@ class ProductionCycle(
         self._fault_reason = None
         self._operation_lock = threading.Lock()
         self._cancel_motion = threading.Event()
-        self.distributor.cancel_check = self._cancel_motion.is_set
+
         # Снимки inspection остаются операторским стоп-кадром до следующего
         # движения: live заморожен на весь инспекционный блок.
         self._inspection_display_roles = ()
-        self._diagnostics = {
-            "status": "NOT_RUN",
-            "kind": None,
-            "message": "Проверки ещё не запускались",
-            "cameras": [],
-            "models": [],
-            "rules": [],
-            "updated_at": None,
-        }
+        self._diagnostics = make_diagnostics()
         self._process = {
             "phase": "IDLE",
             "label": "Система готова к пуску",
@@ -131,25 +136,6 @@ class ProductionCycle(
             "part_id": None,
             "conveyor": {},
         }
-
-        # Инспектор сообщает внутренние этапы (модели, геометрия,
-        # решение, запись) в тот же telemetry-поток, что и движение линии.
-        self.inspector.set_progress_callback(self._on_inspection_progress)
-
-        # Живой просмотр: работает и в JOG, и во время движения ленты.
-        self.live = LivePreview(
-            cameras=cameras,
-            monitor=monitor,
-            get_active_role=self._get_active_camera_role,
-        )
-
-        # Фазы шага и передача камер между live-просмотром и инспекцией.
-        self.stages = StepSequencer(
-            self.live,
-            settle_seconds=settle_seconds,
-            trace_seconds=stage_trace_seconds,
-            on_stage=self._on_stage_change,
-        )
 
         # JOG
         self.jog_active: bool = False
@@ -165,6 +151,23 @@ class ProductionCycle(
         # Первый шаг после пуска: сначала контроль того, что уже стоит под
         # камерами, и только потом движение ленты.
         self._await_initial_inspection = False
+
+    def _init_camera_pipeline(self, settle_seconds, stage_trace_seconds):
+        """Живой просмотр и фазы шага — владельцы камер."""
+        # Живой просмотр: работает и в JOG, и во время движения ленты.
+        self.live = LivePreview(
+            cameras=self.cameras,
+            monitor=self.monitor,
+            get_active_role=self._get_active_camera_role,
+        )
+
+        # Фазы шага и передача камер между live-просмотром и инспекцией.
+        self.stages = StepSequencer(
+            self.live,
+            settle_seconds=settle_seconds,
+            trace_seconds=stage_trace_seconds,
+            on_stage=self._on_stage_change,
+        )
 
     # Process telemetry
 
@@ -254,7 +257,10 @@ class ProductionCycle(
             try:
                 self.distributor.park_production()
             except Exception as exc:
-                self._handle_fault(f"Не удалось установить распределитель в рабочее положение: {exc}")
+                self._handle_fault(
+                    "Не удалось установить распределитель "
+                    f"в рабочее положение: {exc}"
+                )
                 raise
             accepted = self.sm.request_start()
             if accepted:
@@ -266,15 +272,9 @@ class ProductionCycle(
                 # попала в учёт, а не уехала дальше непроверенной.
                 self._await_initial_inspection = True
                 if self._diagnostics.get("kind") == "SELECTED_MODEL":
-                    self._diagnostics = {
-                        "status": "NOT_RUN",
-                        "kind": None,
-                        "message": "Анализ кадра ещё не выполнялся",
-                        "cameras": [],
-                        "models": [],
-                        "rules": [],
-                        "updated_at": None,
-                    }
+                    self._diagnostics = make_diagnostics(
+                        message="Анализ кадра ещё не выполнялся",
+                    )
                 # Оператор видит поток всё время, пока линия работает;
                 # на статических этапах шага он приостанавливается.
                 self.live.start()

@@ -25,28 +25,30 @@ LIVE_THREAD_JOIN_TIMEOUT = 6.0
 LIVE_PAUSE_DRAIN_TIMEOUT = 5.0
 
 _FPS_WINDOW_SECONDS = 2.0
-_PAUSED_POLL_INTERVAL = 0.02
 
 
 class LiveCaptureGate:
-    """Разграничение live и inspection чтений камер.
+    """Разграничение live- и inspection-чтений камер.
 
-    Production-шаг ставит глобальную паузу на весь инспекционный блок.
-    Пауза конкретной роли остаётся для диагностики выбранной камеры:
-    она ждёт только уже начатое чтение этой роли.
+    Инспекция и оператор смотрят в одни и те же камеры, поэтому владелец
+    задаётся счётчиком пауз. Production-шаг замораживает **все** роли на
+    весь инспекционный блок (``CAPTURE``…``PUBLISH``), диагностика
+    выбранной камеры — на время своего анализа. Промежуточного режима
+    «часть ролей у инспекции, часть у live» нет: USB не выдерживает
+    параллельного чтения, а стоп-кадр не должен затираться live-потоком.
     """
 
     def __init__(self):
         self._condition = threading.Condition()
-        # Глобальные счётчики используются pause()/resume(), ролевые —
-        # штатной production-инспекцией.
         self._pause_depth = 0
         self._active_reads = 0
-        self._role_pause_depth = {}
-        self._role_active_reads = {}
 
     def pause(self, timeout: float = LIVE_PAUSE_DRAIN_TIMEOUT) -> bool:
-        """Приостановить все live-роли и дождаться завершения чтений."""
+        """Приостановить live и дождаться завершения начатых чтений.
+
+        ``False`` означает, что чтения не завершились за ``timeout``;
+        пауза при этом снимается, чтобы не оставить live заблокированным.
+        """
         deadline = time.monotonic() + timeout
         with self._condition:
             self._pause_depth += 1
@@ -54,100 +56,61 @@ class LiveCaptureGate:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     self._pause_depth -= 1
-                    if not self._pause_depth: self._condition.notify_all()
+                    if not self._pause_depth:
+                        self._condition.notify_all()
                     return False
                 self._condition.wait(remaining)
             return True
 
     def resume(self):
         with self._condition:
-            if self._pause_depth: self._pause_depth -= 1
-            if not self._pause_depth: self._condition.notify_all()
-
-    def pause_roles(self, roles, timeout: float = LIVE_PAUSE_DRAIN_TIMEOUT) -> bool:
-        """Запретить live-чтения только указанных ролей и дождаться их drain."""
-        roles = tuple(dict.fromkeys(roles or ()))
-        if not roles:
-            return True
-        deadline = time.monotonic() + timeout
-        with self._condition:
-            for role in roles:
-                self._role_pause_depth[role] = self._role_pause_depth.get(role, 0) + 1
-            while any(self._role_active_reads.get(role, 0) for role in roles):
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    for role in roles:
-                        depth = self._role_pause_depth.get(role, 0) - 1
-                        if depth: self._role_pause_depth[role] = depth
-                        else: self._role_pause_depth.pop(role, None)
-                    self._condition.notify_all()
-                    return False
-                self._condition.wait(remaining)
-            return True
-
-    def resume_roles(self, roles):
-        with self._condition:
-            for role in tuple(dict.fromkeys(roles or ())):
-                depth = self._role_pause_depth.get(role, 0) - 1
-                if depth > 0: self._role_pause_depth[role] = depth
-                else: self._role_pause_depth.pop(role, None)
-            self._condition.notify_all()
+            if self._pause_depth:
+                self._pause_depth -= 1
+            if not self._pause_depth:
+                self._condition.notify_all()
 
     def reset(self):
         with self._condition:
             self._pause_depth = 0
-            self._role_pause_depth.clear()
+            self._condition.notify_all()
+
+    def _acquire(self, count: int) -> bool:
+        """Занять ``count`` слотов чтения, если live не на паузе."""
+        with self._condition:
+            if self._pause_depth:
+                return False
+            self._active_reads += count
+            return True
+
+    def _release(self, count: int):
+        with self._condition:
+            self._active_reads -= count
             self._condition.notify_all()
 
     @contextlib.contextmanager
     def live_read(self, role=None):
-        """Занять слот live-чтения одной роли; False означает паузу роли."""
-        with self._condition:
-            allowed = self._pause_depth == 0 and (
-                role is None or self._role_pause_depth.get(role, 0) == 0
-            )
-            if allowed:
-                self._active_reads += 1
-                if role is not None:
-                    self._role_active_reads[role] = self._role_active_reads.get(role, 0) + 1
+        """Занять слот live-чтения; ``False`` означает паузу инспекции."""
+        allowed = self._acquire(1)
         try:
             yield allowed
         finally:
             if allowed:
-                with self._condition:
-                    self._active_reads -= 1
-                    if role is not None:
-                        remaining = self._role_active_reads.get(role, 0) - 1
-                        if remaining: self._role_active_reads[role] = remaining
-                        else: self._role_active_reads.pop(role, None)
-                    self._condition.notify_all()
+                self._release(1)
 
     @contextlib.contextmanager
     def live_reads(self, roles):
-        """Занять все доступные роли пакета, пропустив роли inspection."""
+        """Занять слоты пакета ролей; пустой кортеж означает паузу."""
         roles = tuple(dict.fromkeys(roles or ()))
-        with self._condition:
-            allowed_roles = () if self._pause_depth else tuple(
-                role for role in roles if self._role_pause_depth.get(role, 0) == 0
-            )
-            self._active_reads += len(allowed_roles)
-            for role in allowed_roles:
-                self._role_active_reads[role] = self._role_active_reads.get(role, 0) + 1
+        allowed_roles = roles if roles and self._acquire(len(roles)) else ()
         try:
             yield allowed_roles
         finally:
             if allowed_roles:
-                with self._condition:
-                    self._active_reads -= len(allowed_roles)
-                    for role in allowed_roles:
-                        remaining = self._role_active_reads.get(role, 0) - 1
-                        if remaining: self._role_active_reads[role] = remaining
-                        else: self._role_active_reads.pop(role, None)
-                    self._condition.notify_all()
+                self._release(len(allowed_roles))
 
 
 class LivePreview:
-    """Фоновая публикация кадров камер с учётом ролевых пауз инспекции."""
+    """Фоновая публикация кадров камер, уступающая их инспекции."""
 
     def __init__(self, cameras, monitor, get_active_role, gate=None):
         self._cameras = cameras
@@ -256,12 +219,6 @@ class LivePreview:
     def resume(self):
         self.gate.resume()
 
-    def pause_roles(self, roles, timeout: float = LIVE_PAUSE_DRAIN_TIMEOUT) -> bool:
-        return self.gate.pause_roles(roles, timeout)
-
-    def resume_roles(self, roles):
-        self.gate.resume_roles(roles)
-
     def reset_pause(self):
         self.gate.reset()
 
@@ -304,7 +261,7 @@ class LivePreview:
         self._stop_event.set()
 
     def _run_loop(self, interval: float, iteration, source: str):
-        """Цикл live-чтения; iteration сама берёт нужные ролевые слоты."""
+        """Цикл live-чтения; iteration сама занимает слоты у gate."""
         while not self._stop_event.is_set():
             started = time.monotonic()
             try:

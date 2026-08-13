@@ -19,6 +19,7 @@ from core.rule_report.constants import (
     SUMMARY_LINES_LIMIT,
 )
 from core.rule_report.human_cause import HUMAN_CAUSE_MAP, get_human_cause
+
 from core.rule_report.row import build_rule_report_row, build_rule_report_rows
 from core.rule_report.scope import (
     filter_rule_report_rows,
@@ -28,13 +29,24 @@ from core.rule_report.scope import (
 from core.rule_report.cards import build_presence_summary, build_rule_summary
 
 __all__ = [
-    "build_presence_summary",
+    # Сборка строк отчёта
     "build_rule_report_row",
     "build_rule_report_rows",
-    "build_rule_summary",
     "filter_rule_report_rows",
-    "get_human_cause",
-    "HUMAN_CAUSE_MAP",
+    # Карточки замера
+    "build_presence_summary",
+    "build_rule_summary",
+    # Срез до одной камеры
     "rule_applies_to_role",
     "scope_rule_result_to_role",
+    # Причины дефектов
+    "get_human_cause",
+    "HUMAN_CAUSE_MAP",
+    # Константы контракта отчёта
+    "DETAILED_RULES",
+    "METRIC_PARAM_LABELS",
+    "NO_MEASUREMENT",
+    "PART_PRESENCE_RULE",
+    "RULE_CAMERA_ROLES",
+    "SUMMARY_LINES_LIMIT",
 ]
