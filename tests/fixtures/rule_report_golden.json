@@ -1,0 +1,4522 @@
+{
+ "row_0": {
+  "decisive": false,
+  "detail": "Корпус обнаружен",
+  "detail_lines": [],
+  "human_cause": null,
+  "measurement_cards": [
+   {
+    "found": [
+     "flatness: 12"
+    ],
+    "metrics": [
+     {
+      "key": "false_positive_max_count",
+      "label": "flatness",
+      "limit": "3",
+      "limit_raw": 3.0,
+      "ok": true,
+      "value": "12",
+      "value_raw": 12.0
+     }
+    ],
+    "ok": true,
+    "role": "INPUT_LEFT",
+    "verdict": "корпус виден"
+   },
+   {
+    "found": [
+     "flatness: 7"
+    ],
+    "metrics": [
+     {
+      "key": "false_positive_max_count",
+      "label": "flatness",
+      "limit": "3",
+      "limit_raw": 3.0,
+      "ok": true,
+      "value": "7",
+      "value_raw": 7.0
+     }
+    ],
+    "ok": true,
+    "role": "INPUT_RIGHT",
+    "verdict": "корпус виден"
+   }
+  ],
+  "name": "part_presence",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "INPUT_LEFT",
+    "status": "В НОРМЕ"
+   },
+   {
+    "reason": null,
+    "role": "INPUT_RIGHT",
+    "status": "В НОРМЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "КОРПУС ОБНАРУЖЕН",
+  "summary_cards": [
+   {
+    "found": [
+     "flatness: 12"
+    ],
+    "metrics": [
+     {
+      "key": "false_positive_max_count",
+      "label": "flatness",
+      "limit": "3",
+      "limit_raw": 3.0,
+      "ok": true,
+      "value": "12",
+      "value_raw": 12.0
+     }
+    ],
+    "ok": true,
+    "role": "INPUT_LEFT",
+    "verdict": "корпус виден"
+   },
+   {
+    "found": [
+     "flatness: 7"
+    ],
+    "metrics": [
+     {
+      "key": "false_positive_max_count",
+      "label": "flatness",
+      "limit": "3",
+      "limit_raw": 3.0,
+      "ok": true,
+      "value": "7",
+      "value_raw": 7.0
+     }
+    ],
+    "ok": true,
+    "role": "INPUT_RIGHT",
+    "verdict": "корпус виден"
+   }
+  ],
+  "summary_lines": [
+   "INPUT_LEFT: flatness 12 (порог ложных 3)",
+   "INPUT_RIGHT: flatness 7 (порог ложных 3)"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "Показатели укладываются в заданные пороги",
+  "triggered": false
+ },
+ "row_1": {
+  "decisive": true,
+  "detail": "КОРПУС НЕ ОБНАРУЖЕН",
+  "detail_lines": [],
+  "human_cause": "ДЕФЕКТ",
+  "measurement_cards": [],
+  "name": "part_presence",
+  "neutral": true,
+  "part_absent": true,
+  "role_status": [],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "КОРПУС НЕ ОБНАРУЖЕН",
+  "summary_cards": [],
+  "summary_lines": [],
+  "threshold_breaches": [],
+  "threshold_conclusion": "ДЕФЕКТ",
+  "triggered": true
+ },
+ "row_10": {
+  "decisive": true,
+  "detail": "SPIDER_LEFT: rectangle 38x120 px; SPIDER_LEFT: лишних contacts показано серым: 1; SPIDER_LEFT: заслонка перепад 12.4/15.0 px; стены разброс 3.1/5.0 px; SPIDER_LEFT: прямолинейность (инфо) 2.2 px; SPIDER_LEFT #0: rect OK; стена 7.5 px; Δ стены -2.5/5.0 px; SPIDER_LEFT #1: rect FAIL; стена —; Δ стены —",
+  "detail_lines": [
+   "SPIDER_LEFT: rectangle 38x120 px",
+   "SPIDER_LEFT: лишних contacts показано серым: 1",
+   "SPIDER_LEFT: заслонка перепад 12.4/15.0 px; стены разброс 3.1/5.0 px",
+   "SPIDER_LEFT: прямолинейность (инфо) 2.2 px",
+   "SPIDER_LEFT #0: rect OK; стена 7.5 px; Δ стены -2.5/5.0 px",
+   "SPIDER_LEFT #1: rect FAIL; стена —; Δ стены —"
+  ],
+  "human_cause": "НАКЛОН / СМЕЩЕНИЕ ДЛИННЫХ КОНТАКТОВ",
+  "measurement_cards": [
+   {
+    "found": [
+     "отфильтровано: 1"
+    ],
+    "metrics": [
+     {
+      "key": "damper_open_max_px",
+      "label": "Макс. перепад заслонки по ряду, px",
+      "limit": "15 px",
+      "limit_raw": 15.0,
+      "ok": true,
+      "value": "12.4 px",
+      "value_raw": 12.4
+     },
+     {
+      "key": "gap_dev_max_px",
+      "label": "Макс. разброс расстояний до пропуска, px",
+      "limit": "5 px",
+      "limit_raw": 5.0,
+      "ok": true,
+      "value": "3.1 px",
+      "value_raw": 3.1
+     },
+     {
+      "key": "straight_dev_max_px",
+      "label": "Прямолинейность (инфо), px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "2.2 px",
+      "value_raw": 2.2
+     },
+     {
+      "key": "rect_width_px",
+      "label": "Ширина эталона контакта, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "38 px",
+      "value_raw": 38.0
+     },
+     {
+      "key": "rect_height_px",
+      "label": "Высота эталона контакта, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "120 px",
+      "value_raw": 120.0
+     },
+     {
+      "key": "contact_1_rect_fits",
+      "label": "Контакт #1: прямоугольник",
+      "limit": "1",
+      "limit_raw": 1.0,
+      "object": "Контакт #1",
+      "ok": false,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "SPIDER_LEFT",
+    "verdict": "отклонение"
+   }
+  ],
+  "name": "contacts_long",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "SPIDER_LEFT",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [
+     "отфильтровано: 1"
+    ],
+    "metrics": [
+     {
+      "key": "damper_open_max_px",
+      "label": "Заслонка: перепад, px",
+      "limit": "15 px",
+      "limit_raw": 15.0,
+      "ok": true,
+      "value": "12.4 px",
+      "value_raw": 12.4
+     },
+     {
+      "key": "gap_dev_max_px",
+      "label": "Стены: разброс, px",
+      "limit": "5 px",
+      "limit_raw": 5.0,
+      "ok": true,
+      "value": "3.1 px",
+      "value_raw": 3.1
+     },
+     {
+      "key": "straight_dev_max_px",
+      "label": "Прямолинейность (инфо), px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "2.2 px",
+      "value_raw": 2.2
+     },
+     {
+      "key": "rect_width_px",
+      "label": "Ширина эталона, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "38 px",
+      "value_raw": 38.0
+     },
+     {
+      "key": "rect_height_px",
+      "label": "Высота эталона, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "120 px",
+      "value_raw": 120.0
+     },
+     {
+      "key": "contact_1_rect_fits",
+      "label": "Контакт #1: прямоугольник",
+      "limit": "1",
+      "limit_raw": 1.0,
+      "object": "Контакт #1",
+      "ok": false,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "SPIDER_LEFT",
+    "verdict": "отклонение"
+   }
+  ],
+  "summary_lines": [
+   "SPIDER_LEFT: rectangle 38x120 px",
+   "SPIDER_LEFT: лишних contacts показано серым: 1",
+   "SPIDER_LEFT: заслонка перепад 12.4/15.0 px; стены разброс 3.1/5.0 px",
+   "SPIDER_LEFT: прямолинейность (инфо) 2.2 px",
+   "…ещё 2 строк(и)"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "contact_1_rect_fits",
+    "label": "Контакт #1: прямоугольник",
+    "role": "SPIDER_LEFT",
+    "threshold": "1",
+    "value": "0"
+   }
+  ],
+  "threshold_conclusion": "НАКЛОН / СМЕЩЕНИЕ ДЛИННЫХ КОНТАКТОВ",
+  "triggered": true
+ },
+ "row_11": {
+  "decisive": true,
+  "detail": "SPIDER_LEFT: rectangle 38x120 px; SPIDER_LEFT: нет опорной линии пропуска (no_valid_omission_top_line)",
+  "detail_lines": [
+   "SPIDER_LEFT: rectangle 38x120 px",
+   "SPIDER_LEFT: нет опорной линии пропуска (no_valid_omission_top_line)"
+  ],
+  "human_cause": "НАКЛОН / СМЕЩЕНИЕ ДЛИННЫХ КОНТАКТОВ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "rect_width_px",
+      "label": "Ширина эталона контакта, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "38 px",
+      "value_raw": 38.0
+     },
+     {
+      "key": "rect_height_px",
+      "label": "Высота эталона контакта, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "120 px",
+      "value_raw": 120.0
+     }
+    ],
+    "ok": false,
+    "role": "SPIDER_LEFT",
+    "verdict": "отклонение · no valid omission top line"
+   }
+  ],
+  "name": "contacts_long",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "SPIDER_LEFT",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "rect_width_px",
+      "label": "Ширина эталона, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "38 px",
+      "value_raw": 38.0
+     },
+     {
+      "key": "rect_height_px",
+      "label": "Высота эталона, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "120 px",
+      "value_raw": 120.0
+     }
+    ],
+    "ok": false,
+    "role": "SPIDER_LEFT",
+    "verdict": "отклонение · no valid omission top line"
+   }
+  ],
+  "summary_lines": [
+   "SPIDER_LEFT: rectangle 38x120 px",
+   "SPIDER_LEFT: нет опорной линии пропуска (no_valid_omission_top_line)"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "НАКЛОН / СМЕЩЕНИЕ ДЛИННЫХ КОНТАКТОВ",
+  "triggered": true
+ },
+ "row_12": {
+  "decisive": true,
+  "detail": "SPIDER_IN: найдено 1/2; area min 900 px²; SPIDER_IN: нет segmentation mask контакта: #1",
+  "detail_lines": [
+   "SPIDER_IN: найдено 1/2; area min 900 px²",
+   "SPIDER_IN: нет segmentation mask контакта: #1"
+  ],
+  "human_cause": "НАКЛОН / СМЕЩЕНИЕ КОРОТКИХ КОНТАКТОВ",
+  "measurement_cards": [
+   {
+    "found": [
+     "объекты: 1"
+    ],
+    "metrics": [
+     {
+      "key": "found",
+      "label": "Найдено контактов, шт",
+      "limit": "2",
+      "limit_raw": 2.0,
+      "ok": false,
+      "value": "1",
+      "value_raw": 1.0
+     },
+     {
+      "key": "area_absolute_min_px2",
+      "label": "Мин. площадь, px²",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "900 px²",
+      "value_raw": 900.0
+     }
+    ],
+    "ok": false,
+    "role": "SPIDER_IN",
+    "verdict": "отклонение · неверное количество объектов"
+   }
+  ],
+  "name": "contacts_short",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "SPIDER_IN",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [
+     "объекты: 1"
+    ],
+    "metrics": [
+     {
+      "key": "found",
+      "label": "Найдено контактов, шт",
+      "limit": "2",
+      "limit_raw": 2.0,
+      "ok": false,
+      "value": "1",
+      "value_raw": 1.0
+     },
+     {
+      "key": "area_absolute_min_px2",
+      "label": "Мин. площадь, px²",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "900 px²",
+      "value_raw": 900.0
+     }
+    ],
+    "ok": false,
+    "role": "SPIDER_IN",
+    "verdict": "отклонение · неверное количество объектов"
+   }
+  ],
+  "summary_lines": [
+   "SPIDER_IN: найдено 1/2; area min 900 px²",
+   "SPIDER_IN: нет segmentation mask контакта: #1"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "found",
+    "label": "Найдено контактов, шт",
+    "role": "SPIDER_IN",
+    "threshold": "2",
+    "value": "1"
+   }
+  ],
+  "threshold_conclusion": "НАКЛОН / СМЕЩЕНИЕ КОРОТКИХ КОНТАКТОВ",
+  "triggered": true
+ },
+ "row_13": {
+  "decisive": true,
+  "detail": "SPIDER_OUT: нет segmentation mask контакта: #0",
+  "detail_lines": [
+   "SPIDER_OUT: нет segmentation mask контакта: #0"
+  ],
+  "human_cause": "НАКЛОН / СМЕЩЕНИЕ КОРОТКИХ КОНТАКТОВ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "SPIDER_OUT",
+    "verdict": "отклонение · нет масок контактов"
+   }
+  ],
+  "name": "contacts_short",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "SPIDER_OUT",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "SPIDER_OUT",
+    "verdict": "отклонение · нет масок контактов"
+   }
+  ],
+  "summary_lines": [
+   "SPIDER_OUT: нет segmentation mask контакта: #0"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "НАКЛОН / СМЕЩЕНИЕ КОРОТКИХ КОНТАКТОВ",
+  "triggered": true
+ },
+ "row_14": {
+  "decisive": true,
+  "detail": "SPIDER_IN: area min 800 px²; rectangle 30x60 px; SPIDER_IN: заслонка открытие 4.2/8.0 px; SPIDER_IN: Δцентров по Y (инфо) 1.5 px; SPIDER_IN #0: top=100.0; bottom=160.0; height=60.0 px; rect OK; стена 9.0 px",
+  "detail_lines": [
+   "SPIDER_IN: area min 800 px²; rectangle 30x60 px",
+   "SPIDER_IN: заслонка открытие 4.2/8.0 px",
+   "SPIDER_IN: Δцентров по Y (инфо) 1.5 px",
+   "SPIDER_IN #0: top=100.0; bottom=160.0; height=60.0 px; rect OK; стена 9.0 px"
+  ],
+  "human_cause": "НАКЛОН / СМЕЩЕНИЕ КОРОТКИХ КОНТАКТОВ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "area_absolute_min_px2",
+      "label": "Мин. площадь, px²",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "800 px²",
+      "value_raw": 800.0
+     },
+     {
+      "key": "damper_open_max_px",
+      "label": "Макс. открытие заслонки, px",
+      "limit": "8 px",
+      "limit_raw": 8.0,
+      "ok": true,
+      "value": "4.2 px",
+      "value_raw": 4.2
+     },
+     {
+      "key": "straight_delta_y_px",
+      "label": "Δцентров по Y (инфо), px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "1.5 px",
+      "value_raw": 1.5
+     },
+     {
+      "key": "rect_width_px",
+      "label": "Ширина эталона контакта, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "30 px",
+      "value_raw": 30.0
+     },
+     {
+      "key": "rect_height_px",
+      "label": "Высота эталона контакта, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "60 px",
+      "value_raw": 60.0
+     }
+    ],
+    "ok": false,
+    "role": "SPIDER_IN",
+    "verdict": "отклонение"
+   }
+  ],
+  "name": "contacts_short",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "SPIDER_IN",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "area_absolute_min_px2",
+      "label": "Мин. площадь, px²",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "800 px²",
+      "value_raw": 800.0
+     },
+     {
+      "key": "damper_open_max_px",
+      "label": "Заслонка: открытие, px",
+      "limit": "8 px",
+      "limit_raw": 8.0,
+      "ok": true,
+      "value": "4.2 px",
+      "value_raw": 4.2
+     },
+     {
+      "key": "straight_delta_y_px",
+      "label": "Δцентров по Y (инфо), px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "1.5 px",
+      "value_raw": 1.5
+     },
+     {
+      "key": "rect_width_px",
+      "label": "Ширина эталона, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "30 px",
+      "value_raw": 30.0
+     },
+     {
+      "key": "rect_height_px",
+      "label": "Высота эталона, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "60 px",
+      "value_raw": 60.0
+     }
+    ],
+    "ok": false,
+    "role": "SPIDER_IN",
+    "verdict": "отклонение"
+   }
+  ],
+  "summary_lines": [
+   "SPIDER_IN: area min 800 px²; rectangle 30x60 px",
+   "SPIDER_IN: заслонка открытие 4.2/8.0 px",
+   "SPIDER_IN: Δцентров по Y (инфо) 1.5 px",
+   "SPIDER_IN #0: top=100.0; bottom=160.0; height=60.0 px; rect OK; стена 9.0 px"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "НАКЛОН / СМЕЩЕНИЕ КОРОТКИХ КОНТАКТОВ",
+  "triggered": true
+ },
+ "row_15": {
+  "decisive": true,
+  "detail": "SPIDER_LEFT: нет valid omission reference (omission_reference_too_short)",
+  "detail_lines": [
+   "SPIDER_LEFT: нет valid omission reference (omission_reference_too_short)"
+  ],
+  "human_cause": "ИЗБЫТОЧНАЯ ТОЛЩИНА ДЛИННОЙ ПОЛОСЫ ПРОПУСКА",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "SPIDER_LEFT",
+    "verdict": "отклонение · omission reference too short"
+   }
+  ],
+  "name": "long_omission",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "SPIDER_LEFT",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "SPIDER_LEFT",
+    "verdict": "отклонение · omission reference too short"
+   }
+  ],
+  "summary_lines": [
+   "SPIDER_LEFT: нет valid omission reference (omission_reference_too_short)"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "ИЗБЫТОЧНАЯ ТОЛЩИНА ДЛИННОЙ ПОЛОСЫ ПРОПУСКА",
+  "triggered": true
+ },
+ "row_16": {
+  "decisive": true,
+  "detail": "SPIDER_LEFT: толщина 14.0 px; component min 300 px; residual 4.1/3.0 px; доля у линии 0.92/0.95; SPIDER_LEFT: largest component 1200 px; confirmed 890 px; max depth 11.2 px",
+  "detail_lines": [
+   "SPIDER_LEFT: толщина 14.0 px; component min 300 px; residual 4.1/3.0 px; доля у линии 0.92/0.95",
+   "SPIDER_LEFT: largest component 1200 px; confirmed 890 px; max depth 11.2 px"
+  ],
+  "human_cause": "ИЗБЫТОЧНАЯ ТОЛЩИНА ДЛИННОЙ ПОЛОСЫ ПРОПУСКА",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "excess_component_min_px",
+      "label": "Мин. число пикселей в компоненте избытка, px",
+      "limit": "300 px",
+      "limit_raw": 300.0,
+      "ok": false,
+      "value": "890 px",
+      "value_raw": 890.0
+     },
+     {
+      "key": "allowed_thickness_px",
+      "label": "доп. толщина",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "14 px",
+      "value_raw": 14.0
+     },
+     {
+      "key": "max_excess_depth_px",
+      "label": "Макс. глубина избытка, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "11.2 px",
+      "value_raw": 11.2
+     },
+     {
+      "key": "top_line_max_residual_px",
+      "label": "Макс. остаточное отклонение верхней линии, px",
+      "limit": "3 px",
+      "limit_raw": 3.0,
+      "ok": null,
+      "value": "4.1 px",
+      "value_raw": 4.1
+     },
+     {
+      "key": "top_line_min_inlier_ratio",
+      "label": "доля у линии",
+      "limit": "0.9",
+      "limit_raw": 0.95,
+      "ok": false,
+      "value": "0.9",
+      "value_raw": 0.92
+     },
+     {
+      "key": "largest_component_px",
+      "label": "Крупнейший фрагмент, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "1200 px",
+      "value_raw": 1200.0
+     }
+    ],
+    "ok": false,
+    "role": "SPIDER_LEFT",
+    "verdict": "отклонение"
+   }
+  ],
+  "name": "long_omission",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "SPIDER_LEFT",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "excess_component_min_px",
+      "label": "избыток",
+      "limit": "300 px",
+      "limit_raw": 300.0,
+      "ok": false,
+      "value": "890 px",
+      "value_raw": 890.0
+     },
+     {
+      "key": "allowed_thickness_px",
+      "label": "доп. толщина",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "14 px",
+      "value_raw": 14.0
+     },
+     {
+      "key": "max_excess_depth_px",
+      "label": "глубина",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "11.2 px",
+      "value_raw": 11.2
+     },
+     {
+      "key": "top_line_max_residual_px",
+      "label": "отклонение линии",
+      "limit": "3 px",
+      "limit_raw": 3.0,
+      "ok": null,
+      "value": "4.1 px",
+      "value_raw": 4.1
+     },
+     {
+      "key": "top_line_min_inlier_ratio",
+      "label": "доля у линии",
+      "limit": "0.9",
+      "limit_raw": 0.95,
+      "ok": false,
+      "value": "0.9",
+      "value_raw": 0.92
+     },
+     {
+      "key": "largest_component_px",
+      "label": "крупн. фрагмент",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "1200 px",
+      "value_raw": 1200.0
+     }
+    ],
+    "ok": false,
+    "role": "SPIDER_LEFT",
+    "verdict": "отклонение"
+   }
+  ],
+  "summary_lines": [
+   "SPIDER_LEFT: толщина 14.0 px; component min 300 px; residual 4.1/3.0 px; доля у линии 0.92/0.95",
+   "SPIDER_LEFT: largest component 1200 px; confirmed 890 px; max depth 11.2 px"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "excess_component_min_px",
+    "label": "избыток",
+    "role": "SPIDER_LEFT",
+    "threshold": "300 px",
+    "value": "890 px"
+   },
+   {
+    "key": "top_line_min_inlier_ratio",
+    "label": "доля у линии",
+    "role": "SPIDER_LEFT",
+    "threshold": "0.9",
+    "value": "0.9"
+   }
+  ],
+  "threshold_conclusion": "ИЗБЫТОЧНАЯ ТОЛЩИНА ДЛИННОЙ ПОЛОСЫ ПРОПУСКА",
+  "triggered": true
+ },
+ "row_17": {
+  "decisive": false,
+  "detail": "SPIDER_IN: толщина 10.0 px; component min 200 px; residual 2.1/3.0 px; SPIDER_IN: largest component 45 px; confirmed 0 px; max depth 1.0 px",
+  "detail_lines": [
+   "SPIDER_IN: толщина 10.0 px; component min 200 px; residual 2.1/3.0 px",
+   "SPIDER_IN: largest component 45 px; confirmed 0 px; max depth 1.0 px"
+  ],
+  "human_cause": null,
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "excess_component_min_px",
+      "label": "Мин. число пикселей в компоненте избытка, px",
+      "limit": "200 px",
+      "limit_raw": 200.0,
+      "ok": true,
+      "value": "0 px",
+      "value_raw": 0.0
+     },
+     {
+      "key": "allowed_thickness_px",
+      "label": "доп. толщина",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "10 px",
+      "value_raw": 10.0
+     },
+     {
+      "key": "max_excess_depth_px",
+      "label": "Макс. глубина избытка, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "1 px",
+      "value_raw": 1.0
+     },
+     {
+      "key": "top_line_max_residual_px",
+      "label": "Макс. остаточное отклонение верхней линии, px",
+      "limit": "3 px",
+      "limit_raw": 3.0,
+      "ok": null,
+      "value": "2.1 px",
+      "value_raw": 2.1
+     },
+     {
+      "key": "largest_component_px",
+      "label": "Крупнейший фрагмент, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "45 px",
+      "value_raw": 45.0
+     }
+    ],
+    "ok": true,
+    "role": "SPIDER_IN",
+    "verdict": "в допуске"
+   }
+  ],
+  "name": "short_omission",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "SPIDER_IN",
+    "status": "В НОРМЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "НОРМА",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "excess_component_min_px",
+      "label": "избыток",
+      "limit": "200 px",
+      "limit_raw": 200.0,
+      "ok": true,
+      "value": "0 px",
+      "value_raw": 0.0
+     },
+     {
+      "key": "allowed_thickness_px",
+      "label": "доп. толщина",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "10 px",
+      "value_raw": 10.0
+     },
+     {
+      "key": "max_excess_depth_px",
+      "label": "глубина",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "1 px",
+      "value_raw": 1.0
+     },
+     {
+      "key": "top_line_max_residual_px",
+      "label": "отклонение линии",
+      "limit": "3 px",
+      "limit_raw": 3.0,
+      "ok": null,
+      "value": "2.1 px",
+      "value_raw": 2.1
+     },
+     {
+      "key": "largest_component_px",
+      "label": "крупн. фрагмент",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "45 px",
+      "value_raw": 45.0
+     }
+    ],
+    "ok": true,
+    "role": "SPIDER_IN",
+    "verdict": "в допуске"
+   }
+  ],
+  "summary_lines": [],
+  "threshold_breaches": [],
+  "threshold_conclusion": "Показатели укладываются в заданные пороги",
+  "triggered": false
+ },
+ "row_18": {
+  "decisive": true,
+  "detail": "TOP: найдено 12/14",
+  "detail_lines": [
+   "TOP: найдено 12/14"
+  ],
+  "human_cause": "СМЕЩЕНИЕ КОНТАКТОВ НА ПЛАТФОРМЕ",
+  "measurement_cards": [
+   {
+    "found": [
+     "объекты (сырые): 12"
+    ],
+    "metrics": [
+     {
+      "key": "found_raw",
+      "label": "Найдено контактов (сырые), шт",
+      "limit": "14",
+      "limit_raw": 14.0,
+      "ok": false,
+      "value": "12",
+      "value_raw": 12.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · неверное количество объектов"
+   }
+  ],
+  "name": "top_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [
+     "объекты (сырые): 12"
+    ],
+    "metrics": [
+     {
+      "key": "found_raw",
+      "label": "Найдено контактов, шт",
+      "limit": "14",
+      "limit_raw": 14.0,
+      "ok": false,
+      "value": "12",
+      "value_raw": 12.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · неверное количество объектов"
+   }
+  ],
+  "summary_lines": [
+   "TOP: найдено 12/14"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "found_raw",
+    "label": "Найдено контактов, шт",
+    "role": "TOP",
+    "threshold": "14",
+    "value": "12"
+   }
+  ],
+  "threshold_conclusion": "СМЕЩЕНИЕ КОНТАКТОВ НА ПЛАТФОРМЕ",
+  "triggered": true
+ },
+ "row_19": {
+  "decisive": true,
+  "detail": "TOP: valid contact masks 9/14; TOP: нет segmentation mask: #3, #7",
+  "detail_lines": [
+   "TOP: valid contact masks 9/14",
+   "TOP: нет segmentation mask: #3, #7"
+  ],
+  "human_cause": "СМЕЩЕНИЕ КОНТАКТОВ НА ПЛАТФОРМЕ",
+  "measurement_cards": [
+   {
+    "found": [
+     "объекты: 9"
+    ],
+    "metrics": [
+     {
+      "key": "found",
+      "label": "Валидных контактов, шт",
+      "limit": "14",
+      "limit_raw": 14.0,
+      "ok": false,
+      "value": "9",
+      "value_raw": 9.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · мало валидных контактов"
+   }
+  ],
+  "name": "top_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [
+     "объекты: 9"
+    ],
+    "metrics": [
+     {
+      "key": "found",
+      "label": "Валидных контактов, шт",
+      "limit": "14",
+      "limit_raw": 14.0,
+      "ok": false,
+      "value": "9",
+      "value_raw": 9.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · мало валидных контактов"
+   }
+  ],
+  "summary_lines": [
+   "TOP: valid contact masks 9/14",
+   "TOP: нет segmentation mask: #3, #7"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "found",
+    "label": "Валидных контактов, шт",
+    "role": "TOP",
+    "threshold": "14",
+    "value": "9"
+   }
+  ],
+  "threshold_conclusion": "СМЕЩЕНИЕ КОНТАКТОВ НА ПЛАТФОРМЕ",
+  "triggered": true
+ },
+ "row_2": {
+  "decisive": true,
+  "detail": "INPUT_LEFT: T 10-40 px; B 5-30 px; INPUT_LEFT: лишних detections показано серым: 2; INPUT_LEFT #1: T=22.3 px; B=14.1 px; T вне допуска; INPUT_LEFT #2: нет измерения T/B",
+  "detail_lines": [
+   "INPUT_LEFT: T 10-40 px; B 5-30 px",
+   "INPUT_LEFT: лишних detections показано серым: 2",
+   "INPUT_LEFT #1: T=22.3 px; B=14.1 px; T вне допуска",
+   "INPUT_LEFT #2: нет измерения T/B"
+  ],
+  "human_cause": "НЕПРАВИЛЬНАЯ ГЕОМЕТРИЯ ОКОН",
+  "measurement_cards": [
+   {
+    "metrics": [
+     {
+      "key": "bottom_px_max",
+      "label": "B после перекладины: макс., px",
+      "limit": 30,
+      "ok": false,
+      "value": 31
+     }
+    ],
+    "ok": false,
+    "role": "INPUT_LEFT"
+   }
+  ],
+  "name": "window_geometry",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "INPUT_LEFT",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [
+     "объекты: 5/7",
+     "отфильтровано: 2"
+    ],
+    "metrics": [
+     {
+      "key": "found",
+      "label": "Найдено окон, шт",
+      "limit": "7",
+      "limit_raw": 7.0,
+      "ok": false,
+      "value": "5",
+      "value_raw": 5.0
+     },
+     {
+      "key": "top_px_min",
+      "label": "T до перекладины: мин., px",
+      "limit": "10 px",
+      "limit_raw": 10.0,
+      "ok": true,
+      "value": "22.3 px",
+      "value_raw": 22.3
+     },
+     {
+      "key": "top_px_max",
+      "label": "T до перекладины: макс., px",
+      "limit": "40 px",
+      "limit_raw": 40.0,
+      "ok": true,
+      "value": "22.3 px",
+      "value_raw": 22.3
+     },
+     {
+      "key": "bottom_px_min",
+      "label": "B после перекладины: мин., px",
+      "limit": "5 px",
+      "limit_raw": 5.0,
+      "ok": true,
+      "value": "14.1 px",
+      "value_raw": 14.1
+     },
+     {
+      "key": "bottom_px_max",
+      "label": "B после перекладины: макс., px",
+      "limit": "30 px",
+      "limit_raw": 30.0,
+      "ok": true,
+      "value": "14.1 px",
+      "value_raw": 14.1
+     },
+     {
+      "key": "window_1_top_px",
+      "label": "Окно #1: верх, px",
+      "limit": "10-40 px",
+      "limit_raw": 10.0,
+      "object": "Окно #1",
+      "ok": true,
+      "value": "22.3 px",
+      "value_raw": 22.3
+     },
+     {
+      "key": "window_1_bottom_px",
+      "label": "Окно #1: низ, px",
+      "limit": "5-30 px",
+      "limit_raw": 5.0,
+      "object": "Окно #1",
+      "ok": true,
+      "value": "14.1 px",
+      "value_raw": 14.1
+     },
+     {
+      "key": "window_1_ok",
+      "label": "Окно #1: в допуске",
+      "limit": "1",
+      "limit_raw": 1.0,
+      "object": "Окно #1",
+      "ok": false,
+      "value": "0",
+      "value_raw": 0.0
+     },
+     {
+      "key": "window_2_ok",
+      "label": "Окно #2: в допуске",
+      "limit": "1",
+      "limit_raw": 1.0,
+      "object": "Окно #2",
+      "ok": false,
+      "value": "0",
+      "value_raw": 0.0
+     },
+     {
+      "key": "windows_out_of_tolerance",
+      "label": "Окон вне допуска, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": false,
+      "value": "2",
+      "value_raw": 2.0
+     }
+    ],
+    "ok": true,
+    "role": "INPUT_LEFT",
+    "verdict": "в допуске"
+   }
+  ],
+  "summary_lines": [
+   "INPUT_LEFT: T 10-40 px; B 5-30 px",
+   "INPUT_LEFT: лишних detections показано серым: 2",
+   "INPUT_LEFT #1: T=22.3 px; B=14.1 px; T вне допуска",
+   "INPUT_LEFT #2: нет измерения T/B"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "found",
+    "label": "Найдено окон, шт",
+    "role": "INPUT_LEFT",
+    "threshold": "7",
+    "value": "5"
+   },
+   {
+    "key": "window_1_ok",
+    "label": "Окно #1: в допуске",
+    "role": "INPUT_LEFT",
+    "threshold": "1",
+    "value": "0"
+   },
+   {
+    "key": "window_2_ok",
+    "label": "Окно #2: в допуске",
+    "role": "INPUT_LEFT",
+    "threshold": "1",
+    "value": "0"
+   },
+   {
+    "key": "windows_out_of_tolerance",
+    "label": "Окон вне допуска, шт",
+    "role": "INPUT_LEFT",
+    "threshold": "0",
+    "value": "2"
+   }
+  ],
+  "threshold_conclusion": "НЕПРАВИЛЬНАЯ ГЕОМЕТРИЯ ОКОН",
+  "triggered": true
+ },
+ "row_20": {
+  "decisive": true,
+  "detail": "TOP: нет valid platform mask",
+  "detail_lines": [
+   "TOP: нет valid platform mask"
+  ],
+  "human_cause": "СМЕЩЕНИЕ КОНТАКТОВ НА ПЛАТФОРМЕ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · не найдена платформа"
+   }
+  ],
+  "name": "top_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · не найдена платформа"
+   }
+  ],
+  "summary_lines": [
+   "TOP: нет valid platform mask"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "СМЕЩЕНИЕ КОНТАКТОВ НА ПЛАТФОРМЕ",
+  "triggered": true
+ },
+ "row_21": {
+  "decisive": true,
+  "detail": "TOP: нет valid platform bbox",
+  "detail_lines": [
+   "TOP: нет valid platform bbox"
+  ],
+  "human_cause": "СМЕЩЕНИЕ КОНТАКТОВ НА ПЛАТФОРМЕ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · некорректная платформа"
+   }
+  ],
+  "name": "top_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · некорректная платформа"
+   }
+  ],
+  "summary_lines": [
+   "TOP: нет valid platform bbox"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "СМЕЩЕНИЕ КОНТАКТОВ НА ПЛАТФОРМЕ",
+  "triggered": true
+ },
+ "row_22": {
+  "decisive": true,
+  "detail": "TOP: layout L=5/5, R=4/5, T=2/2, B=2/2",
+  "detail_lines": [
+   "TOP: layout L=5/5, R=4/5, T=2/2, B=2/2"
+  ],
+  "human_cause": "СМЕЩЕНИЕ КОНТАКТОВ НА ПЛАТФОРМЕ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · нарушена раскладка контактов"
+   }
+  ],
+  "name": "top_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · нарушена раскладка контактов"
+   }
+  ],
+  "summary_lines": [
+   "TOP: layout L=5/5, R=4/5, T=2/2, B=2/2"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "СМЕЩЕНИЕ КОНТАКТОВ НА ПЛАТФОРМЕ",
+  "triggered": true
+ },
+ "row_23": {
+  "decisive": true,
+  "detail": "TOP: лишних contacts показано серым: 2; TOP L: distance median 12.0 px; max deviation 1.4/1.5 px; TOP R: distance median 11.0 px; max deviation 3.1/1.5 px; TOP T: distance median 9.0 px; max deviation 0.5/1.5 px; TOP B: distance median 10.0 px; max deviation 0.9/1.5 px; TOP #0 L: distance 12.1 px; deviation 1.4/1.5 px; rect 28x44 px OK",
+  "detail_lines": [
+   "TOP: лишних contacts показано серым: 2",
+   "TOP L: distance median 12.0 px; max deviation 1.4/1.5 px",
+   "TOP R: distance median 11.0 px; max deviation 3.1/1.5 px",
+   "TOP T: distance median 9.0 px; max deviation 0.5/1.5 px",
+   "TOP B: distance median 10.0 px; max deviation 0.9/1.5 px",
+   "TOP #0 L: distance 12.1 px; deviation 1.4/1.5 px; rect 28x44 px OK"
+  ],
+  "human_cause": "СМЕЩЕНИЕ КОНТАКТОВ НА ПЛАТФОРМЕ",
+  "measurement_cards": [
+   {
+    "found": [
+     "отфильтровано: 2"
+    ],
+    "metrics": [
+     {
+      "key": "group_L_median_px",
+      "label": "Группа L: медиана дистанции, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "12 px",
+      "value_raw": 12.0
+     },
+     {
+      "key": "group_L_deviation_px",
+      "label": "Группа L: макс. отклонение, px",
+      "limit": "1.5 px",
+      "limit_raw": 1.5,
+      "ok": true,
+      "value": "1.4 px",
+      "value_raw": 1.4
+     },
+     {
+      "key": "group_R_median_px",
+      "label": "Группа R: медиана дистанции, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "11 px",
+      "value_raw": 11.0
+     },
+     {
+      "key": "group_R_deviation_px",
+      "label": "Группа R: макс. отклонение, px",
+      "limit": "1.5 px",
+      "limit_raw": 1.5,
+      "ok": false,
+      "value": "3.1 px",
+      "value_raw": 3.1
+     },
+     {
+      "key": "group_T_median_px",
+      "label": "Группа T: медиана дистанции, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "9 px",
+      "value_raw": 9.0
+     },
+     {
+      "key": "group_T_deviation_px",
+      "label": "Группа T: макс. отклонение, px",
+      "limit": "1.5 px",
+      "limit_raw": 1.5,
+      "ok": true,
+      "value": "0.5 px",
+      "value_raw": 0.5
+     },
+     {
+      "key": "group_B_median_px",
+      "label": "Группа B: медиана дистанции, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "10 px",
+      "value_raw": 10.0
+     },
+     {
+      "key": "group_B_deviation_px",
+      "label": "Группа B: макс. отклонение, px",
+      "limit": "1.5 px",
+      "limit_raw": 1.5,
+      "ok": true,
+      "value": "0.9 px",
+      "value_raw": 0.9
+     },
+     {
+      "key": "contact_0_distance_px",
+      "label": "Контакт L: дист. до края, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Контакт (L)",
+      "ok": null,
+      "value": "12.1 px",
+      "value_raw": 12.1
+     },
+     {
+      "key": "contact_0_deviation_px",
+      "label": "Контакт L: откл., px",
+      "limit": "1.5 px",
+      "limit_raw": 1.5,
+      "object": "Контакт (L)",
+      "ok": true,
+      "value": "1.4 px",
+      "value_raw": 1.4
+     },
+     {
+      "key": "contact_0_rect_fits",
+      "label": "Контакт L: прямоугольник",
+      "limit": "1",
+      "limit_raw": 1.0,
+      "object": "Контакт (L)",
+      "ok": true,
+      "value": "1",
+      "value_raw": 1.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение"
+   }
+  ],
+  "name": "top_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [
+     "отфильтровано: 2"
+    ],
+    "metrics": [
+     {
+      "key": "group_L_median_px",
+      "label": "Группа L: медиана дист., px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "12 px",
+      "value_raw": 12.0
+     },
+     {
+      "key": "group_L_deviation_px",
+      "label": "Группа L: откл., px",
+      "limit": "1.5 px",
+      "limit_raw": 1.5,
+      "ok": true,
+      "value": "1.4 px",
+      "value_raw": 1.4
+     },
+     {
+      "key": "group_R_median_px",
+      "label": "Группа R: медиана дист., px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "11 px",
+      "value_raw": 11.0
+     },
+     {
+      "key": "group_R_deviation_px",
+      "label": "Группа R: откл., px",
+      "limit": "1.5 px",
+      "limit_raw": 1.5,
+      "ok": false,
+      "value": "3.1 px",
+      "value_raw": 3.1
+     },
+     {
+      "key": "group_T_median_px",
+      "label": "Группа T: медиана дист., px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "9 px",
+      "value_raw": 9.0
+     },
+     {
+      "key": "group_T_deviation_px",
+      "label": "Группа T: откл., px",
+      "limit": "1.5 px",
+      "limit_raw": 1.5,
+      "ok": true,
+      "value": "0.5 px",
+      "value_raw": 0.5
+     },
+     {
+      "key": "group_B_median_px",
+      "label": "Группа B: медиана дист., px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "10 px",
+      "value_raw": 10.0
+     },
+     {
+      "key": "group_B_deviation_px",
+      "label": "Группа B: откл., px",
+      "limit": "1.5 px",
+      "limit_raw": 1.5,
+      "ok": true,
+      "value": "0.9 px",
+      "value_raw": 0.9
+     },
+     {
+      "key": "contact_0_distance_px",
+      "label": "Контакт L: дист. до края, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Контакт (L)",
+      "ok": null,
+      "value": "12.1 px",
+      "value_raw": 12.1
+     },
+     {
+      "key": "contact_0_deviation_px",
+      "label": "Контакт L: откл., px",
+      "limit": "1.5 px",
+      "limit_raw": 1.5,
+      "object": "Контакт (L)",
+      "ok": true,
+      "value": "1.4 px",
+      "value_raw": 1.4
+     },
+     {
+      "key": "contact_0_rect_fits",
+      "label": "Контакт L: прямоугольник",
+      "limit": "1",
+      "limit_raw": 1.0,
+      "object": "Контакт (L)",
+      "ok": true,
+      "value": "1",
+      "value_raw": 1.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение"
+   }
+  ],
+  "summary_lines": [
+   "TOP: лишних contacts показано серым: 2",
+   "TOP L: distance median 12.0 px; max deviation 1.4/1.5 px",
+   "TOP R: distance median 11.0 px; max deviation 3.1/1.5 px",
+   "TOP T: distance median 9.0 px; max deviation 0.5/1.5 px",
+   "…ещё 2 строк(и)"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "group_R_deviation_px",
+    "label": "Группа R: откл., px",
+    "role": "TOP",
+    "threshold": "1.5 px",
+    "value": "3.1 px"
+   }
+  ],
+  "threshold_conclusion": "СМЕЩЕНИЕ КОНТАКТОВ НА ПЛАТФОРМЕ",
+  "triggered": true
+ },
+ "row_24": {
+  "decisive": true,
+  "detail": "TOP: нет valid platform mask",
+  "detail_lines": [
+   "TOP: нет valid platform mask"
+  ],
+  "human_cause": "ПЛАТФОРМА НЕ ВПИСАЛАСЬ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · не найдена платформа"
+   }
+  ],
+  "name": "top_platform",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · не найдена платформа"
+   }
+  ],
+  "summary_lines": [
+   "TOP: нет valid platform mask"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "ПЛАТФОРМА НЕ ВПИСАЛАСЬ",
+  "triggered": true
+ },
+ "row_25": {
+  "decisive": true,
+  "detail": "TOP: не построена orientation platform",
+  "detail_lines": [
+   "TOP: не построена orientation platform"
+  ],
+  "human_cause": "ПЛАТФОРМА НЕ ВПИСАЛАСЬ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · не определена ориентация"
+   }
+  ],
+  "name": "top_platform",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · не определена ориентация"
+   }
+  ],
+  "summary_lines": [
+   "TOP: не построена orientation platform"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "ПЛАТФОРМА НЕ ВПИСАЛАСЬ",
+  "triggered": true
+ },
+ "row_26": {
+  "decisive": true,
+  "detail": "TOP: rectangle 210x150 px; angle 2.5°; TOP: сдвинут; shift 6.4 px",
+  "detail_lines": [
+   "TOP: rectangle 210x150 px; angle 2.5°",
+   "TOP: сдвинут; shift 6.4 px"
+  ],
+  "human_cause": "ПЛАТФОРМА НЕ ВПИСАЛАСЬ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "placement",
+      "label": "Положение эталона",
+      "limit": null,
+      "limit_raw": null,
+      "ok": false,
+      "value": "сдвинут",
+      "value_raw": null
+     },
+     {
+      "key": "shift_distance_px",
+      "label": "Смещение центра, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "6.4 px",
+      "value_raw": 6.4
+     },
+     {
+      "key": "angle_deg",
+      "label": "Угол платформы, °",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "2.5°",
+      "value_raw": 2.5
+     },
+     {
+      "key": "rect_width_px",
+      "label": "Ширина эталона платформы, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "210 px",
+      "value_raw": 210.0
+     },
+     {
+      "key": "rect_height_px",
+      "label": "Высота эталона платформы, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "150 px",
+      "value_raw": 150.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение"
+   }
+  ],
+  "name": "top_platform",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "placement",
+      "label": "положение",
+      "limit": null,
+      "limit_raw": null,
+      "ok": false,
+      "value": "сдвинут",
+      "value_raw": null
+     },
+     {
+      "key": "shift_distance_px",
+      "label": "Смещение, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "6.4 px",
+      "value_raw": 6.4
+     },
+     {
+      "key": "angle_deg",
+      "label": "Угол, °",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "2.5°",
+      "value_raw": 2.5
+     },
+     {
+      "key": "rect_width_px",
+      "label": "Ширина эталона, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "210 px",
+      "value_raw": 210.0
+     },
+     {
+      "key": "rect_height_px",
+      "label": "Высота эталона, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "150 px",
+      "value_raw": 150.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение"
+   }
+  ],
+  "summary_lines": [
+   "TOP: rectangle 210x150 px; angle 2.5°",
+   "TOP: сдвинут; shift 6.4 px"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "placement",
+    "label": "положение",
+    "role": "TOP",
+    "threshold": null,
+    "value": "сдвинут"
+   }
+  ],
+  "threshold_conclusion": "ПЛАТФОРМА НЕ ВПИСАЛАСЬ",
+  "triggered": true
+ },
+ "row_27": {
+  "decisive": true,
+  "detail": "TOP: нет valid platform mask",
+  "detail_lines": [
+   "TOP: нет valid platform mask"
+  ],
+  "human_cause": "ЗАПЛЫВ ПЛАТФОРМЫ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · не найдена платформа"
+   }
+  ],
+  "name": "platform_contacts_overlap",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · не найдена платформа"
+   }
+  ],
+  "summary_lines": [
+   "TOP: нет valid platform mask"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "ЗАПЛЫВ ПЛАТФОРМЫ",
+  "triggered": true
+ },
+ "row_28": {
+  "decisive": true,
+  "detail": "TOP: область по контактам не построена (L5/R5/T2/B2)",
+  "detail_lines": [
+   "TOP: область по контактам не построена (L5/R5/T2/B2)"
+  ],
+  "human_cause": "ЗАПЛЫВ ПЛАТФОРМЫ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · область по контактам не построена"
+   }
+  ],
+  "name": "platform_contacts_overlap",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · область по контактам не построена"
+   }
+  ],
+  "summary_lines": [
+   "TOP: область по контактам не построена (L5/R5/T2/B2)"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "ЗАПЛЫВ ПЛАТФОРМЫ",
+  "triggered": true
+ },
+ "row_29": {
+  "decisive": true,
+  "detail": "TOP: boundary 200x140 px; component min 150 px; contacts 8; TOP: largest component 340 px; confirmed 280 px",
+  "detail_lines": [
+   "TOP: boundary 200x140 px; component min 150 px; contacts 8",
+   "TOP: largest component 340 px; confirmed 280 px"
+  ],
+  "human_cause": "ЗАПЛЫВ ПЛАТФОРМЫ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "excess_component_min_px",
+      "label": "Мин. число пикселей в компоненте заплыва, px",
+      "limit": "150 px",
+      "limit_raw": 150.0,
+      "ok": false,
+      "value": "280 px",
+      "value_raw": 280.0
+     },
+     {
+      "key": "largest_component_px",
+      "label": "Крупнейший компонент заплыва, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "340 px",
+      "value_raw": 340.0
+     },
+     {
+      "key": "used_contacts",
+      "label": "Контактов в области, шт",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "8",
+      "value_raw": 8.0
+     },
+     {
+      "key": "boundary_width_px",
+      "label": "Ширина границы области, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "200 px",
+      "value_raw": 200.0
+     },
+     {
+      "key": "boundary_height_px",
+      "label": "Высота границы области, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "140 px",
+      "value_raw": 140.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение"
+   }
+  ],
+  "name": "platform_contacts_overlap",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "excess_component_min_px",
+      "label": "Заплыв, px",
+      "limit": "150 px",
+      "limit_raw": 150.0,
+      "ok": false,
+      "value": "280 px",
+      "value_raw": 280.0
+     },
+     {
+      "key": "largest_component_px",
+      "label": "Макс. компонент, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "340 px",
+      "value_raw": 340.0
+     },
+     {
+      "key": "used_contacts",
+      "label": "Контакты области, шт",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "8",
+      "value_raw": 8.0
+     },
+     {
+      "key": "boundary_width_px",
+      "label": "Ширина области, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "200 px",
+      "value_raw": 200.0
+     },
+     {
+      "key": "boundary_height_px",
+      "label": "Высота области, px",
+      "limit": null,
+      "limit_raw": null,
+      "ok": null,
+      "value": "140 px",
+      "value_raw": 140.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение"
+   }
+  ],
+  "summary_lines": [
+   "TOP: boundary 200x140 px; component min 150 px; contacts 8",
+   "TOP: largest component 340 px; confirmed 280 px"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "excess_component_min_px",
+    "label": "Заплыв, px",
+    "role": "TOP",
+    "threshold": "150 px",
+    "value": "280 px"
+   }
+  ],
+  "threshold_conclusion": "ЗАПЛЫВ ПЛАТФОРМЫ",
+  "triggered": true
+ },
+ "row_3": {
+  "decisive": true,
+  "detail": "INPUT_RIGHT: найдено 3/7",
+  "detail_lines": [
+   "INPUT_RIGHT: найдено 3/7"
+  ],
+  "human_cause": "НЕПРАВИЛЬНАЯ ГЕОМЕТРИЯ ОКОН",
+  "measurement_cards": [
+   {
+    "found": [
+     "объекты: 3/7"
+    ],
+    "metrics": [
+     {
+      "key": "found",
+      "label": "Найдено окон, шт",
+      "limit": "7",
+      "limit_raw": 7.0,
+      "ok": false,
+      "value": "3",
+      "value_raw": 3.0
+     }
+    ],
+    "ok": null,
+    "role": "INPUT_RIGHT",
+    "verdict": "без измерения · неверное количество объектов"
+   }
+  ],
+  "name": "window_geometry",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "INPUT_RIGHT",
+    "status": "НЕТ ИЗМЕРЕНИЯ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [
+     "объекты: 3/7"
+    ],
+    "metrics": [
+     {
+      "key": "found",
+      "label": "Найдено окон, шт",
+      "limit": "7",
+      "limit_raw": 7.0,
+      "ok": false,
+      "value": "3",
+      "value_raw": 3.0
+     }
+    ],
+    "ok": null,
+    "role": "INPUT_RIGHT",
+    "verdict": "без измерения · неверное количество объектов"
+   }
+  ],
+  "summary_lines": [
+   "INPUT_RIGHT: найдено 3/7"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "found",
+    "label": "Найдено окон, шт",
+    "role": "INPUT_RIGHT",
+    "threshold": "7",
+    "value": "3"
+   }
+  ],
+  "threshold_conclusion": "НЕПРАВИЛЬНАЯ ГЕОМЕТРИЯ ОКОН",
+  "triggered": true
+ },
+ "row_30": {
+  "decisive": true,
+  "detail": "TOP: нет segmentation mask shell: #1",
+  "detail_lines": [],
+  "human_cause": "РАКОВИНА ВНУТРИ КОРПУСА",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "sinks_hits",
+      "label": "Пересечений раковин, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · invalid sink masks"
+   }
+  ],
+  "name": "sinks",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "sinks_hits",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · invalid sink masks"
+   }
+  ],
+  "summary_lines": [
+   "TOP: нет segmentation mask shell: #1"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "РАКОВИНА ВНУТРИ КОРПУСА",
+  "triggered": true
+ },
+ "row_31": {
+  "decisive": true,
+  "detail": "TOP: case_central reference: 0/1",
+  "detail_lines": [],
+  "human_cause": "РАКОВИНА ВНУТРИ КОРПУСА",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "sinks_hits",
+      "label": "Пересечений раковин, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · некорректный корпус"
+   }
+  ],
+  "name": "sinks",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "sinks_hits",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · некорректный корпус"
+   }
+  ],
+  "summary_lines": [
+   "TOP: case_central reference: 0/1"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "РАКОВИНА ВНУТРИ КОРПУСА",
+  "triggered": true
+ },
+ "row_32": {
+  "decisive": true,
+  "detail": "TOP: нет valid platform mask",
+  "detail_lines": [],
+  "human_cause": "РАКОВИНА ВНУТРИ КОРПУСА",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "sinks_hits",
+      "label": "Пересечений раковин, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · не найдена платформа"
+   }
+  ],
+  "name": "sinks",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "sinks_hits",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · не найдена платформа"
+   }
+  ],
+  "summary_lines": [
+   "TOP: нет valid platform mask"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "РАКОВИНА ВНУТРИ КОРПУСА",
+  "triggered": true
+ },
+ "row_33": {
+  "decisive": true,
+  "detail": "TOP: нет valid platform bbox",
+  "detail_lines": [],
+  "human_cause": "РАКОВИНА ВНУТРИ КОРПУСА",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "sinks_hits",
+      "label": "Пересечений раковин, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · некорректная платформа"
+   }
+  ],
+  "name": "sinks",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "sinks_hits",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · некорректная платформа"
+   }
+  ],
+  "summary_lines": [
+   "TOP: нет valid platform bbox"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "РАКОВИНА ВНУТРИ КОРПУСА",
+  "triggered": true
+ },
+ "row_34": {
+  "decisive": true,
+  "detail": "TOP: valid contact masks: 10/14",
+  "detail_lines": [],
+  "human_cause": "РАКОВИНА ВНУТРИ КОРПУСА",
+  "measurement_cards": [
+   {
+    "found": [
+     "контакты valid: 10"
+    ],
+    "metrics": [
+     {
+      "key": "sinks_hits",
+      "label": "Пересечений раковин, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · мало валидных контактов"
+   }
+  ],
+  "name": "sinks",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [
+     "контакты valid: 10"
+    ],
+    "metrics": [
+     {
+      "key": "sinks_hits",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · мало валидных контактов"
+   }
+  ],
+  "summary_lines": [
+   "TOP: valid contact masks: 10/14"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "РАКОВИНА ВНУТРИ КОРПУСА",
+  "triggered": true
+ },
+ "row_35": {
+  "decisive": true,
+  "detail": "TOP: contact layout: L=5/5, R=4/5, T=2/2, B=2/2",
+  "detail_lines": [],
+  "human_cause": "РАКОВИНА ВНУТРИ КОРПУСА",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "sinks_hits",
+      "label": "Пересечений раковин, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · нарушена раскладка контактов"
+   }
+  ],
+  "name": "sinks",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "sinks_hits",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · нарушена раскладка контактов"
+   }
+  ],
+  "summary_lines": [
+   "TOP: contact layout: L=5/5, R=4/5, T=2/2, B=2/2"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "РАКОВИНА ВНУТРИ КОРПУСА",
+  "triggered": true
+ },
+ "row_36": {
+  "decisive": true,
+  "detail": "TOP: shell #1: forbidden 120 px; central 30 px; platform 5 px; contacts 40 px",
+  "detail_lines": [],
+  "human_cause": "РАКОВИНА ВНУТРИ КОРПУСА",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "sinks_hits",
+      "label": "Пересечений раковин, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": false,
+      "value": "1",
+      "value_raw": 1.0
+     },
+     {
+      "key": "shell_1_forbidden_px",
+      "label": "Раковина #1: запрещ. пиксели, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Раковина #1",
+      "ok": null,
+      "value": "120 px",
+      "value_raw": 120.0
+     },
+     {
+      "key": "shell_1_central_px",
+      "label": "Раковина #1: центр. перехл., px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Раковина #1",
+      "ok": null,
+      "value": "30 px",
+      "value_raw": 30.0
+     },
+     {
+      "key": "shell_1_platform_px",
+      "label": "Раковина #1: платформа, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Раковина #1",
+      "ok": null,
+      "value": "5 px",
+      "value_raw": 5.0
+     },
+     {
+      "key": "shell_1_contacts_px",
+      "label": "Раковина #1: контакты, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Раковина #1",
+      "ok": null,
+      "value": "40 px",
+      "value_raw": 40.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение"
+   }
+  ],
+  "name": "sinks",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "sinks_hits",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": false,
+      "value": "1",
+      "value_raw": 1.0
+     },
+     {
+      "key": "shell_1_forbidden_px",
+      "label": "Shell #1: запрещ., px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Раковина #1",
+      "ok": null,
+      "value": "120 px",
+      "value_raw": 120.0
+     },
+     {
+      "key": "shell_1_central_px",
+      "label": "Shell #1: центр. перехл., px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Раковина #1",
+      "ok": null,
+      "value": "30 px",
+      "value_raw": 30.0
+     },
+     {
+      "key": "shell_1_platform_px",
+      "label": "Shell #1: платформа, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Раковина #1",
+      "ok": null,
+      "value": "5 px",
+      "value_raw": 5.0
+     },
+     {
+      "key": "shell_1_contacts_px",
+      "label": "Shell #1: контакты, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Раковина #1",
+      "ok": null,
+      "value": "40 px",
+      "value_raw": 40.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение"
+   }
+  ],
+  "summary_lines": [
+   "TOP: shell #1: forbidden 120 px; central 30 px; platform 5 px; contacts 40 px"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "sinks_hits",
+    "label": "Пересечений, шт",
+    "role": "TOP",
+    "threshold": "0",
+    "value": "1"
+   }
+  ],
+  "threshold_conclusion": "РАКОВИНА ВНУТРИ КОРПУСА",
+  "triggered": true
+ },
+ "row_37": {
+  "decisive": true,
+  "detail": "TOP: glass #1 -> ОЧИСТКА: platform 200 px; pin 100 px; ring 50 px; union 350 px",
+  "detail_lines": [],
+  "human_cause": "СТЕКЛО НА ПЛАТФОРМЕ / ШТИФТАХ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_hits",
+      "label": "Совпадений стекла, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": false,
+      "value": "1",
+      "value_raw": 1.0
+     },
+     {
+      "key": "glass_1_platform_px",
+      "label": "Стекло #1: платформа, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Стекло #1",
+      "ok": null,
+      "value": "200 px",
+      "value_raw": 200.0
+     },
+     {
+      "key": "glass_1_pin_px",
+      "label": "Стекло #1: пины, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Стекло #1",
+      "ok": null,
+      "value": "100 px",
+      "value_raw": 100.0
+     },
+     {
+      "key": "glass_1_ring_px",
+      "label": "Стекло #1: кольцо, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Стекло #1",
+      "ok": null,
+      "value": "50 px",
+      "value_raw": 50.0
+     },
+     {
+      "key": "glass_1_union_px",
+      "label": "Стекло #1: union, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Стекло #1",
+      "ok": null,
+      "value": "350 px",
+      "value_raw": 350.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение"
+   }
+  ],
+  "name": "glass",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_hits",
+      "label": "Совпадений стекла, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": false,
+      "value": "1",
+      "value_raw": 1.0
+     },
+     {
+      "key": "glass_1_platform_px",
+      "label": "Стекло #1: платформа, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Стекло #1",
+      "ok": null,
+      "value": "200 px",
+      "value_raw": 200.0
+     },
+     {
+      "key": "glass_1_pin_px",
+      "label": "Стекло #1: пины, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Стекло #1",
+      "ok": null,
+      "value": "100 px",
+      "value_raw": 100.0
+     },
+     {
+      "key": "glass_1_ring_px",
+      "label": "Стекло #1: кольцо, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Стекло #1",
+      "ok": null,
+      "value": "50 px",
+      "value_raw": 50.0
+     },
+     {
+      "key": "glass_1_union_px",
+      "label": "Стекло #1: union, px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Стекло #1",
+      "ok": null,
+      "value": "350 px",
+      "value_raw": 350.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение"
+   }
+  ],
+  "summary_lines": [
+   "TOP: glass #1 -> ОЧИСТКА: platform 200 px; pin 100 px; ring 50 px; union 350 px"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "glass_hits",
+    "label": "Совпадений стекла, шт",
+    "role": "TOP",
+    "threshold": "0",
+    "value": "1"
+   }
+  ],
+  "threshold_conclusion": "СТЕКЛО НА ПЛАТФОРМЕ / ШТИФТАХ",
+  "triggered": true
+ },
+ "row_38": {
+  "decisive": true,
+  "detail": "TOP: нет segmentation mask glass: #0",
+  "detail_lines": [],
+  "human_cause": "СТЕКЛО НА КОНТАКТАХ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · нет маски стекла"
+   }
+  ],
+  "name": "glass_on_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · нет маски стекла"
+   }
+  ],
+  "summary_lines": [
+   "TOP: нет segmentation mask glass: #0"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "СТЕКЛО НА КОНТАКТАХ",
+  "triggered": true
+ },
+ "row_39": {
+  "decisive": true,
+  "detail": "TOP: нет valid platform mask",
+  "detail_lines": [],
+  "human_cause": "СТЕКЛО НА КОНТАКТАХ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · не найдена платформа"
+   }
+  ],
+  "name": "glass_on_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · не найдена платформа"
+   }
+  ],
+  "summary_lines": [
+   "TOP: нет valid platform mask"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "СТЕКЛО НА КОНТАКТАХ",
+  "triggered": true
+ },
+ "row_4": {
+  "decisive": true,
+  "detail": "INPUT_LEFT: нет семи mask окон: 3/7",
+  "detail_lines": [],
+  "human_cause": "РАКОВИНА В ОКНЕ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "overlap_count",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "INPUT_LEFT",
+    "verdict": "отклонение · invalid window reference count"
+   }
+  ],
+  "name": "window_sinks",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "INPUT_LEFT",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "overlap_count",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "INPUT_LEFT",
+    "verdict": "отклонение · invalid window reference count"
+   }
+  ],
+  "summary_lines": [
+   "INPUT_LEFT: нет семи mask окон: 3/7"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "РАКОВИНА В ОКНЕ",
+  "triggered": true
+ },
+ "row_40": {
+  "decisive": true,
+  "detail": "TOP: нет valid platform bbox",
+  "detail_lines": [],
+  "human_cause": "СТЕКЛО НА КОНТАКТАХ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · некорректная платформа"
+   }
+  ],
+  "name": "glass_on_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · некорректная платформа"
+   }
+  ],
+  "summary_lines": [
+   "TOP: нет valid platform bbox"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "СТЕКЛО НА КОНТАКТАХ",
+  "triggered": true
+ },
+ "row_41": {
+  "decisive": true,
+  "detail": "TOP: valid contact masks: 11/14",
+  "detail_lines": [],
+  "human_cause": "СТЕКЛО НА КОНТАКТАХ",
+  "measurement_cards": [
+   {
+    "found": [
+     "контакты valid: 11"
+    ],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · мало валидных контактов"
+   }
+  ],
+  "name": "glass_on_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [
+     "контакты valid: 11"
+    ],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · мало валидных контактов"
+   }
+  ],
+  "summary_lines": [
+   "TOP: valid contact masks: 11/14"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "СТЕКЛО НА КОНТАКТАХ",
+  "triggered": true
+ },
+ "row_42": {
+  "decisive": true,
+  "detail": "TOP: contact layout: L=5/5, R=5/5, T=1/2, B=2/2",
+  "detail_lines": [],
+  "human_cause": "СТЕКЛО НА КОНТАКТАХ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · нарушена раскладка контактов"
+   }
+  ],
+  "name": "glass_on_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · нарушена раскладка контактов"
+   }
+  ],
+  "summary_lines": [
+   "TOP: contact layout: L=5/5, R=5/5, T=1/2, B=2/2"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "СТЕКЛО НА КОНТАКТАХ",
+  "triggered": true
+ },
+ "row_43": {
+  "decisive": true,
+  "detail": "TOP: pins: 13/14",
+  "detail_lines": [],
+  "human_cause": "СТЕКЛО НА КОНТАКТАХ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "pins_found",
+      "label": "Пинов, шт",
+      "limit": "14",
+      "limit_raw": 14.0,
+      "ok": false,
+      "value": "13",
+      "value_raw": 13.0
+     },
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · неверное количество пинов"
+   }
+  ],
+  "name": "glass_on_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "pins_found",
+      "label": "Пинов, шт",
+      "limit": "14",
+      "limit_raw": 14.0,
+      "ok": false,
+      "value": "13",
+      "value_raw": 13.0
+     },
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · неверное количество пинов"
+   }
+  ],
+  "summary_lines": [
+   "TOP: pins: 13/14"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "pins_found",
+    "label": "Пинов, шт",
+    "role": "TOP",
+    "threshold": "14",
+    "value": "13"
+   }
+  ],
+  "threshold_conclusion": "СТЕКЛО НА КОНТАКТАХ",
+  "triggered": true
+ },
+ "row_44": {
+  "decisive": true,
+  "detail": "TOP: нет pin mask: #4",
+  "detail_lines": [],
+  "human_cause": "СТЕКЛО НА КОНТАКТАХ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · нет маски штифта"
+   }
+  ],
+  "name": "glass_on_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · нет маски штифта"
+   }
+  ],
+  "summary_lines": [
+   "TOP: нет pin mask: #4"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "СТЕКЛО НА КОНТАКТАХ",
+  "triggered": true
+ },
+ "row_45": {
+  "decisive": true,
+  "detail": "TOP: case: 0/1",
+  "detail_lines": [],
+  "human_cause": "СТЕКЛО НА КОНТАКТАХ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · некорректный корпус"
+   }
+  ],
+  "name": "glass_on_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · некорректный корпус"
+   }
+  ],
+  "summary_lines": [
+   "TOP: case: 0/1"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "СТЕКЛО НА КОНТАКТАХ",
+  "triggered": true
+ },
+ "row_46": {
+  "decisive": true,
+  "detail": "TOP: case_central: 2/1",
+  "detail_lines": [],
+  "human_cause": "СТЕКЛО НА КОНТАКТАХ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · некорректный корпус"
+   }
+  ],
+  "name": "glass_on_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · некорректный корпус"
+   }
+  ],
+  "summary_lines": [
+   "TOP: case_central: 2/1"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "СТЕКЛО НА КОНТАКТАХ",
+  "triggered": true
+ },
+ "row_47": {
+  "decisive": true,
+  "detail": "TOP: invalid case ring",
+  "detail_lines": [],
+  "human_cause": "СТЕКЛО НА КОНТАКТАХ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · смещён центр корпуса"
+   }
+  ],
+  "name": "glass_on_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · смещён центр корпуса"
+   }
+  ],
+  "summary_lines": [
+   "TOP: invalid case ring"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "СТЕКЛО НА КОНТАКТАХ",
+  "triggered": true
+ },
+ "row_48": {
+  "decisive": true,
+  "detail": "TOP: empty case ring",
+  "detail_lines": [],
+  "human_cause": "СТЕКЛО НА КОНТАКТАХ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · пустое кольцо корпуса"
+   }
+  ],
+  "name": "glass_on_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · пустое кольцо корпуса"
+   }
+  ],
+  "summary_lines": [
+   "TOP: empty case ring"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "СТЕКЛО НА КОНТАКТАХ",
+  "triggered": true
+ },
+ "row_49": {
+  "decisive": true,
+  "detail": "TOP: glass #1 -> contact #3: overlap 250 px -> БРАК; glass #2 -> contact #7: overlap 180 px -> БРАК",
+  "detail_lines": [],
+  "human_cause": "СТЕКЛО НА КОНТАКТАХ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": false,
+      "value": "2",
+      "value_raw": 2.0
+     },
+     {
+      "key": "glass_1_contact_3_overlap_px",
+      "label": "Стекло #1 → контакт #3: перехл., px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Стекло #1 → контакт #3",
+      "ok": null,
+      "value": "250 px",
+      "value_raw": 250.0
+     },
+     {
+      "key": "glass_2_contact_7_overlap_px",
+      "label": "Стекло #2 → контакт #7: перехл., px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Стекло #2 → контакт #7",
+      "ok": null,
+      "value": "180 px",
+      "value_raw": 180.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение"
+   }
+  ],
+  "name": "glass_on_contacts",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "glass_contact_pairs",
+      "label": "Пар стекло/контакт, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": false,
+      "value": "2",
+      "value_raw": 2.0
+     },
+     {
+      "key": "glass_1_contact_3_overlap_px",
+      "label": "Стекло #1 → контакт #3: перехл., px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Стекло #1 → контакт #3",
+      "ok": null,
+      "value": "250 px",
+      "value_raw": 250.0
+     },
+     {
+      "key": "glass_2_contact_7_overlap_px",
+      "label": "Стекло #2 → контакт #7: перехл., px",
+      "limit": null,
+      "limit_raw": null,
+      "object": "Стекло #2 → контакт #7",
+      "ok": null,
+      "value": "180 px",
+      "value_raw": 180.0
+     }
+    ],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение"
+   }
+  ],
+  "summary_lines": [
+   "TOP: glass #1 -> contact #3: overlap 250 px -> БРАК; glass #2 -> contact #7: overlap 180 px -> БРАК"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "glass_contact_pairs",
+    "label": "Пар стекло/контакт, шт",
+    "role": "TOP",
+    "threshold": "0",
+    "value": "2"
+   }
+  ],
+  "threshold_conclusion": "СТЕКЛО НА КОНТАКТАХ",
+  "triggered": true
+ },
+ "row_5": {
+  "decisive": true,
+  "detail": "INPUT_LEFT: нет segmentation mask окна: #2, #5",
+  "detail_lines": [],
+  "human_cause": "РАКОВИНА В ОКНЕ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "overlap_count",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "INPUT_LEFT",
+    "verdict": "отклонение · invalid window masks"
+   }
+  ],
+  "name": "window_sinks",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "INPUT_LEFT",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "overlap_count",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "INPUT_LEFT",
+    "verdict": "отклонение · invalid window masks"
+   }
+  ],
+  "summary_lines": [
+   "INPUT_LEFT: нет segmentation mask окна: #2, #5"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "РАКОВИНА В ОКНЕ",
+  "triggered": true
+ },
+ "row_50": {
+  "decisive": true,
+  "detail": "Не выполнено: INPUT_LEFT: no_frame; INPUT_RIGHT: camera_error",
+  "detail_lines": [],
+  "human_cause": null,
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "overlap_count",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": null,
+    "role": "INPUT_LEFT",
+    "verdict": "нет измерения · no frame"
+   },
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "overlap_count",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": null,
+    "role": "INPUT_RIGHT",
+    "verdict": "нет измерения · camera error"
+   }
+  ],
+  "name": "window_sinks",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "INPUT_LEFT",
+    "status": "НЕТ ИЗМЕРЕНИЯ"
+   },
+   {
+    "reason": null,
+    "role": "INPUT_RIGHT",
+    "status": "НЕТ ИЗМЕРЕНИЯ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": true,
+  "status_label": "НОРМА",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "overlap_count",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": null,
+    "role": "INPUT_LEFT",
+    "verdict": "нет измерения · no frame"
+   },
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "overlap_count",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": null,
+    "role": "INPUT_RIGHT",
+    "verdict": "нет измерения · camera error"
+   }
+  ],
+  "summary_lines": [
+   "Не выполнено: INPUT_LEFT: no_frame; INPUT_RIGHT: camera_error"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "Показатели укладываются в заданные пороги",
+  "triggered": false
+ },
+ "row_51": {
+  "decisive": true,
+  "detail": "TOP: some_failure",
+  "detail_lines": [],
+  "human_cause": "SOME FAILURE",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · some failure"
+   }
+  ],
+  "name": "unknown_rule",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "TOP",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "TOP",
+    "verdict": "отклонение · some failure"
+   }
+  ],
+  "summary_lines": [
+   "TOP: some_failure"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "SOME FAILURE",
+  "triggered": true
+ },
+ "row_6": {
+  "decisive": true,
+  "detail": "INPUT_RIGHT: нет segmentation mask раковины: #1",
+  "detail_lines": [],
+  "human_cause": "РАКОВИНА В ОКНЕ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "overlap_count",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "INPUT_RIGHT",
+    "verdict": "отклонение · invalid sink masks"
+   }
+  ],
+  "name": "window_sinks",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "INPUT_RIGHT",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "overlap_count",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": true,
+      "value": "0",
+      "value_raw": 0.0
+     }
+    ],
+    "ok": false,
+    "role": "INPUT_RIGHT",
+    "verdict": "отклонение · invalid sink masks"
+   }
+  ],
+  "summary_lines": [
+   "INPUT_RIGHT: нет segmentation mask раковины: #1"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "РАКОВИНА В ОКНЕ",
+  "triggered": true
+ },
+ "row_7": {
+  "decisive": true,
+  "detail": "INPUT_LEFT: раковина #1 -> окно #3: overlap 55 px >= 40 px",
+  "detail_lines": [],
+  "human_cause": "РАКОВИНА В ОКНЕ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "overlap_count",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": false,
+      "value": "1",
+      "value_raw": 1.0
+     },
+     {
+      "key": "sink_1_win_3_overlap_px",
+      "label": "Раковина #1 → окно #3: перехл., px",
+      "limit": "40 px",
+      "limit_raw": 40.0,
+      "object": "Раковина #1 → окно #3",
+      "ok": false,
+      "value": "55 px",
+      "value_raw": 55.0
+     },
+     {
+      "key": "max_overlap_px",
+      "label": "Макс. перекрытие, px",
+      "limit": "40 px",
+      "limit_raw": 40.0,
+      "ok": false,
+      "value": "55 px",
+      "value_raw": 55.0
+     }
+    ],
+    "ok": false,
+    "role": "INPUT_LEFT",
+    "verdict": "отклонение"
+   }
+  ],
+  "name": "window_sinks",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "INPUT_LEFT",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": false,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [
+     {
+      "key": "overlap_count",
+      "label": "Пересечений, шт",
+      "limit": "0",
+      "limit_raw": 0.0,
+      "ok": false,
+      "value": "1",
+      "value_raw": 1.0
+     },
+     {
+      "key": "sink_1_win_3_overlap_px",
+      "label": "Раковина #1 → окно #3: перехл., px",
+      "limit": "40 px",
+      "limit_raw": 40.0,
+      "object": "Раковина #1 → окно #3",
+      "ok": false,
+      "value": "55 px",
+      "value_raw": 55.0
+     },
+     {
+      "key": "max_overlap_px",
+      "label": "Макс. перекрытие, px",
+      "limit": "40 px",
+      "limit_raw": 40.0,
+      "ok": false,
+      "value": "55 px",
+      "value_raw": 55.0
+     }
+    ],
+    "ok": false,
+    "role": "INPUT_LEFT",
+    "verdict": "отклонение"
+   }
+  ],
+  "summary_lines": [
+   "INPUT_LEFT: раковина #1 -> окно #3: overlap 55 px >= 40 px"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "overlap_count",
+    "label": "Пересечений, шт",
+    "role": "INPUT_LEFT",
+    "threshold": "0",
+    "value": "1"
+   },
+   {
+    "key": "sink_1_win_3_overlap_px",
+    "label": "Раковина #1 → окно #3: перехл., px",
+    "role": "INPUT_LEFT",
+    "threshold": "40 px",
+    "value": "55 px"
+   },
+   {
+    "key": "max_overlap_px",
+    "label": "Макс. перекрытие, px",
+    "role": "INPUT_LEFT",
+    "threshold": "40 px",
+    "value": "55 px"
+   }
+  ],
+  "threshold_conclusion": "РАКОВИНА В ОКНЕ",
+  "triggered": true
+ },
+ "row_8": {
+  "decisive": true,
+  "detail": "SPIDER_LEFT: найдено 4/5",
+  "detail_lines": [
+   "SPIDER_LEFT: найдено 4/5"
+  ],
+  "human_cause": "НАКЛОН / СМЕЩЕНИЕ ДЛИННЫХ КОНТАКТОВ",
+  "measurement_cards": [
+   {
+    "found": [
+     "объекты: 4"
+    ],
+    "metrics": [
+     {
+      "key": "found",
+      "label": "Найдено контактов, шт",
+      "limit": "5",
+      "limit_raw": 5.0,
+      "ok": false,
+      "value": "4",
+      "value_raw": 4.0
+     }
+    ],
+    "ok": false,
+    "role": "SPIDER_LEFT",
+    "verdict": "отклонение · неверное количество объектов"
+   }
+  ],
+  "name": "contacts_long",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "SPIDER_LEFT",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [
+     "объекты: 4"
+    ],
+    "metrics": [
+     {
+      "key": "found",
+      "label": "Найдено контактов, шт",
+      "limit": "5",
+      "limit_raw": 5.0,
+      "ok": false,
+      "value": "4",
+      "value_raw": 4.0
+     }
+    ],
+    "ok": false,
+    "role": "SPIDER_LEFT",
+    "verdict": "отклонение · неверное количество объектов"
+   }
+  ],
+  "summary_lines": [
+   "SPIDER_LEFT: найдено 4/5"
+  ],
+  "threshold_breaches": [
+   {
+    "key": "found",
+    "label": "Найдено контактов, шт",
+    "role": "SPIDER_LEFT",
+    "threshold": "5",
+    "value": "4"
+   }
+  ],
+  "threshold_conclusion": "НАКЛОН / СМЕЩЕНИЕ ДЛИННЫХ КОНТАКТОВ",
+  "triggered": true
+ },
+ "row_9": {
+  "decisive": true,
+  "detail": "SPIDER_LEFT: нет segmentation mask контакта: #0, #4",
+  "detail_lines": [
+   "SPIDER_LEFT: нет segmentation mask контакта: #0, #4"
+  ],
+  "human_cause": "НАКЛОН / СМЕЩЕНИЕ ДЛИННЫХ КОНТАКТОВ",
+  "measurement_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "SPIDER_LEFT",
+    "verdict": "отклонение · нет масок контактов"
+   }
+  ],
+  "name": "contacts_long",
+  "neutral": false,
+  "part_absent": false,
+  "role_status": [
+   {
+    "reason": null,
+    "role": "SPIDER_LEFT",
+    "status": "ОТКЛОНЕНИЕ"
+   }
+  ],
+  "show_detail": true,
+  "skipped": false,
+  "status_label": "СРАБОТАЛО",
+  "summary_cards": [
+   {
+    "found": [],
+    "metrics": [],
+    "ok": false,
+    "role": "SPIDER_LEFT",
+    "verdict": "отклонение · нет масок контактов"
+   }
+  ],
+  "summary_lines": [
+   "SPIDER_LEFT: нет segmentation mask контакта: #0, #4"
+  ],
+  "threshold_breaches": [],
+  "threshold_conclusion": "НАКЛОН / СМЕЩЕНИЕ ДЛИННЫХ КОНТАКТОВ",
+  "triggered": true
+ },
+ "rows": [
+  {
+   "decisive": true,
+   "detail": "КОРПУС НЕ ОБНАРУЖЕН",
+   "detail_lines": [],
+   "human_cause": "ДЕФЕКТ",
+   "measurement_cards": [],
+   "name": "part_presence",
+   "neutral": true,
+   "part_absent": true,
+   "role_status": [],
+   "show_detail": false,
+   "skipped": false,
+   "status_label": "КОРПУС НЕ ОБНАРУЖЕН",
+   "summary_cards": [],
+   "summary_lines": [],
+   "threshold_breaches": [],
+   "threshold_conclusion": "ДЕФЕКТ",
+   "triggered": true
+  }
+ ],
+ "scope_0": "namespace(rule_name='part_presence', triggered=False, details={'empty_tray': False, 'flatness_left': 12, 'flatness_right': None, 'false_positive_max_count_by_role': {'INPUT_LEFT': 3}, 'effective_flatness_right': None, 'false_positive_ignored_right': None}, drawings=[])",
+ "scope_1": "namespace(rule_name='part_presence', triggered=True, details={'empty_tray': True, 'flatness_left': None, 'flatness_right': None, 'effective_flatness_right': None, 'false_positive_ignored_right': None}, drawings=[])",
+ "scope_10": null,
+ "scope_11": null,
+ "scope_12": null,
+ "scope_13": null,
+ "scope_14": null,
+ "scope_15": null,
+ "scope_16": null,
+ "scope_17": null,
+ "scope_18": null,
+ "scope_19": null,
+ "scope_2": "namespace(rule_name='window_geometry', triggered=True, details={'per_role': {'INPUT_LEFT': {'found': 5, 'expected_count': 7, 'reason': None, 'top_limits_px': [10, 40], 'bottom_limits_px': [5, 30], 'ignored': 2, 'items': [{'index': 1, 'valid': True, 'top_px': 22.3, 'bottom_px': 14.1, 'top_fail': True, 'bottom_fail': False}, {'index': 2, 'valid': False}]}}, 'measurement_cards': [{'role': 'INPUT_LEFT', 'ok': False, 'metrics': [{'label': 'B', 'key': 'bottom_px_max', 'value': 31, 'limit': 30, 'ok': False}]}], 'role_status': [{'role': 'INPUT_LEFT', 'status': 'ОТКЛОНЕНИЕ', 'reason': None}]}, drawings=[])",
+ "scope_20": null,
+ "scope_21": null,
+ "scope_22": null,
+ "scope_23": null,
+ "scope_24": null,
+ "scope_25": null,
+ "scope_26": null,
+ "scope_27": null,
+ "scope_28": null,
+ "scope_29": null,
+ "scope_3": null,
+ "scope_30": null,
+ "scope_31": null,
+ "scope_32": null,
+ "scope_33": null,
+ "scope_34": null,
+ "scope_35": null,
+ "scope_36": null,
+ "scope_37": null,
+ "scope_38": null,
+ "scope_39": null,
+ "scope_4": "namespace(rule_name='window_sinks', triggered=True, details={'per_role': {'INPUT_LEFT': {'triggered': True, 'reason': 'invalid_window_reference_count', 'selected_windows': 3}}}, drawings=[])",
+ "scope_40": null,
+ "scope_41": null,
+ "scope_42": null,
+ "scope_43": null,
+ "scope_44": null,
+ "scope_45": null,
+ "scope_46": null,
+ "scope_47": null,
+ "scope_48": null,
+ "scope_49": null,
+ "scope_5": "namespace(rule_name='window_sinks', triggered=True, details={'per_role': {'INPUT_LEFT': {'triggered': True, 'reason': 'invalid_window_masks', 'invalid_window_indices': [2, 5]}}}, drawings=[])",
+ "scope_50": "namespace(rule_name='window_sinks', triggered=False, details={'per_role': {'INPUT_LEFT': {'skipped': True, 'reason': 'no_frame'}}}, drawings=[])",
+ "scope_51": null,
+ "scope_6": null,
+ "scope_7": "namespace(rule_name='window_sinks', triggered=True, details={'per_role': {'INPUT_LEFT': {'triggered': True, 'overlap_min_px': 40, 'hits': [{'sink_index': 1, 'window_index': 3, 'overlap_px': 55}]}}, 'measurement_cards': []}, drawings=[])",
+ "scope_8": null,
+ "scope_9": null,
+ "scoped": [
+  {
+   "decisive": true,
+   "detail": "КОРПУС НЕ ОБНАРУЖЕН",
+   "detail_lines": [],
+   "human_cause": "ДЕФЕКТ",
+   "measurement_cards": [],
+   "name": "part_presence",
+   "neutral": true,
+   "part_absent": true,
+   "role_status": [],
+   "show_detail": false,
+   "skipped": false,
+   "status_label": "КОРПУС НЕ ОБНАРУЖЕН",
+   "summary_cards": [],
+   "summary_lines": [],
+   "threshold_breaches": [],
+   "threshold_conclusion": "ДЕФЕКТ",
+   "triggered": true
+  }
+ ]
+}
