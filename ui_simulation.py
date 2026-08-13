@@ -207,6 +207,26 @@ class LineSimulation:
         with self._lock:
             if self.state not in ("IDLE", "STOPPED"):
                 return False
+            # Ручная проверка двигает только свою заслонку: кнопки верхнего
+            # распределителя управляют DIST1, кнопки нижнего — только DIST2.
+            if command == "DIST1_HOME":
+                self.dist1_position = 0
+                self.dist1_state = "GOOD"
+                self.last_distributor_action = "DIAGNOSTIC DIST1 -> GOOD"
+            elif command == "DIST1_OPEN":
+                self.dist1_position = 340
+                self.dist1_state = "TO_DIST2"
+                self.last_distributor_action = "DIAGNOSTIC DIST1 -> DIST2"
+            elif command == "DIST2_BAD":
+                self.dist2_position = 0
+                self.dist2_state = "READY"
+                self.last_distributor_action = "DIAGNOSTIC DIST2 -> BAD"
+            elif command == "DIST2_CLEANUP":
+                self.dist2_position = 340
+                self.dist2_state = "READY"
+                self.last_distributor_action = "DIAGNOSTIC DIST2 -> CLEANUP"
+            else:
+                return False
         self._publish("DISTRIBUTOR_DIAGNOSTIC")
         return True
 
@@ -714,8 +734,9 @@ def main() -> None:
     server.on_selected_model_release = simulation.release_selected_analysis
     configure_simulated_thresholds(server)
     server.update(frames=demo_frames())
-    # Имитируем camera_mapping.json: роль -> физический Camera ID, чтобы
-    # оператор видел соответствие (CAM id в превью) как в production.
+    # Имитируем camera_mapping.json: роль -> физический Camera ID. Маппинг
+    # отдаётся в /api/cameras как в production (в названиях камер в UI
+    # Camera ID по требованию оператора не показывается).
     server.set_camera_roles({
         role: index for index, role in enumerate(CAMERA_ORDER)
     })

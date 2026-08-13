@@ -16,7 +16,9 @@ class Distributor:
     того, как выбрасывающий шаг полностью завершился. Отдельной паузы на
     падение корпуса нет. При смене DIST2 DIST1 сначала возвращается в
     GOOD=0: направляющая никогда не движется, когда первая заслонка
-    направляет корпус на неё.
+    направляет корпус на неё. Ручная диагностика (``diagnostic_gate`` /
+    ``diagnostic_route``) управляет заслонками независимо: кнопки верхнего
+    распределителя двигают только DIST1, кнопки нижнего — только DIST2.
     """
 
     def __init__(self, dist1_axis, dist2_axis, dist1_open_position: int,
@@ -97,8 +99,11 @@ class Distributor:
     def diagnostic_route(self, category: str):
         if category not in (CATEGORY_BAD, CATEGORY_CLEANUP):
             raise ValueError(f"Unsupported DIST2 diagnostic route: {category}")
-        # Не двигать DIST2, пока DIST1 направляет корпус на неё.
-        self._set_dist1_good()
+        # Ручная проверка двигает только свою заслонку: кнопки нижнего
+        # распределителя не должны трогать DIST1. Линия в этот момент пуста
+        # (диагностика разрешена только без корпусов), поэтому ограничение
+        # «DIST1 в GOOD до смены DIST2» здесь не применяется — оно остаётся
+        # в силе для prepare_route/park_production.
         self.dist2_target, self.last_action = category, f"DIAGNOSTIC DIST2 -> {category}"
         self._move_dist2(category)
         self._notify()

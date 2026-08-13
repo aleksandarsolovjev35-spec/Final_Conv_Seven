@@ -547,6 +547,20 @@ class DistributorTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unsupported"):
             distributor.diagnostic_route("GOOD")
 
+    def test_diagnostic_route_moves_only_dist2(self):
+        # Кнопки нижнего распределителя двигают только DIST2:
+        # DIST1 остаётся там, куда его поставили кнопки верхнего.
+        distributor, _ = self.make_distributor()
+        distributor.diagnostic_gate("OPEN")
+        self.assertEqual(distributor.dist1.position, 340)
+        distributor.diagnostic_route("CLEANUP")
+        self.assertEqual(distributor.dist2.position, 340)
+        self.assertEqual(distributor.dist1.position, 340)
+        self.assertEqual(distributor.dist1_state, "TO_DIST2")
+        distributor.diagnostic_route("BAD")
+        self.assertEqual(distributor.dist2.position, 0)
+        self.assertEqual(distributor.dist1.position, 340)
+
     def test_emergency_stop(self):
         distributor, transport = self.make_distributor()
         distributor.emergency_stop()
