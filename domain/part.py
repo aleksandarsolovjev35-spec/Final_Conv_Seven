@@ -6,7 +6,6 @@ CATEGORY_UNKNOWN = "UNKNOWN"
 # Дефекты которые приводят на CLEANUP (если других дефектов нет)
 CLEANUP_DEFECTS = {
     "glass",
-    "glass_glare",
 }
 
 
