@@ -456,7 +456,6 @@ function _applyTokenCategory(el, category) {
 
 
 const ROUTE_CATEGORIES = ['GOOD', 'BAD', 'CLEANUP'];
-let _currentDistributorCategory = '';
 
 function _resolveDistributorRoute(ls) {
     const parts = Array.isArray(ls.line_parts) ? ls.line_parts : [];
@@ -481,24 +480,13 @@ function _resolveDistributorRoute(ls) {
 function _updateDistributorRoute(ls) {
     const panel = els.distributorDiagnostics;
     if (!panel) return;
-    panel.classList.remove('route-good', 'route-bad', 'route-cleanup', 'production-ready');
+    panel.classList.remove('route-good', 'route-bad', 'route-cleanup');
     const category = _resolveDistributorRoute(ls);
-    let effective = '';
-    if (category === 'GOOD') { panel.classList.add('route-good'); effective = 'GOOD'; }
-    else if (category === 'BAD') { panel.classList.add('route-bad'); effective = 'BAD'; }
-    else if (category === 'CLEANUP') { panel.classList.add('route-cleanup'); effective = 'CLEANUP'; }
-    else {
-        const lineState = (ls.state || state.lineState || '').toUpperCase();
-        const d1State = String(ls.dist1_state || '').toUpperCase();
-        const movingToGood = d1State === 'MOVING_TO_GOOD';
-        const parked = ['IDLE', 'STOPPED'].includes(lineState) && (d1State === 'GOOD' || movingToGood) && (Number(ls.dist1_position || 0) === 0 || movingToGood);
-        if (parked) { panel.classList.add('production-ready'); effective = 'GOOD'; }
-    }
-    _currentDistributorCategory = effective;
+    if (category === 'GOOD') panel.classList.add('route-good');
+    else if (category === 'BAD') panel.classList.add('route-bad');
+    else if (category === 'CLEANUP') panel.classList.add('route-cleanup');
     if (els.distRoute) {
-        const ready = panel.classList.contains('production-ready');
-        const label = category ? `→ ${categoryLabel(category)}` : (ready ? 'ПРОИЗВОДСТВО ГОТОВО' : '');
-        setIfChanged(els.distRoute, label);
+        setIfChanged(els.distRoute, category ? `→ ${categoryLabel(category)}` : '');
     }
 }
 

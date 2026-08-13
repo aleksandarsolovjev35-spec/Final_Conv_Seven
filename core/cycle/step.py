@@ -443,7 +443,8 @@ class CycleStepMixin:
             part.route_category = CATEGORY_BAD
             part.final_decision = "incomplete_inspection"
             category = CATEGORY_BAD
-        # GOOD: DIST1=0. BAD/CLEANUP: сначала DIST2, затем DIST1=340.
+        # GOOD: DIST1=0. BAD/CLEANUP: DIST1=340 и DIST2->канал едут
+        # одновременно (см. _move_parallel в hardware/distributor.py).
         self.distributor.prepare_route(category, part.id)
 
     def _execute_drop(self):

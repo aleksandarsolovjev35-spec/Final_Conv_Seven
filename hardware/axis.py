@@ -29,14 +29,29 @@ class Axis:
         self.verify_limit_config()
 
     def move_absolute(self, position: int):
-        """Переместить в абсолютную позицию внутри 0..maximum."""
+        """Переместить в абсолютную позицию внутри 0..maximum.
+
+        Ожидание остановки выполняет вызывающий код (``wait_stop``).
+        Короткая пауза после отправки оставлена для совместимости с
+        однокомандными вызовами; параллельное движение осей использует
+        ``move_absolute_async``, чтобы команды ушли подряд без паузы.
+        """
+        self.move_absolute_async(position)
+        time.sleep(0.1)
+
+    def move_absolute_async(self, position: int):
+        """Отправить команду перемещения без паузы и без ожидания.
+
+        Нужна для одновременного движения обеих осей распределителя:
+        команды ``G27`` на DIST1 и DIST2 отправляются подряд, а остановки
+        ожидаются после, по одной оси.
+        """
         if type(position) is not int or not self.minimum <= position <= self.maximum:
             raise ValueError(
                 f"Axis {self.axis_id}: absolute position must be int "
                 f"in {self.minimum}..{self.maximum}"
             )
         self.transport.send(f"G27 S{position} P{self.axis_id}")
-        time.sleep(0.1)
 
     def home(self):
         """Выполнить физический homing через концевик (firmware G28)."""
