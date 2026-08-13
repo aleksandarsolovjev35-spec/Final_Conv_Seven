@@ -67,7 +67,14 @@ class RecordingTransport:
 
     def query(self, command, delay=0.15):
         self.commands.append(command)
-        return self.responses.get(command, "")
+        response = self.responses.get(command, "")
+        if isinstance(response, list):
+            if len(response) > 1:
+                return response.pop(0)
+            return response[0] if response else ""
+        if callable(response):
+            return response()
+        return response
 
 
 class SerialTransportTest(unittest.TestCase):
@@ -299,35 +306,84 @@ class ConveyorTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "positive"):
             Conveyor(RecordingTransport(), steps_per_division=0)
 
-    def test_move_step(self):
-        conveyor, transport = self.make_conveyor()
-        with mock.patch("time.sleep"):
+    def test_move_step_requires_status_and_addressed_ack(self):
+        transport = RecordingTransport({
+            "I2": "MOV=0 WAIT=0 STEP=41 lastErr=0",
+            "G3 N42": "Move start (RELATIVE)\nACK G3 STEP=42",
+        })
+        conveyor, _ = self.make_conveyor(transport)
+        conveyor.move_step()
+        self.assertEqual(transport.commands[-2:], ["I2", "G3 N42"])
+        self.assertEqual(conveyor._pending_step_sequence, 42)
+
+    def test_move_step_rejects_missing_ack_without_retry(self):
+        transport = RecordingTransport({
+            "I2": "MOV=0 WAIT=0 STEP=7 lastErr=0",
+            "G3 N8": "Move start (RELATIVE)",
+        })
+        conveyor, _ = self.make_conveyor(transport)
+        with self.assertRaisesRegex(RuntimeError, "не подтвердил приём"):
             conveyor.move_step()
-        self.assertEqual(transport.commands[-1], "G3")
+        self.assertEqual(transport.commands.count("G3 N8"), 1)
+        self.assertEqual(conveyor._pending_step_sequence, 8)
+
+    def test_move_step_rejects_old_firmware_without_step(self):
+        transport = RecordingTransport({
+            "I2": "MOV=0 WAIT=0 lastErr=0",
+        })
+        conveyor, _ = self.make_conveyor(transport)
+        with self.assertRaisesRegex(RuntimeError, "STEP-протокол"):
+            conveyor.move_step()
+        self.assertNotIn("G3 N1", transport.commands)
+
+    def test_move_step_rejects_non_idle_baseline(self):
+        transport = RecordingTransport({
+            "I2": "MOV=1 WAIT=0 STEP=3 lastErr=0",
+        })
+        conveyor, _ = self.make_conveyor(transport)
+        with self.assertRaisesRegex(RuntimeError, "не готов"):
+            conveyor.move_step()
 
     def test_emergency_stop(self):
         conveyor, transport = self.make_conveyor()
         conveyor.emergency_stop()
         self.assertEqual(transport.commands[-1], "G1")
 
-    def test_wait_stop_confirmed(self):
+    def test_wait_stop_confirms_completed_sequence(self):
         transport = RecordingTransport({
             "I1": "0",
-            "I2": "MOV=0 WAIT=0 lastErr=0",
+            "I2": [
+                "MOV=0 WAIT=0 STEP=12 lastErr=0",
+                "MOV=0 WAIT=0 STEP=13 lastErr=0",
+            ],
+            "G3 N13": "ACK G3 STEP=13",
         })
         conveyor, _ = self.make_conveyor(transport)
         with mock.patch("time.sleep"):
+            conveyor.move_step()
             conveyor.wait_stop(timeout=1.0)
+        self.assertIsNone(conveyor._pending_step_sequence)
 
-    def test_wait_stop_timeout(self):
+    def test_wait_stop_does_not_accept_idle_without_completed_step(self):
         transport = RecordingTransport({
-            "I1": "1",
-            "I2": "MOV=1 WAIT=0 lastErr=0",
+            "I1": "0",
+            "I2": [
+                "MOV=0 WAIT=0 STEP=20 lastErr=0",
+                "MOV=0 WAIT=0 STEP=20 lastErr=0",
+            ],
+            "G3 N21": "ACK G3 STEP=21",
         })
         conveyor, _ = self.make_conveyor(transport)
         with mock.patch("time.sleep"):
-            with self.assertRaises(TimeoutError):
+            conveyor.move_step()
+            with self.assertRaisesRegex(TimeoutError, "STEP=21"):
                 conveyor.wait_stop(timeout=0.01)
+        self.assertEqual(conveyor._pending_step_sequence, 21)
+
+    def test_wait_stop_requires_accepted_command(self):
+        conveyor, _ = self.make_conveyor()
+        with self.assertRaisesRegex(RuntimeError, "Нет принятой команды"):
+            conveyor.wait_stop(timeout=0.01)
 
     def test_parse_motion_reply(self):
         self.assertIsNone(Conveyor._parse_motion_reply(""))
@@ -338,13 +394,33 @@ class ConveyorTest(unittest.TestCase):
         self.assertFalse(Conveyor._parse_motion_reply("noise\n1\n"))
 
     def test_parse_status(self):
-        status = Conveyor._parse_status("MOV=0 WAIT=1 POS=5 TGT=5 lastErr=-3")
+        status = Conveyor._parse_status(
+            "MOV=0 WAIT=1 POS=5 TGT=5 STEP=4294967295 lastErr=-3",
+        )
         self.assertEqual(status["mov"], 0)
         self.assertEqual(status["wait"], 1)
         self.assertEqual(status["pos"], 5)
+        self.assertEqual(status["step"], 4294967295)
         self.assertEqual(status["lasterr"], -3)
         empty = Conveyor._parse_status("")
         self.assertIsNone(empty["mov"])
+        self.assertIsNone(empty["step"])
+
+    def test_ack_requires_exact_sequence(self):
+        self.assertTrue(Conveyor._ack_confirmed(
+            "Move start\nACK G3 STEP=9", 9,
+        ))
+        self.assertFalse(Conveyor._ack_confirmed("ACK G3 STEP=8", 9))
+        self.assertFalse(Conveyor._ack_confirmed("", 9))
+
+    def test_sequence_wraps_as_uint32(self):
+        transport = RecordingTransport({
+            "I2": "MOV=0 WAIT=0 STEP=4294967295 lastErr=0",
+            "G3 N0": "ACK G3 STEP=0",
+        })
+        conveyor, _ = self.make_conveyor(transport)
+        conveyor.move_step()
+        self.assertEqual(conveyor._pending_step_sequence, 0)
 
     def test_strict_stop_confirmed(self):
         self.assertTrue(Conveyor._strict_stop_confirmed(
@@ -578,7 +654,10 @@ class JogControllerTest(unittest.TestCase):
 
 class PortDiscoveryTest(unittest.TestCase):
     def test_is_controller_response(self):
-        self.assertTrue(is_controller_response("MOV=0 WAIT=0 lastErr=0"))
+        self.assertTrue(is_controller_response(
+            "MOV=0 WAIT=0 STEP=0 lastErr=0",
+        ))
+        self.assertFalse(is_controller_response("MOV=0 WAIT=0 lastErr=0"))
         self.assertFalse(is_controller_response(""))
         self.assertFalse(is_controller_response("hello"))
 
@@ -600,7 +679,7 @@ class PortDiscoveryTest(unittest.TestCase):
         }])
 
     def test_try_port_success(self):
-        fake = FakeSerial(responses=[b"MOV=0 WAIT=0 lastErr=0"])
+        fake = FakeSerial(responses=[b"MOV=0 WAIT=0 STEP=0 lastErr=0"])
         with mock.patch("hardware.port_discovery.serial.Serial",
                         return_value=fake), \
              mock.patch("hardware.port_discovery.time.sleep"):

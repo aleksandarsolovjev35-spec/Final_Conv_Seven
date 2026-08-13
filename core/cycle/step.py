@@ -469,12 +469,20 @@ class CycleStepMixin:
             part.route_category = CATEGORY_BAD
             category = CATEGORY_BAD
             self.bad_count += 1
-        self._archive_part(part)
-        self._set_process(
-            "FINAL_DECISION_ARCHIVED",
-            f"Финальное решение #{part.id}: {category} записано в архив",
-            part_id=part.id,
-        )
+        archived = self._archive_part(part)
+        if archived:
+            self._set_process(
+                "FINAL_DECISION_ARCHIVED",
+                f"Финальное решение #{part.id}: {category} записано в архив",
+                part_id=part.id,
+            )
+        else:
+            self._set_process(
+                "FINAL_DECISION_NOT_ARCHIVED",
+                f"Финальное решение #{part.id}: {category}; "
+                "запись в архив не выполнена",
+                part_id=part.id,
+            )
         self._register_finished(part)
         self._remove_part(part)
         self._pending_drop = None

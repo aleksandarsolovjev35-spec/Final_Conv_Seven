@@ -517,10 +517,10 @@ class ProductionCycle(
 
     # Archive
 
-    def _archive_part(self, part, extra=None):
-        """Записать деталь в архив. Сбой диска не должен ронять шаг линии."""
+    def _archive_part(self, part, extra=None) -> bool:
+        """Записать деталь и вернуть подтверждённый результат записи."""
         if not self.archive:
-            return
+            return False
         kwargs = {
             "part_id": part.id,
             "category": part.route_category,
@@ -534,9 +534,10 @@ class ProductionCycle(
         if archive_extra:
             kwargs["extra"] = archive_extra
         try:
-            self.archive.finalize(**kwargs)
+            return bool(self.archive.finalize(**kwargs))
         except Exception as exc:
             print(f"[ARCHIVE] Не удалось записать деталь #{part.id}: {exc}")
+            return False
 
     def _archive_inflight(self, reason: str):
         for part in list(self.parts):

@@ -24,7 +24,7 @@
 //   G0  — мягкая остановка (stop), затем reset позиции (когда мотор остановится)
 //   G1  — аварийная остановка (brake) + reset позиции
 //   G2  — поставить следующий цикл в паузу (одноразово)
-//   G3  — старт/продолжить (движение на steps_per_division * divisions_per_movement, RELATIVE)
+//   G3 [N<seq>] — старт/продолжить; N подтверждает production-шаг (RELATIVE)
 //   G4  S<n>  — ускорение
 //   G5  S<n>  — максимальная скорость
 //   G6  S<n>  — делений за ход (divisions_per_movement)
@@ -55,7 +55,7 @@
 // I-коды (информация)
 //   I0  — Motion: 0/1 (конвейер)
 //   I1  — движение? 0/1 (конвейер, короткий ответ)
-//   I2  — расширенный статус конвейера одной строкой
+//   I2  — статус конвейера; STEP = номер физически завершённого G3
 //   I3  — текущая конфигурация конвейера (speed/accel/steps/div/pause/...)
 //   I4  — состояние сервоприводов (угол/attach/таймер detach)
 //   I5  — uptime (сек)
@@ -74,7 +74,7 @@
 
 // ==================== ВЕРСИЯ ====================
 static const char* FW_NAME    = "convey15";
-static const char* FW_VERSION = "2.4.0";
+static const char* FW_VERSION = "2.5.0";
 static const char* FW_DATE    = __DATE__ " " __TIME__;
 
 // ==================== КОНФИГУРАЦИЯ ====================
@@ -150,6 +150,11 @@ uint32_t    interMoveWaitUntil  = 0;
 bool        stopPendingReset = false;
 uint32_t    lastArrivedAtMs  = 0;
 bool        lastArrivedPulse = false;
+// STEP меняется только после stepper.ready(). activeStepPending отделяет
+// принятый G3 от завершённого и исключает ложное подтверждение idle-статусом.
+uint32_t    completedStepSequence = 0;
+uint32_t    activeStepSequence    = 0;
+bool        activeStepPending     = false;
 String      rxLine;
 
 // -------------------- Ошибки/диагностика --------------------
@@ -163,7 +168,9 @@ enum ErrorCode : uint8_t {
   ERR_LINE_OVERFLOW   = 6,
   ERR_BAD_AXIS_INDEX  = 7,
   ERR_HOMING_BUSY     = 8,
-  ERR_OUT_OF_LIMITS   = 9    // выход за программные лимиты
+  ERR_OUT_OF_LIMITS   = 9,   // выход за программные лимиты
+  ERR_BAD_STEP_SEQ    = 10,
+  ERR_CONVEYOR_BUSY   = 11
 };
 ErrorCode   lastError     = ERR_NONE;
 uint32_t    lastErrorAtMs = 0;
@@ -190,6 +197,7 @@ void   detachAllServos();
 void   updateServoStates();
 long   clampToLimits(uint8_t axis, long absTarget);
 float  extractParameter(String cmd, char param);
+bool   extractUint32Parameter(String cmd, char param, uint32_t &value);
 bool   checkParameter(int caseNumber, float value);
 bool   getNemaRange(float axisF, int &startIdx, int &endIdx);
 bool   readEndstop(uint8_t axis);
@@ -247,6 +255,12 @@ void loop() {
   if (arrived) {
     lastArrivedAtMs = millis();
     lastArrivedPulse = true;
+    if (activeStepPending) {
+      completedStepSequence = activeStepSequence;
+      activeStepPending = false;
+      Serial.print("DONE G3 STEP=");
+      Serial.println(completedStepSequence);
+    }
     Serial.println("Movement on pause...");
     stepper.reset();
     interMoveWaitActive = true;
@@ -544,12 +558,14 @@ void parseCommand(String cmd) {
       // ------------- КОНВЕЙЕР (G0..G13) -------------
       case 0:
         interMoveWaitActive = false;
+        activeStepPending = false;
         stepper.stop();
         stopPendingReset = true;
         Serial.println("G0: smooth stop");
         break;
       case 1:
         interMoveWaitActive = false;
+        activeStepPending = false;
         stopPendingReset = false;
         stepper.brake();
         stepper.reset();
@@ -560,9 +576,32 @@ void parseCommand(String cmd) {
         pause_checker = true;
         Serial.println("G2: next pause enabled");
         break;
-      case 3:
+      case 3: {
+        uint32_t requestedSequence = 0;
+        bool hasSequence = params.indexOf('N') >= 0;
+        if (hasSequence && !extractUint32Parameter(params, 'N', requestedSequence)) {
+          Serial.println("Err: G3 needs unsigned N<seq>");
+          setError(ERR_BAD_PARAMS);
+          break;
+        }
+        if (isMoving || interMoveWaitActive || stopPendingReset || activeStepPending) {
+          Serial.println("Err: conveyor busy");
+          setError(ERR_CONVEYOR_BUSY);
+          break;
+        }
+        uint32_t expectedSequence = completedStepSequence + 1UL;
+        if (hasSequence && requestedSequence != expectedSequence) {
+          Serial.print("Err: G3 expected N");
+          Serial.println(expectedSequence);
+          setError(ERR_BAD_STEP_SEQ);
+          break;
+        }
+        activeStepSequence = expectedSequence;
+        activeStepPending = true;
         startOneMove();
-        break;
+        Serial.print("ACK G3 STEP=");
+        Serial.println(activeStepSequence);
+      } break;
       case 4: {
         float v = extractParameter(params, 'S');
         if (!isnan(v) && checkParameter(4, v)) {
@@ -886,6 +925,7 @@ void parseCommand(String cmd) {
         Serial.print(" WAIT=");   Serial.print(interMoveWaitActive ? 1 : 0);
         Serial.print(" POS=");    Serial.print(stepper.getCurrent());
         Serial.print(" TGT=");    Serial.print(stepper.getTarget());
+        Serial.print(" STEP=");   Serial.print(completedStepSequence);
         Serial.print(" lastReadyMs="); Serial.print(lastArrivedAtMs);
         Serial.print(" lastErr=");     Serial.println((uint8_t)lastError);
         lastArrivedPulse = false;
@@ -1039,6 +1079,27 @@ float extractParameter(String cmd, char param) {
   while (end < len && !isWhitespace(cmd[end]) && cmd[end] != 'G' && cmd[end] != 'I') end++;
   if (end == start) return NAN;  // нет значения после буквы параметра
   return cmd.substring(start, end).toFloat();
+}
+
+// Точный разбор uint32 без потери разрядов через float (важно для STEP).
+bool extractUint32Parameter(String cmd, char param, uint32_t &value) {
+  int idx = cmd.indexOf(param);
+  if (idx == -1) return false;
+  int pos = idx + 1;
+  int len = (int)cmd.length();
+  while (pos < len && isWhitespace(cmd[pos])) pos++;
+  if (pos >= len || !isDigit(cmd[pos])) return false;
+
+  uint32_t parsed = 0;
+  while (pos < len && isDigit(cmd[pos])) {
+    uint8_t digit = (uint8_t)(cmd[pos] - '0');
+    if (parsed > (0xFFFFFFFFUL - digit) / 10UL) return false;
+    parsed = parsed * 10UL + digit;
+    pos++;
+  }
+  if (pos < len && !isWhitespace(cmd[pos])) return false;
+  value = parsed;
+  return true;
 }
 
 bool checkParameter(int caseNumber, float value) {

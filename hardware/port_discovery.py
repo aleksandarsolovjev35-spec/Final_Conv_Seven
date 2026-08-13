@@ -24,7 +24,9 @@ OPEN_DELAY = 2.0
 def is_controller_response(response: str) -> bool:
     if not response:
         return False
-    required_tokens = ("MOV=", "WAIT=", "lastErr=")
+    # STEP is mandatory: older firmware can report idle without proving that
+    # a G3 movement was physically completed.
+    required_tokens = ("MOV=", "WAIT=", "STEP=", "lastErr=")
     return all(token in response for token in required_tokens)
 
 

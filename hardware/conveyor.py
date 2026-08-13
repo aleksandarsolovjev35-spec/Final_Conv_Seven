@@ -3,10 +3,15 @@ import time
 
 
 class Conveyor:
+    """Управление лентой с подтверждением каждого завершённого шага.
+
+    Firmware хранит монотонный ``STEP`` в статусе I2. Производственная
+    команда ``G3 N<seq>`` принимается только для следующего номера и отвечает
+    ``ACK G3 STEP=<seq>``. Логическая позиция может быть изменена лишь после
+    того, как I2 вернул тот же номер завершённого шага.
     """
-    Управление конвейерной лентой.
-    Использует I1 — ответ контроллера: одна строка "0" или "1".
-    """
+
+    STEP_MODULUS = 1 << 32
 
     def __init__(
         self,
@@ -17,6 +22,7 @@ class Conveyor:
         divisions_per_movement: int = 2,
     ):
         self.transport = transport
+        self._pending_step_sequence: int | None = None
         if steps_per_division <= 0 or divisions_per_movement <= 0:
             raise ValueError("Conveyor geometry must be positive")
         self._set_params(
@@ -27,12 +33,36 @@ class Conveyor:
         )
 
     def move_step(self):
-        """Один шаг конвейера."""
-        self.transport.send("G3")
-        time.sleep(0.4)
+        """Отправить один шаг и проверить адресованное подтверждение приёма."""
+        if self._pending_step_sequence is not None:
+            raise RuntimeError("Предыдущий шаг конвейера ещё не подтверждён")
+
+        status = self.transport.query("I2", delay=0.1)
+        parsed = self._parse_status(status)
+        current_sequence = parsed["step"]
+        if not self._strict_stop_confirmed(status) or current_sequence is None:
+            raise RuntimeError(
+                "Конвейер не готов принять шаг или firmware не поддерживает "
+                f"STEP-протокол: I2='{status}'"
+            )
+
+        expected = (current_sequence + 1) % self.STEP_MODULUS
+        # Сохраняем номер до отправки. Если команда дошла, но ACK потерян,
+        # состояние физики неоднозначно и повторять тот же шаг запрещено.
+        self._pending_step_sequence = expected
+        acknowledgement = self.transport.query(f"G3 N{expected}", delay=0.15)
+        if not self._ack_confirmed(acknowledgement, expected):
+            raise RuntimeError(
+                "Контроллер не подтвердил приём шага; повтор команды опасен: "
+                f"ожидался STEP={expected}, ответ='{acknowledgement}'"
+            )
 
     def wait_stop(self, timeout: float = 15.0, progress_callback=None):
-        """Ждать остановки и публиковать фактический I2 status."""
+        """Ждать остановки и подтверждения выполнения ожидаемого STEP."""
+        expected = self._pending_step_sequence
+        if expected is None:
+            raise RuntimeError("Нет принятой команды шага конвейера")
+
         start = time.time()
         data = ""
         status = ""
@@ -45,13 +75,19 @@ class Conveyor:
             if progress_callback is not None:
                 progress_callback(parsed_status)
 
-            if stopped is True and self._strict_stop_confirmed(status):
+            completed = parsed_status["step"] == expected
+            if (
+                stopped is True
+                and self._strict_stop_confirmed(status)
+                and completed
+            ):
+                self._pending_step_sequence = None
                 time.sleep(0.05)
                 return
 
             if time.time() - start > timeout:
                 raise TimeoutError(
-                    f"Конвейер не остановился за {timeout}s. "
+                    f"Конвейер не подтвердил STEP={expected} за {timeout}s. "
                     f"I1='{data}', I2='{status}'"
                 )
 
@@ -81,7 +117,7 @@ class Conveyor:
     @staticmethod
     def _parse_status(data: str) -> dict:
         result = {"raw": data}
-        for key in ("MOV", "WAIT", "POS", "TGT", "lastErr"):
+        for key in ("MOV", "WAIT", "POS", "TGT", "STEP", "lastErr"):
             match = re.search(
                 rf"\b{key}\s*=\s*(-?\d+)\b",
                 data or "",
@@ -89,6 +125,16 @@ class Conveyor:
             )
             result[key.lower()] = int(match.group(1)) if match else None
         return result
+
+    @staticmethod
+    def _ack_confirmed(data: str, expected: int) -> bool:
+        if not data:
+            return False
+        return bool(re.search(
+            rf"^\s*ACK\s+G3\s+STEP\s*=\s*{expected}\s*$",
+            data,
+            re.IGNORECASE | re.MULTILINE,
+        ))
 
     @staticmethod
     def _strict_stop_confirmed(data: str) -> bool:
@@ -107,13 +153,7 @@ class Conveyor:
 
     @staticmethod
     def _parse_motion_reply(data: str) -> bool | None:
-        """
-        Парсит ответ на I1.
-
-        Прошивка отвечает ровно "0" (остановлен) или "1" (движется).
-        Ищем последнюю строку содержащую только "0" или "1".
-        Если ответ неразборчив — возвращаем None (= не уверены).
-        """
+        """Разобрать I1: ``0`` — остановлен, ``1`` — движется."""
         if not data:
             return None
 
