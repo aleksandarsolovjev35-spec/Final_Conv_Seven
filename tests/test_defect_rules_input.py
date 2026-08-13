@@ -120,6 +120,20 @@ class WindowGeometryRuleTest(unittest.TestCase):
         self.assertEqual(details["found"], EXPECTED)
         self.assertEqual(details["ignored"], 1)
 
+    def test_extra_detection_filtered_by_y(self):
+        # Лишнее окно сильно ниже ряда: фильтр по Y отбрасывает его
+        # до отбора равномерного ряда, ложного брака по количеству нет.
+        windows = good_windows()
+        extra = det("flatness", [180, 200, 220, 259], 0.9,
+                    window_mask(180, 200, 229, 40, 259))
+        rule = InputWindowGeometryRule(self.thresholds)
+        result = rule.check({"INPUT_LEFT": windows + [extra]})
+        details = result.details["per_role"]["INPUT_LEFT"]
+        self.assertFalse(result.triggered)
+        self.assertEqual(details["found"], EXPECTED)
+        self.assertEqual(details["ignored"], 1)
+        self.assertIn("y-filter dropped 1", details["selection_note"])
+
     def test_missing_mask_invalid(self):
         windows = good_windows()
         windows[3] = det("flatness", [180, 0, 220, 59], 0.9)

@@ -41,6 +41,9 @@ class InputWindowSinksRule(BaseRule):
             expected_count = self._get(
                 "input_window_geometry_expected_count", 7, role=role,
             )
+            y_filter_ratio = float(self._get(
+                "input_window_geometry_y_filter_ratio", 3.0, role=role,
+            ))
             detections = vision_results[role]
             sinks = sorted(
                 (
@@ -64,6 +67,7 @@ class InputWindowSinksRule(BaseRule):
                 windows=windows,
                 expected_count=int(expected_count),
                 overlap_min_px=overlap_min_px,
+                y_filter_ratio=y_filter_ratio,
                 drawings=drawings,
             )
             details_per_role[role] = role_result
@@ -86,6 +90,7 @@ class InputWindowSinksRule(BaseRule):
         windows,
         expected_count,
         overlap_min_px,
+        y_filter_ratio,
         drawings,
     ):
         # Нет objects — нет дефекта, reference windows не требуются.
@@ -104,6 +109,7 @@ class InputWindowSinksRule(BaseRule):
         selected, ignored, selection_note = InputWindowGeometryRule._select_row(
             windows,
             expected_count,
+            y_filter_ratio,
         )
         selected = sorted(selected, key=cls._detection_sort_key)
         if len(selected) != expected_count:

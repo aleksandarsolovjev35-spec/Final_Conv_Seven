@@ -50,6 +50,7 @@ class InputWindowGeometryRule(BaseRule):
                 bottom_px_min=config["bottom_px_min"],
                 bottom_px_max=config["bottom_px_max"],
                 center_zone_ratio=config["center_zone_ratio"],
+                y_filter_ratio=config["y_filter_ratio"],
                 drawings=drawings,
             )
             triggered = triggered or role_result["triggered"]
@@ -72,6 +73,7 @@ class InputWindowGeometryRule(BaseRule):
             "bottom_px_min": prefix + "bottom_px_min",
             "bottom_px_max": prefix + "bottom_px_max",
             "center_zone_ratio": prefix + "center_zone_ratio",
+            "y_filter_ratio": prefix + "y_filter_ratio",
         }
         missing = [key for key in keys.values() if key not in self.thresholds]
         if missing:
@@ -86,6 +88,7 @@ class InputWindowGeometryRule(BaseRule):
         bottom_px_min = self.thresholds[keys["bottom_px_min"]]
         bottom_px_max = self.thresholds[keys["bottom_px_max"]]
         center_zone_ratio = self.thresholds[keys["center_zone_ratio"]]
+        y_filter_ratio = self.thresholds[keys["y_filter_ratio"]]
 
         if not _finite_in_range(min_confidence, 0.0, 1.0):
             raise ValueError(f"{keys['min_confidence']} должен быть числом 0..1")
@@ -110,6 +113,8 @@ class InputWindowGeometryRule(BaseRule):
             )
         if not _finite_in_range(center_zone_ratio, 0.0, 1.0, lower_open=True):
             raise ValueError(f"{keys['center_zone_ratio']} должен быть числом 0..1")
+        if not _finite_in_range(y_filter_ratio, 0.0, None):
+            raise ValueError(f"{keys['y_filter_ratio']} должен быть числом >= 0")
 
         return {
             "min_confidence": float(min_confidence),
@@ -119,6 +124,7 @@ class InputWindowGeometryRule(BaseRule):
             "bottom_px_min": float(bottom_px_min),
             "bottom_px_max": float(bottom_px_max),
             "center_zone_ratio": float(center_zone_ratio),
+            "y_filter_ratio": float(y_filter_ratio),
         }
 
     def _check_role(
@@ -132,6 +138,7 @@ class InputWindowGeometryRule(BaseRule):
         bottom_px_min: float,
         bottom_px_max: float,
         center_zone_ratio: float,
+        y_filter_ratio: float,
         drawings: list,
     ) -> dict:
         found_raw = len(candidates)
@@ -172,7 +179,7 @@ class InputWindowGeometryRule(BaseRule):
             )
 
         picked, ignored, select_note = self._select_row(
-            candidates, expected_count,
+            candidates, expected_count, y_filter_ratio,
         )
         for detection in ignored:
             drawings.append({
@@ -311,20 +318,66 @@ class InputWindowGeometryRule(BaseRule):
         }
 
     @classmethod
-    def _select_row(cls, candidates, expected_count):
+    def _select_row(cls, candidates, expected_count, y_filter_ratio=3.0):
+        """Отбирает ряд из ``expected_count`` окон.
+
+        Сначала из кандидатов отсекаются выбросы по вертикали (по той же
+        логике, что в spider-правилах): остаются окна, чей центр по Y
+        отстоит от медианы не более чем на ``y_filter_ratio`` медианных
+        высот. Если после этого осталось больше ``expected_count`` окон,
+        из них выбирается самый равномерный по X непрерывный ряд.
+        """
         count = len(candidates)
         if count == 0:
             return [], [], "no detections"
         if count == expected_count:
             return list(candidates), [], "exact count"
 
+        y_filter_ratio = float(y_filter_ratio)
+        if y_filter_ratio > 0.0 and count > expected_count:
+            bboxes = [detection["bbox"] for detection in candidates]
+            center_ys = np.asarray([
+                (float(bbox[1]) + float(bbox[3])) / 2.0 for bbox in bboxes
+            ], dtype=np.float64)
+            heights = np.asarray([
+                max(1.0, abs(float(bbox[3]) - float(bbox[1])))
+                for bbox in bboxes
+            ], dtype=np.float64)
+            median_y = float(np.median(center_ys))
+            y_tol = float(np.median(heights)) * y_filter_ratio
+            kept_indices = [
+                index for index in range(count)
+                if abs(center_ys[index] - median_y) <= y_tol
+            ]
+            dropped_indices = [
+                index for index in range(count)
+                if index not in kept_indices
+            ]
+            if len(kept_indices) < expected_count:
+                return (
+                    [candidates[index] for index in kept_indices],
+                    [candidates[index] for index in dropped_indices],
+                    f"y-filter left only {len(kept_indices)}",
+                )
+            if len(kept_indices) == expected_count:
+                return (
+                    [candidates[index] for index in kept_indices],
+                    [candidates[index] for index in dropped_indices],
+                    f"y-filter dropped {len(dropped_indices)}",
+                )
+            pool = [candidates[index] for index in kept_indices]
+            y_dropped = len(dropped_indices)
+        else:
+            pool = list(candidates)
+            y_dropped = 0
+
         ordered = sorted(
-            candidates,
+            pool,
             key=lambda detection: cls._bbox_center_x(detection["bbox"]),
         )
         best_score = float("inf")
         best_start = None
-        for start in range(count - expected_count + 1):
+        for start in range(len(ordered) - expected_count + 1):
             window = ordered[start:start + expected_count]
             xs = np.asarray([
                 cls._bbox_center_x(detection["bbox"])
@@ -344,18 +397,23 @@ class InputWindowGeometryRule(BaseRule):
         if best_start is None:
             return (
                 list(ordered[:expected_count]),
-                list(ordered[expected_count:]),
+                [d for d in candidates if d not in ordered[:expected_count]],
                 "fallback: first N",
             )
 
         picked = ordered[best_start:best_start + expected_count]
-        ignored = [detection for detection in ordered if detection not in picked]
-        return (
-            picked,
-            ignored,
+        ignored = [detection for detection in candidates if detection not in picked]
+        x_dropped = len(ordered) - expected_count
+        note = (
             f"picked {expected_count} of {count} "
-            f"(evenness={best_score:.3f})",
+            f"(evenness={best_score:.3f}"
         )
+        if y_dropped:
+            note += f", y-drop={y_dropped}"
+        if x_dropped:
+            note += f", x-drop={x_dropped}"
+        note += ")"
+        return picked, ignored, note
 
     @staticmethod
     def _measure_crossbar_position(det, center_zone_ratio):

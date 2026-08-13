@@ -35,6 +35,7 @@ PARAM_LABELS = {
     "input_window_geometry_bottom_px_min": "B после перекладины: мин., px",
     "input_window_geometry_bottom_px_max": "B после перекладины: макс., px",
     "input_window_geometry_center_zone_ratio": "Ширина центральной зоны измерения, доля",
+    "input_window_geometry_y_filter_ratio": "Допуск отбора окон по Y, доля высоты",
     "input_window_sinks_min_confidence": "Мин. уверенность раковин",
     "input_window_sinks_window_min_confidence": "Мин. уверенность окон для проверки раковин",
     "input_window_sinks_overlap_min_px": "Мин. число общих пикселей раковины и окна, px",

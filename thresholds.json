@@ -8,6 +8,7 @@
         "input_window_geometry_bottom_px_min": 15,
         "input_window_geometry_bottom_px_max": 45,
         "input_window_geometry_center_zone_ratio": 0.5,
+        "input_window_geometry_y_filter_ratio": 3,
         "input_window_sinks_min_confidence": 0.4,
         "input_window_sinks_window_min_confidence": 0.15,
         "input_window_sinks_overlap_min_px": 5
@@ -22,6 +23,7 @@
         "input_window_geometry_bottom_px_min": 15,
         "input_window_geometry_bottom_px_max": 45,
         "input_window_geometry_center_zone_ratio": 0.5,
+        "input_window_geometry_y_filter_ratio": 3,
         "input_window_sinks_min_confidence": 0.4,
         "input_window_sinks_window_min_confidence": 0.15,
         "input_window_sinks_overlap_min_px": 5
