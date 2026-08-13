@@ -5,9 +5,19 @@
 проверяет ответ.
 """
 
+import os
 import time
 import serial
 import serial.tools.list_ports
+
+
+def _allow_legacy() -> bool:
+    return os.environ.get("ALLOW_LEGACY_FIRMWARE", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
 
 
 # Проверяем именно формат статуса Conveyor, а не любой непустой ответ.
@@ -28,6 +38,27 @@ def is_controller_response(response: str) -> bool:
     # a G3 movement was physically completed.
     required_tokens = ("MOV=", "WAIT=", "STEP=", "lastErr=")
     return all(token in response for token in required_tokens)
+
+
+def _looks_like_legacy_convey(response: str) -> bool:
+    if not response:
+        return False
+    # Контроллер нашей линии почти всегда отвечает строкой с MOV= и lastErr=.
+    # Если при этом есть POS/TGT или PAUSED/AUTO — это convey15, но без STEP=
+    # (прошивка <2.5.0). Отличаем от чужого устройства, которое случайно
+    # выдало MOV=.
+    has_mov = "MOV=" in response
+    has_err = "lastErr=" in response
+    has_pos = "POS=" in response or "TGT=" in response
+    has_wait = "WAIT=" in response
+    has_paused = "PAUSED=" in response
+    return has_mov and has_err and (has_pos or has_wait or has_paused)
+
+
+def is_legacy_controller_response(response: str) -> bool:
+    return _looks_like_legacy_convey(response) and not is_controller_response(
+        response
+    )
 
 
 def list_available_ports() -> list[dict]:
@@ -83,9 +114,30 @@ def try_port(
 
         if not response:
             return False, "no response"
-        if not is_controller_response(response):
-            return False, f"unexpected controller response: {response[:120]}"
-        return True, response
+        if is_controller_response(response):
+            return True, response
+        if is_legacy_controller_response(response):
+            if _allow_legacy():
+                print(
+                    f"[PORT] WARNING: {port} legacy firmware accepted "
+                    "due to ALLOW_LEGACY_FIRMWARE=1 (unsafe)"
+                )
+                return True, response
+            return False, (
+                "legacy firmware without STEP= — I2 must contain "
+                "MOV=, WAIT=, STEP=, lastErr=. "
+                "Please flash firmware/convey15.ino v2.5.0. "
+                f"Got: {response[:160]}"
+            )
+        if _looks_like_legacy_convey(response):
+            if _allow_legacy():
+                print(
+                    f"[PORT] WARNING: {port} possible legacy accepted "
+                    "due to ALLOW_LEGACY_FIRMWARE=1"
+                )
+                return True, response
+            return False, f"possible convey controller but invalid I2 format: {response[:160]}"
+        return False, f"unexpected controller response: {response[:120]}"
 
     except serial.SerialException as e:
         return False, f"serial error: {e}"
@@ -137,6 +189,7 @@ def find_controller(
         if p not in check_order:
             check_order.append(p)
 
+    legacy_hits: list[str] = []
     # Проверяем каждый порт
     for port in check_order:
         info = next(
@@ -158,6 +211,20 @@ def find_controller(
             )
         else:
             print(f"[PORT]   {port}: {response}")
+            if "legacy firmware" in response or "legacy" in response.lower():
+                legacy_hits.append(f"{port} ({desc}) -> {response[:120]}")
+
+    if legacy_hits:
+        return None, (
+            f"Controller found but firmware is outdated (no STEP=). "
+            f"COM3 is your port, but I2 reply '{check_order[0] if check_order else ''}' "
+            f"does not contain STEP=. Please flash firmware/convey15.ino v2.5.0 "
+            f"from the repo to {check_order[0] if check_order else 'board'}. "
+            f"Legacy hits: {'; '.join(legacy_hits)}. "
+            f"Checked: {', '.join(check_order)}. "
+            f"If you must run legacy temporarily, set env SERIAL_PORT={check_order[0] if check_order else 'COM3'} "
+            f"and ALLOW_LEGACY_FIRMWARE=1, but STEP-protocol safety will be disabled."
+        )
 
     return None, (
         f"Controller not found. "
