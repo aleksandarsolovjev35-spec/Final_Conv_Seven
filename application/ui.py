@@ -10,7 +10,9 @@ class OperatorUI:
         if webview_module is None:
             # Проверяем обязательную UI-зависимость до запуска startup-потока:
             # при отсутствующем pywebview нельзя начинать homing оборудования.
-            import webview as webview_module
+            import webview
+
+            webview_module = webview
 
         self.monitor = monitor
         self._webview = webview_module

@@ -269,8 +269,36 @@ class ApplicationStartupTest(unittest.TestCase):
         self.assertIn(("serial.send", "G25"), events)
         self.assertIs(runtime.cycle, factory.cycle)
         self.assertTrue(runtime.cycle_thread.started)
-        self.assertEqual(monitor.start_callback, factory.cycle.request_start)
+        callback_pairs = {
+            "start_callback": "request_start",
+            "stop_callback": "request_stop",
+            "pause_callback": "request_pause",
+            "resume_callback": "request_resume",
+            "distributor_diagnostic_callback": "distributor_diagnostic",
+            "camera_diagnostic_callback": "diagnostic_check_cameras",
+            "vision_rule_diagnostic_callback": (
+                "diagnostic_check_vision_rules"
+            ),
+            "selected_model_analysis_callback": (
+                "diagnostic_analyze_selected_camera"
+            ),
+            "selected_model_release_callback": (
+                "diagnostic_release_selected_camera"
+            ),
+            "jog_enter_callback": "enter_jog",
+            "jog_exit_callback": "exit_jog",
+            "jog_hold_start_callback": "jog_hold_start",
+            "jog_hold_heartbeat_callback": "jog_hold_heartbeat",
+            "jog_hold_release_callback": "jog_hold_release",
+        }
+        for monitor_name, cycle_name in callback_pairs.items():
+            self.assertEqual(
+                getattr(monitor, monitor_name),
+                getattr(factory.cycle, cycle_name),
+            )
         self.assertEqual(monitor.exit_callback, exits.request_exit)
+        monitor.active_camera_callback("TOP")
+        self.assertIn("monitor.refresh", events)
         self.assertEqual(monitor.server.thresholds, {"TOP.x": 1})
         self.assertEqual(len(monitor.updates), 1)
         self.assertIn("boot.complete", events)
@@ -423,6 +451,21 @@ class ExitAndShutdownTest(unittest.TestCase):
         self.assertEqual(monitor.closed, 1)
         self.assertEqual(runtime.cycle_thread.join_timeouts, [135.0, 15.0])
 
+    def test_close_wait_thread_error_falls_back_to_direct_close(self):
+        monitor = FakeMonitor([])
+        runtime = RuntimeState(monitor=monitor)
+
+        def failing_thread_factory(**_kwargs):
+            raise RuntimeError("thread unavailable")
+
+        exits = ExitCoordinator(
+            runtime,
+            thread_factory=failing_thread_factory,
+        )
+        exits.request_exit()
+
+        self.assertEqual(monitor.closed, 1)
+
     def test_exit_during_startup_stops_controller_before_closing(self):
         events = []
         monitor = FakeMonitor(events)
@@ -436,6 +479,28 @@ class ExitAndShutdownTest(unittest.TestCase):
             [event for event in events if isinstance(event, tuple)],
             [("serial.send", "G1"), ("serial.send", "G25")],
         )
+        self.assertEqual(monitor.closed, 1)
+
+    def test_force_exit_error_sends_fallback_controller_stop(self):
+        events = []
+        monitor = FakeMonitor(events)
+        runtime = RuntimeState(monitor=monitor)
+
+        class FailingCycle(FakeCycle):
+            state = "FAULT"
+
+            def request_force_exit(self):
+                raise RuntimeError("force exit failed")
+
+        runtime.cycle = FailingCycle(events)
+        runtime.cycle.state = "FAULT"
+        runtime.transport = FakeTransport(events)
+        exits = ExitCoordinator(runtime, thread_factory=ImmediateThread)
+
+        exits.request_exit()
+
+        self.assertIn(("serial.send", "G1"), events)
+        self.assertIn(("serial.send", "G25"), events)
         self.assertEqual(monitor.closed, 1)
 
     def test_exit_callback_error_does_not_block_window_close(self):
@@ -501,6 +566,32 @@ class ExitAndShutdownTest(unittest.TestCase):
         self.assertIn(("serial.send", "G25"), events)
         self.assertIn("serial.close", events)
 
+    def test_archive_worker_error_does_not_skip_resource_cleanup(self):
+        events = []
+        monitor = FakeMonitor(events)
+        runtime = RuntimeState(monitor=monitor)
+        runtime.cycle = FakeCycle(events)
+        runtime.cameras = SimpleNamespace(
+            release=lambda: events.append("cameras.release")
+        )
+        runtime.transport = FakeTransport(events)
+        runtime.archive = SimpleNamespace(
+            enabled=True,
+            compress_on_shutdown=True,
+        )
+
+        def failing_thread_factory(**_kwargs):
+            raise RuntimeError("thread unavailable")
+
+        manager = ShutdownManager(
+            runtime,
+            thread_factory=failing_thread_factory,
+        )
+        manager.shutdown()
+
+        self.assertIn("cameras.release", events)
+        self.assertIn("serial.close", events)
+
     def test_shutdown_compresses_archive_before_releasing_cameras(self):
         events = []
         monitor = FakeMonitor(events)
@@ -563,6 +654,44 @@ class OperatorUITest(unittest.TestCase):
 
 
 class ApplicationRunnerTest(unittest.TestCase):
+    def test_normal_ui_close_runs_post_window_stop_then_shutdown(self):
+        events = []
+        monitor = FakeMonitor(events)
+        runtime = RuntimeState(monitor=monitor)
+        initializer = SimpleNamespace(run=lambda: events.append("init"))
+        exits = SimpleNamespace(
+            bind=lambda: events.append("exit.bind"),
+            request_exit=lambda: None,
+        )
+
+        class UI:
+            def install_signal_handler(self, callback):
+                events.append("signal")
+
+            def print_startup_help(self):
+                events.append("help")
+
+            def run(self):
+                events.append("ui.run")
+
+        shutdown = SimpleNamespace(
+            after_window_closed=lambda: events.append("after.ui"),
+            shutdown=lambda: events.append("shutdown"),
+        )
+        app = ProductionApplication(
+            runtime,
+            initializer,
+            exits,
+            UI(),
+            shutdown,
+            thread_factory=PassiveThread,
+        )
+
+        app.run()
+
+        self.assertLess(events.index("after.ui"), events.index("shutdown"))
+        self.assertEqual(events[-1], "shutdown")
+
     def test_ui_error_still_runs_shutdown(self):
         events = []
         monitor = FakeMonitor(events)

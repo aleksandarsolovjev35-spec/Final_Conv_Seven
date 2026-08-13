@@ -136,17 +136,22 @@ class ShutdownManager:
         ):
             return
 
-        worker = self._thread_factory(
-            target=lambda: self._safe_compress(archive),
-            daemon=True,
-        )
-        worker.start()
-        worker.join(timeout=self.compress_timeout)
-        if worker.is_alive():
-            print(
-                "[SHUTDOWN] Сжатие архива не завершилось за "
-                f"{self.compress_timeout}с, пропускаем"
+        try:
+            worker = self._thread_factory(
+                target=lambda: self._safe_compress(archive),
+                daemon=True,
             )
+            worker.start()
+            worker.join(timeout=self.compress_timeout)
+            if worker.is_alive():
+                print(
+                    "[SHUTDOWN] Сжатие архива не завершилось за "
+                    f"{self.compress_timeout}с, пропускаем"
+                )
+        except Exception as exc:
+            # Ошибка вспомогательного потока не должна препятствовать
+            # освобождению камер и закрытию контроллера.
+            print(f"[SHUTDOWN] Ошибка потока сжатия архива: {exc}")
 
     @staticmethod
     def _safe_compress(archive) -> None:

@@ -52,6 +52,7 @@ class ExitCoordinator:
                     cycle.request_force_exit()
                 except Exception as exc:
                     print(f"[EXIT] Force-exit request failed: {exc}")
+                    self._send_controller_stop("Fallback stop")
         else:
             print("[EXIT] Штатная остановка -> завершение деталей на линии")
             if cycle:
@@ -67,11 +68,17 @@ class ExitCoordinator:
         runtime = self.runtime
         if runtime.cycle is not None or runtime.transport is None:
             return
+        self._send_controller_stop("Startup stop")
+
+    def _send_controller_stop(self, label: str) -> None:
+        transport = self.runtime.transport
+        if transport is None:
+            return
         try:
-            runtime.transport.send("G1")
-            runtime.transport.send("G25")
+            transport.send("G1")
+            transport.send("G25")
         except Exception as exc:
-            print(f"[EXIT] Startup stop failed: {exc}")
+            print(f"[EXIT] {label} failed: {exc}")
 
     def _schedule_close(self, *, force: bool) -> None:
         def wait_and_close():
@@ -95,10 +102,19 @@ class ExitCoordinator:
                     return
             self.runtime.monitor.close_window()
 
-        self._thread_factory(
-            target=wait_and_close,
-            daemon=True,
-        ).start()
+        try:
+            self._thread_factory(
+                target=wait_and_close,
+                daemon=True,
+            ).start()
+        except Exception as exc:
+            print(f"[EXIT] Не удалось запустить ожидание закрытия: {exc}")
+            cycle_thread = self.runtime.cycle_thread
+            cycle_alive = bool(cycle_thread and cycle_thread.is_alive())
+            # Штатный выход не должен обрывать ещё работающий цикл. Для
+            # force-exit или уже завершённого цикла закрываем окно напрямую.
+            if force or not cycle_alive:
+                self.runtime.monitor.close_window()
 
 
 class ThresholdCallbacks:
