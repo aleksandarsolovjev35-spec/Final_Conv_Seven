@@ -34,9 +34,14 @@ function updateOperationalAccordions(lineState) {
     if (els.statsSummary) els.statsSummary.classList.add('is-open');
     if (els.statsService) els.statsService.classList.remove('is-collapsed');
     if (els.distributorDiagnostics) {
-        els.distributorDiagnostics.classList.toggle('controls-collapsed', !fullyStopped);
+        // Блок распределителя всегда выглядит как во время рабочего
+        // процесса: в режиме РАБОТА он компактный в любом состоянии
+        // линии, кнопки диагностики появляются только в отладке и
+        // только на полностью остановленной линии.
+        const compact = !fullyStopped || !state.debugMode;
+        els.distributorDiagnostics.classList.toggle('controls-collapsed', compact);
         els.distributorDiagnostics.querySelectorAll('.blade-diagnostic-grid').forEach(grid => {
-            grid.classList.toggle('is-collapsed', !fullyStopped);
+            grid.classList.toggle('is-collapsed', compact);
         });
     }
 }
@@ -352,35 +357,21 @@ function updateLineStatus(ls) {
         updateNewFrameAnalysisStatus(ls);
     }
 
-    const d1State = ls.dist1_state || 'IDLE';
-    if (els.dist1State) els.dist1State.className = `axis-state axis-${d1State.toLowerCase()}`;
-    setIfChanged(els.dist1State, axisStateLabel(d1State));
+    // В блоке распределителя остались только ползунки: бегунки двигаются
+    // по координатам осей, текстовые значения из HMI убраны.
     const d1Pos = Math.max(0, Number(ls.dist1_position || 0));
     const d1Max = Math.max(1, Number(ls.dist1_max || 340));
-    setIfChanged(els.dist1Pos, d1Pos);
-    setIfChanged(els.dist1Max, d1Max);
     if (els.dist1Blade) {
         const d1Percent = Math.max(0, Math.min(100, d1Pos / d1Max * 100));
         setBladeMarkerPosition(els.dist1Blade, d1Percent);
     }
-    const d1Moving = ['MOVING', 'MOVING_TO_GOOD', 'MOVING_TO_DIST2', 'HOMING'].includes(String(d1State).toUpperCase());
-    const d1TargetLabel = d1Moving ? 'ПЕРЕМЕЩЕНИЕ' : (d1Pos <= 0 ? 'ГОДНО' : (d1Pos >= d1Max ? 'НА DIST2' : `ПОЗИЦИЯ ${d1Pos}`));
-    setIfChanged(els.dist1Target, d1TargetLabel);
 
-    const d2State = ls.dist2_state || 'IDLE';
-    if (els.dist2State) els.dist2State.className = `axis-state axis-${d2State.toLowerCase()}`;
-    setIfChanged(els.dist2State, axisStateLabel(d2State));
     const d2Pos = Math.max(0, Number(ls.dist2_position || 0));
     const d2Max = Math.max(1, Number(ls.dist2_max || 340));
-    setIfChanged(els.dist2Pos, d2Pos);
-    setIfChanged(els.dist2Max, d2Max);
-    setIfChanged(els.dist2Target, distributorTargetLabel(ls.dist2_target));
     if (els.dist2Blade) {
         const d2Percent = Math.max(0, Math.min(100, d2Pos / d2Max * 100));
         setBladeMarkerPosition(els.dist2Blade, d2Percent);
     }
-
-    setIfChanged(els.distAction, distributorActionLabel(ls.last_distributor_action));
 
     updateJogState(ls.jog || null);
     updateStateOverlay(ls);

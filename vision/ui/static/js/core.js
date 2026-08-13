@@ -39,23 +39,10 @@ const LINE_STATE_LABELS = {
     OFFLINE: 'НЕТ СВЯЗИ',
 };
 
-const AXIS_STATE_LABELS = {
-    IDLE: 'В ПОЗИЦИИ',
-    READY: 'В ПОЗИЦИИ',
-    WAITING: 'ОЖИДАНИЕ',
-    HOMING: 'ПОИСК НУЛЯ',
-    MOVING: 'ПЕРЕМЕЩЕНИЕ',
-    MOVING_TO_GOOD: 'К ГОДНОМУ',
-    GOOD: 'ГОДНО',
-    MOVING_TO_DIST2: 'НА DIST2',
-    TO_DIST2: 'НА DIST2',
-    FAULT: 'АВАРИЯ',
-};
-
 const CATEGORY_LABELS = {
     GOOD: 'ГОДНО',
     BAD: 'БРАК',
-    CLEANUP: 'НА ОЧИСТКУ',
+    CLEANUP: 'НА ЗАЧИСТКУ',
     UNKNOWN: 'НЕ ОПРЕДЕЛЕНО',
 };
 
@@ -174,17 +161,8 @@ const els = {
     analyzeSelectedFrame: $('analyze-selected-frame'),
     cameraContainer:  null,
 
-    dist1State:       $('dist1-state'),
-    dist1Pos:         $('dist1-pos'),
-    dist1Max:         $('dist1-max'),
     dist1Blade:       $('dist1-blade'),
-    dist1Target:      $('dist1-target'),
-    dist2State:       $('dist2-state'),
-    dist2Pos:         $('dist2-pos'),
-    dist2Max:         $('dist2-max'),
     dist2Blade:       $('dist2-blade'),
-    dist2Target:      $('dist2-target'),
-    distAction:       $('dist-action'),
     distRoute:        $('dist-route'),
     distributorDiagnostics: $('distributor-diagnostics'),
     controlError:      $('control-error'),
@@ -396,40 +374,14 @@ function setIfChanged(el, value) {
     const text = normalizeOperatorText(value);
     if (el.textContent === text) return;
     el.textContent = text;
-    if (el.classList.contains('stats-value') || el.classList.contains('axis-state') || el.classList.contains('state-label')) {
+    if (el.classList.contains('stats-value') || el.classList.contains('state-label')) {
         animateUiElement(el);
     }
 }
 function cameraRoleLabel(role) { return CAMERA_ROLE_LABELS[role] || role || '—'; }
 function lineStateLabel(value) { return LINE_STATE_LABELS[String(value || '').toUpperCase()] || value || '—'; }
-function axisStateLabel(value) { return AXIS_STATE_LABELS[String(value || '').toUpperCase()] || value || '—'; }
 function categoryLabel(value) { return CATEGORY_LABELS[String(value || '').toUpperCase()] || value || '—'; }
 function formatFrameRate(value) { const n = Number(value || 0).toFixed(1).replace('.', ','); return `${n} КАДР/С`; }
-function distributorTargetLabel(value) { if (!value || value === '-') return '—'; return categoryLabel(value); }
-function distributorActionLabel(value) {
-    if (!value || value === '-') return '—';
-    return String(value)
-        .replace('HOMED', 'ОСИ В НУЛЕ')
-        .replace('PARK FOR PRODUCTION', 'ПОДГОТОВКА К РАБОТЕ')
-        .replace('PRODUCTION READY', 'ГОТОВО К РАБОТЕ')
-        .replace('DIAGNOSTIC', 'ПРОВЕРКА')
-        .replace('DIST1 -> HOME', 'DIST1 -> ГОДНО')
-        .replace('DIST1 -> OPEN', 'DIST1 -> НА DIST2')
-        .replace('DIST2 -> BAD', 'DIST2 -> БРАК')
-        .replace('DIST2 -> CLEANUP', 'DIST2 -> ОЧИСТКА')
-        .replace('DIST1_HOME', 'DIST1 ПРОХОД')
-        .replace('DIST1_OPEN', 'DIST1 СБРОС')
-        .replace('DIST2_BAD', 'DIST2 БРАК')
-        .replace('DIST2_CLEANUP', 'DIST2 ОЧИСТКА')
-        .replace(/PART #(\d+)/g, 'ДЕТАЛЬ #$1')
-        .replace('PART', 'ДЕТАЛЬ')
-        .replace('DROP...', 'СБРОС...')
-        .replace('PASS', 'ПРОХОД')
-        .replace('DONE', 'ГОТОВО')
-        .replace('BAD', 'БРАК')
-        .replace('CLEANUP', 'ОЧИСТКА')
-        .replace('EMERGENCY STOP', 'АВАРИЙНАЯ ОСТАНОВКА');
-}
 // Немедленный статус — отменяет запланированный тик и делает внеплановый запрос
 let _statusLoopTimer = null;
 let _statusImmediatePending = false;

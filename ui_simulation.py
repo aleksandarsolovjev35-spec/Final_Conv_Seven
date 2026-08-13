@@ -128,8 +128,21 @@ class LineSimulation:
 
     def start(self) -> bool:
         with self._lock:
-            if self.state in ("RUNNING", "PAUSED", "STOPPING"):
+            # «Замёрзшая» линия: поток остановлен ВЫХОДОМ (close), а
+            # состояние осталось RUNNING/PAUSED/STOPPING.
+            frozen = (not self.thread.is_alive()) and self._stop.is_set()
+            if self.state in ("RUNNING", "PAUSED", "STOPPING") and not frozen:
                 return False
+            # Повторный ПУСК после ВЫХОДА оживляет поток симуляции без
+            # перезапуска сервера, чтобы цикл не оставался на последней
+            # опубликованной фазе.
+            if frozen:
+                self._stop.clear()
+                self._wake.clear()
+                self.thread = threading.Thread(
+                    target=self._run, name="ui-simulation", daemon=True,
+                )
+                self.thread.start()
             self._open_next_archive_batch()
             self.jog_active = False
             # A launch begins with the same special initial inspection as
@@ -361,19 +374,16 @@ class LineSimulation:
             })
         return raw, [SimRule(drawings=drawings)]
 
-    def _frame_analysis_payload(self) -> dict:
-        inspection = next((part for part in self.parts if part.position == 4), None)
-        role = self.selected_role or ("TOP" if inspection else None)
-        if not role:
-            return {"available": False}
-        defects = inspection.defects if inspection else []
-        triggered = bool(defects)
+    def _frame_analysis_report(self, kind: str, role: str | None, part_id,
+                               stage: str | None, triggered: bool,
+                               defects: list[str]) -> dict:
+        """Общий вид отчёта о замерах кадра для панели «АНАЛИЗ КАДРА»."""
         return {
             "available": True,
-            "kind": "selected" if self.selected_role else "production",
+            "kind": kind,
             "role": role,
-            "part_id": inspection.id if inspection else None,
-            "stage": "DIAGNOSTIC" if self.selected_role else "CONTROL",
+            "part_id": part_id,
+            "stage": stage,
             "rules": [{
                 "name": "part_presence", "title": "Наличие корпуса", "triggered": False,
                 "measurement_cards": [{"type": "metric", "metrics": [{"key": "simulated_confidence", "label": "Уверенность модели", "value": "0.99", "limit": "0.40", "ok": True}]}],
@@ -385,6 +395,50 @@ class LineSimulation:
                 "measurement_cards": [{"type": "metric", "metrics": [{"key": "simulated_result", "label": "Результат правила", "value": "СРАБОТАЛО" if triggered else "НОРМА", "limit": "—", "ok": not triggered}]}],
             }],
         }
+
+    def _frame_analysis_payload(self) -> dict:
+        """Замеры текущего кадра для панели «АНАЛИЗ КАДРА».
+
+        Как в реальном бэкенде, во время цикла панель следует за камерой,
+        выбранной оператором, и показывает замеры её стадии: ВХОД (корпус
+        на +0) или КОНТРОЛЬ +4 (корпус на +4). В ручном анализе
+        показывается выбранная камера.
+        """
+        input_part = next((part for part in self.parts if part.position == 0), None)
+        control_part = next((part for part in self.parts if part.position == 4), None)
+        active_role = self.server.active_camera_role
+
+        if self.selected_role is not None:
+            inspection = control_part
+            defects = inspection.defects if inspection else []
+            return self._frame_analysis_report(
+                kind="selected",
+                role=self.selected_role,
+                part_id=inspection.id if inspection else None,
+                stage="ДИАГНОСТИКА",
+                triggered=bool(defects),
+                defects=defects,
+            )
+
+        if active_role in self.INPUT_STAGES and input_part is not None:
+            part, role, stage = input_part, active_role, "ВХОД"
+        elif control_part is not None:
+            part, role, stage = control_part, active_role or "TOP", "КОНТРОЛЬ +4"
+        elif input_part is not None:
+            part, role, stage = input_part, "INPUT_LEFT", "ВХОД"
+        else:
+            return {"available": False}
+
+        triggered = bool(part.defects) if part.inspected else False
+        defects = part.defects or []
+        return self._frame_analysis_report(
+            kind="production",
+            role=role,
+            part_id=part.id,
+            stage=stage,
+            triggered=triggered,
+            defects=defects,
+        )
 
     def _publish(self, phase: str, inspection_roles: list[str] | None = None) -> None:
         with self._lock:
@@ -500,7 +554,13 @@ class LineSimulation:
         self.egress = None
 
     def _run(self) -> None:
-        self._publish("IDLE")
+        # Публикуем IDLE только при первом старте потока; после оживления
+        # (повторный ПУСК после ВЫХОДА) состояние уже RUNNING/STOPPING и
+        # не должно перетираться стартовой фазой.
+        with self._lock:
+            initial_state = self.state
+        if initial_state == "IDLE":
+            self._publish("IDLE")
         while not self._stop.is_set():
             with self._lock:
                 current = self.state

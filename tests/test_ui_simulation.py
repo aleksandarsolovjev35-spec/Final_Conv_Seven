@@ -151,6 +151,30 @@ class SimulationApiTest(unittest.TestCase):
         payload = self.sim._frame_analysis_payload()
         self.assertTrue(payload["rules"][1]["triggered"])
 
+    def test_frame_analysis_follows_stage(self):
+        # ВХОД: выбранная входная камера и корпус на +0.
+        self.server.active_camera_role = "INPUT_LEFT"
+        self.sim.parts = [SimPart(1, position=0)]
+        payload = self.sim._frame_analysis_payload()
+        self.assertTrue(payload["available"])
+        self.assertEqual(payload["kind"], "production")
+        self.assertEqual(payload["stage"], "ВХОД")
+        self.assertEqual(payload["role"], "INPUT_LEFT")
+        self.assertEqual(payload["part_id"], 1)
+        self.assertFalse(payload["rules"][1]["triggered"])
+        # КОНТРОЛЬ +4: корпус прошёл контроль, замеры с вердиктом.
+        self.server.active_camera_role = "TOP"
+        inspected = SimPart(1, position=4, defects=["СИМУЛИРОВАННЫЙ ДЕФЕКТ ГЕОМЕТРИИ"], inspected=True)
+        self.sim.parts = [inspected]
+        payload = self.sim._frame_analysis_payload()
+        self.assertTrue(payload["available"])
+        self.assertEqual(payload["stage"], "КОНТРОЛЬ +4")
+        self.assertEqual(payload["role"], "TOP")
+        self.assertTrue(payload["rules"][1]["triggered"])
+        # Пустая линия — панель закрыта.
+        self.sim.parts = []
+        self.assertFalse(self.sim._frame_analysis_payload()["available"])
+
     def test_publish_updates_server(self):
         self.sim.start()
         self.sim._publish("MOTION")
@@ -270,6 +294,27 @@ class SimulationLoopTest(unittest.TestCase):
         while not self.server.line_status and time.monotonic() < deadline:
             time.sleep(0.01)
         self.assertIn("state", self.server.line_status)
+        self.sim.close()
+        self.sim.thread.join(2.0)
+
+    def test_start_revives_after_close(self):
+        # ВЫХОД посреди цикла останавливает поток; повторный ПУСК
+        # оживляет симуляцию, а не оставляет линию «замёрзшей».
+        self.sim.thread.start()
+        self.assertTrue(self.sim.start())
+        deadline = time.monotonic() + 5.0
+        while self.sim.step < 1 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.sim.close()
+        self.sim.thread.join(2.0)
+        self.assertFalse(self.sim.thread.is_alive())
+        self.assertTrue(self.sim.start())
+        self.assertTrue(self.sim.thread.is_alive())
+        self.assertEqual(self.sim.state, "RUNNING")
+        deadline = time.monotonic() + 5.0
+        while self.sim.step < 2 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertGreaterEqual(self.sim.step, 2)
         self.sim.close()
         self.sim.thread.join(2.0)
 

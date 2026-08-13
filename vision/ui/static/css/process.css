@@ -84,7 +84,7 @@
 /* ─── Persistent distributor panel in right column ──────────────
    Вся панель — единый блок-индикатор маршрута детали: она целиком
    заливается полупрозрачным цветом того канала, куда сейчас уходит
-   деталь (годное/брак/очистка). Карточки DIST1/DIST2 внутри остаются
+   деталь (годное/брак/зачистка). Карточки DIST1/DIST2 внутри остаются
    тёмными и читаемыми. */
 .distributor-panel {
     border: 1px solid var(--border);
@@ -123,21 +123,14 @@
 .blade-card {
     display: flex;
     flex-direction: column;
-    min-height: 108px;
     /* Полупрозрачная тёмная подложка: заливка панели просвечивает
-       сквозь карточку, а текст и ползунок остаются контрастными. */
+       сквозь карточку, а ползунок остаётся контрастным. Высота
+       определяется содержимым, поэтому карточки одинаковы и на
+       остановке, и во время работы. */
     background: rgba(15, 19, 23, 0.62);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     padding: 6px;
-    transition: min-height 220ms var(--ease);
-}
-.distributor-panel.controls-collapsed .blade-card {
-    min-height: 76px;
-}
-.blade-card .axis-row {
-    flex: 0 0 22px;
-    margin-bottom: 0;
 }
 .blade-track {
     position: relative;
@@ -148,6 +141,23 @@
     background: var(--bg-2);
     border: 1px solid var(--border-strong);
     border-radius: 999px;
+}
+
+/* Подписи концов ползунка: левый край — первое положение, правый —
+   второе. Строка всегда видна (и на остановке, и во время работы),
+   поэтому блок распределителя выглядит одинаково в любом состоянии. */
+.blade-track-labels {
+    display: flex;
+    flex: 0 0 10px;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 7px 2px;
+    padding: 0;
+    color: var(--text-dim);
+    font: 700 8px var(--font-mono);
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .blade-marker {
@@ -166,22 +176,6 @@
     color: var(--accent);
     background: var(--accent);
 }
-.axis-route {
-    display: flex;
-    flex: 0 0 18px;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin: 0;
-    color: var(--text-muted);
-    font-size: 8px;
-    letter-spacing: 0.45px;
-}
-.axis-route b {
-    color: var(--text);
-    font: 700 9px var(--font-mono);
-}
-
 .diagnostic-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -335,11 +329,7 @@
 }
 
 /* Anti-overlap guards for compact Russian captions. */
-.axis-route span,
-.axis-route b,
-.dist-route { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.axis-route span { flex: 1 1 auto; }
-.axis-route b, .dist-route { display: block; }
+.dist-route { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 
 
 /* ─── Carriage stencil: final process-line model ──────────────────────
