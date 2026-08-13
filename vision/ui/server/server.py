@@ -229,6 +229,9 @@ class UIServer:
         with self.lock:
             should_invalidate = False
             stream_overlay_changed = False
+            changed_frame_roles = set()
+            raw_overlay_changed = False
+            rules_overlay_changed = False
             if frames is not None:
                 for role, frame in frames.items():
                     if self.frames.get(role) is not frame:
@@ -237,6 +240,7 @@ class UIServer:
                             self._latest_frames_ver.get(role, 0) + 1
                         )
                         should_invalidate = True
+                        changed_frame_roles.add(role)
             if vision_results is not None:
                 # Тот же объект (in-place обновления внутри шага) — контент
                 # не менялся с прошлой публикации.
@@ -244,19 +248,36 @@ class UIServer:
                     self.vision_results = vision_results
                     should_invalidate = True
                     stream_overlay_changed = True
+                    raw_overlay_changed = True
             if rule_results is not None:
                 new_rules = list(rule_results)
                 if not UIServer._rules_equal(self.rule_results, new_rules):
                     self.rule_results = new_rules
                     should_invalidate = True
                     stream_overlay_changed = True
+                    rules_overlay_changed = True
             if line_status is not None:
                 self.line_status = line_status
                 self._apply_custom_threshold_labels(line_status)
             if recent_parts is not None:
                 self.recent_parts = list(recent_parts)
             if should_invalidate:
-                self._jpeg_cache.clear()
+                # Точечная инвалидация JPEG-кэша: обновление кадра одной
+                # камеры (например, выбранной, 30 кадров/с) не должно
+                # сбрасывать готовые превью остальных — иначе вторичные
+                # камеры не успевают отрисоваться между публикациями.
+                for role in changed_frame_roles:
+                    for mode in ("RAW", "RULES"):
+                        self._jpeg_cache.pop((role, mode, "preview"), None)
+                        self._jpeg_cache.pop((role, mode, "main"), None)
+                if raw_overlay_changed:
+                    for role in self.frames:
+                        self._jpeg_cache.pop((role, "RAW", "preview"), None)
+                        self._jpeg_cache.pop((role, "RAW", "main"), None)
+                if rules_overlay_changed:
+                    for role in self.frames:
+                        self._jpeg_cache.pop((role, "RULES", "preview"), None)
+                        self._jpeg_cache.pop((role, "RULES", "main"), None)
                 if stream_overlay_changed:
                     self._latest_stream_jpeg.clear()
                 self._cache_version += 1

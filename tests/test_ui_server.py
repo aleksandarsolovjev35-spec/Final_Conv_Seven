@@ -65,6 +65,23 @@ class UIServerTest(unittest.TestCase):
         self.assertEqual(self.server.line_status["state"], "IDLE")
         self.assertEqual(self.server.recent_parts, [1, 2])
 
+    def test_frame_update_invalidates_only_that_role_cache(self):
+        # Обновление кадра одной камеры не должно сбрасывать готовые
+        # превью остальных (иначе вторичные камеры не успевают грузиться).
+        self.server.update(frames={
+            "TOP": make_frame(10), "INPUT_LEFT": make_frame(20),
+        })
+        for role in ("TOP", "INPUT_LEFT"):
+            response = self.client.get(f"/frame/{role}?preview=1")
+            self.assertEqual(response.status_code, 200)
+        mode = self.server.mode
+        self.assertIn(("TOP", mode, "preview"), self.server._jpeg_cache)
+        self.assertIn(("INPUT_LEFT", mode, "preview"), self.server._jpeg_cache)
+        # Меняется только кадр TOP.
+        self.server.update(frames={"TOP": make_frame(99)})
+        self.assertNotIn(("TOP", mode, "preview"), self.server._jpeg_cache)
+        self.assertIn(("INPUT_LEFT", mode, "preview"), self.server._jpeg_cache)
+
     def test_rules_equal_with_numpy(self):
         self.assertTrue(UIServer._rules_equal(
             [{"mask": np.zeros((2, 2))}], [{"mask": np.zeros((2, 2))}],
