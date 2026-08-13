@@ -25,9 +25,10 @@ const FA_RULE_NAMES = {
 let _faLastKey = null;
 let _faLastScrollContext = null;
 let _faRenderSeq = 0;
-let _faScrollBound = false;
+let _faScrollBinding = null;
 let _faDragState = null;
 let _faRafSync = 0;
+let _faResizeObserver = null;
 
 // ——— утилиты ———
 function faNewRuleBadge(rule) {
@@ -159,27 +160,56 @@ function faGetScrollEls() {
         thumb: document.getElementById('fa-new-scroll-thumb'),
         body: document.getElementById('fa-new-body'),
         tbody: document.getElementById('fa-new-tbody'),
+        panel: document.getElementById('frame-analysis-panel'),
     };
+}
+
+function faScrollMetrics(scroll, track, thumb) {
+    const maxScroll = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+    const trackH = Math.max(0, track.clientHeight || 0);
+    const ratio = scroll.clientHeight / Math.max(1, scroll.scrollHeight);
+    const thumbH = maxScroll > 0
+        ? Math.max(22, Math.min(Math.round(trackH * 0.55), Math.round(trackH * ratio)))
+        : 0;
+    return {
+        maxScroll,
+        trackH,
+        thumbH,
+        maxThumbTop: Math.max(0, trackH - thumbH),
+    };
+}
+
+function faUpdateScrollbarAria(track, scroll, maxScroll) {
+    const percent = maxScroll > 0
+        ? Math.round((scroll.scrollTop / maxScroll) * 100)
+        : 0;
+    track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(100, percent))));
+    track.setAttribute('aria-disabled', maxScroll > 0 ? 'false' : 'true');
 }
 
 function faSyncScroll() {
     const {scroll, track, thumb} = faGetScrollEls();
     if (!scroll || !track || !thumb) return;
-    const maxScroll = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
-    if (maxScroll <= 0) {
+    const metrics = faScrollMetrics(scroll, track, thumb);
+    if (metrics.maxScroll <= 0) {
         track.classList.add('is-idle');
         thumb.style.top = '0px';
         if (scroll.scrollTop !== 0) scroll.scrollTop = 0;
+        faUpdateScrollbarAria(track, scroll, 0);
         return;
     }
     track.classList.remove('is-idle');
-    const trackH = track.clientHeight || 80;
-    const ratio = scroll.clientHeight / Math.max(1, scroll.scrollHeight);
-    const thumbH = Math.max(22, Math.min(Math.round(trackH * 0.55), Math.round(trackH * ratio)));
-    const maxThumbTop = Math.max(0, trackH - thumbH);
-    const top = maxScroll > 0 ? (scroll.scrollTop / maxScroll) * maxThumbTop : 0;
-    thumb.style.height = thumbH + 'px';
+
+    // После display:none дорожка получает размеры только на следующем layout.
+    // Пересчитываем метрики уже для видимой дорожки, иначе первый drag мог
+    // получить maxThumbTop=0 и визуально «не работать».
+    const visibleMetrics = faScrollMetrics(scroll, track, thumb);
+    const top = visibleMetrics.maxScroll > 0 && visibleMetrics.maxThumbTop > 0
+        ? (scroll.scrollTop / visibleMetrics.maxScroll) * visibleMetrics.maxThumbTop
+        : 0;
+    thumb.style.height = visibleMetrics.thumbH + 'px';
     thumb.style.top = top + 'px';
+    faUpdateScrollbarAria(track, scroll, visibleMetrics.maxScroll);
 }
 
 function faOnScroll() {
@@ -192,81 +222,170 @@ function faOnScroll() {
 
 function faClamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+function faSetScrollFromThumbTop(scroll, track, thumb, desiredTop) {
+    const metrics = faScrollMetrics(scroll, track, thumb);
+    if (metrics.maxScroll <= 0 || metrics.maxThumbTop <= 0) return;
+    const top = faClamp(desiredTop, 0, metrics.maxThumbTop);
+    // scrollTop — единственный источник истины. Событие scroll затем точно
+    // синхронизирует бегунок, в том числе после изменения высоты панели.
+    scroll.scrollTop = (top / metrics.maxThumbTop) * metrics.maxScroll;
+    faSyncScroll();
+}
+
+function faEndDrag(event) {
+    if (!_faDragState) return;
+    if (
+        event
+        && event.pointerId != null
+        && _faDragState.pointerId != null
+        && event.pointerId !== _faDragState.pointerId
+    ) return;
+    const {track, thumb, pointerId, moveEvent, upEvent, cancelEvent, onMove, onEnd} = _faDragState;
+    track.classList.remove('is-dragging');
+    if (pointerId != null && typeof thumb.releasePointerCapture === 'function') {
+        try {
+            if (!thumb.hasPointerCapture || thumb.hasPointerCapture(pointerId)) {
+                thumb.releasePointerCapture(pointerId);
+            }
+        } catch (_) {}
+    }
+    document.removeEventListener(moveEvent, onMove);
+    document.removeEventListener(upEvent, onEnd);
+    if (cancelEvent) document.removeEventListener(cancelEvent, onEnd);
+    _faDragState = null;
+    faSyncScroll();
+}
+
+function faStartThumbDrag(event, scroll, track, thumb, pointerEvents) {
+    if (track.classList.contains('is-idle')) return;
+    if (pointerEvents && event.isPrimary === false) return;
+    if (event.button != null && event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Предыдущий drag мог быть прерван потерей фокуса WebView.
+    faEndDrag();
+    faSyncScroll();
+    const metrics = faScrollMetrics(scroll, track, thumb);
+    if (metrics.maxScroll <= 0 || metrics.maxThumbTop <= 0) return;
+
+    const startTop = (scroll.scrollTop / metrics.maxScroll) * metrics.maxThumbTop;
+    const moveEvent = pointerEvents ? 'pointermove' : 'mousemove';
+    const upEvent = pointerEvents ? 'pointerup' : 'mouseup';
+    const cancelEvent = pointerEvents ? 'pointercancel' : null;
+    const pointerId = pointerEvents ? event.pointerId : null;
+    const startY = event.clientY;
+
+    const onMove = moveEventPayload => {
+        if (!_faDragState) return;
+        if (
+            pointerEvents
+            && moveEventPayload.pointerId != null
+            && moveEventPayload.pointerId !== pointerId
+        ) return;
+        moveEventPayload.preventDefault();
+        faSetScrollFromThumbTop(
+            scroll,
+            track,
+            thumb,
+            startTop + moveEventPayload.clientY - startY,
+        );
+    };
+    const onEnd = endEvent => faEndDrag(endEvent);
+
+    _faDragState = {
+        scroll, track, thumb, pointerId,
+        moveEvent, upEvent, cancelEvent, onMove, onEnd,
+    };
+    track.classList.add('is-dragging');
+    document.addEventListener(moveEvent, onMove, {passive: false});
+    document.addEventListener(upEvent, onEnd);
+    if (cancelEvent) document.addEventListener(cancelEvent, onEnd);
+
+    if (pointerId != null && typeof thumb.setPointerCapture === 'function') {
+        try { thumb.setPointerCapture(pointerId); } catch (_) {}
+    }
+}
+
 function faInitScrollHandlers() {
-    if (_faScrollBound) return;
-    const {scroll, track, thumb} = faGetScrollEls();
+    const {scroll, track, thumb, tbody, panel} = faGetScrollEls();
     if (!scroll || !track || !thumb) return;
-    _faScrollBound = true;
+    if (
+        _faScrollBinding
+        && _faScrollBinding.scroll === scroll
+        && _faScrollBinding.track === track
+        && _faScrollBinding.thumb === thumb
+    ) return;
+
+    // В обычном UI узлы постоянные. Проверка identity выше также позволяет
+    // безопасно привязаться заново, если WebView восстановил часть DOM.
+    _faScrollBinding = {scroll, track, thumb};
+    const pointerEvents = typeof window !== 'undefined' && 'PointerEvent' in window;
+    const downEvent = pointerEvents ? 'pointerdown' : 'mousedown';
 
     scroll.addEventListener('scroll', faOnScroll, {passive: true});
 
-    // Клик по дорожке — быстрый переход
-    track.addEventListener('mousedown', (e) => {
-        if (e.target === thumb) return;
+    // Клик/касание по дорожке — быстрый переход к нужному месту.
+    track.addEventListener(downEvent, event => {
+        if (event.target === thumb) return;
         if (track.classList.contains('is-idle')) return;
+        if (pointerEvents && event.isPrimary === false) return;
+        if (event.button != null && event.button !== 0) return;
+        event.preventDefault();
+        const metrics = faScrollMetrics(scroll, track, thumb);
+        if (metrics.maxScroll <= 0 || metrics.maxThumbTop <= 0) return;
         const rect = track.getBoundingClientRect();
-        const maxScroll = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
-        if (maxScroll <= 0) return;
-        const trackH = track.clientHeight;
-        const thumbH = thumb.offsetHeight || 22;
-        const maxThumbTop = Math.max(0, trackH - thumbH);
-        const clickY = e.clientY - rect.top;
-        const desiredTop = faClamp(clickY - thumbH / 2, 0, maxThumbTop);
-        thumb.style.top = desiredTop + 'px';
-        scroll.scrollTop = maxThumbTop > 0 ? (desiredTop / maxThumbTop) * maxScroll : 0;
+        faSetScrollFromThumbTop(
+            scroll,
+            track,
+            thumb,
+            event.clientY - rect.top - metrics.thumbH / 2,
+        );
+        try { track.focus({preventScroll: true}); } catch (_) { try { track.focus(); } catch (_) {} }
     });
 
-    // Перетаскивание бегунка
-    thumb.addEventListener('mousedown', (e) => {
-        if (track.classList.contains('is-idle')) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const trackH = track.clientHeight;
-        const thumbH = thumb.offsetHeight || 22;
-        const maxScroll = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
-        const maxThumbTop = Math.max(0, trackH - thumbH);
-        const startTop = parseFloat(thumb.style.top) || 0;
-        _faDragState = {scroll, track, thumb, startY: e.clientY, startTop, maxScroll, maxThumbTop};
-        track.classList.add('is-dragging');
-        const onMove = (ev) => {
-            if (!_faDragState) return;
-            const {scroll: sc, thumb: th, startY, startTop: st, maxScroll: ms, maxThumbTop: mt} = _faDragState;
-            const dy = ev.clientY - startY;
-            const nt = faClamp(st + dy, 0, mt);
-            th.style.top = nt + 'px';
-            if (mt > 0 && ms > 0) sc.scrollTop = (nt / mt) * ms;
-        };
-        const onUp = () => {
-            if (!_faDragState) return;
-            const {track: tr} = _faDragState;
-            tr.classList.remove('is-dragging');
-            _faDragState = null;
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-        };
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
+    // Pointer Events дают одинаково надёжный drag мышью, пером и пальцем.
+    // Для старого WebView остаётся fallback на mouse events.
+    thumb.addEventListener(downEvent, event => {
+        faStartThumbDrag(event, scroll, track, thumb, pointerEvents);
     });
 
-    // Колесо на дорожке — прокрутка контента
-    track.addEventListener('wheel', (e) => {
+    // Колесо на дорожке — прокрутка контента.
+    track.addEventListener('wheel', event => {
         if (track.classList.contains('is-idle')) return;
-        e.preventDefault();
-        scroll.scrollTop += e.deltaY;
+        event.preventDefault();
+        const unit = event.deltaMode === 1
+            ? 16
+            : (event.deltaMode === 2 ? scroll.clientHeight : 1);
+        scroll.scrollTop += event.deltaY * unit;
+        faSyncScroll();
     }, {passive: false});
 
-    // Клавиатура — стрелками
-    track.addEventListener('keydown', (e) => {
+    // Клавиатура — стрелками.
+    track.addEventListener('keydown', event => {
         if (track.classList.contains('is-idle')) return;
-        if (e.key === 'ArrowDown') { e.preventDefault(); scroll.scrollTop += 40; }
-        if (e.key === 'ArrowUp') { e.preventDefault(); scroll.scrollTop -= 40; }
-        if (e.key === 'PageDown') { e.preventDefault(); scroll.scrollTop += scroll.clientHeight * 0.8; }
-        if (e.key === 'PageUp') { e.preventDefault(); scroll.scrollTop -= scroll.clientHeight * 0.8; }
-        if (e.key === 'Home') { e.preventDefault(); scroll.scrollTop = 0; }
-        if (e.key === 'End') { e.preventDefault(); scroll.scrollTop = scroll.scrollHeight; }
+        if (event.key === 'ArrowDown') { event.preventDefault(); scroll.scrollTop += 40; }
+        if (event.key === 'ArrowUp') { event.preventDefault(); scroll.scrollTop -= 40; }
+        if (event.key === 'PageDown') { event.preventDefault(); scroll.scrollTop += scroll.clientHeight * 0.8; }
+        if (event.key === 'PageUp') { event.preventDefault(); scroll.scrollTop -= scroll.clientHeight * 0.8; }
+        if (event.key === 'Home') { event.preventDefault(); scroll.scrollTop = 0; }
+        if (event.key === 'End') { event.preventDefault(); scroll.scrollTop = scroll.scrollHeight; }
+        faSyncScroll();
     });
 
-    window.addEventListener('resize', () => faOnScroll());
+    window.addEventListener('blur', () => faEndDrag());
+    window.addEventListener('resize', faOnScroll);
+
+    // Во время процесса соседние аккордеоны меняют высоту с transition.
+    // ResizeObserver синхронизирует дорожку после фактического layout, а не
+    // только в первый requestAnimationFrame до завершения анимации.
+    if (typeof ResizeObserver !== 'undefined') {
+        if (_faResizeObserver) _faResizeObserver.disconnect();
+        _faResizeObserver = new ResizeObserver(() => faOnScroll());
+        [scroll, tbody, track, panel].filter(Boolean).forEach(element => {
+            _faResizeObserver.observe(element);
+        });
+    }
 }
 
 // ——— построение DOM ———
