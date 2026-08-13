@@ -200,8 +200,11 @@ class FakeArchive:
 
     def finalize(self, **kwargs):
         self.finalized.append(kwargs)
+        return f"/archive/part_{kwargs['part_id']:04d}"
 
     def get_part_info(self, part_id):
+        if not any(item.get("part_id") == part_id for item in self.finalized):
+            return None
         return {"relative_folder": f"GOOD/part_{part_id:04d}"}
 
 
@@ -308,6 +311,24 @@ class CycleBehaviorTest(unittest.TestCase):
         self.assertIn("e_stop", log)
         self.assertIn("dist_stop", log)
 
+    def test_unconfirmed_conveyor_step_faults_without_advancing_position(self):
+        cycle, log = make_cycle()
+        cycle.request_start()
+        cycle._run_once()  # initial inspection, no belt movement
+        self.assertEqual(cycle.current_step, 0)
+
+        def lost_completion(progress_callback=None):
+            raise TimeoutError("STEP was not completed")
+
+        cycle.conveyor.wait_stop = lost_completion
+        cycle._run_once_safe()
+
+        self.assertEqual(cycle.state, "FAULT")
+        self.assertEqual(cycle.current_step, 0)
+        self.assertIn("move", log)
+        self.assertIn("e_stop", log)
+        self.assertIn("dist_stop", log)
+
     def test_stop_rejects_new_parts_but_keeps_existing(self):
         cycle, log = make_cycle()
         cycle.request_start()
@@ -373,6 +394,55 @@ class CycleBehaviorTest(unittest.TestCase):
         cycle._run_once_safe()
         self.assertEqual(cycle.state, "RUNNING")
         self.assertEqual(len(cycle.parts), 1)
+
+    def test_drop_reports_archive_success_only_after_finalize_path(self):
+        cycle, _ = make_cycle()
+        part = Part(11, 0)
+        part.route_category = CATEGORY_GOOD
+        part.final_decision = "accepted"
+        cycle.parts.append(part)
+        cycle._pending_drop = part
+
+        cycle._execute_drop()
+
+        self.assertEqual(cycle._process["phase"], "FINAL_DECISION_ARCHIVED")
+        self.assertIn("записано в архив", cycle._process["label"])
+
+    def test_drop_reports_not_archived_when_finalize_fails(self):
+        cycle, _ = make_cycle()
+        part = Part(12, 0)
+        part.route_category = CATEGORY_BAD
+        part.final_decision = "rejected"
+        cycle.parts.append(part)
+        cycle._pending_drop = part
+
+        def boom(**kwargs):
+            raise OSError("disk full")
+
+        cycle.archive.finalize = boom
+        cycle._execute_drop()
+
+        self.assertEqual(
+            cycle._process["phase"], "FINAL_DECISION_NOT_ARCHIVED",
+        )
+        self.assertIn("не выполнена", cycle._process["label"])
+        self.assertNotIn("archive_folder", cycle.recent_parts[-1])
+        self.assertIsNone(cycle._pending_drop)
+
+    def test_drop_reports_not_archived_when_archive_disabled(self):
+        cycle, _ = make_cycle()
+        part = Part(13, 0)
+        part.route_category = CATEGORY_GOOD
+        part.final_decision = "accepted"
+        cycle.parts.append(part)
+        cycle._pending_drop = part
+        cycle.archive.finalize = lambda **kwargs: None
+
+        cycle._execute_drop()
+
+        self.assertEqual(
+            cycle._process["phase"], "FINAL_DECISION_NOT_ARCHIVED",
+        )
 
     def test_force_exit_cancels_motion(self):
         cycle, log = make_cycle()

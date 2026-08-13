@@ -441,9 +441,16 @@ class PartArchiveTest(unittest.TestCase):
         self.assertTrue(archive.can_reconfigure())
         settings = archive.reconfigure(
             root_folder=os.path.join(self.tmp.name, "archive2"),
-            enabled=True, jpeg_quality=80,
+            enabled=True,
+            jpeg_quality=80,
+            compress_on_shutdown=False,
+            delete_original_after_zip=False,
         )
         self.assertEqual(settings["jpeg_quality"], 80)
+        self.assertFalse(settings["compress_on_shutdown"])
+        self.assertFalse(settings["delete_original_after_zip"])
+        self.assertFalse(archive.compress_on_shutdown)
+        self.assertFalse(archive.delete_original_after_zip)
         self.assertIn("archive2", settings["root_path"])
 
     def test_reconfigure_after_finalize_raises(self):

@@ -183,8 +183,11 @@ class FakeArchive:
 
     def finalize(self, **kwargs):
         self.finalized.append(kwargs)
+        return f"/archive/part_{kwargs['part_id']:04d}"
 
     def get_part_info(self, part_id):
+        if not any(item.get("part_id") == part_id for item in self.finalized):
+            return None
         return {"relative_folder": f"GOOD/part_{part_id:04d}"}
 
 

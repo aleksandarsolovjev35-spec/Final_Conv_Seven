@@ -197,6 +197,7 @@ const PROCESS_PHASE_LABELS = {
     STEP_COMPLETE: 'ИТОГ · ШАГ ЗАВЕРШЁН',
     PUBLISH: 'ИТОГ · ПУБЛИКАЦИЯ РЕЗУЛЬТАТА',
     FINAL_DECISION_ARCHIVED: 'ИТОГ · РЕШЕНИЕ В АРХИВЕ',
+    FINAL_DECISION_NOT_ARCHIVED: 'ИТОГ · РЕШЕНИЕ БЕЗ АРХИВА',
     PAUSE_REQUESTED: 'ПАУЗА · ОЖИДАНИЕ ГРАНИЦЫ ШАГА',
     RESUMED: 'ВОЗОБНОВЛЕНИЕ · СВЕЖИЙ CAPTURE',
     STOPPING: 'ОСТАНОВКА · ВЫВОД КОРПУСОВ',
@@ -232,7 +233,10 @@ const PROCESS_STAGE_PHASES = {
         'SELECTED_MODEL_ANALYSIS', 'SELECTED_MODEL_READY',
     ]),
     REVIEW: new Set(['ANALYSIS_REVIEW']),
-    PUBLISH: new Set(['STEP_COMPLETE', 'PUBLISH', 'FINAL_DECISION_ARCHIVED']),
+    PUBLISH: new Set([
+        'STEP_COMPLETE', 'PUBLISH', 'FINAL_DECISION_ARCHIVED',
+        'FINAL_DECISION_NOT_ARCHIVED',
+    ]),
 };
 
 function processStageForPhase(phase) {

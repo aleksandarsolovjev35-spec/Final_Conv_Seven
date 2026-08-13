@@ -128,8 +128,16 @@ class PartArchive:
             self.batch_folder
         )
 
-    def reconfigure(self, *, root_folder, enabled, jpeg_quality, **_ignored) -> dict:
-        """Изменить настройки до начала партии (лишние kwargs игнорируются)."""
+    def reconfigure(
+        self,
+        *,
+        root_folder,
+        enabled,
+        jpeg_quality,
+        compress_on_shutdown=None,
+        delete_original_after_zip=None,
+    ) -> dict:
+        """Изменить настройки до начала партии и применить их сразу."""
         if not self.can_reconfigure():
             raise RuntimeError(
                 "Настройки архива можно менять только до начала партии"
@@ -138,6 +146,10 @@ class PartArchive:
         self.root_folder = checked["path"]
         self.enabled = bool(enabled)
         self.jpeg_quality = max(70, min(98, int(jpeg_quality)))
+        if compress_on_shutdown is not None:
+            self.compress_on_shutdown = bool(compress_on_shutdown)
+        if delete_original_after_zip is not None:
+            self.delete_original_after_zip = bool(delete_original_after_zip)
         self.stats = self._load_stats()
         if self.enabled:
             os.makedirs(self.root_folder, exist_ok=True)
