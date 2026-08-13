@@ -36,11 +36,13 @@ class LiveMonitor:
         start_callback=None,
         stop_callback=None,
         exit_callback=None,
+        debug_enabled: bool = True,
     ):
         self.window_name = window_name
         self.host = host
         self.port = port
         self.fullscreen = fullscreen
+        self.debug_enabled = bool(debug_enabled)
 
         self.start_callback  = start_callback
         self.stop_callback   = stop_callback
@@ -68,7 +70,7 @@ class LiveMonitor:
         # может пересоздать DecisionEngine и вернуть итоговый dict.
         self.thresholds_reload_callback = None
 
-        self.server = UIServer()
+        self.server = UIServer(debug_enabled=self.debug_enabled)
         self._bind_server_callbacks()
 
         self._webview_window = None

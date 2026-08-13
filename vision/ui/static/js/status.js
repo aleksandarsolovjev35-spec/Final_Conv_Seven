@@ -4,6 +4,17 @@
 // - синхронизация монитор->UI сохранена
 'use strict';
 
+// Режим запуска. В РАБОТЕ (debug=false) скрываем отладочные элементы:
+// переключатель RAW/ПРАВИЛА, анализ кадра, пороги правил и ручные кнопки
+// распределителя. Остаются видеопоток, статистика, ПУСК/СТОП/пауза, JOG
+// и путь корпусов.
+function applyDebugMode(debug) {
+    const enabled = debug !== false;
+    if (state.debugMode === enabled) return;
+    state.debugMode = enabled;
+    document.body.classList.toggle('work-mode', !enabled);
+}
+
 function isInspectionDisplayPhase(phase) {
     const value = String(phase || '').toUpperCase();
     return value.includes('CAMERA')
@@ -64,6 +75,7 @@ async function fetchStatus() {
 
     state.lastStatusAt = Date.now();
     state.statusReceived = true;
+    applyDebugMode(status.debug);
     if (state.offline) {
         state.offline = false;
         els.main.classList.remove('ui-offline');

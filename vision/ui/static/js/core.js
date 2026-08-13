@@ -71,6 +71,8 @@ const state = {
     currentCamera:       null,
     mode:                'RULES',
     modePending:         false,
+    // Режим запуска: true = ОТЛАДКА (разметка и панели), false = РАБОТА (чистый поток).
+    debugMode:           true,
     startTime:           Date.now(),
     splashActive:        true,
     lastFrameTime:       0,

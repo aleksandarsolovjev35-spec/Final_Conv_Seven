@@ -35,6 +35,7 @@ function viewModeContextVisible() {
 function viewModeAllowed() {
     return (
         viewModeContextVisible()
+        && state.debugMode
         && state.statusReceived
         && Object.keys(state.backendControls || {}).length > 0
         && !state.controlPending

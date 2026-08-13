@@ -17,6 +17,18 @@ from vision.ui import LiveMonitor
 
 CAMERA_MAPPING_PATH = "camera_mapping.json"
 
+# Переменная окружения, выбирающая режим запуска HMI:
+#   CONVEY_MODE=work  -> РАБОТА (чистый поток, без разметки и отладочных пауз);
+#   иначе             -> ОТЛАДКА (текущее поведение по умолчанию).
+CONVEY_MODE_ENV = "CONVEY_MODE"
+CONVEY_MODE_WORK = "work"
+
+
+def resolve_debug_enabled() -> bool:
+    """True в режиме ОТЛАДКА, False в режиме РАБОТА (``CONVEY_MODE=work``)."""
+    mode = os.environ.get(CONVEY_MODE_ENV, "").strip().lower()
+    return mode != CONVEY_MODE_WORK
+
 
 def ensure_camera_mapping(path: str = CAMERA_MAPPING_PATH) -> bool:
     if os.path.exists(path):
@@ -33,14 +45,16 @@ def ensure_camera_mapping(path: str = CAMERA_MAPPING_PATH) -> bool:
 def create_application() -> ProductionApplication:
     """Собирает владельцев приложения и их production-зависимости."""
 
+    debug_enabled = resolve_debug_enabled()
     monitor = LiveMonitor(
         start_callback=None,
         stop_callback=None,
         exit_callback=None,
         fullscreen=True,
+        debug_enabled=debug_enabled,
     )
     runtime = RuntimeState(monitor=monitor)
-    factory = ProductionSystemFactory()
+    factory = ProductionSystemFactory(debug_enabled=debug_enabled)
     exit_coordinator = ExitCoordinator(runtime)
     initializer = SystemInitializer(runtime, factory, exit_coordinator)
     operator_ui = OperatorUI(monitor)
