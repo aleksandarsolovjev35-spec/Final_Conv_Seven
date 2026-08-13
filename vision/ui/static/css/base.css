@@ -393,3 +393,14 @@ html, body {
     .metrics > span { padding-inline: 7px; }
     .title { font-size: 14px; letter-spacing: 1px; }
 }
+
+
+/* ─── Режим РАБОТА (CONVEY_MODE=work): скрыть отладочные элементы ─── */
+
+body.work-mode #view-mode-toggle,
+body.work-mode #analyze-selected-frame,
+body.work-mode #thresholds-panel,
+body.work-mode #frame-analysis-panel,
+body.work-mode .blade-diagnostic-grid {
+    display: none !important;
+}

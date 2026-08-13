@@ -23,6 +23,7 @@ sys.modules.setdefault("ultralytics", _FAKE_ULTRALYTICS)
 from application.bootstrap import (  # noqa: E402
     create_application,
     ensure_camera_mapping,
+    resolve_debug_enabled,
     run_application,
 )
 from application.factory import ProductionSystemFactory
@@ -75,6 +76,24 @@ class EnsureCameraMappingTest(unittest.TestCase):
                 self.assertFalse(ensure_camera_mapping(path))
 
 
+class ResolveDebugEnabledTest(unittest.TestCase):
+    def test_default_is_debug(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertTrue(resolve_debug_enabled())
+
+    def test_work_mode_is_not_debug(self):
+        with mock.patch.dict(os.environ, {"CONVEY_MODE": "work"}, clear=True):
+            self.assertFalse(resolve_debug_enabled())
+
+    def test_debug_mode_explicit(self):
+        with mock.patch.dict(os.environ, {"CONVEY_MODE": "debug"}, clear=True):
+            self.assertTrue(resolve_debug_enabled())
+
+    def test_unknown_mode_falls_back_to_debug(self):
+        with mock.patch.dict(os.environ, {"CONVEY_MODE": "WORK"}, clear=True):
+            self.assertFalse(resolve_debug_enabled())
+
+
 class CreateApplicationTest(unittest.TestCase):
     def test_create_application_wires_parts(self):
         with mock.patch(
@@ -90,7 +109,7 @@ class CreateApplicationTest(unittest.TestCase):
         ) as shutdown_cls:
             app = create_application()
         self.assertIsNotNone(app.runtime)
-        factory_cls.assert_called_once_with()
+        factory_cls.assert_called_once_with(debug_enabled=True)
         init_cls.assert_called_once()
         ui_cls.assert_called_once()
         shutdown_cls.assert_called_once()
@@ -373,6 +392,35 @@ class FactoryTest(unittest.TestCase):
             calibration=factory.load_calibration(),
         )
         self.assertIsNotNone(cycle)
+
+    def test_create_cycle_work_mode_zeroes_debug_pauses(self):
+        factory = ProductionSystemFactory(debug_enabled=False)
+        hardware = SimpleNamespace(
+            conveyor=mock.Mock(),
+            distributor=mock.Mock(),
+            jog=mock.Mock(),
+        )
+        cameras = mock.Mock()
+        cameras.mapping = {"TOP": 0}
+        inspector = mock.Mock()
+        monitor = mock.Mock()
+        monitor.server = SimpleNamespace(active_camera_role="TOP")
+        with mock.patch(
+            "application.factory.ProductionCycle",
+        ) as cycle_cls:
+            factory.create_cycle(
+                hardware=hardware,
+                cameras=cameras,
+                inspector=inspector,
+                monitor=monitor,
+                archive=mock.Mock(),
+                calibration=factory.load_calibration(),
+            )
+        kwargs = cycle_cls.call_args.kwargs
+        self.assertEqual(kwargs["review_seconds"], 0.0)
+        self.assertEqual(kwargs["stage_trace_seconds"], 0.0)
+        # Гашение вибрации — физический параметр, остаётся из calibration.
+        self.assertGreater(kwargs["settle_seconds"], 0.0)
 
     def test_discover_controller(self):
         factory = ProductionSystemFactory()

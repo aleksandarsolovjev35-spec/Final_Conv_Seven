@@ -46,6 +46,11 @@ class HardwareServices:
 class ProductionSystemFactory:
     """Создаёт конкретные зависимости реальной линии."""
 
+    def __init__(self, debug_enabled: bool = True):
+        # В режиме РАБОТА (debug_enabled=False) цикл не тратит время на
+        # отладочные паузы: review_time и stage_trace_time обнуляются.
+        self.debug_enabled = bool(debug_enabled)
+
     def load_calibration(self) -> dict:
         return load_calibration()
 
@@ -176,6 +181,16 @@ class ProductionSystemFactory:
         archive,
         calibration: dict,
     ):
+        # Пауза отсмотра (review) и отладочная пауза перед фазами (trace)
+        # нужны только в режиме ОТЛАДКА. В режиме РАБОТА они обнуляются,
+        # чтобы цикл шёл без простоев; settle_time (гашение вибрации) —
+        # физический параметр и остаётся из calibration.json.
+        review_seconds = (
+            calibration["review_time"] if self.debug_enabled else 0.0
+        )
+        stage_trace_seconds = (
+            calibration["stage_trace_time"] if self.debug_enabled else 0.0
+        )
         return ProductionCycle(
             conveyor=hardware.conveyor,
             cameras=cameras,
@@ -185,6 +200,6 @@ class ProductionSystemFactory:
             archive=archive,
             jog=hardware.jog,
             settle_seconds=calibration["settle_time"],
-            stage_trace_seconds=calibration["stage_trace_time"],
-            review_seconds=calibration["review_time"],
+            stage_trace_seconds=stage_trace_seconds,
+            review_seconds=review_seconds,
         )

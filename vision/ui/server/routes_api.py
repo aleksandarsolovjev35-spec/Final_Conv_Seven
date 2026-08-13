@@ -81,6 +81,7 @@ def setup_api_routes(app, server):
                 "line_status":   server.line_status,
                 "recent_parts":  server.recent_parts,
                 "mode":          server.mode,
+                "debug":         server.debug_enabled,
                 "frame_version": server._cache_version,
                 "frame_versions": dict(server._latest_frames_ver),
                 "active_camera": server.active_camera_role,
