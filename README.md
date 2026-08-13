@@ -665,6 +665,19 @@ camera_check.bat        консольная диагностика камер (
 python -m pytest
 ```
 
+Для замера покрытия:
+
+```bat
+python -m pytest --cov=. --cov-report=term-missing
+```
+
+Тестовые зависимости (в дополнение к `requirements.txt`): `pytest`,
+`pytest-cov`, `httpx` (для FastAPI TestClient).
+
+```bat
+pip install pytest pytest-cov httpx
+```
+
 Проверки стиля и неиспользуемого кода (настройки — в `setup.cfg`):
 
 ```bat
@@ -680,10 +693,40 @@ python -m pyflakes core
 - `test_production_sequence.py` — абсолютный порядок фаз шага и то, что
   INPUT полностью завершается до захвата SPIDER/TOP;
 - `test_cycle_behavior.py` — пуск/стоп, пауза, JOG, аварии и маршрутизация;
+- `test_cycle_public_api.py` — краевые условия START/STOP/PAUSE/RESUME/EXIT,
+  JOG-режим и главный цикл `start()` с корректным завершением;
+- `test_diagnostics.py` — предстартовые проверки камер, моделей, правил и
+  распределителя (`CycleDiagnosticsMixin`);
 - `test_application_lifecycle.py` — этапы старта и порядок освобождения
   ресурсов при выходе;
+- `test_application_bootstrap.py` — composition root: `bootstrap`, фабрика
+  оборудования и callbacks `LiveMonitor` → `UIServer`;
 - `test_rule_report_golden.py` — снапшот строк отчёта по правилам: любое
-  изменение формата данных для HMI обязано быть осознанным.
+  изменение формата данных для HMI обязано быть осознанным;
+- `test_config_loading.py`, `test_threshold_loader.py` — валидация
+  `calibration.json`, `camera_mapping.json`, `archive_config.json` и полный
+  контракт `thresholds.json` (пороги, метаданные, roundtrip записи);
+- `test_geometry.py` — геометрические хелперы: пересечения bbox, центроиды,
+  подбор ряда, вписывание эталонного прямоугольника;
+- `test_defect_rules_*.py` — все 12 production-правил на синтетических
+  масках: fail-closed при отсутствии детекций, годные сцены и каждый класс
+  дефекта (контакты, полосы пропуска, стекло, раковины, заплыв платформы);
+- `test_hardware.py` — SerialTransport, Axis, Conveyor, Distributor,
+  JogController и поиск COM-порта на фейковом serial;
+- `test_inspection.py` — Inspector, DebugRecorder, PartArchive (кадры,
+  `meta.json`, `batch.json`, статистика, ZIP) и карточки отчёта;
+- `test_live_preview.py` — gate камер (пауза/сброс/слоты) и потоки live;
+- `test_vision_*` — CameraManager, VisionCluster (с фейковым ultralytics),
+  все рендереры оверлеев, консольная диагностика камер и мастер калибровки;
+- `test_ui_server.py` — UIServer: публикация кадров и статуса, пороги,
+  архив и HTTP-маршруты `/api/*`, `/frame/*`, `/stream/*`;
+- `test_ui_simulation.py` — standalone-симулятор UI: модель линии и полный
+  производственный шаг с виртуальными камерами.
+
+Суммарное покрытие кода приложения (без учёта самих тестов) — 88%.
+Оборудование и нейросети в тестах заменяются дублёрами, `ultralytics` —
+заглушкой через `sys.modules` (`test_vision_cluster.py`,
+`test_application_bootstrap.py`).
 
 `core` держится чистым по `pycodestyle` и `pyflakes`. Выравнивание столбцом
 (`E221`/`E241`) отключено намеренно — таблица переходов `StateMachine` и
