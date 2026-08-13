@@ -266,9 +266,9 @@ run_camera_calibration.bat
 run.bat
 ```
 
-`run.bat` запускает `.venv\Scripts\python.exe main.py`. Сначала загружаются и проверяются `calibration.json` и настройки архива; если `camera_mapping.json` отсутствует — запускается оконный мастер калибровки камер (COM-порт и механика в этот момент ещё не затронуты).
+`run.bat` запускает `.venv\Scripts\python.exe main.py`. Сначала проверяется `camera_mapping.json`: если файла нет, запускается оконный мастер калибровки (COM-порт и механика в этот момент ещё не затронуты). После открытия HMI фоновая инициализация загружает `calibration.json`, а настройки архива — на этапе `inspection`.
 
-Splash-экран ведёт восемь этапов инициализации (`main.py`):
+Splash-экран ведёт восемь этапов инициализации (`application/startup.py`):
 
 | Этап | Действие |
 |---|---|
@@ -277,8 +277,8 @@ Splash-экран ведёт восемь этапов инициализаци�
 | `models_warm` | прогрев моделей |
 | `inspection` | настройка системы контроля (пороги + `DecisionEngine`) |
 | `serial` | поиск контроллера по ответу на `I2` |
-| `hardware` | настройка ленты и осей, физический homing DIST1 и DIST2 |
-| `cycle` | создание производственного цикла |
+| `hardware` | настройка ленты, осей и ручного JOG |
+| `cycle` | физический homing DIST1/DIST2 и создание производственного цикла |
 | `ready` | запуск системы |
 
 При ошибке splash-экран показывает этап и причину, а production-цикл не запускается.
@@ -580,7 +580,15 @@ G-коды конвейера `G0..G13`, оси `G20..G33`, информация
 ## Структура проекта
 
 ```text
-main.py                 точка входа и порядок инициализации
+main.py                 минимальная точка входа production-приложения
+application/            сборка и верхнеуровневый жизненный цикл
+  bootstrap.py          composition root и создание приложения
+  factory.py            DI: создание hardware/vision/inspection/cycle
+  startup.py            восемь этапов фоновой инициализации
+  callbacks.py          EXIT, пороги и привязка ProductionCycle к HMI
+  ui.py                 signal handler и блокирующий pywebview
+  shutdown.py           остановка потоков и освобождение ресурсов
+  runtime.py            общие ссылки на ресурсы жизненного цикла
 ui_simulation.py        автономный симулятор UI без оборудования
 config/                 загрузка и проверка JSON-конфигурации
 core/                   state machine, фазы шага, отчёты
