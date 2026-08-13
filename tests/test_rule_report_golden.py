@@ -5,12 +5,14 @@
 reason, пустые hits/pairs, срезы по ролям). Перед коммитом корпус
 прогоняется дифференциально против старого модуля ``rule_report_old``
 из git-истории, поэтому фикстура фиксирует именно дорефакторинговое
-поведение. Любое расхождение с фикстурой — либо намеренное изменение
-формата строк (тогда обнови фикстуру), либо регрессия.
+поведение. Вывод хешируется (SHA-256) и сравнивается с GOLDEN_SHA256;
+любое расхождение — либо намеренное изменение формата строк (тогда
+обнови константу), либо регрессия.
 
-Обновление фикстуры после намеренного изменения формата:
+Обновление снапшота после намеренного изменения формата:
     python -m tests.test_rule_report_golden
 """
+import hashlib
 import json
 import os
 import unittest
@@ -22,11 +24,7 @@ from core.rule_report import (
     scope_rule_result_to_role,
 )
 
-FIXTURE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "fixtures",
-    "rule_report_golden.json",
-)
+GOLDEN_SHA256 = "b47e661c3b8c89511464914427191c6fc53f2389dd1c6e7d8a68bf1d2a546416"
 
 
 def res(name, triggered, details):
@@ -330,17 +328,18 @@ class RuleReportGoldenTest(unittest.TestCase):
 
     def test_output_matches_snapshot(self):
         actual = _serialize(_golden_payload())
-        with open(FIXTURE, encoding="utf-8") as f:
-            expected = f.read()
-        if actual != expected:
+        digest = hashlib.sha256(actual.encode("utf-8")).hexdigest()
+        if digest != GOLDEN_SHA256:
             dump = os.path.join(
-                os.path.dirname(FIXTURE), "rule_report_golden.actual.json",
+                os.path.dirname(os.path.abspath(__file__)),
+                "rule_report_golden.actual.json",
             )
             with open(dump, "w", encoding="utf-8") as f:
                 f.write(actual)
             self.fail(
-                "Вывод расходится с фикстурой " + FIXTURE
-                + "; актуальный вывод сохранён в " + dump
+                "Вывод расходится со снапшотом (SHA-256 " + GOLDEN_SHA256
+                + ", фактически " + digest + "); актуальный вывод сохранён в "
+                + dump
             )
 
     def test_every_detailed_rule_has_formatter(self):
@@ -364,7 +363,9 @@ class RuleReportGoldenTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    # Регенерация фикстуры при намеренном изменении формата строк.
-    with open(FIXTURE, "w", encoding="utf-8") as f:
-        f.write(_serialize(_golden_payload()))
-    print("fixture regenerated:", FIXTURE)
+    # При намеренном изменении формата строк напечатать новый снапшот
+    # и вставить его в GOLDEN_SHA256 выше.
+    digest = hashlib.sha256(
+        _serialize(_golden_payload()).encode("utf-8")
+    ).hexdigest()
+    print("GOLDEN_SHA256 =", repr(digest))
