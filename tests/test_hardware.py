@@ -432,8 +432,9 @@ class ConveyorTest(unittest.TestCase):
 
 
 class FakeAxisForDistributor:
-    def __init__(self, transport, max_position=1000):
+    def __init__(self, transport, axis_id=0, max_position=1000):
         self.transport = transport
+        self.axis_id = axis_id
         self.position = 0
         self.max_position = max_position
 
@@ -444,8 +445,11 @@ class FakeAxisForDistributor:
         return {"position": 0, "moving": 0, "homed": 1}
 
     def move_absolute(self, position):
+        self.move_absolute_async(position)
+
+    def move_absolute_async(self, position):
         self.position = position
-        self.transport.send(f"G27 S{position}")
+        self.transport.send(f"G27 S{position} P{self.axis_id}")
 
     def wait_stop(self, timeout=12.0, progress_callback=None):
         if progress_callback is not None:
@@ -458,8 +462,8 @@ class FakeAxisForDistributor:
 class DistributorTest(unittest.TestCase):
     def make_distributor(self, dist1_open=340, dist2_bad=0, dist2_cleanup=340):
         transport = RecordingTransport()
-        dist1 = FakeAxisForDistributor(transport)
-        dist2 = FakeAxisForDistributor(transport)
+        dist1 = FakeAxisForDistributor(transport, axis_id=0)
+        dist2 = FakeAxisForDistributor(transport, axis_id=1)
         distributor = Distributor(
             dist1, dist2,
             dist1_open_position=dist1_open,
@@ -523,6 +527,76 @@ class DistributorTest(unittest.TestCase):
         distributor, _ = self.make_distributor()
         with self.assertRaisesRegex(ValueError, "Unsupported"):
             distributor.prepare_route("MAYBE")
+
+    def test_prepare_route_bad_moves_both_axes_parallel(self):
+        # Обе команды G27 уходят подряд, без ожидания между ними:
+        # DIST1 -> 340 и DIST2 -> 0 стартуют одновременно.
+        distributor, transport = self.make_distributor()
+        distributor.diagnostic_route("CLEANUP")  # dist1=0, dist2=340
+        transport.commands.clear()
+        distributor.prepare_route("BAD", part_id=3)
+        self.assertEqual(
+            transport.commands,
+            ["G27 S340 P0", "G27 S0 P1"],
+        )
+        self.assertEqual(distributor.dist1.position, 340)
+        self.assertEqual(distributor.dist2.position, 0)
+        self.assertEqual(distributor.dist2_target, "BAD")
+
+    def test_prepare_route_cleanup_moves_both_axes_parallel(self):
+        distributor, transport = self.make_distributor()
+        distributor.prepare_route("CLEANUP", part_id=3)
+        self.assertEqual(
+            transport.commands,
+            ["G27 S340 P0", "G27 S340 P1"],
+        )
+        self.assertEqual(distributor.dist1.position, 340)
+        self.assertEqual(distributor.dist2.position, 340)
+
+    def test_prepare_route_same_route_does_not_move(self):
+        # Серия одинаковых маршрутов не должна шевелить заслонки вообще.
+        distributor, transport = self.make_distributor()
+        distributor.prepare_route("BAD", part_id=1)
+        count = len(transport.commands)
+        distributor.prepare_route("BAD", part_id=2)
+        self.assertEqual(len(transport.commands), count)
+        self.assertEqual(distributor.dist1.position, 340)
+        self.assertEqual(distributor.dist2.position, 0)
+
+    def test_prepare_route_channel_change_moves_only_dist2(self):
+        # DIST1 уже открыт (340): смена канала BAD->CLEANUP двигает
+        # только DIST2, без возврата DIST1 в GOOD.
+        distributor, transport = self.make_distributor()
+        distributor.prepare_route("BAD", part_id=1)
+        transport.commands.clear()
+        distributor.prepare_route("CLEANUP", part_id=2)
+        self.assertEqual(transport.commands, ["G27 S340 P1"])
+        self.assertEqual(distributor.dist1.position, 340)
+        self.assertEqual(distributor.dist2.position, 340)
+
+    def test_prepare_route_good_from_bad_moves_only_dist1(self):
+        distributor, transport = self.make_distributor()
+        distributor.prepare_route("BAD", part_id=1)
+        transport.commands.clear()
+        distributor.prepare_route("GOOD", part_id=2)
+        self.assertEqual(transport.commands, ["G27 S0 P0"])
+        self.assertEqual(distributor.dist1.position, 0)
+        self.assertIn("PART #2 -> GOOD", distributor.last_action)
+
+    def test_park_production_moves_both_axes_parallel(self):
+        distributor, transport = self.make_distributor()
+        distributor.diagnostic_gate("OPEN")       # dist1=340
+        distributor.diagnostic_route("CLEANUP")   # dist2=340
+        transport.commands.clear()
+        distributor.park_production()
+        self.assertEqual(
+            transport.commands,
+            ["G27 S0 P0", "G27 S0 P1"],
+        )
+        self.assertEqual(distributor.dist1.position, 0)
+        self.assertEqual(distributor.dist2.position, 0)
+        self.assertEqual(distributor.dist2_target, "BAD")
+        self.assertEqual(distributor.last_action, "PRODUCTION READY")
 
     def test_confirm_transfer(self):
         distributor, _ = self.make_distributor()
