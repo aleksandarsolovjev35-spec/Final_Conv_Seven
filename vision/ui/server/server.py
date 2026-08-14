@@ -165,9 +165,26 @@ class UIServer:
     # Public API
 
     @staticmethod
-    def _rules_equal(left, right) -> bool:
-        """Глубокое сравнение результатов правил, безопасное для numpy.
+    def _snapshot_vision_results(vision_results: dict) -> dict:
+        """Снимок детекций по ролям, независимый от источника.
 
+        ``ProductionCycle`` держит один и тот же ``_last_vision_results`` и
+        дополняет его по стадиям (``update()`` внутри шага). Если сохранить
+        сам объект, то published-состояние и состояние источника станут
+        одним и тем же dict: следующее сравнение всегда даст «не менялось»,
+        и RAW-разметка не попадёт в кэш JPEG. Поэтому публикуется копия.
+        """
+        return {
+            role: list(detections) if isinstance(detections, list)
+            else detections
+            for role, detections in (vision_results or {}).items()
+        }
+
+    @staticmethod
+    def _rules_equal(left, right) -> bool:
+        """Глубокое сравнение опубликованных данных, безопасное для numpy.
+
+        Используется и для результатов правил, и для детекций моделей.
         ``details``/``drawings`` правил могут нести numpy-массивы и
         numpy-скаляры: обычное ``!=`` на них бросает ValueError («truth
         value of an array is ambiguous») и ломает сравнение. Обход:
@@ -242,10 +259,12 @@ class UIServer:
                         should_invalidate = True
                         changed_frame_roles.add(role)
             if vision_results is not None:
-                # Тот же объект (in-place обновления внутри шага) — контент
-                # не менялся с прошлой публикации.
-                if self.vision_results is not vision_results:
-                    self.vision_results = vision_results
+                # Сравнение по содержимому: источник дополняет один и тот же
+                # dict по стадиям шага, поэтому identity здесь всегда
+                # совпадала бы и RAW-разметка не доезжала до кэша JPEG.
+                new_vision = self._snapshot_vision_results(vision_results)
+                if not UIServer._rules_equal(self.vision_results, new_vision):
+                    self.vision_results = new_vision
                     should_invalidate = True
                     stream_overlay_changed = True
                     raw_overlay_changed = True

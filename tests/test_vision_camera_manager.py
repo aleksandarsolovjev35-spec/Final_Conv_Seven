@@ -9,10 +9,14 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import threading
+import time
 import unittest
+from unittest import mock
 
 import numpy as np
 
+from vision import camera_manager
 from vision.camera_manager import CameraManager
 
 ROLES = (
@@ -143,6 +147,40 @@ class CameraManagerTest(unittest.TestCase):
         manager, _ = self.make_manager(captures)
         with self.assertRaisesRegex(RuntimeError, "near-black"):
             manager.capture_single("INPUT_RIGHT")
+
+    def test_hanging_read_times_out_and_latches(self):
+        # Регрессия: таймаут проверялся ПОСЛЕ блокирующего cap.read(), то
+        # есть зависший USB-драйвер держал _io_lock бесконечно и вешал
+        # и live-просмотр, и производственный шаг.
+        class HangingCapture(FakeCapture):
+            def read(self):
+                threading.Event().wait()
+
+        captures = {index: FakeCapture(index) for index in range(7)}
+        captures[6] = HangingCapture(6)
+        manager, _ = self.make_manager(captures)
+
+        with mock.patch.object(camera_manager, "_CAPTURE_TIMEOUT", 0.2):
+            started = time.monotonic()
+            with self.assertRaisesRegex(RuntimeError, "capture timeout"):
+                manager.capture_single("TOP")
+            elapsed = time.monotonic() - started
+
+        self.assertLess(elapsed, 2.0)
+        # Отказ защёлкнут, а io_lock свободен: менеджер отвечает сразу.
+        with self.assertRaisesRegex(RuntimeError, "заблокирован"):
+            manager.capture_single("INPUT_LEFT")
+
+    def test_read_exception_is_wrapped(self):
+        class ExplodingCapture(FakeCapture):
+            def read(self):
+                raise OSError("USB device disconnected")
+
+        captures = {index: FakeCapture(index) for index in range(7)}
+        captures[6] = ExplodingCapture(6)
+        manager, _ = self.make_manager(captures)
+        with self.assertRaisesRegex(RuntimeError, "read failed"):
+            manager.capture_single("TOP")
 
     def test_release_closes_cameras(self):
         captures = {index: FakeCapture(index) for index in range(7)}
