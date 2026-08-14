@@ -1,3 +1,5 @@
+import time
+
 from domain.part import CATEGORY_BAD, CATEGORY_CLEANUP, CATEGORY_GOOD
 
 
@@ -198,10 +200,8 @@ class Distributor:
         if move2:
             self.dist2_state = "MOVING"
             self._notify()
-        if move1:
-            self._wait_dist1()
-        if move2:
-            self._wait_dist2()
+        if move1 or move2:
+            self._wait_parallel(move1, move2)
         self._check_cancelled()
         if move1:
             if self.dist1.position != dist1_position:
@@ -277,6 +277,37 @@ class Distributor:
 
     def _wait_dist2(self, timeout=12.0):
         self.dist2.wait_stop(timeout=timeout, progress_callback=self._update_dist2_position)
+
+    def _wait_parallel(self, move1: bool, move2: bool, timeout=12.0):
+        """Ожидать остановку обеих осей, публикуя прогресс обеих заслонок.
+
+        Оси уже получили команды ``G27`` и едут одновременно. Здесь обе
+        опрашиваются в одном цикле, поэтому HMI видит движение DIST1 и
+        DIST2 одновременно. Раньше сначала полностью ожидалась DIST1, и
+        лишь затем опрашивалась DIST2: к этому моменту DIST2 (равная
+        дистанция, равные скорость/ускорение) обычно уже стояла, и UI
+        получал только её конечную позицию — маркер второй заслонки
+        «перепрыгивал» из одного конца в другой.
+        """
+        start = time.time()
+        while True:
+            self._check_cancelled()
+            if move1:
+                status1 = self.dist1.read_status()
+                self._update_dist1_position(status1["position"], status1["moving"])
+                move1 = status1["moving"] != 0
+            if move2:
+                status2 = self.dist2.read_status()
+                self._update_dist2_position(status2["position"], status2["moving"])
+                move2 = status2["moving"] != 0
+            if not move1 and not move2:
+                time.sleep(0.05)
+                return
+            if time.time() - start > timeout:
+                raise TimeoutError(
+                    f"Оси распределителя не остановились за {timeout}s"
+                )
+            time.sleep(0.05)
 
     def _update_dist1_position(self, position, _moving):
         self._check_cancelled()
