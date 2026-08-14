@@ -50,6 +50,64 @@ class UIServerTest(unittest.TestCase):
         self.server.update(frames={"TOP": frame})
         self.assertEqual(self.server._cache_version, version)
 
+    def test_mutated_vision_results_invalidate_cache(self):
+        # Регрессия: ProductionCycle дополняет один и тот же dict
+        # (_last_vision_results.update(...)) по стадиям шага. Сравнение по
+        # identity считало такую публикацию «без изменений», и RAW-разметка
+        # не попадала в кэш JPEG — оператор видел кадр без детекций.
+        frame = make_frame()
+        vision = {}
+        self.server.update(frames={"TOP": frame}, vision_results=vision)
+        before = self.server._get_or_render("TOP", "RAW", "main")
+        version = self.server._cache_version
+
+        vision["TOP"] = [{
+            "class": "glass", "confidence": 0.9,
+            "bbox": [1.0, 1.0, 50.0, 50.0], "mask": None,
+        }]
+        self.server.update(frames={"TOP": frame}, vision_results=vision)
+
+        self.assertGreater(self.server._cache_version, version)
+        self.assertNotEqual(
+            before, self.server._get_or_render("TOP", "RAW", "main"),
+        )
+
+    def test_unchanged_vision_results_do_not_invalidate(self):
+        # Обратная сторона: повторная публикация того же содержимого не
+        # должна дёргать кэш, иначе фронтенд перезапрашивает кадры зря.
+        vision = {"TOP": [{"class": "glass", "confidence": 0.5}]}
+        self.server.update(frames={"TOP": make_frame()}, vision_results=vision)
+        version = self.server._cache_version
+        self.server.update(vision_results=dict(vision))
+        self.assertEqual(self.server._cache_version, version)
+
+    def test_vision_comparison_is_cheap_under_lock(self):
+        # Сравнение выполняется под общим self.lock, который держат и
+        # /api/status, и рендер кадров. Полный рекурсивный обход масок
+        # (тысячи точек) занимал десятки миллисекунд и подтормаживал UI.
+        detections = {
+            role: [{
+                "class": "platform", "confidence": 0.83,
+                "bbox": [1.0, 2.0, 3.0, 4.0],
+                "mask": [[float(i), float(i)] for i in range(400)],
+            } for _ in range(12)]
+            for role in ("INPUT_LEFT", "SPIDER_LEFT", "TOP")
+        }
+        started = time.monotonic()
+        for _ in range(10):
+            UIServer._vision_signature(detections)
+        elapsed = (time.monotonic() - started) / 10
+
+        self.assertLess(elapsed, 0.005)
+
+    def test_vision_results_snapshot_is_isolated(self):
+        # Опубликованное состояние не должно меняться «задним числом»
+        # вместе с исходным dict вызывающей стороны.
+        vision = {"TOP": [{"class": "glass", "confidence": 0.5}]}
+        self.server.update(vision_results=vision)
+        vision["TOP"].append({"class": "pin", "confidence": 0.7})
+        self.assertEqual(len(self.server.vision_results["TOP"]), 1)
+
     def test_update_rule_results_invalidate(self):
         from domain.defect_rules import RuleResult
         self.server.update(rule_results=[RuleResult("a", False)])

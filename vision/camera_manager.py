@@ -8,6 +8,7 @@
 """
 
 import json
+import queue
 import threading
 import time
 
@@ -177,18 +178,51 @@ class CameraManager:
         for role in requested:
             self._drain_role(role)
 
+    def _read_with_timeout(self, role: str, cap):
+        """``cap.read()`` с настоящим ограничением по времени.
+
+        Драйвер USB умеет зависать в ``read()`` неограниченно долго. Прямой
+        вызов заблокировал бы ``_io_lock`` вместе со всей линией, поэтому
+        чтение выполняется в отдельном потоке: по истечении
+        ``_CAPTURE_TIMEOUT`` менеджер защёлкивает отказ и отдаёт управление,
+        не дожидаясь драйвера. Зависший поток остаётся daemon-ом и завершится
+        вместе с процессом; освобождать камеру повторно нельзя, пока он
+        держит устройство, — CameraManager после этого всё равно заблокирован.
+        """
+        result: queue.Queue = queue.Queue(maxsize=1)
+
+        def worker():
+            try:
+                result.put(cap.read())
+            except Exception as exc:                     # noqa: BLE001
+                result.put(exc)
+
+        thread = threading.Thread(
+            target=worker,
+            name=f"camera-read-{role}",
+            daemon=True,
+        )
+        thread.start()
+        try:
+            outcome = result.get(timeout=_CAPTURE_TIMEOUT)
+        except queue.Empty:
+            self._latch_failure(f"{role}: capture timeout")
+            raise RuntimeError(
+                f"{role}: capture timeout ({_CAPTURE_TIMEOUT}s)"
+            ) from None
+        if isinstance(outcome, BaseException):
+            self._latch_failure(f"{role}: read failed: {outcome}")
+            raise RuntimeError(f"{role}: read failed: {outcome}") from outcome
+        return outcome
+
     def _read_role(self, role: str):
         """Один последовательный USB-read указанной роли."""
         cap = self.cameras.get(role)
         if cap is None:
             raise RuntimeError(f"Камера {role} не найдена")
-        started = time.monotonic()
         with self._io_lock:
             with self._role_locks[role]:
-                ok, frame = cap.read()
-        if time.monotonic() - started > _CAPTURE_TIMEOUT:
-            self._latch_failure(f"{role}: capture timeout")
-            raise RuntimeError(f"{role}: capture timeout")
+                ok, frame = self._read_with_timeout(role, cap)
         if not ok or frame is None:
             self._latch_failure(f"{role}: read returned no frame")
             raise RuntimeError(f"{role}: read returned no frame")
@@ -208,11 +242,14 @@ class CameraManager:
                 try:
                     if lock is not None:
                         with lock:
-                            cap.read()
+                            self._read_with_timeout(role, cap)
                     else:
-                        cap.read()
+                        self._read_with_timeout(role, cap)
                 except Exception:
-                    pass
+                    # Сброс буфера — best-effort, но зависшая камера не
+                    # должна получить ещё один параллельный read поверх
+                    # уже висящего: прекращаем дренаж этой роли.
+                    break
 
     # ---------- завершение ----------
 

@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -108,6 +110,90 @@ class SerialTransportTest(unittest.TestCase):
         self.assertEqual(
             transport.query("I2"), "MOV=0 WAIT=0 lastErr=0",
         )
+
+    @mock.patch("hardware.serial_transport.serial.Serial")
+    def test_query_waits_for_late_multiline_reply(self, serial_cls):
+        # Регрессия: ответ читался фиксированным sleep(delay) + read_all().
+        # Контроллер, ответивший чуть позже или несколькими строками (I10 —
+        # по строке на ось), давал обрезанный ответ: ACK не совпадал с
+        # ожидаемым и производственный шаг уходил в FAULT.
+        class LateSerial(FakeSerial):
+            def __init__(self, parts, first_delay):
+                super().__init__()
+                self.parts = list(parts)
+                self.first_delay = first_delay
+                self.sent_at = None
+
+            def write(self, data):
+                super().write(data)
+                self.sent_at = time.monotonic()
+
+            def read_all(self):
+                late = (
+                    self.sent_at is None
+                    or time.monotonic() - self.sent_at < self.first_delay
+                )
+                if late:
+                    return b""
+                return self.parts.pop(0) if self.parts else b""
+
+        serial_cls.return_value = LateSerial(
+            [b"AXIS0 POS=0 MOV=0\r\n", b"AXIS1 POS=340 MOV=0\r\n"],
+            first_delay=0.22,
+        )
+        with mock.patch("hardware.serial_transport.time.sleep"):
+            transport = SerialTransport("COM4")
+
+        reply = transport.query("I10", delay=0.15)
+        self.assertIn("AXIS0 POS=0", reply)
+        self.assertIn("AXIS1 POS=340", reply)
+
+    @mock.patch("hardware.serial_transport.serial.Serial")
+    def test_query_returns_promptly_on_fast_reply(self, serial_cls):
+        # Быстрый ответ не должен ждать полный QUERY_TIMEOUT: цикл опрашивает
+        # контроллер в горячем пути wait_stop().
+        serial_cls.return_value = FakeSerial(
+            responses=[b"MOV=0 WAIT=0 STEP=5 lastErr=0\r\n"],
+        )
+        with mock.patch("hardware.serial_transport.time.sleep"):
+            transport = SerialTransport("COM4")
+
+        started = time.monotonic()
+        reply = transport.query("I2", delay=0.1)
+        elapsed = time.monotonic() - started
+
+        self.assertEqual(reply, "MOV=0 WAIT=0 STEP=5 lastErr=0")
+        self.assertLess(elapsed, SerialTransport.QUERY_TIMEOUT)
+
+    @mock.patch("hardware.serial_transport.serial.Serial")
+    def test_query_returns_empty_when_controller_silent(self, serial_cls):
+        serial_cls.return_value = FakeSerial()
+        with mock.patch("hardware.serial_transport.time.sleep"):
+            transport = SerialTransport("COM4")
+        self.assertEqual(transport.query("I2", delay=0.05), "")
+
+    @mock.patch("hardware.serial_transport.serial.Serial")
+    def test_silent_controller_does_not_block_emergency_stop(self, serial_cls):
+        # Безопасность: query удерживает тот же lock, что и аварийный G1.
+        # Молчащий контроллер не должен задерживать dead-man стоп JOG
+        # (heartbeat_timeout = 0.40 с) ожиданием полного QUERY_TIMEOUT.
+        serial_cls.return_value = FakeSerial()
+        with mock.patch("hardware.serial_transport.time.sleep"):
+            transport = SerialTransport("COM4")
+
+        worker = threading.Thread(
+            target=lambda: transport.query("I1", delay=0.05),
+            daemon=True,
+        )
+        worker.start()
+        time.sleep(0.05)
+
+        started = time.monotonic()
+        transport.send("G1")
+        blocked = time.monotonic() - started
+        worker.join(timeout=2.0)
+
+        self.assertLess(blocked, 0.40)
 
     @mock.patch("hardware.serial_transport.serial.Serial")
     def test_close_tolerates_missing_serial(self, serial_cls):
