@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 import unittest
 from unittest import mock
@@ -138,7 +139,7 @@ class SerialTransportTest(unittest.TestCase):
 
         serial_cls.return_value = LateSerial(
             [b"AXIS0 POS=0 MOV=0\r\n", b"AXIS1 POS=340 MOV=0\r\n"],
-            first_delay=0.25,
+            first_delay=0.22,
         )
         with mock.patch("hardware.serial_transport.time.sleep"):
             transport = SerialTransport("COM4")
@@ -170,6 +171,29 @@ class SerialTransportTest(unittest.TestCase):
         with mock.patch("hardware.serial_transport.time.sleep"):
             transport = SerialTransport("COM4")
         self.assertEqual(transport.query("I2", delay=0.05), "")
+
+    @mock.patch("hardware.serial_transport.serial.Serial")
+    def test_silent_controller_does_not_block_emergency_stop(self, serial_cls):
+        # Безопасность: query удерживает тот же lock, что и аварийный G1.
+        # Молчащий контроллер не должен задерживать dead-man стоп JOG
+        # (heartbeat_timeout = 0.40 с) ожиданием полного QUERY_TIMEOUT.
+        serial_cls.return_value = FakeSerial()
+        with mock.patch("hardware.serial_transport.time.sleep"):
+            transport = SerialTransport("COM4")
+
+        worker = threading.Thread(
+            target=lambda: transport.query("I1", delay=0.05),
+            daemon=True,
+        )
+        worker.start()
+        time.sleep(0.05)
+
+        started = time.monotonic()
+        transport.send("G1")
+        blocked = time.monotonic() - started
+        worker.join(timeout=2.0)
+
+        self.assertLess(blocked, 0.40)
 
     @mock.patch("hardware.serial_transport.serial.Serial")
     def test_close_tolerates_missing_serial(self, serial_cls):

@@ -81,6 +81,25 @@ class UIServerTest(unittest.TestCase):
         self.server.update(vision_results=dict(vision))
         self.assertEqual(self.server._cache_version, version)
 
+    def test_vision_comparison_is_cheap_under_lock(self):
+        # Сравнение выполняется под общим self.lock, который держат и
+        # /api/status, и рендер кадров. Полный рекурсивный обход масок
+        # (тысячи точек) занимал десятки миллисекунд и подтормаживал UI.
+        detections = {
+            role: [{
+                "class": "platform", "confidence": 0.83,
+                "bbox": [1.0, 2.0, 3.0, 4.0],
+                "mask": [[float(i), float(i)] for i in range(400)],
+            } for _ in range(12)]
+            for role in ("INPUT_LEFT", "SPIDER_LEFT", "TOP")
+        }
+        started = time.monotonic()
+        for _ in range(10):
+            UIServer._vision_signature(detections)
+        elapsed = (time.monotonic() - started) / 10
+
+        self.assertLess(elapsed, 0.005)
+
     def test_vision_results_snapshot_is_isolated(self):
         # Опубликованное состояние не должно меняться «задним числом»
         # вместе с исходным dict вызывающей стороны.
