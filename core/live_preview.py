@@ -122,9 +122,11 @@ class LivePreview:
         # защищает только поля, которые читают рабочие потоки и UI.
         self._lifecycle_lock = threading.Lock()
         self._state_lock = threading.Lock()
+        self._ready_condition = threading.Condition(self._state_lock)
         self._stop_event = threading.Event()
         self._threads = []
         self._frame_times = deque(maxlen=240)
+        self._published_roles = set()
         self._error = None
 
     # Состояние
@@ -174,6 +176,7 @@ class LivePreview:
                     return False
                 self._stop_event.clear()
                 self._frame_times.clear()
+                self._published_roles.clear()
                 self._error = None
                 self._threads = [
                     threading.Thread(
@@ -206,8 +209,9 @@ class LivePreview:
             # Стоп-сигнал выставляется до ожидания потоков. Пока хотя бы один
             # поток жив, start() не должен поднять вторую пару читателей.
             self._stop_event.set()
-            with self._state_lock:
+            with self._ready_condition:
                 threads = list(self._threads)
+                self._ready_condition.notify_all()
             if not threads:
                 self._stop_event.clear()
                 return True
@@ -231,6 +235,29 @@ class LivePreview:
             self._stop_event.clear()
             print("[LIVE] preview stopped")
             return True
+
+    def wait_for_roles(self, roles, timeout: float) -> tuple[str, ...]:
+        """Дождаться первого опубликованного кадра каждой требуемой роли.
+
+        Возвращает пустой кортеж при готовности либо роли без кадра при
+        ошибке, остановке live или истечении тайм-аута. Это стартовый барьер:
+        HMI не объявляет систему готовой только по факту ``isOpened()``.
+        """
+        wanted = {str(role) for role in (roles or ()) if role}
+        if not wanted:
+            return ()
+        deadline = time.monotonic() + max(0.0, float(timeout))
+        with self._ready_condition:
+            while True:
+                missing = tuple(sorted(wanted - self._published_roles))
+                if not missing:
+                    return ()
+                if self._error is not None or self._stop_event.is_set():
+                    return missing
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return missing
+                self._ready_condition.wait(remaining)
 
     # Пауза на время статической инспекции
 
@@ -268,18 +295,24 @@ class LivePreview:
         return role
 
     def _publish(self, frames: dict):
-        if self._monitor is not None and frames:
+        if not frames:
+            return
+        if self._monitor is not None:
             self._monitor.update(frames=frames)
+        with self._ready_condition:
+            self._published_roles.update(str(role) for role in frames)
+            self._ready_condition.notify_all()
 
     def _fail(self, exc: Exception, source: str):
         if self._stop_event.is_set():
             return
         message = f"{type(exc).__name__}: {exc}"
-        with self._state_lock:
+        with self._ready_condition:
             if self._error is None:
                 self._error = message
+            self._stop_event.set()
+            self._ready_condition.notify_all()
         print(f"[LIVE] {source} error: {message}")
-        self._stop_event.set()
 
     def _run_loop(self, interval: float, iteration, source: str):
         """Цикл live-чтения; iteration сама занимает слоты у gate."""

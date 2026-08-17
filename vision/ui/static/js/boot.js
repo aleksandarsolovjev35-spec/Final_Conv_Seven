@@ -39,7 +39,14 @@ function checkUiReady() {
     if (!state.bootDone) return;
     const timeSinceBoot = Date.now() - state.bootDoneAt;
     const timedOut = timeSinceBoot > UI_READY_TIMEOUT;
-    const ready = state.statusReceived && state.jogReceived && state.cameras.length > 0 && state.currentCamera !== null;
+    const framesReady = typeof cameraFramesReady === 'function' && cameraFramesReady();
+    const previewsReady = typeof cameraPreviewsReady === 'function' && cameraPreviewsReady();
+    const ready = state.statusReceived
+        && state.jogReceived
+        && state.cameras.length > 0
+        && state.currentCamera !== null
+        && framesReady
+        && previewsReady;
     if (!ready && !timedOut) updateSplashWaitingMessage();
     if (ready || timedOut) {
         if (timedOut && !ready) {
@@ -48,6 +55,10 @@ function checkUiReady() {
                 jogReceived: state.jogReceived,
                 cameras: state.cameras.length,
                 currentCamera: state.currentCamera,
+                missingFrames: typeof cameraRolesMissingFrames === 'function'
+                    ? cameraRolesMissingFrames() : [],
+                missingPreviews: typeof cameraRolesMissingPreviews === 'function'
+                    ? cameraRolesMissingPreviews() : [],
             });
         } else {
             console.log('[UI] Ready — showing main UI');
@@ -60,9 +71,20 @@ function updateSplashWaitingMessage() {
     const missing = [];
     if (!state.statusReceived) missing.push('состояние системы');
     if (!state.jogReceived) missing.push('ручное управление');
-    if (state.cameras.length === 0) missing.push('камеры');
+    if (state.cameras.length === 0) missing.push('список камер');
     if (state.currentCamera === null) missing.push('выбор камеры');
-    if (missing.length > 0) setIfChanged(els.splashMessage, `Ожидание: ${missing.join(', ')}`);
+
+    const missingFrames = typeof cameraRolesMissingFrames === 'function'
+        ? cameraRolesMissingFrames() : [];
+    const missingPreviews = typeof cameraRolesMissingPreviews === 'function'
+        ? cameraRolesMissingPreviews() : [];
+    if (state.cameras.length && missingFrames.length) {
+        missing.push(`первый кадр: ${missingFrames.map(cameraRoleLabel).join(', ')}`);
+    } else if (state.cameras.length && missingPreviews.length) {
+        missing.push(`загрузка изображений: ${missingPreviews.map(cameraRoleLabel).join(', ')}`);
+    }
+
+    if (missing.length > 0) setIfChanged(els.splashMessage, `Ожидание: ${missing.join('; ')}`);
     else setIfChanged(els.splashMessage, 'Почти готово');
 }
 

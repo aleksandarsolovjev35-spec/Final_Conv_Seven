@@ -41,7 +41,39 @@
     height: 100%;
     object-fit: cover;
     display: block;
+    opacity: 0;
     transition: opacity var(--t-fast);
+}
+
+.preview-cam.preview-ready img {
+    opacity: 1;
+}
+
+.preview-cam-state {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 5px;
+    background: #090c0f;
+    color: var(--text-muted);
+    font: 700 7px var(--font-ui);
+    letter-spacing: 0.35px;
+    text-align: center;
+    text-transform: uppercase;
+    z-index: 0;
+}
+
+.preview-cam.preview-loading .preview-cam-state {
+    color: var(--accent);
+}
+
+.preview-cam.preview-error .preview-cam-state {
+    color: var(--bad);
+}
+
+.preview-cam.preview-ready .preview-cam-state {
+    display: none;
 }
 
 .preview-cam-label {

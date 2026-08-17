@@ -186,6 +186,28 @@ class LivePreviewTest(unittest.TestCase):
         self.assertTrue(preview.start())
         preview.stop()
 
+    def test_wait_for_roles_confirms_first_frame_from_every_camera(self):
+        preview, _, _ = self.make_preview()
+        self.assertTrue(preview.start())
+        self.assertEqual(
+            preview.wait_for_roles(
+                ("TOP", "INPUT_LEFT", "INPUT_RIGHT"), timeout=1.0,
+            ),
+            (),
+        )
+        preview.stop()
+
+    def test_wait_for_roles_reports_role_without_frame(self):
+        preview, _, _ = self.make_preview(
+            cameras=FakeLiveCameras(roles=("TOP",)),
+        )
+        self.assertTrue(preview.start())
+        self.assertEqual(
+            preview.wait_for_roles(("TOP", "MISSING"), timeout=0.05),
+            ("MISSING",),
+        )
+        preview.stop()
+
     def test_stop_timeout_does_not_restart_hidden_camera_reads(self):
         cameras = BlockingLiveCameras()
         preview, _, _ = self.make_preview(cameras=cameras)
