@@ -7,7 +7,7 @@ from pathlib import Path
 
 import cv2
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
+from fastapi.staticfiles import StaticFiles as StarletteStaticFiles
 from fastapi.responses import FileResponse
 import uvicorn
 
@@ -17,6 +17,22 @@ from vision.overlay.debug_overlay import DebugOverlay
 from vision.ui.server.routes_frames  import setup_frame_routes
 from vision.ui.server.routes_api     import setup_api_routes
 from vision.ui.server.routes_archive import setup_archive_routes
+
+
+# HMI всегда должен загружать актуальные файлы: в предпросмотре браузер
+# и прокси агрессивно кэшируют страницу, из-за чего старый index.html со
+# старым DOM мог сочетаться со свежими скриптами и интерфейс «зависал»
+# на сплэше. Поэтому HTML и статику отдаём с запретом кэширования.
+NO_CACHE = "no-store, no-cache, must-revalidate"
+
+
+class NoCacheStaticFiles(StarletteStaticFiles):
+    """Статика без кэширования (версии ?v= в HTML и так делают её уникальной)."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = NO_CACHE
+        return response
 
 
 _UI_DIR        = Path(__file__).parent.parent
@@ -63,8 +79,17 @@ class UIServer:
     PREVIEW_MAX_WIDTH   = 320
     BOOT_STEPS          = BOOT_STEPS
 
-    def __init__(self):
+    def __init__(self, debug_enabled: bool = True):
+        # Режим ОТЛАДКА (True) рисует RAW/RULES-разметку поверх кадров.
+        # Режим РАБОТА (False) отдаёт чистый поток без какой-либо отрисовки:
+        # превью, основной кадр и MJPEG-стрим только кодируются в JPEG.
+        self.debug_enabled = bool(debug_enabled)
+
         self.frames: dict         = {}
+        # Роли и маппинг открытых камер (публикуются после CameraManager).
+        self.camera_roles: list = []
+        # role -> физический Camera ID (индекс устройства)
+        self.camera_mapping: dict = {}
         # Набор кадров текущей стадии: один элемент {role: кадр}.
         self.run_frames: list = []
         # Правила стадии: кадр размечается drawings этих правил, чтобы
@@ -349,9 +374,32 @@ class UIServer:
                         if custom:
                             metric["label"] = custom
 
+    def set_camera_roles(self, roles) -> None:
+        """Опубликовать роли открытых камер без обязательного чтения кадров.
+
+        ``roles`` — словарь ``{роль: Camera ID}`` из camera_mapping.json.
+        Сохраняется и сам маппинг, чтобы UI мог показать оператору, какой
+        физический Camera ID соответствует каждой роли.
+        """
+        mapping = {}
+        for role, camera_id in (roles or {}).items():
+            if role:
+                mapping[str(role)] = int(camera_id)
+        normalized = [
+            str(role) for role in dict.fromkeys(roles or ()) if role
+        ]
+        with self.lock:
+            self.camera_mapping = mapping
+            self.camera_roles = normalized
+            if self.active_camera_role not in normalized:
+                self.active_camera_role = (
+                    normalized[0] if normalized else None
+                )
+
     def set_active_camera_role(self, role: str) -> bool:
         with self.lock:
-            if not role or role not in self.frames:
+            available = set(self.camera_roles) | set(self.frames)
+            if not role or role not in available:
                 return False
             if self.active_camera_role == role:
                 return True
@@ -808,7 +856,7 @@ class UIServer:
         if _STATIC_DIR.exists():
             self.app.mount(
                 "/static",
-                StaticFiles(directory=str(_STATIC_DIR)),
+                NoCacheStaticFiles(directory=str(_STATIC_DIR)),
                 name="static",
             )
 
@@ -817,6 +865,7 @@ class UIServer:
         async def index():
             return FileResponse(
                 str(_TEMPLATES_DIR / "index.html"),
+                headers={"Cache-Control": NO_CACHE},
             )
 
         setup_frame_routes(self.app, self)
@@ -888,6 +937,10 @@ class UIServer:
     def _render(
         self, frame, role, mode, vision_dets, rule_results,
     ):
+        if not self.debug_enabled:
+            # РЕЖИМ РАБОТА: ничего не рисуем, отдаём чистый кадр.
+            return frame.copy()
+
         if mode == "RAW":
             if vision_dets:
                 return RawOverlay.render(frame, vision_dets)

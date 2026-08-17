@@ -97,6 +97,9 @@ def load_calibration(path: str = "calibration.json") -> dict:
         raise RuntimeError(f"Файл калибровки не найден: {path}") from exc
     except (OSError, json.JSONDecodeError) as exc:
         raise RuntimeError(f"Ошибка чтения {path}: {exc}") from exc
-    result = _validate(data)
+    try:
+        result = _validate(data)
+    except ValueError as exc:
+        raise RuntimeError(f"Невалидная калибровка {path}: {exc}") from exc
     print(f"[CALIB] Loaded and validated from {path}")
     return result
