@@ -171,7 +171,7 @@ def _release_camera_pool(pool):
 
 
 def atomic_write_mapping(path, mapping: dict):
-    """Валидировать и атомарно сохранить только полный mapping 7/7."""
+    """Валидировать и атомарно сохранить только полный mapping 3/3."""
 
     validated = validate_camera_mapping(mapping)
     ordered = {role: int(validated[role]) for role in ROLE_ORDER}
@@ -560,7 +560,7 @@ def calibrate_cameras(
     *,
     scan_limit=CAMERA_SCAN_LIMIT,
 ) -> bool:
-    """Открыть отдельное оконное HMI и дождаться полного mapping 7/7."""
+    """Открыть отдельное оконное HMI и дождаться полного mapping 3/3."""
 
     import webview
 

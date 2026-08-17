@@ -55,10 +55,9 @@ class SimulationApiTest(unittest.TestCase):
         self.assertFalse(self.sim.pause())
         self.sim.start()
         self.assertTrue(self.sim.pause())
-        self.assertEqual(self.sim.state, "PAUSED")
-        self.assertFalse(self.sim.pause())
-        self.assertTrue(self.sim.resume())
+        self.assertTrue(self.sim._pause_requested)
         self.assertEqual(self.sim.state, "RUNNING")
+        self.assertTrue(self.sim.pause())
         self.sim.close()
 
     def test_jog_flow(self):
@@ -103,11 +102,29 @@ class SimulationApiTest(unittest.TestCase):
         self.assertEqual(self.sim.conveyor_position, 340)
         self.sim.exit_jog()
 
+    def test_start_clears_stale_jog_hold(self):
+        self.sim.enter_jog()
+        self.sim.jog_hold_start("+")
+        self.assertTrue(self.sim.jog_busy)
+        self.assertTrue(self.sim.start())
+        self.assertFalse(self.sim.jog_active)
+        self.assertFalse(self.sim.jog_busy)
+        self.sim.close()
+
+    def test_resume_rejected_while_jog_busy(self):
+        self.sim.state = "PAUSED"
+        self.sim.enter_jog()
+        self.assertTrue(self.sim.jog_hold_start("+"))
+        self.assertFalse(self.sim.resume())
+        self.assertEqual(self.sim.state, "PAUSED")
+        self.assertTrue(self.sim.jog_hold_release())
+        self.assertTrue(self.sim.resume())
+        self.assertEqual(self.sim.state, "RUNNING")
+
     def test_jog_allowed_while_paused(self):
         # Пауза — разрешённое состояние для ручного хода, как в production:
         # оператор корректирует положение ленты до продолжения цикла.
-        self.sim.start()
-        self.assertTrue(self.sim.pause())
+        self.sim.state = "PAUSED"
         self.assertTrue(self.sim.enter_jog())
         self.assertTrue(self.sim.jog_active)
         self.assertTrue(self.sim.jog_hold_start("+"))
@@ -117,7 +134,6 @@ class SimulationApiTest(unittest.TestCase):
         self.assertTrue(self.sim.exit_jog())
         self.assertFalse(self.sim.jog_active)
         self.assertEqual(self.sim.state, "PAUSED")
-        self.sim.close()
 
     def test_selected_analysis(self):
         self.assertFalse(self.sim.selected_analysis("NOPE"))
@@ -353,6 +369,50 @@ class SimulationLoopTest(unittest.TestCase):
         self.assertIn("state", self.server.line_status)
         self.sim.close()
         self.sim.thread.join(2.0)
+
+    def test_pause_applies_after_settle_not_during_motion(self):
+        self.sim.thread.start()
+        self.assertTrue(self.sim.start())
+        deadline = time.monotonic() + 5.0
+        while self.sim.step < 1 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertGreaterEqual(self.sim.step, 1)
+        before = self.sim.step
+        self.assertTrue(self.sim.pause())
+        deadline = time.monotonic() + 5.0
+        while self.sim.state != "PAUSED" and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(self.sim.state, "PAUSED")
+        self.assertTrue(self.sim.jog_active)
+        self.assertGreaterEqual(self.sim.step, before)
+        parked = self.sim.step
+        time.sleep(0.05)
+        self.assertEqual(self.sim.step, parked)
+        self.assertTrue(self.sim.resume())
+        deadline = time.monotonic() + 5.0
+        while self.sim.step < parked + 1 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertGreaterEqual(self.sim.step, parked + 1)
+
+    def test_stop_from_pause_drains_without_new_parts(self):
+        self.sim.thread.start()
+        self.assertTrue(self.sim.start())
+        deadline = time.monotonic() + 5.0
+        while self.sim.step < 1 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertTrue(self.sim.pause())
+        deadline = time.monotonic() + 5.0
+        while self.sim.state != "PAUSED" and time.monotonic() < deadline:
+            time.sleep(0.01)
+        before = self.sim.counts["total"]
+        self.assertTrue(self.sim.stop())
+        deadline = time.monotonic() + 5.0
+        while self.sim.state != "STOPPED" and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(self.sim.state, "STOPPED")
+        self.assertEqual(self.sim.parts, [])
+        self.assertIsNone(self.sim.egress)
+        self.assertEqual(self.sim.counts["total"], before)
 
     def test_start_revives_after_close(self):
         # ВЫХОД посреди цикла останавливает поток; повторный ПУСК

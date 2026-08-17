@@ -44,6 +44,7 @@ PROCESS_LABELS = {
     "PUBLISH": "Публикация результата контроля",
     "STOPPING": "Остановка",
     "STOPPED": "Линия остановлена и пуста",
+    "PAUSE_REQUESTED": "Пауза будет применена на границе шага",
     "PAUSED": "Пауза линии",
     "SELECTED_MODEL_ANALYSIS": "Анализ выбранного стоп-кадра",
     "JOG_HOLD": "JOG: удерживаемое движение ленты",
@@ -114,6 +115,9 @@ class LineSimulation:
         # The first production cycle may start with a body already under
         # the cameras; mirror the hardware's no-motion initial inspection.
         self._await_initial_inspection = False
+        # Как в ProductionCycle: пауза запрашивается сразу, а применяется
+        # только на границе шага — после SETTLE и до CAPTURE.
+        self._pause_requested = False
         self.recent: list[dict] = []
         self.counts = {"total": 0, "good": 0, "bad": 0, "cleanup": 0}
         self.thread = threading.Thread(target=self._run, name="ui-simulation", daemon=True)
@@ -146,7 +150,12 @@ class LineSimulation:
                 )
                 self.thread.start()
             self._open_next_archive_batch()
+            # Как ProductionCycle.request_start: сначала выходим из JOG,
+            # иначе после удержания кнопки остаётся jog_busy и стрелки
+            # «залипают» до следующего release.
             self.jog_active = False
+            self.jog_busy = False
+            self._pause_requested = False
             # A launch begins with the same special initial inspection as
             # ProductionCycle: do not advance the virtual belt first.
             self._await_initial_inspection = not self.parts and self.egress is None
@@ -281,6 +290,7 @@ class LineSimulation:
         with self._lock:
             if self.state not in ("RUNNING", "PAUSED", "STOPPING"):
                 return False
+            self._pause_requested = False
             self.state = "STOPPING"
             self._wake.set()
         self._publish("STOPPING")
@@ -290,17 +300,53 @@ class LineSimulation:
         with self._lock:
             if self.state != "RUNNING":
                 return False
-            self.state = "PAUSED"
-        self._publish("PAUSED")
+            if self._pause_requested:
+                return True
+            self._pause_requested = True
+        self._publish("PAUSE_REQUESTED")
         return True
 
     def resume(self) -> bool:
         with self._lock:
             if self.state != "PAUSED":
                 return False
+            if self.jog_busy:
+                return False
+            self._pause_requested = False
+            self.jog_active = False
+            self.jog_busy = False
             self.state = "RUNNING"
             self._wake.set()
         return True
+
+    def _apply_pause_barrier(self) -> bool:
+        """Пауза после остановки ленты и до захвата кадров.
+
+        Возвращает False, если симуляцию закрыли; True — можно продолжать
+        инспекцию (RUNNING) или дренаж (STOPPING).
+        """
+        with self._lock:
+            if self.state == "RUNNING" and self._pause_requested:
+                self._pause_requested = False
+                self.state = "PAUSED"
+                # Как ProductionCycle._enter_pause_frame: пауза сразу
+                # открывает ручной ход, не дожидаясь следующего poll UI.
+                self.jog_active = True
+                self.jog_busy = False
+                entered = True
+            else:
+                entered = False
+        if entered:
+            self._publish("PAUSED")
+        while True:
+            if self._stop.is_set():
+                return False
+            with self._lock:
+                current = self.state
+            if current != "PAUSED":
+                return current in ("RUNNING", "STOPPING")
+            self._wake.wait(0.05)
+            self._wake.clear()
 
     def close(self) -> bool:
         self._stop.set()
@@ -634,6 +680,8 @@ class LineSimulation:
                 self._publish("INITIAL_INSPECTION", list(self.INSPECT_STAGES))
                 if self._stop.wait(self.POST_STOP_SECONDS):
                     break
+                if not self._apply_pause_barrier():
+                    continue
                 if not self._run_camera_stages():
                     continue
                 continue
@@ -665,7 +713,7 @@ class LineSimulation:
             with self._lock:
                 if self.state not in ("RUNNING", "STOPPING"):
                     continue
-                self._finish_egress()          # falling from +8 starts now
+                self._finish_egress()          # falling from +4 starts now
                 # A requested stop drains the existing queue without adding
                 # another body at +0.
                 arriving = self._new_part() if self.state == "RUNNING" else None
@@ -673,10 +721,12 @@ class LineSimulation:
                     self.parts.insert(0, arriving)
             self._publish("SETTLE")
             # New body falls into +0 and the output body passes the
-            # distributor while
-            # the conveyor is stopped. Only after that can capture own cameras.
+            # distributor at +4 while the conveyor is stopped. Only after
+            # that can capture own cameras.
             if self._stop.wait(self.POST_STOP_SECONDS):
                 break
+            if not self._apply_pause_barrier():
+                continue
             if not self._run_camera_stages():
                 continue
 

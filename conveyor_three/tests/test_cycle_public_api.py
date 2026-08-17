@@ -51,11 +51,7 @@ class FakeLive:
 
 
 class FakeCameras:
-    mapping = {
-        "INPUT_LEFT": 0, "INPUT_RIGHT": 1,
-        "SPIDER_LEFT": 2, "SPIDER_RIGHT": 3,
-        "SPIDER_IN": 4, "SPIDER_OUT": 5, "TOP": 6,
-    }
+    mapping = {"NEAR": 0, "MIDDLE": 1, "FAR": 2}
 
     def capture_roles(self, roles):
         return {role: object() for role in roles}
@@ -84,22 +80,17 @@ class FakeConveyor:
 
 
 class FakeInspector:
-    INPUT_ROLES = ("INPUT_LEFT", "INPUT_RIGHT")
-    SPIDER_ROLES = (
-        "SPIDER_LEFT", "SPIDER_RIGHT", "SPIDER_IN", "SPIDER_OUT", "TOP",
-    )
+    INSPECT_ROLES = ("NEAR", "MIDDLE", "FAR")
+    PRESENCE_ROLES = ("NEAR", "FAR")
 
     def set_progress_callback(self, callback):
         self.on_progress = callback
 
-    def inspect_input(self, part_id, step, frames):
+    def inspect(self, part_id, step, frames):
         return InspectionResult(
-            stage="input", defects=[], raw_frames=frames,
+            stage="inspect", defects=[], raw_frames=frames,
             is_empty_tray=True,
         )
-
-    def inspect_spider(self, part_id, step, frames):
-        return InspectionResult(stage="spider", defects=[], raw_frames=frames)
 
 
 class FakeDistributor:
@@ -168,7 +159,7 @@ class FakeJog:
 class FakeMonitor:
     def __init__(self):
         self.updates = 0
-        self.server = type("S", (), {"active_camera_role": "INPUT_LEFT"})()
+        self.server = type("S", (), {"active_camera_role": "NEAR"})()
 
     def update(self, **kwargs):
         self.updates += 1
@@ -474,10 +465,10 @@ class TelemetryTest(unittest.TestCase):
     def test_on_inspection_progress(self):
         cycle = make_cycle()
         cycle._on_inspection_progress(
-            "input_models", "метка", part_id=5, roles=("TOP",),
+            "inspect_models", "метка", part_id=5, roles=("NEAR",),
         )
-        self.assertEqual(cycle._process["phase"], "INPUT_MODELS")
-        self.assertEqual(cycle._process["capture_roles"], ["TOP"])
+        self.assertEqual(cycle._process["phase"], "INSPECT_MODELS")
+        self.assertEqual(cycle._process["capture_roles"], ["NEAR"])
 
     def test_properties(self):
         cycle = make_cycle()

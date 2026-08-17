@@ -3,7 +3,7 @@
 Карточка — ``{"role", "ok", "verdict", "found", "metrics"}``.
 Метрика — ``{"label", "value", "limit", "ok", "key", "value_raw",
 "limit_raw", "object"?}``. Формат совместим с панелью
-«Анализ кадра» семикамерной версии.
+«Анализ кадра» трёхкамерной версии.
 """
 
 METRICS_PER_ROLE_LIMIT = 80
