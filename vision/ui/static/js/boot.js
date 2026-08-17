@@ -78,10 +78,13 @@ function updateSplashWaitingMessage() {
         ? cameraRolesMissingFrames() : [];
     const missingPreviews = typeof cameraRolesMissingPreviews === 'function'
         ? cameraRolesMissingPreviews() : [];
-    if (state.cameras.length && missingFrames.length) {
-        missing.push(`первый кадр: ${missingFrames.map(cameraRoleLabel).join(', ')}`);
-    } else if (state.cameras.length && missingPreviews.length) {
-        missing.push(`загрузка изображений: ${missingPreviews.map(cameraRoleLabel).join(', ')}`);
+    // Компактно, одним счётчиком: сколько камер уже отдали изображение.
+    // Раньше здесь перечислялись все ожидающие камеры по названиям
+    // («первый кадр: ВХОД · СЛЕВА, …»), что растягивало строку сплэша.
+    if (state.cameras.length && (missingFrames.length || missingPreviews.length)) {
+        const total = state.cameras.length;
+        const waiting = missingFrames.length || missingPreviews.length;
+        missing.push(`камеры: ${total - waiting}/${total}`);
     }
 
     if (missing.length > 0) setIfChanged(els.splashMessage, `Ожидание: ${missing.join('; ')}`);
