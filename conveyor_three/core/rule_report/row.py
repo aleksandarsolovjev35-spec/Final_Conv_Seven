@@ -1,87 +1,26 @@
-"""Формирование строк отчёта по правилам дефектов для HMI (3 камеры).
+"""Сборка одной строки отчёта по правилу (3 камеры)."""
 
-Компактная версия семикамерного модуля: тот же публичный интерфейс
-(``build_rule_report_row``, ``build_rule_report_rows``,
-``scope_rule_result_to_role``, ``filter_rule_report_rows``), но без
-форматтеров отдельных правил — сводка строится универсально по
-``per_role`` деталям правил.
-"""
+from __future__ import annotations
 
 import copy
-from types import SimpleNamespace
 
-from core.rule_summary import build_presence_summary, build_rule_summary
-
-PART_PRESENCE_RULE = "part_presence"
-
-# Названия правил -> человекочитаемые заголовки.
-RULE_LABELS = {
-    "part_presence":  "НАЛИЧИЕ ДЕТАЛИ",
-    "uneven_heights": "РАЗНОВЫСОТНОСТЬ ОКОН",
-    "window_sinks":   "РАКОВИНЫ ОКОН",
-    "bottom_glass":   "СТЕКЛО НА ДНЕ",
-    "welding":        "БРАК СВАРКИ",
-}
-
-# Камеры, для которых правило имеет смысл в анализе кадра.
-RULE_CAMERA_ROLES = {
-    "part_presence":  ("NEAR", "FAR"),
-    "uneven_heights": ("NEAR", "FAR"),
-    "window_sinks":   ("NEAR", "FAR"),
-    "bottom_glass":   ("MIDDLE",),
-    "welding":        ("MIDDLE",),
-}
-
-# Правила с развёрнутым detail в панели.
-DETAILED_RULES = ("uneven_heights",)
-
-# Подписи метрик замеров (как в панели «Пороги правил»).
-METRIC_PARAM_LABELS = {
-    ("uneven_heights", "height_px"): "Высота ячейки, px",
-    ("uneven_heights", "height_max_px"): "Высота ячейки: макс., px",
-    ("uneven_heights", "height_min_px"): "Высота ячейки: мин., px",
-    ("uneven_heights", "height_difference_px"): "Макс. разброс высот ячеек, px",
-    ("window_sinks", "found"): "Число раковин, шт",
-    ("bottom_glass", "found"): "Число стёкол, шт",
-    ("welding", "found"): "Число дефектов сварки, шт",
-}
-
-# Короткие человеческие причины дефектов.
-HUMAN_CAUSE_MAP = {
-    ("uneven_heights", True): "РАЗНОВЫСОТНОСТЬ ОКОН",
-    ("window_sinks", True):   "РАКОВИНА В ОКНЕ",
-    ("bottom_glass", True):   "СТЕКЛО НА ДНЕ ИЗДЕЛИЯ",
-    ("welding", True):        "БРАК СВАРКИ",
-}
-
-# Поля part_presence, привязанные к конкретной камере.
-_PRESENCE_ROLE_FIELDS = {
-    "NEAR": {"windows": "windows_near"},
-    "FAR":  {"windows": "windows_far"},
-}
+from core.rule_report.cards import build_presence_summary, build_rule_summary
+from core.rule_report.constants import (
+    DETAILED_RULES,
+    METRIC_PARAM_LABELS,
+    PART_PRESENCE_RULE,
+    RULE_LABELS,
+)
+from core.rule_report.human_cause import get_human_cause
+from core.rule_report.scope import (
+    filter_rule_report_rows,
+    scope_rule_result_to_role,
+)
 
 
-def get_human_cause(rule_name: str, triggered: bool, details: dict) -> str | None:
-    """Короткая читаемая причина дефекта."""
-    if not triggered:
-        return None
-    key = (rule_name, True)
-    if key in HUMAN_CAUSE_MAP:
-        return HUMAN_CAUSE_MAP[key]
-    return "ДЕФЕКТ"
-
-
-def rule_applies_to_role(rule_name: str, role: str | None) -> bool:
-    """Правило относится к выбранной камере (или роль не задана)."""
-    if not role:
-        return True
-    roles = RULE_CAMERA_ROLES.get(rule_name)
-    if roles is None:
-        return True
-    return role in roles
-
-
-def _status_label(rule_name: str, triggered: bool, details: dict, consensus: dict):
+def _status_label(
+    rule_name: str, triggered: bool, details: dict, consensus: dict,
+):
     """Итог правила для правой панели: текст и признак нейтрального статуса."""
     if rule_name == PART_PRESENCE_RULE and details.get("empty_tray"):
         label = "ДЕТАЛЬ НЕ ОБНАРУЖЕНА"
@@ -127,7 +66,10 @@ def _detail_lines(rule_name: str, per_role: dict) -> list:
     return lines
 
 
-def _summary_lines(rule_name, triggered, skipped, details, per_role, detail_lines, detail):
+def _summary_lines(
+    rule_name, triggered, skipped, details, per_role,
+    detail_lines, detail,
+):
     """Краткие строки под правилом в карточке анализа."""
     lines = []
     if skipped:
@@ -197,125 +139,11 @@ def _fallback_run_status(run_cards) -> list:
                 status = "ОТКЛОНЕНИЕ"
             else:
                 status = "НЕТ ИЗМЕРЕНИЯ"
-            rows.append({"role": card.get("role"), "status": status, "reason": None})
+            rows.append(
+                {"role": card.get("role"), "status": status, "reason": None}
+            )
         status_rows.append(rows)
     return status_rows
-
-
-def _filter_role_cards(cards, role: str) -> list:
-    if not isinstance(cards, list):
-        return []
-    return [
-        card for card in cards
-        if isinstance(card, dict) and card.get("role") == role
-    ]
-
-
-def _filter_run_cards(run_cards, role: str) -> list:
-    if not isinstance(run_cards, list):
-        return []
-    return [_filter_role_cards(cards, role) for cards in run_cards]
-
-
-def _filter_run_status(run_status, role: str) -> list:
-    if not isinstance(run_status, list):
-        return []
-    filtered = []
-    for rows in run_status:
-        if not isinstance(rows, list):
-            filtered.append([])
-            continue
-        filtered.append([
-            row for row in rows
-            if isinstance(row, dict) and (
-                row.get("role") == role
-                or row.get("role") in (None, "", "INPUT")
-            )
-        ])
-    return filtered
-
-
-def _scope_presence_details(details: dict, role: str) -> dict:
-    """Оставить в part_presence только поля выбранной камеры."""
-    scoped = dict(details)
-    if role not in _PRESENCE_ROLE_FIELDS:
-        return scoped
-
-    for details_key in (
-        "min_confidence_by_role",
-        "min_windows_by_role",
-        "presence_by_role",
-        "windows_by_role",
-    ):
-        raw = details.get(details_key)
-        if isinstance(raw, dict):
-            scoped[details_key] = {
-                key: value for key, value in raw.items() if key == role
-            }
-
-    other = "FAR" if role == "NEAR" else "NEAR"
-    for key in _PRESENCE_ROLE_FIELDS[other].values():
-        scoped[key] = None
-    return scoped
-
-
-def _scope_consensus_to_role(consensus: dict, role: str) -> dict:
-    """Оставить в consensus только карточки/статусы выбранной камеры."""
-    scoped = dict(consensus)
-    if "run_cards" in scoped:
-        scoped["run_cards"] = _filter_run_cards(scoped.get("run_cards"), role)
-    if "run_status" in scoped:
-        scoped["run_status"] = _filter_run_status(scoped.get("run_status"), role)
-    return scoped
-
-
-def scope_rule_result_to_role(result, role: str | None):
-    """Срез RuleResult до данных одной камеры."""
-    if not role or result is None:
-        return result
-
-    rule_name = getattr(result, "rule_name", "") or ""
-    if not rule_applies_to_role(rule_name, role):
-        return None
-
-    details = copy.deepcopy(getattr(result, "details", {}) or {})
-    triggered = bool(getattr(result, "triggered", False))
-
-    if rule_name == PART_PRESENCE_RULE:
-        details = _scope_presence_details(details, role)
-    else:
-        per_role = details.get("per_role")
-        if isinstance(per_role, dict) and per_role:
-            if role not in per_role:
-                return None
-            role_details = per_role[role]
-            details["per_role"] = {role: role_details}
-            if isinstance(role_details, dict) and "triggered" in role_details:
-                triggered = bool(role_details.get("triggered"))
-
-    consensus = details.get("consensus")
-    if isinstance(consensus, dict):
-        details["consensus"] = _scope_consensus_to_role(consensus, role)
-
-    return SimpleNamespace(
-        rule_name=rule_name,
-        triggered=triggered,
-        details=details,
-        drawings=getattr(result, "drawings", []) or [],
-    )
-
-
-def filter_rule_report_rows(rows) -> list:
-    """Оставить только решающие правила.
-
-    Если деталь не обнаружена, все прочие правила не влияли на решение —
-    показывается единственная строка «ДЕТАЛЬ НЕ ОБНАРУЖЕНА».
-    """
-    rows = list(rows or [])
-    for row in rows:
-        if row.get("name") == PART_PRESENCE_RULE and row.get("part_absent"):
-            return [row]
-    return rows
 
 
 def build_rule_report_rows(results, role: str | None = None) -> list:
@@ -343,7 +171,10 @@ def build_rule_report_row(result) -> dict:
     detail = details.get("reason") or details.get("status")
     skipped = False
     if has_per_role:
-        if any(isinstance(rd, dict) and rd.get("skipped") for rd in per_role.values()):
+        if any(
+            isinstance(rd, dict) and rd.get("skipped")
+            for rd in per_role.values()
+        ):
             skipped = True
             detail = "Правило отключено"
 

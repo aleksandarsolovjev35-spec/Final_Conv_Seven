@@ -93,8 +93,8 @@ def _one_run(items, label: str) -> object:
 def _run_summary_cards(rule_name: str, result) -> list:
     """Карточка замеров правила для единственного прогона."""
     # Импорт внутри функции, чтобы не создавать цикл
-    # (core.production_cycle -> inspection.consensus -> core.rule_summary).
-    from core.rule_summary import build_presence_summary, build_rule_summary
+    # (core.production_cycle -> inspection.consensus -> core.rule_report).
+    from core.rule_report import build_presence_summary, build_rule_summary
 
     details = getattr(result, "details", {}) or {}
     if rule_name == "part_presence":
