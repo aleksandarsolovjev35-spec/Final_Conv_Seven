@@ -301,7 +301,6 @@ function updateProcessPhaseLabel(lineState, process = {}) {
     );
     const processStep = process.step != null ? process.step : null;
     setIfChanged(phaseEl, label);
-    if (els.processPhaseDetail) setIfChanged(els.processPhaseDetail, detail);
     if (els.processPhaseStep && processStep !== null) setIfChanged(els.processPhaseStep, `ШАГ ${processStep}`);
     phaseEl.dataset.lineState = activeState;
     phaseEl.dataset.processPhase = phase;

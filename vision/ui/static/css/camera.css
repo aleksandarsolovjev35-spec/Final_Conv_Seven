@@ -248,13 +248,17 @@
    контейнера и ограничение ширины длинной подписи. */
 .camera-live-controls button { pointer-events: auto; }
 
-/* Обе подписи переключателя имеют одинаковую ширину и остаются строго
-   по центру: кнопка не меняет размер между «ПРАВИЛА» и «МОДЕЛИ». */
+/* Компактная кнопка по размеру совпадает с информационными плашками камеры.
+   Обе подписи имеют одну ширину и остаются строго по центру. */
 #view-mode-toggle {
-    width: 132px;
-    min-width: 132px;
-    padding-inline: 10px;
+    width: 88px;
+    min-width: 88px;
+    height: 27px;
+    padding: 0 9px;
     justify-content: center;
+    font-size: 10px;
+    letter-spacing: 0.55px;
+    line-height: 1;
     text-align: center;
 }
 

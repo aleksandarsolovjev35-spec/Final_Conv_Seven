@@ -176,7 +176,6 @@ const els = {
     statInline:       $('stat-inline'),
     lineCells:        $('line-cells'),
     processPhaseLabel: $('process-phase-label'),
-    processPhaseDetail: $('process-phase-detail'),
     processPhaseStep: $('process-phase-step'),
     processStageTrack: $('process-stage-track'),
 
