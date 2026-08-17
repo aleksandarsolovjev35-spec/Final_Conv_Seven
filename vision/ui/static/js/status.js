@@ -466,8 +466,15 @@ function _resolveDistributorRoute(ls) {
     if (!ROUTE_CATEGORIES.includes(category)) category = '';
     if (!category) {
         const d1State = String(ls.dist1_state || '').toUpperCase();
-        const d1ToDist2 = ['TO_DIST2', 'MOVING_TO_DIST2'].includes(d1State) || (d1State !== 'MOVING_TO_GOOD' && Number(ls.dist1_position || 0) > 0);
-        if (d1ToDist2) category = String(ls.dist2_target || '').toUpperCase() === 'CLEANUP' ? 'CLEANUP' : 'BAD';
+        const d1ToDist2 = ['TO_DIST2', 'MOVING_TO_DIST2'].includes(d1State)
+            || (d1State !== 'MOVING_TO_GOOD' && Number(ls.dist1_position || 0) > 0);
+        // Если деталей на +7 нет (в частности, при ручной диагностике),
+        // цвет обязан всё равно показывать выбранное положение заслонок.
+        // Раньше fallback назначал только BAD/CLEANUP, поэтому возврат
+        // DIST1 в GOOD снимал все route-классы и панель теряла зелёный цвет.
+        category = d1ToDist2
+            ? (String(ls.dist2_target || '').toUpperCase() === 'CLEANUP' ? 'CLEANUP' : 'BAD')
+            : 'GOOD';
     }
     return category;
 }
