@@ -15,12 +15,21 @@
 
 .stats-panel {
     transform-origin: center center;
+    backface-visibility: hidden;
 }
 
 /* Во время переворота панель не ловит клики. */
 .stats-panel.panel-flipping {
     pointer-events: none;
     will-change: transform;
+}
+
+/* При смене лица шторка проходит весь путь ровно за время полного
+   переворота. На RUNNING ↔ PAUSED лицо не меняется и остаётся её обычная
+   короткая анимация 320 мс. */
+.stats-panel.panel-flipping .jog-shutter {
+    transition-duration: var(--panel-flip-duration, 560ms);
+    transition-timing-function: cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
 
 /* ─── Лицо «ПРОИЗВОДСТВО» ─────────────────────────────────────── */
@@ -216,7 +225,7 @@
 
 /* Замок «щёлкает» чуть позже остановки шторки. */
 .stats-panel.jog-locked .jog-shutter-lock {
-    animation: lockClick 380ms var(--ease) 300ms both;
+    animation: lockClick 260ms var(--ease) 280ms both;
 }
 
 @keyframes lockClick {

@@ -20,6 +20,7 @@ const PANEL_FACE_BY_STATE = {
 };
 
 const PANEL_FLIP_HALF_MS = 280;
+const PANEL_FLIP_TOTAL_MS = PANEL_FLIP_HALF_MS * 2;
 const PANEL_FLIP_EASE = 'cubic-bezier(0.36, 0.07, 0.19, 0.97)';
 
 let _panelFace = 'ready';
@@ -85,18 +86,20 @@ function flipPanelTo(face) {
     _panelFlipping = true;
     _panelFace = face;
     _panelQueuedFace = null;
+    panel.style.setProperty('--panel-flip-duration', `${PANEL_FLIP_TOTAL_MS}ms`);
     panel.classList.add('panel-flipping');
 
+    // Шторка уже получила целевое состояние из updatePanelFace(). Её ход
+    // длится столько же, сколько весь переворот, поэтому обе механики
+    // начинаются и заканчиваются вместе без отдельного скачка на ребре.
     // Первая половина: к ребру.
     panel.style.transition = `transform ${PANEL_FLIP_HALF_MS}ms ${PANEL_FLIP_EASE}`;
     panel.style.transform = `perspective(1400px) rotateY(${dir * 90}deg)`;
 
     setTimeout(() => {
-        // На ребре меняем содержимое и доворачиваем с другой стороны.
-        // Замок ручного управления переключаем здесь же, чтобы шторка
-        // не анимировалась на ещё видимом старом лице.
+        // На ребре меняем только лицо. Шторка уже движется синхронно с
+        // переворотом и не получает повторного переключения в середине.
         applyPanelFace(face);
-        applyJogLock();
         panel.style.transition = 'none';
         panel.style.transform = `perspective(1400px) rotateY(${dir * -90}deg)`;
         // Перечитываем раскладку, чтобы сброс transition применился
@@ -110,18 +113,23 @@ function flipPanelTo(face) {
         panel.style.transition = '';
         panel.style.transform = '';
         panel.classList.remove('panel-flipping');
+        panel.style.removeProperty('--panel-flip-duration');
         _panelFlipping = false;
 
         const queued = _panelQueuedFace;
         _panelQueuedFace = null;
         if (queued && queued !== _panelFace) flipPanelTo(queued);
-    }, PANEL_FLIP_HALF_MS * 2 + 40);
+    }, PANEL_FLIP_TOTAL_MS + 40);
 }
 
 // Вызывается из status.js.updateLineStatus после обновления состояния.
 function updatePanelFace(ls) {
     _lastLineStatus = ls || null;
     fillFaultFace(ls);
+    // Целевое положение шторки задаём до запуска переворота. Если лицо
+    // меняется, браузер запускает оба transform в одном кадре; если лицо то
+    // же (RUNNING ↔ PAUSED), работает только обычная короткая анимация шторки.
+    applyJogLock();
     flipPanelTo(panelFaceForState(ls && ls.state));
 }
 
