@@ -54,7 +54,8 @@ function updateViewModeControls() {
     if (els.viewModeToggle) {
         els.viewModeToggle.classList.toggle('is-faded', !visible);
         els.viewModeToggle.disabled = !allowed;
-        els.viewModeToggle.textContent = state.mode === 'RULES' ? 'ВИД: ПРАВИЛА' : 'ВИД: RAW';
+        els.viewModeToggle.textContent = state.mode === 'RULES'
+            ? 'ВИД ПРАВИЛА' : 'ВИД МОДЕЛИ';
         els.viewModeToggle.setAttribute('aria-pressed', state.mode === 'RULES' ? 'true' : 'false');
     }
 }

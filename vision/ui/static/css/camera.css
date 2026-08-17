@@ -247,6 +247,17 @@
    здесь только возврат перехвата кликов через pointer-events: none
    контейнера и ограничение ширины длинной подписи. */
 .camera-live-controls button { pointer-events: auto; }
+
+/* Обе подписи переключателя имеют одинаковую ширину и остаются строго
+   по центру: кнопка не меняет размер между «ПРАВИЛА» и «МОДЕЛИ». */
+#view-mode-toggle {
+    width: 132px;
+    min-width: 132px;
+    padding-inline: 10px;
+    justify-content: center;
+    text-align: center;
+}
+
 #analyze-selected-frame {
     max-width: 100%;
     overflow: hidden;
