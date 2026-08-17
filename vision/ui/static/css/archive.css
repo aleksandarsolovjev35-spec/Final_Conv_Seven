@@ -106,17 +106,6 @@
     border-color: var(--accent);
 }
 
-.archive-settings-policy {
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--panel);
-    color: var(--text-dim);
-    font: 700 8px var(--font-ui);
-    letter-spacing: 0.35px;
-    line-height: 1.5;
-}
-
 .archive-settings-validation {
     min-height: 18px;
     color: var(--text-muted);
