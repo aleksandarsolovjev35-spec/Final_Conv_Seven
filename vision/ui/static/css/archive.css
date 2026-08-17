@@ -1,4 +1,4 @@
-/* archive.css — настройки хранения партий */
+/* archive.css — выбор папки обязательного архива партий */
 
 /* Кнопка «АРХИВ» в футере — .btn .btn-archive-settings (акцентный
    вариант задан в controls.css). Шрифт, размер и ширина — как у
@@ -76,24 +76,21 @@
     min-width: 0;
 }
 
-.archive-settings-row > label,
-.archive-settings-check {
+.archive-settings-row > label {
     color: var(--text-dim);
     font: 700 9px var(--font-ui);
     letter-spacing: 0.45px;
 }
 
-.archive-settings-path-controls,
-.archive-settings-inline {
+.archive-settings-path-controls {
     display: flex;
     align-items: center;
     gap: 7px;
     min-width: 0;
 }
 
-.archive-settings-body input[type="text"],
-.archive-settings-body input[type="number"],
-.archive-settings-body select {
+.archive-settings-body input[type="text"] {
+    flex: 1 1 auto;
     min-width: 0;
     height: 30px;
     padding: 4px 8px;
@@ -104,26 +101,21 @@
     font: 600 10px var(--font-mono);
     user-select: text;
 }
-.archive-settings-body input[type="text"] { flex: 1 1 auto; }
-.archive-settings-body input[type="number"] { width: 78px; }
-.archive-settings-body select { width: 100%; }
-.archive-settings-body input:focus,
-.archive-settings-body select:focus { outline: none; border-color: var(--accent); }
-
-.archive-settings-hint {
-    min-width: 0;
-    color: var(--text-muted);
-    font: 500 9px var(--font-ui);
+.archive-settings-body input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent);
 }
 
-.archive-settings-check {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    cursor: pointer;
-    user-select: none;
+.archive-settings-policy {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--panel);
+    color: var(--text-dim);
+    font: 700 8px var(--font-ui);
+    letter-spacing: 0.35px;
+    line-height: 1.5;
 }
-.archive-settings-check input { accent-color: var(--accent); }
 
 .archive-settings-validation {
     min-height: 18px;

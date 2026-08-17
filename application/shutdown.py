@@ -129,11 +129,7 @@ class ShutdownManager:
             )
 
     def _shutdown_compress(self, archive) -> None:
-        if (
-            not archive
-            or not archive.enabled
-            or not archive.compress_on_shutdown
-        ):
+        if not archive:
             return
 
         try:
@@ -157,9 +153,7 @@ class ShutdownManager:
     def _safe_compress(archive) -> None:
         try:
             print("[SHUTDOWN] Сжатие архива...")
-            archive.compress(
-                delete_original=archive.delete_original_after_zip
-            )
+            archive.compress()
         except Exception as exc:
             print(f"[SHUTDOWN] Ошибка сжатия архива: {exc}")
 

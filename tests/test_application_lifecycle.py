@@ -197,10 +197,7 @@ class FakeFactory:
         self.events.append("inspection")
         decision = SimpleNamespace(rules=[object()], thresholds={"TOP.x": 1})
         inspector = SimpleNamespace(decision=decision)
-        archive = SimpleNamespace(
-            enabled=False,
-            compress_on_shutdown=False,
-        )
+        archive = SimpleNamespace()
         return SimpleNamespace(
             threshold_loader=SimpleNamespace(labels={"TOP.x": "X"}),
             thresholds={"TOP.x": 1},
@@ -565,10 +562,7 @@ class ExitAndShutdownTest(unittest.TestCase):
             release=lambda: events.append("cameras.release")
         )
         runtime.transport = FakeTransport(events)
-        runtime.archive = SimpleNamespace(
-            enabled=False,
-            compress_on_shutdown=False,
-        )
+        runtime.archive = SimpleNamespace(compress=lambda: None)
         manager = ShutdownManager(runtime, thread_factory=ImmediateThread)
 
         manager.shutdown()
@@ -612,10 +606,7 @@ class ExitAndShutdownTest(unittest.TestCase):
             release=lambda: events.append("cameras.release")
         )
         runtime.transport = FakeTransport(events)
-        runtime.archive = SimpleNamespace(
-            enabled=True,
-            compress_on_shutdown=True,
-        )
+        runtime.archive = SimpleNamespace(compress=lambda: None)
 
         def failing_thread_factory(**_kwargs):
             raise RuntimeError("thread unavailable")
@@ -638,20 +629,16 @@ class ExitAndShutdownTest(unittest.TestCase):
             release=lambda: events.append("cameras.release")
         )
         runtime.archive = SimpleNamespace(
-            enabled=True,
-            compress_on_shutdown=True,
-            delete_original_after_zip=True,
-            compress=lambda **kwargs: events.append(
-                ("archive.compress", kwargs)
-            ),
+            compress=lambda: events.append("archive.compress"),
         )
         manager = ShutdownManager(runtime, thread_factory=ImmediateThread)
 
         manager.shutdown()
 
-        compressed = ("archive.compress", {"delete_original": True})
-        self.assertIn(compressed, events)
-        self.assertLess(events.index(compressed), events.index("cameras.release"))
+        self.assertIn("archive.compress", events)
+        self.assertLess(
+            events.index("archive.compress"), events.index("cameras.release"),
+        )
 
 
 class OperatorUITest(unittest.TestCase):

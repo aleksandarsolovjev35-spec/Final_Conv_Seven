@@ -667,8 +667,8 @@ class UIServer:
 
     def archive_ready_for_start(self) -> tuple[bool, str | None]:
         archive = self.archive
-        if archive is None or not archive.enabled:
-            return True, None
+        if archive is None:
+            return False, "архив не инициализирован"
         try:
             archive.validate_root(archive.root_folder)
         except ValueError as exc:
@@ -680,8 +680,7 @@ class UIServer:
             raise RuntimeError("Архив ещё не инициализирован")
         if not self.archive_editable():
             raise RuntimeError(
-                "Настройки архива доступны только до начала партии "
-                "и после полной остановки"
+                "Папку архива можно менять только до начала текущей партии"
             )
 
         from config.archive_config import normalise_archive_config, save_archive_config
@@ -692,10 +691,6 @@ class UIServer:
         config = normalise_archive_config(incoming)
         settings = self.archive.reconfigure(
             root_folder=config["root_path"],
-            enabled=config["enabled"],
-            jpeg_quality=config["jpeg_quality"],
-            compress_on_shutdown=config["compress_on_shutdown"],
-            delete_original_after_zip=config["delete_original_after_zip"],
         )
         save_archive_config(self.archive_config_path, config)
         settings["available"] = True

@@ -77,12 +77,6 @@ class ProductionSystemFactory:
         archive_config = load_archive_config()
         archive = PartArchive(
             root_folder=archive_config["root_path"],
-            enabled=archive_config["enabled"],
-            jpeg_quality=archive_config["jpeg_quality"],
-            compress_on_shutdown=archive_config["compress_on_shutdown"],
-            delete_original_after_zip=archive_config[
-                "delete_original_after_zip"
-            ],
         )
         return InspectionServices(
             threshold_loader=threshold_loader,

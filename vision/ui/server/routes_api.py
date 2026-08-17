@@ -180,7 +180,7 @@ def setup_api_routes(app, server):
             )
         return JSONResponse({"ok": True, "thresholds": result})
 
-    # Архив партий: путь и политика сжатия меняются только до начала партии.
+    # Обязательный архив партий: до начала партии меняется только корневая папка.
 
     @app.get("/api/archive/settings")
     async def api_get_archive_settings():
