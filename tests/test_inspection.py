@@ -377,11 +377,6 @@ class PartArchiveTest(unittest.TestCase):
             part_id, category, decision="none", defects=[], step=3,
         )
 
-    def test_disabled_archive_no_files(self):
-        archive = self.make_archive(enabled=False)
-        self.assertIsNone(self.store_and_finalize(archive))
-        self.assertFalse(os.path.exists(self.root))
-
     def test_finalize_writes_files(self):
         archive = self.make_archive()
         folder = self.store_and_finalize(archive)
@@ -436,36 +431,30 @@ class PartArchiveTest(unittest.TestCase):
         self.assertIsNone(archive.get_part_info(99))
         self.assertEqual(archive.get_part_images(99), {})
 
-    def test_can_reconfigure_before_start(self):
+    def test_can_reconfigure_root_before_start(self):
         archive = self.make_archive()
         self.assertTrue(archive.can_reconfigure())
         settings = archive.reconfigure(
             root_folder=os.path.join(self.tmp.name, "archive2"),
-            enabled=True,
-            jpeg_quality=80,
-            compress_on_shutdown=False,
-            delete_original_after_zip=False,
         )
-        self.assertEqual(settings["jpeg_quality"], 80)
-        self.assertFalse(settings["compress_on_shutdown"])
-        self.assertFalse(settings["delete_original_after_zip"])
-        self.assertFalse(archive.compress_on_shutdown)
-        self.assertFalse(archive.delete_original_after_zip)
         self.assertIn("archive2", settings["root_path"])
+        self.assertEqual(archive.JPEG_QUALITY, 98)
+        self.assertNotIn("enabled", settings)
+        self.assertNotIn("jpeg_quality", settings)
+        self.assertNotIn("compress_on_shutdown", settings)
 
     def test_reconfigure_after_finalize_raises(self):
         archive = self.make_archive()
         self.store_and_finalize(archive)
         self.assertFalse(archive.can_reconfigure())
         with self.assertRaisesRegex(RuntimeError, "только до начала партии"):
-            archive.reconfigure(root_folder=self.root, enabled=True,
-                                jpeg_quality=90)
+            archive.reconfigure(root_folder=self.root)
 
     def test_get_settings_shape(self):
         archive = self.make_archive()
         settings = archive.get_settings()
-        for key in ("enabled", "root_path", "jpeg_quality", "batch_id",
-                    "batch_folder", "editable", "validation"):
+        for key in ("root_path", "batch_id", "batch_folder", "editable",
+                    "validation"):
             self.assertIn(key, settings)
         self.assertTrue(settings["validation"]["writable"])
 
@@ -479,15 +468,11 @@ class PartArchiveTest(unittest.TestCase):
     def test_compress_creates_zip(self):
         archive = self.make_archive()
         self.store_and_finalize(archive)
-        zip_path = archive.compress(delete_original=True)
+        zip_path = archive.compress()
         self.assertTrue(zip_path)
         self.assertTrue(os.path.exists(zip_path))
         self.assertFalse(os.path.exists(archive.batch_folder))
         self.assertTrue(zipfile_has(zip_path, "GOOD/part_0001/meta.json"))
-
-    def test_compress_disabled(self):
-        archive = self.make_archive(enabled=False)
-        self.assertIsNone(archive.compress())
 
     def test_compress_empty_batch(self):
         archive = self.make_archive()

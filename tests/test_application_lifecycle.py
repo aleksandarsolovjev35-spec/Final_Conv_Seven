@@ -128,7 +128,9 @@ class FakeCycle:
         self.force_exit_requested = False
         self.jog = SimpleNamespace(status={"busy": False})
         self.live = SimpleNamespace(
-            stop=lambda: self.events.append("live.stop")
+            stop=lambda: self.events.append("live.stop"),
+            wait_for_roles=lambda roles, timeout: (),
+            error=None,
         )
 
     def start(self):
@@ -143,8 +145,13 @@ class FakeCycle:
     def diagnostic_check_vision_rules(self): pass
     def diagnostic_analyze_selected_camera(self): pass
     def diagnostic_release_selected_camera(self): pass
-    def enter_jog(self): pass
+
+    def enter_jog(self):
+        self.events.append("jog.enter")
+        return True
+
     def exit_jog(self): pass
+
     def jog_hold_start(self): pass
     def jog_hold_heartbeat(self): pass
     def jog_hold_release(self): pass
@@ -190,10 +197,7 @@ class FakeFactory:
         self.events.append("inspection")
         decision = SimpleNamespace(rules=[object()], thresholds={"TOP.x": 1})
         inspector = SimpleNamespace(decision=decision)
-        archive = SimpleNamespace(
-            enabled=False,
-            compress_on_shutdown=False,
-        )
+        archive = SimpleNamespace()
         return SimpleNamespace(
             threshold_loader=SimpleNamespace(labels={"TOP.x": "X"}),
             thresholds={"TOP.x": 1},
@@ -269,6 +273,7 @@ class ApplicationStartupTest(unittest.TestCase):
         self.assertIn(("serial.send", "G25"), events)
         self.assertIs(runtime.cycle, factory.cycle)
         self.assertTrue(runtime.cycle_thread.started)
+        self.assertIn("jog.enter", events)
         callback_pairs = {
             "start_callback": "request_start",
             "stop_callback": "request_stop",
@@ -302,6 +307,35 @@ class ApplicationStartupTest(unittest.TestCase):
         self.assertEqual(monitor.server.thresholds, {"TOP.x": 1})
         self.assertEqual(len(monitor.updates), 1)
         self.assertIn("boot.complete", events)
+
+    def test_startup_waits_for_first_frame_from_every_camera(self):
+        events = []
+        monitor = FakeMonitor(events)
+        runtime = RuntimeState(monitor=monitor)
+        factory = FakeFactory(events)
+        factory.cycle.live.wait_for_roles = (
+            lambda roles, timeout: ("TOP",)
+        )
+        exits = ExitCoordinator(runtime, thread_factory=ImmediateThread)
+        initializer = SystemInitializer(
+            runtime,
+            factory,
+            exits,
+            thread_factory=PassiveThread,
+            sleep=lambda _seconds: None,
+            initial_camera_frames_timeout=0.0,
+        )
+
+        initializer.run()
+
+        errors = [
+            event for event in events
+            if isinstance(event, tuple) and event[0] == "boot.error"
+        ]
+        self.assertTrue(errors)
+        self.assertEqual(errors[-1][1], "ready")
+        self.assertIn("Нет первого кадра: TOP", errors[-1][2])
+        self.assertNotIn("boot.complete", events)
 
     def test_startup_failure_stops_before_serial_and_hardware(self):
         events = []
@@ -528,10 +562,7 @@ class ExitAndShutdownTest(unittest.TestCase):
             release=lambda: events.append("cameras.release")
         )
         runtime.transport = FakeTransport(events)
-        runtime.archive = SimpleNamespace(
-            enabled=False,
-            compress_on_shutdown=False,
-        )
+        runtime.archive = SimpleNamespace(compress=lambda: None)
         manager = ShutdownManager(runtime, thread_factory=ImmediateThread)
 
         manager.shutdown()
@@ -575,10 +606,7 @@ class ExitAndShutdownTest(unittest.TestCase):
             release=lambda: events.append("cameras.release")
         )
         runtime.transport = FakeTransport(events)
-        runtime.archive = SimpleNamespace(
-            enabled=True,
-            compress_on_shutdown=True,
-        )
+        runtime.archive = SimpleNamespace(compress=lambda: None)
 
         def failing_thread_factory(**_kwargs):
             raise RuntimeError("thread unavailable")
@@ -601,20 +629,16 @@ class ExitAndShutdownTest(unittest.TestCase):
             release=lambda: events.append("cameras.release")
         )
         runtime.archive = SimpleNamespace(
-            enabled=True,
-            compress_on_shutdown=True,
-            delete_original_after_zip=True,
-            compress=lambda **kwargs: events.append(
-                ("archive.compress", kwargs)
-            ),
+            compress=lambda: events.append("archive.compress"),
         )
         manager = ShutdownManager(runtime, thread_factory=ImmediateThread)
 
         manager.shutdown()
 
-        compressed = ("archive.compress", {"delete_original": True})
-        self.assertIn(compressed, events)
-        self.assertLess(events.index(compressed), events.index("cameras.release"))
+        self.assertIn("archive.compress", events)
+        self.assertLess(
+            events.index("archive.compress"), events.index("cameras.release"),
+        )
 
 
 class OperatorUITest(unittest.TestCase):

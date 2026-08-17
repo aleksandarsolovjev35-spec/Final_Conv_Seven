@@ -1,8 +1,8 @@
-"""Настройки хранения архива партий.
+"""Настройка корневой папки обязательного архива партий.
 
-Упрощённая версия: папка хранения, качество JPEG и флаг «сжимать партию
-при выходе». Метод/уровень ZIP убраны — используется один совместимый
-deflated.
+Политика фиксирована в :class:`inspection.part_archive.PartArchive`: архив
+всегда включён, JPEG сохраняется с максимальным качеством, а при выходе партия
+всегда упаковывается в ZIP с удалением исходной папки после проверки CRC.
 """
 
 from __future__ import annotations
@@ -15,11 +15,7 @@ from pathlib import Path
 ARCHIVE_CONFIG_FILE = "archive_config.json"
 
 DEFAULTS = {
-    "enabled": True,
     "root_path": "archive",
-    "jpeg_quality": 92,
-    "compress_on_shutdown": True,
-    "delete_original_after_zip": True,
 }
 
 
@@ -31,29 +27,11 @@ def _normalise_root(value) -> str:
 
 
 def normalise_archive_config(data: dict | None) -> dict:
+    """Оставить только путь, удаляя устаревшие переключатели политики."""
     source = data if isinstance(data, dict) else {}
-    result = dict(DEFAULTS)
-    result["enabled"] = bool(source.get("enabled", result["enabled"]))
-    result["root_path"] = _normalise_root(
-        source.get("root_path", result["root_path"])
-    )
-
-    try:
-        quality = int(source.get("jpeg_quality", result["jpeg_quality"]))
-    except (TypeError, ValueError):
-        quality = result["jpeg_quality"]
-    result["jpeg_quality"] = max(70, min(98, quality))
-
-    result["compress_on_shutdown"] = bool(
-        source.get("compress_on_shutdown", result["compress_on_shutdown"])
-    )
-    result["delete_original_after_zip"] = bool(
-        source.get(
-            "delete_original_after_zip",
-            result["delete_original_after_zip"],
-        )
-    )
-    return result
+    return {
+        "root_path": _normalise_root(source.get("root_path")),
+    }
 
 
 def load_archive_config(path: str = ARCHIVE_CONFIG_FILE) -> dict:

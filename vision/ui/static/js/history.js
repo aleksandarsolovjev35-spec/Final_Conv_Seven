@@ -3,8 +3,20 @@
 
 // ─── Recent parts ────────────────────────────────────────────
 
+const HISTORY_SLOT_COUNT = 10;
+
+function historyPlaceholderCard() {
+    return `
+        <div class="history-card history-card-placeholder" aria-hidden="true">
+            <div class="history-card-id">&nbsp;</div>
+            <div class="history-card-symbol">—</div>
+        </div>
+    `;
+}
+
 function updateRecentParts(parts) {
-    const hash = parts.map(p =>
+    const visible = (parts || []).slice(-HISTORY_SLOT_COUNT);
+    const hash = visible.map(p =>
         `${p.id}:${p.category}:${p.decision}`
     ).join('|');
 
@@ -13,16 +25,7 @@ function updateRecentParts(parts) {
     }
     els.historyCards.dataset.hash = hash;
 
-    if (!parts.length) {
-        els.historyCards.innerHTML =
-            '<span class="history-empty">Корпусов пока нет</span>';
-        animateUiElement(els.historyCards, 'ui-content-change');
-        return;
-    }
-
-    const visible = parts.slice(-10);
-
-    els.historyCards.innerHTML = visible.map(p => {
+    const filled = visible.map(p => {
         const cat = (p.category || 'GOOD').toLowerCase();
         let symbol = 'ГОДНО';
         if (cat === 'bad')     symbol = 'БРАК';
@@ -31,13 +34,18 @@ function updateRecentParts(parts) {
         return `
             <div class="history-card cat-${cat}"
                  onclick="window._openPartGallery(${p.id})"
-                 title="Корпус #${p.id} · ${symbol}"
+                 title="Корпус \u2116\u00a0${p.id} · ${symbol}"
                  style="cursor:pointer">
-                <div class="history-card-id">#${p.id}</div>
+                <div class="history-card-id">\u2116\u00a0${p.id}</div>
                 <div class="history-card-symbol">${symbol}</div>
             </div>
         `;
-    }).join('');
+    });
+    const empty = Array.from(
+        {length: HISTORY_SLOT_COUNT - filled.length},
+        historyPlaceholderCard,
+    );
+    els.historyCards.innerHTML = [...filled, ...empty].join('');
     animateUiElement(els.historyCards, 'ui-content-change');
 }
 

@@ -176,7 +176,6 @@ const els = {
     statInline:       $('stat-inline'),
     lineCells:        $('line-cells'),
     processPhaseLabel: $('process-phase-label'),
-    processPhaseDetail: $('process-phase-detail'),
     processPhaseStep: $('process-phase-step'),
     processStageTrack: $('process-stage-track'),
 
@@ -193,10 +192,6 @@ const els = {
     archivePickFolder: $('archive-pick-folder'),
     archiveSettingsSave: $('archive-settings-save'),
     archiveRootPath: $('archive-root-path'),
-    archiveJpegQuality: $('archive-jpeg-quality'),
-    archiveEnabled: $('archive-enabled'),
-    archiveCompressOnShutdown: $('archive-compress-on-shutdown'),
-    archiveDeleteOriginal: $('archive-delete-original'),
     archiveSettingsValidation: $('archive-settings-validation'),
     archiveSettingsStatus: $('archive-settings-status'),
     archiveBatchId: $('archive-batch-id'),
@@ -359,7 +354,7 @@ function animateUiElement(el, className = 'ui-value-change') {
     el.classList.add(className);
     setTimeout(() => el.classList.remove(className), 260);
 }
-function normalizeOperatorText(value) { return String(value).replace(/\u2116\s*/g, '#'); }
+function normalizeOperatorText(value) { return String(value).replace(/#\s*(?=\d)/g, '\u2116\u00a0'); }
 function setIfChanged(el, value, animate = true) {
     if (!el) return;
     const text = normalizeOperatorText(value);

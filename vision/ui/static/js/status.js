@@ -288,7 +288,7 @@ function updateProcessPhaseLabel(lineState, process = {}) {
         : lineStateLabel(activeState);
     const detailParts = [];
     if (processLabel && processLabel !== label) detailParts.push(processLabel);
-    if (process.part_id != null) detailParts.push(`КОРПУС #${process.part_id}`);
+    if (process.part_id != null) detailParts.push(`КОРПУС \u2116\u00a0${process.part_id}`);
     const captureRoles = Array.isArray(process.capture_roles) ? process.capture_roles : [];
     if (captureRoles.length && isInspectionDisplayPhase(phase)) {
         detailParts.push(`КАМЕР: ${captureRoles.length}`);
@@ -301,7 +301,6 @@ function updateProcessPhaseLabel(lineState, process = {}) {
     );
     const processStep = process.step != null ? process.step : null;
     setIfChanged(phaseEl, label);
-    if (els.processPhaseDetail) setIfChanged(els.processPhaseDetail, detail);
     if (els.processPhaseStep && processStep !== null) setIfChanged(els.processPhaseStep, `ШАГ ${processStep}`);
     phaseEl.dataset.lineState = activeState;
     phaseEl.dataset.processPhase = phase;
@@ -466,8 +465,15 @@ function _resolveDistributorRoute(ls) {
     if (!ROUTE_CATEGORIES.includes(category)) category = '';
     if (!category) {
         const d1State = String(ls.dist1_state || '').toUpperCase();
-        const d1ToDist2 = ['TO_DIST2', 'MOVING_TO_DIST2'].includes(d1State) || (d1State !== 'MOVING_TO_GOOD' && Number(ls.dist1_position || 0) > 0);
-        if (d1ToDist2) category = String(ls.dist2_target || '').toUpperCase() === 'CLEANUP' ? 'CLEANUP' : 'BAD';
+        const d1ToDist2 = ['TO_DIST2', 'MOVING_TO_DIST2'].includes(d1State)
+            || (d1State !== 'MOVING_TO_GOOD' && Number(ls.dist1_position || 0) > 0);
+        // Если деталей на +7 нет (в частности, при ручной диагностике),
+        // цвет обязан всё равно показывать выбранное положение заслонок.
+        // Раньше fallback назначал только BAD/CLEANUP, поэтому возврат
+        // DIST1 в GOOD снимал все route-классы и панель теряла зелёный цвет.
+        category = d1ToDist2
+            ? (String(ls.dist2_target || '').toUpperCase() === 'CLEANUP' ? 'CLEANUP' : 'BAD')
+            : 'GOOD';
     }
     return category;
 }
@@ -630,8 +636,8 @@ function updateLineCells(lineParts, process = {}) {
             } else {
                 piece.style.left = targetLeft;
             }
-            piece.textContent = `#${token.id}`;
-            piece.title = `Корпус #${token.id} · ${categoryLabel(token.category)}`;
+            piece.textContent = `\u2116\u00a0${token.id}`;
+            piece.title = `Корпус \u2116\u00a0${token.id} · ${categoryLabel(token.category)}`;
             nextPieces.push(piece);
         }
         token.pieces.forEach(piece => { if (!nextPieces.includes(piece)) piece.remove(); });

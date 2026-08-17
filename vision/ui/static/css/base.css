@@ -3,8 +3,10 @@
 /* ─── Design tokens ───────────────────────────────────────────────── */
 
 :root {
+    /* Один шрифт во всей HMI. Старое имя --font-mono оставлено как
+       совместимый токен для числовых полей, но использует ту же гарнитуру. */
     --font-ui:      'Segoe UI', Arial, sans-serif;
-    --font-mono:    'Cascadia Mono', Consolas, monospace;
+    --font-mono:    'Segoe UI', Arial, sans-serif;
 
     --bg-0:         #0f1317;
     --bg-1:         #13191e;

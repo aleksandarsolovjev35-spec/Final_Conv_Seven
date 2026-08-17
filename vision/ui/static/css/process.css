@@ -226,6 +226,14 @@
 
 .jog-panel.jog-inactive { opacity: 0.55; }
 
+/* Во время короткой передачи управления после нажатия ПАУЗА кнопки уже
+   выглядят как готовые. Они остаются disabled до подтверждения backend,
+   но не меняют прозрачность в кадре поднимающейся шторки. */
+.jog-panel.jog-pause-handoff,
+.jog-panel.jog-pause-handoff .jog-dpad-btn:disabled {
+    opacity: 1;
+}
+
 /* Кнопка «ЗАКРЫТЬ» на экране ошибки загрузки — .btn.btn-bad;
    здесь только отступ от текста ошибки. */
 .splash-exit-btn {
@@ -305,7 +313,7 @@
     border-radius: 2px;
     background: #66737e;
     color: rgba(8, 13, 17, .86);
-    font: 800 9px var(--font-mono);
+    font: 800 9px var(--font-ui);
     line-height: 1;
     box-shadow: inset 0 1px rgba(255,255,255,.13), 0 1px 2px rgba(0,0,0,.35);
     transition: left var(--move-duration, 630ms) cubic-bezier(.25,.1,.25,1),

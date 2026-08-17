@@ -305,12 +305,16 @@ class UIServerTest(unittest.TestCase):
         self.assertFalse(payload.get("available", False))
 
     def test_archive_ready_for_start(self):
-        self.server.archive = mock.Mock()
-        self.server.archive.get_settings.return_value = {
-            "enabled": True, "batch_id": "b", "validation": None,
-        }
+        self.server.archive = mock.Mock(root_folder="/archive")
         ok, message = self.server.archive_ready_for_start()
         self.assertTrue(ok)
+        self.assertIsNone(message)
+        self.server.archive.validate_root.assert_called_once_with("/archive")
+
+    def test_archive_is_required_for_start(self):
+        ok, message = self.server.archive_ready_for_start()
+        self.assertFalse(ok)
+        self.assertIn("не инициализирован", message)
 
     def test_apply_archive_settings_requires_archive(self):
         with self.assertRaisesRegex(RuntimeError, "не инициализирован"):
@@ -319,19 +323,21 @@ class UIServerTest(unittest.TestCase):
     def test_apply_archive_settings(self):
         archive = mock.Mock()
         archive.can_reconfigure.return_value = True
-        archive.reconfigure.return_value = {"enabled": True}
-        archive.get_settings.return_value = {
-            "root_path": "/tmp/x", "enabled": True, "jpeg_quality": 90,
-            "compress_on_shutdown": True, "delete_original_after_zip": True,
-        }
+        archive.reconfigure.return_value = {"root_path": "/tmp/new"}
+        archive.get_settings.return_value = {"root_path": "/tmp/x"}
         self.server.archive = archive
         self.server.splash_active = False
         self.server.line_status = {"state": "IDLE"}
         with mock.patch(
             "config.archive_config.save_archive_config",
         ) as save:
-            result = self.server.apply_archive_settings({"enabled": True})
-        self.assertTrue(result["enabled"])
+            result = self.server.apply_archive_settings({
+                "root_path": "/tmp/new",
+                "enabled": False,
+                "jpeg_quality": 70,
+            })
+        self.assertEqual(result["root_path"], "/tmp/new")
+        archive.reconfigure.assert_called_once_with(root_folder="/tmp/new")
         save.assert_called_once()
 
     # ---------- stream / frame ----------
@@ -457,16 +463,20 @@ class UIServerTest(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_api_start_503_without_callback(self):
+        self.server.archive = mock.Mock(root_folder="/archive")
         response = self.client.post("/api/start")
         self.assertEqual(response.status_code, 503)
         self.assertFalse(response.json()["ok"])
 
     def test_api_start_callback_false_409(self):
+        self.server.archive = mock.Mock(root_folder="/archive")
         self.server.on_start = lambda: False
         response = self.client.post("/api/start")
         self.assertEqual(response.status_code, 409)
 
     def test_api_start_callback_exception_500(self):
+        self.server.archive = mock.Mock(root_folder="/archive")
+
         def boom():
             raise RuntimeError("cycle broken")
 
@@ -476,6 +486,7 @@ class UIServerTest(unittest.TestCase):
         self.assertIn("cycle broken", response.json()["error"])
 
     def test_api_start_callback_ok(self):
+        self.server.archive = mock.Mock(root_folder="/archive")
         self.server.on_start = mock.Mock(return_value=True)
         response = self.client.post("/api/start")
         self.assertEqual(response.status_code, 200)
@@ -616,6 +627,11 @@ class UIServerTest(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.content, b"jpeg-data")
             self.assertEqual(response.headers["content-type"], "image/jpeg")
+            # part_id начинается с единицы в каждой партии, поэтому WebView
+            # не должен переиспользовать снимок с тем же URL после перезапуска.
+            self.assertIn("no-store", response.headers["cache-control"])
+            self.assertEqual(response.headers["pragma"], "no-cache")
+            self.assertEqual(response.headers["expires"], "0")
 
     def test_archive_image_route_bad_kind(self):
         self.server.archive = mock.Mock()

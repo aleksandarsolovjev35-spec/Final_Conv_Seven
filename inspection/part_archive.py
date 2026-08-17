@@ -32,7 +32,10 @@ import cv2
 class PartArchive:
     """Архиватор деталей: копит кадры по стадиям и пишет их на диск."""
 
-    JPEG_QUALITY = 92
+    # Политика архива фиксирована: всегда сохраняем, максимальное качество
+    # JPEG в принятом диапазоне приложения, при выходе — ZIP с удалением
+    # исходной папки только после проверки CRC.
+    JPEG_QUALITY = 98
     SCHEMA_VERSION = 2
     CATEGORY_DIRS = {
         "GOOD": "GOOD",
@@ -50,19 +53,8 @@ class PartArchive:
         self,
         root_folder: str = "archive",
         batch_id: str | None = None,
-        enabled: bool = True,
-        jpeg_quality: int = JPEG_QUALITY,
-        compress_on_shutdown: bool = True,
-        delete_original_after_zip: bool = True,
     ):
-        self.root_folder = os.path.abspath(
-            os.path.expandvars(os.path.expanduser(str(root_folder)))
-        )
-        self.enabled = bool(enabled)
-        self.jpeg_quality = max(70, min(98, int(jpeg_quality)))
-        # Простая опция: сжимать партию в один ZIP при завершении.
-        self.compress_on_shutdown = bool(compress_on_shutdown)
-        self.delete_original_after_zip = bool(delete_original_after_zip)
+        self.root_folder = self._normalise_root(root_folder)
 
         if batch_id is None:
             batch_id = datetime.now().strftime("batch_%Y%m%d_%H%M%S")
@@ -78,11 +70,10 @@ class PartArchive:
 
         self.stats: dict = self._load_stats()
 
-        if self.enabled:
-            try:
-                os.makedirs(self.root_folder, exist_ok=True)
-            except OSError as exc:
-                print(f"[ARCHIVE] Папка архива недоступна: {exc}")
+        try:
+            os.makedirs(self.root_folder, exist_ok=True)
+        except OSError as exc:
+            print(f"[ARCHIVE] Папка архива недоступна: {exc}")
 
     # ---------- свойства ----------
 
@@ -95,13 +86,18 @@ class PartArchive:
         value = str(category or "").upper()
         return value if value in cls.CATEGORY_DIRS else "BAD"
 
+    @staticmethod
+    def _normalise_root(root_folder: str) -> str:
+        text = str(root_folder or "").strip()
+        if not text:
+            raise ValueError("Папка архива не указана")
+        return os.path.abspath(
+            os.path.expandvars(os.path.expanduser(text))
+        )
+
     @classmethod
     def validate_root(cls, root_folder: str) -> dict:
-        candidate = os.path.abspath(
-            os.path.expandvars(os.path.expanduser(str(root_folder or "")))
-        )
-        if not candidate:
-            raise ValueError("Папка архива не указана")
+        candidate = cls._normalise_root(root_folder)
         try:
             os.makedirs(candidate, exist_ok=True)
             probe = os.path.join(
@@ -128,36 +124,19 @@ class PartArchive:
             self.batch_folder
         )
 
-    def reconfigure(
-        self,
-        *,
-        root_folder,
-        enabled,
-        jpeg_quality,
-        compress_on_shutdown=None,
-        delete_original_after_zip=None,
-    ) -> dict:
-        """Изменить настройки до начала партии и применить их сразу."""
+    def reconfigure(self, *, root_folder) -> dict:
+        """Изменить папку до начала партии и применить её сразу."""
         if not self.can_reconfigure():
             raise RuntimeError(
-                "Настройки архива можно менять только до начала партии"
+                "Папку архива можно менять только до начала партии"
             )
-        checked = self.validate_root(root_folder)
-        self.root_folder = checked["path"]
-        self.enabled = bool(enabled)
-        self.jpeg_quality = max(70, min(98, int(jpeg_quality)))
-        if compress_on_shutdown is not None:
-            self.compress_on_shutdown = bool(compress_on_shutdown)
-        if delete_original_after_zip is not None:
-            self.delete_original_after_zip = bool(delete_original_after_zip)
+        self.root_folder = self.validate_root(root_folder)["path"]
         self.stats = self._load_stats()
-        if self.enabled:
-            os.makedirs(self.root_folder, exist_ok=True)
         return self.get_settings()
 
     def get_settings(self, validate: bool = True) -> dict:
         validation = None
-        if self.enabled and validate:
+        if validate:
             try:
                 validation = self.validate_root(self.root_folder)
             except ValueError as exc:
@@ -167,11 +146,7 @@ class PartArchive:
                     "error": str(exc),
                 }
         return {
-            "enabled": self.enabled,
             "root_path": self.root_folder,
-            "jpeg_quality": self.jpeg_quality,
-            "compress_on_shutdown": self.compress_on_shutdown,
-            "delete_original_after_zip": self.delete_original_after_zip,
             "batch_id": self.batch_id,
             "batch_folder": self.batch_folder,
             "batch_stats": dict(self._batch_stats),
@@ -189,9 +164,6 @@ class PartArchive:
         raw_overlay_frames: dict | None = None,
     ):
         """Сохранить кадры стадии в буфер (JPEG-bytes)."""
-        if not self.enabled:
-            return
-
         buf = self._buffers.setdefault(part_id, {})
 
         for role, frame in (raw_frames or {}).items():
@@ -213,9 +185,6 @@ class PartArchive:
         extra: dict | None = None,
     ) -> str | None:
         """Записать все кадры детали и meta.json на диск."""
-        if not self.enabled:
-            return None
-
         requested_category = str(category or "").upper()
         stored_category = self.normalise_category(requested_category)
         folder_name = f"part_{part_id:04d}"
@@ -322,8 +291,6 @@ class PartArchive:
 
     def _load_stats(self) -> dict:
         stats = {"total": 0, "good": 0, "bad": 0, "cleanup": 0}
-        if not self.enabled:
-            return stats
         path = os.path.join(self.root_folder, self.STATS_FILE)
         try:
             with open(path, encoding="utf-8") as f:
@@ -339,15 +306,11 @@ class PartArchive:
         return stats
 
     def _save_stats(self):
-        if not self.enabled:
-            return
         self._write_json(
             os.path.join(self.root_folder, self.STATS_FILE), self.stats,
         )
 
     def _save_batch_manifest(self, status: str = "OPEN"):
-        if not self.enabled:
-            return
         os.makedirs(self.batch_folder, exist_ok=True)
         manifest = {
             "schema_version": self.SCHEMA_VERSION,
@@ -373,13 +336,8 @@ class PartArchive:
 
     # ---------- сжатие ----------
 
-    def compress(self, delete_original: bool | None = None) -> str | None:
-        """Упаковать папку партии в один ZIP (deflated)."""
-        if not self.enabled:
-            return None
-        if delete_original is None:
-            delete_original = self.delete_original_after_zip
-
+    def compress(self) -> str | None:
+        """Упаковать партию в ZIP и удалить папку после проверки CRC."""
         batch_folder = self.batch_folder
         if not os.path.isdir(batch_folder):
             return None
@@ -411,9 +369,10 @@ class PartArchive:
                     os.remove(temp_zip)
             return None
 
-        if delete_original:
-            with contextlib.suppress(Exception):
-                shutil.rmtree(batch_folder)
+        # Папка удаляется только после полной записи ZIP, проверки CRC и
+        # атомарной установки итогового файла.
+        with contextlib.suppress(Exception):
+            shutil.rmtree(batch_folder)
         return zip_path
 
     # ---------- внутреннее ----------
@@ -423,7 +382,7 @@ class PartArchive:
             ok, encoded = cv2.imencode(
                 ".jpg",
                 frame,
-                [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality],
+                [cv2.IMWRITE_JPEG_QUALITY, self.JPEG_QUALITY],
             )
         except Exception as exc:
             raise RuntimeError(f"Ошибка JPEG-кодирования: {exc}") from exc

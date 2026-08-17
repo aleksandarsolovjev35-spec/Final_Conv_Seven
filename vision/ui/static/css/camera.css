@@ -41,7 +41,39 @@
     height: 100%;
     object-fit: cover;
     display: block;
+    opacity: 0;
     transition: opacity var(--t-fast);
+}
+
+.preview-cam.preview-ready img {
+    opacity: 1;
+}
+
+.preview-cam-state {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 5px;
+    background: #090c0f;
+    color: var(--text-muted);
+    font: 700 7px var(--font-ui);
+    letter-spacing: 0.35px;
+    text-align: center;
+    text-transform: uppercase;
+    z-index: 0;
+}
+
+.preview-cam.preview-loading .preview-cam-state {
+    color: var(--accent);
+}
+
+.preview-cam.preview-error .preview-cam-state {
+    color: var(--bad);
+}
+
+.preview-cam.preview-ready .preview-cam-state {
+    display: none;
 }
 
 .preview-cam-label {
@@ -215,6 +247,21 @@
    здесь только возврат перехвата кликов через pointer-events: none
    контейнера и ограничение ширины длинной подписи. */
 .camera-live-controls button { pointer-events: auto; }
+
+/* Компактная кнопка по размеру совпадает с информационными плашками камеры.
+   Обе подписи имеют одну ширину и остаются строго по центру. */
+#view-mode-toggle {
+    width: 88px;
+    min-width: 88px;
+    height: 27px;
+    padding: 0 9px;
+    justify-content: center;
+    font-size: 10px;
+    letter-spacing: 0.55px;
+    line-height: 1;
+    text-align: center;
+}
+
 #analyze-selected-frame {
     max-width: 100%;
     overflow: hidden;

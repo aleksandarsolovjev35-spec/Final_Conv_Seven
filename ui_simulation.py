@@ -129,10 +129,6 @@ class LineSimulation:
             return
         self.server.archive = PartArchive(
             root_folder=archive.root_folder,
-            enabled=archive.enabled,
-            jpeg_quality=archive.jpeg_quality,
-            compress_on_shutdown=archive.compress_on_shutdown,
-            delete_original_after_zip=archive.delete_original_after_zip,
         )
         self.archive_compressed = False
 
@@ -343,10 +339,9 @@ class LineSimulation:
         if self.archive_compressed:
             return
         archive = self.server.archive
-        if archive is None or not archive.enabled:
+        if archive is None:
             return
-        if archive.compress_on_shutdown:
-            archive.compress(delete_original=archive.delete_original_after_zip)
+        archive.compress()
         self.archive_compressed = True
 
     def _run_camera_stages(self) -> bool:
@@ -777,7 +772,7 @@ def main() -> None:
     server = UIServer(debug_enabled=not args.work)
     # The real archive implementation writes only into ignored sandbox data.
     # Its settings dialog and validation therefore behave exactly as in the app.
-    server.archive = PartArchive(root_folder="archive/ui_simulation", enabled=True)
+    server.archive = PartArchive(root_folder="archive/ui_simulation")
     simulation = LineSimulation(server)
     server.on_start = simulation.start
     server.on_stop = simulation.stop

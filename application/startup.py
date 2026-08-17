@@ -16,6 +16,7 @@ from application.status import make_idle_status
 
 
 _FAILED = object()
+INITIAL_CAMERA_FRAMES_TIMEOUT = 20.0
 
 
 class StartupDisplayError(RuntimeError):
@@ -33,12 +34,16 @@ class SystemInitializer:
         *,
         thread_factory=threading.Thread,
         sleep: Callable[[float], None] = time.sleep,
+        initial_camera_frames_timeout: float = INITIAL_CAMERA_FRAMES_TIMEOUT,
     ):
         self.runtime = runtime
         self.factory = factory
         self.exit_coordinator = exit_coordinator
         self._thread_factory = thread_factory
         self._sleep = sleep
+        self.initial_camera_frames_timeout = max(
+            0.0, float(initial_camera_frames_timeout)
+        )
 
     @property
     def monitor(self):
@@ -272,6 +277,25 @@ class SystemInitializer:
         )
         self.runtime.cycle_thread = cycle_thread
         cycle_thread.start()
+
+        # В IDLE интерфейс всё равно автоматически входит в JOG для live-вида.
+        # Делаем это на backend до снятия splash, чтобы готовность означала не
+        # только семь открытых VideoCapture, но и первый корректный кадр от
+        # каждой назначенной роли.
+        if not cycle.enter_jog():
+            raise RuntimeError("Не удалось запустить стартовый просмотр камер")
+        camera_roles = tuple(self.runtime.cameras.mapping)
+        missing = cycle.live.wait_for_roles(
+            camera_roles,
+            timeout=self.initial_camera_frames_timeout,
+        )
+        if missing:
+            detail = cycle.live.error
+            message = "Нет первого кадра: " + ", ".join(missing)
+            if detail:
+                message += f"; {detail}"
+            raise RuntimeError(message)
+
         # На этапе ready отмена проверяется до отметки «Система готова».
         self._ensure_active()
         return cycle_thread

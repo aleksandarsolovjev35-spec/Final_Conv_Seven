@@ -32,47 +32,30 @@ from config.camera_mapping import (
 
 class ArchiveConfigNormaliseTest(unittest.TestCase):
     def test_defaults_when_none(self):
-        result = normalise_archive_config(None)
-        self.assertEqual(result, DEFAULTS)
+        self.assertEqual(normalise_archive_config(None), DEFAULTS)
 
-    def test_empty_dict_keeps_defaults(self):
-        result = normalise_archive_config({})
-        self.assertEqual(result["enabled"], True)
-        self.assertEqual(result["jpeg_quality"], 92)
-        self.assertEqual(result["compress_on_shutdown"], True)
-        self.assertEqual(result["delete_original_after_zip"], True)
-
-    def test_overrides_are_applied(self):
+    def test_only_root_path_is_configurable(self):
         result = normalise_archive_config({
             "enabled": False,
             "root_path": "~/archive2",
-            "jpeg_quality": 80,
+            "jpeg_quality": 70,
             "compress_on_shutdown": False,
             "delete_original_after_zip": False,
         })
-        self.assertEqual(result["enabled"], False)
-        self.assertEqual(result["root_path"], os.path.expanduser("~/archive2"))
-        self.assertEqual(result["jpeg_quality"], 80)
-        self.assertEqual(result["compress_on_shutdown"], False)
-        self.assertEqual(result["delete_original_after_zip"], False)
+        self.assertEqual(
+            result,
+            {"root_path": os.path.expanduser("~/archive2")},
+        )
 
     def test_root_path_expands_vars(self):
         result = normalise_archive_config({"root_path": "$HOME/archive_x"})
-        self.assertEqual(result["root_path"], os.path.expandvars("$HOME/archive_x"))
+        self.assertEqual(
+            result["root_path"], os.path.expandvars("$HOME/archive_x"),
+        )
 
     def test_empty_root_falls_back_to_default(self):
         result = normalise_archive_config({"root_path": "   "})
         self.assertEqual(result["root_path"], DEFAULTS["root_path"])
-
-    def test_jpeg_quality_clamped_to_range(self):
-        self.assertEqual(normalise_archive_config({"jpeg_quality": 5})["jpeg_quality"], 70)
-        self.assertEqual(normalise_archive_config({"jpeg_quality": 100})["jpeg_quality"], 98)
-        self.assertEqual(normalise_archive_config({"jpeg_quality": "abc"})["jpeg_quality"], 92)
-
-    def test_bool_coercion_from_strings(self):
-        # bool("false") == True: поведение зафиксировано как у текущей версии.
-        result = normalise_archive_config({"enabled": "false"})
-        self.assertTrue(result["enabled"])
 
 
 class ArchiveConfigFileTest(unittest.TestCase):
@@ -88,8 +71,7 @@ class ArchiveConfigFileTest(unittest.TestCase):
     def test_load_missing_file_creates_defaults(self):
         path = self.path("missing_archive.json")
         result = load_archive_config(path)
-        self.assertEqual(result["enabled"], DEFAULTS["enabled"])
-        self.assertTrue(os.path.exists(path))
+        self.assertEqual(result, DEFAULTS)
         with open(path, encoding="utf-8") as stream:
             self.assertEqual(json.load(stream), DEFAULTS)
 
@@ -97,23 +79,30 @@ class ArchiveConfigFileTest(unittest.TestCase):
         path = self.path("bad.json")
         with open(path, "w", encoding="utf-8") as stream:
             stream.write("{not json")
-        result = load_archive_config(path)
-        self.assertEqual(result, DEFAULTS)
+        self.assertEqual(load_archive_config(path), DEFAULTS)
 
-    def test_load_valid_file(self):
-        path = self.path("ok.json")
+    def test_load_migrates_legacy_switches_to_root_only(self):
+        path = self.path("legacy.json")
         with open(path, "w", encoding="utf-8") as stream:
-            json.dump({"enabled": False, "jpeg_quality": 75}, stream)
-        result = load_archive_config(path)
-        self.assertEqual(result["enabled"], False)
-        self.assertEqual(result["jpeg_quality"], 75)
+            json.dump({
+                "root_path": "archive2",
+                "enabled": False,
+                "jpeg_quality": 75,
+                "compress_on_shutdown": False,
+            }, stream)
+
+        self.assertEqual(load_archive_config(path), {"root_path": "archive2"})
+        with open(path, encoding="utf-8") as stream:
+            self.assertEqual(json.load(stream), {"root_path": "archive2"})
 
     def test_save_is_atomic_and_normalised(self):
         path = self.path("save.json")
-        result = save_archive_config(path, {"jpeg_quality": 99})
-        self.assertEqual(result["jpeg_quality"], 98)
+        result = save_archive_config(path, {
+            "root_path": "archive3", "enabled": False,
+        })
+        self.assertEqual(result, {"root_path": "archive3"})
         with open(path, encoding="utf-8") as stream:
-            self.assertEqual(json.load(stream)["jpeg_quality"], 98)
+            self.assertEqual(json.load(stream), result)
         self.assertFalse(os.path.exists(path + ".tmp"))
 
 

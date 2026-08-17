@@ -88,7 +88,7 @@
 
 .history-card-id {
     overflow: hidden;
-    font-family: var(--font-mono);
+    font-family: var(--font-ui);
     font-size: 10px;
     color: var(--text-dim);
     font-weight: 500;
@@ -123,11 +123,20 @@
 .history-card.cat-bad .history-card-symbol     { color: var(--bad); }
 .history-card.cat-cleanup .history-card-symbol { color: var(--warn); }
 
-.history-empty {
+.history-card.history-card-placeholder {
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.015);
+    cursor: default;
+    opacity: 0.58;
+}
+
+.history-card.history-card-placeholder:hover {
+    border-color: var(--border);
+}
+
+.history-card-placeholder .history-card-symbol {
     color: var(--text-muted);
-    font-style: italic;
-    font-size: 12px;
-    font-family: var(--font-ui);
+    font-weight: 500;
 }
 
 /* ─── Process Phase Block (Right side under Путь корпусов) ──────── */
@@ -138,10 +147,10 @@
     border-radius: var(--radius);
     padding: 6px 10px;
     height: 78px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 2px;
+    display: grid;
+    grid-template-rows: auto auto auto;
+    align-content: center;
+    row-gap: 4px;
     flex: 0 0 340px;
     min-width: 240px;
     max-width: 380px;
@@ -154,6 +163,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    width: 100%;
     min-width: 0;
 }
 
@@ -189,7 +199,10 @@
     white-space: nowrap;
 }
 
-.process-phase-row { align-items: baseline; }
+.process-phase-row {
+    min-height: 16px;
+    align-items: center;
+}
 
 .process-phase-label {
     min-width: 0;
@@ -197,31 +210,23 @@
     font-size: 10.5px;
     font-weight: 700;
     color: var(--accent);
+    width: 100%;
     letter-spacing: 0.3px;
+    line-height: 1.2;
+    text-align: center;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     transition: opacity var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 
-.process-phase-detail {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--text-dim);
-    font: 8px var(--font-ui);
-    letter-spacing: 0.15px;
-    line-height: 1.2;
-    text-align: center;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .process-stage-track {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 2px;
+    width: 100%;
     min-width: 0;
-    margin-top: 2px;
+    margin-top: 0;
 }
 
 .process-stage-track span {
@@ -274,7 +279,6 @@
     .history-title,
     .process-phase-title { font-size: 8px; }
     .process-phase-label { font-size: 9.5px; }
-    .process-phase-detail { font-size: 7px; }
     .process-stage-track span { font-size: 6px; }
 }
 
