@@ -35,6 +35,7 @@ function viewModeContextVisible() {
 function viewModeAllowed() {
     return (
         viewModeContextVisible()
+        && state.debugMode
         && state.statusReceived
         && Object.keys(state.backendControls || {}).length > 0
         && !state.controlPending
@@ -53,7 +54,8 @@ function updateViewModeControls() {
     if (els.viewModeToggle) {
         els.viewModeToggle.classList.toggle('is-faded', !visible);
         els.viewModeToggle.disabled = !allowed;
-        els.viewModeToggle.textContent = state.mode === 'RULES' ? 'ВИД: ПРАВИЛА' : 'ВИД: RAW';
+        els.viewModeToggle.textContent = state.mode === 'RULES'
+            ? 'ПРАВИЛА' : 'МОДЕЛИ';
         els.viewModeToggle.setAttribute('aria-pressed', state.mode === 'RULES' ? 'true' : 'false');
     }
 }
@@ -105,6 +107,55 @@ function setupViewModeControls() {
 
 // ——— камеры с защитой от гонок ———
 
+function cameraRolesMissingFrames() {
+    return (state.cameras || []).filter(
+        role => Number(state.frameVersions[role] || 0) <= 0,
+    );
+}
+
+function cameraFramesReady() {
+    return state.cameras.length > 0 && cameraRolesMissingFrames().length === 0;
+}
+
+function cameraRolesMissingPreviews() {
+    if (!els.previewStrip || !state.cameras.length) return [...state.cameras];
+    return state.cameras.filter(role => {
+        const card = [...els.previewStrip.querySelectorAll('.preview-cam')]
+            .find(item => item.dataset.role === role);
+        const img = card && card.querySelector('img');
+        const [loadedVersion, loadedMode] = String(img?.dataset.frameKey || '').split('|');
+        return !img
+            || Number(loadedVersion || 0) <= 0
+            || loadedMode !== state.mode
+            || !img.complete
+            || img.naturalWidth <= 0;
+    });
+}
+
+function cameraPreviewsReady() {
+    return state.cameras.length > 0 && cameraRolesMissingPreviews().length === 0;
+}
+
+function setPreviewLoadState(img, loadState) {
+    const card = img && img.closest('.preview-cam');
+    if (!card) return;
+    const hasDecodedFrame = !!(
+        img.dataset.frameKey && img.complete && img.naturalWidth > 0
+    );
+    // При обновлении не прячем уже показанный кадр: placeholder нужен только
+    // до первой успешной загрузки этой камеры.
+    const visibleState = hasDecodedFrame && loadState !== 'ready'
+        ? 'ready' : loadState;
+    card.classList.remove('preview-waiting', 'preview-loading', 'preview-error', 'preview-ready');
+    card.classList.add(`preview-${visibleState}`);
+    const status = card.querySelector('.preview-cam-state');
+    if (!status) return;
+    if (visibleState === 'ready') status.textContent = '';
+    else if (visibleState === 'error') status.textContent = 'НЕТ КАДРА · ПОВТОР';
+    else if (visibleState === 'loading') status.textContent = 'ЗАГРУЗКА КАДРА';
+    else status.textContent = 'ОЖИДАНИЕ КАДРА';
+}
+
 let _camerasFetchSeq = 0;
 async function fetchCameras() {
     if (!state.bootDone) return;
@@ -116,6 +167,7 @@ async function fetchCameras() {
     if (mySeq !== _camerasFetchSeq) return; // пришёл более свежий запрос
     if (!data || !data.cameras || !data.cameras.length) return;
     const changed = state.cameras.length !== data.cameras.length || state.cameras.some((c, i) => c !== data.cameras[i]);
+    state.cameraIds = (data.camera_ids && typeof data.camera_ids === 'object') ? data.camera_ids : {};
     if (!changed) return;
     state.cameras = data.cameras;
     if (!state.currentCamera || !state.cameras.includes(state.currentCamera)) {
@@ -129,17 +181,27 @@ async function fetchCameras() {
     checkUiReady();
 }
 
+function cameraIdSuffix(role) {
+    // По требованию оператора физический Camera ID («CAM <номер>»)
+    // не показывается в названии камеры ни в превью, ни в главном окне.
+    return '';
+}
+
 function renderPreviewStrip() {
     if (!els.previewStrip) return;
     els.previewStrip.innerHTML = state.cameras.map((role, i) => `
-        <div class="preview-cam ${role === state.currentCamera ? 'active' : ''}" data-role="${role}" data-index="${i}">
-            <img src="/frame/${role}?mode=${state.mode}&preview=1&t=${Date.now()}" alt="${cameraRoleLabel(role)}" data-frame-key="" data-requested-key="" data-requesting="0" data-req-seq="0">
-            <div class="preview-cam-label">[${i + 1}] ${cameraRoleLabel(role)}</div>
+        <div class="preview-cam preview-waiting ${role === state.currentCamera ? 'active' : ''}" data-role="${role}" data-index="${i}">
+            <img alt="" data-frame-key="" data-requested-key="" data-requesting="0" data-req-seq="0" data-retry-at="0">
+            <div class="preview-cam-state">ОЖИДАНИЕ КАДРА</div>
+            <div class="preview-cam-label">${cameraRoleLabel(role)}${cameraIdSuffix(role)}</div>
         </div>
     `).join('');
     els.previewStrip.querySelectorAll('.preview-cam').forEach(el => {
         el.addEventListener('click', () => selectCamera(el.dataset.role));
     });
+    // Первичная загрузка превью сразу после построения списка камер:
+    // тот же защищённый механизм, что и плановое обновление.
+    els.previewStrip.querySelectorAll('.preview-cam img').forEach(requestPreviewImage);
 }
 
 function selectCamera(role) {
@@ -167,7 +229,9 @@ function navigateCamera(direction) {
 }
 
 function updateMainCameraLabel() {
-    setIfChanged(els.cameraLabel, cameraRoleLabel(state.currentCamera));
+    const role = state.currentCamera;
+    const suffix = role ? cameraIdSuffix(role) : '';
+    setIfChanged(els.cameraLabel, `${cameraRoleLabel(role)}${suffix}`);
 }
 
 function showSelectedAnalysisFrame(role) {
@@ -281,42 +345,94 @@ function maybeRequestMainFrame() {
 
 // Превью — каждый img с sequence, чтобы устаревший onload не перетёр новый кадр
 let _previewReqSeq = 0;
+
+// Зависший запрос не должен навсегда блокировать превью камеры:
+// по таймауту снимаем флаг «запрос в полёте», следующий тик повторит.
+const PREVIEW_REQUEST_TIMEOUT = 4000;
+
+function requestPreviewImage(img) {
+    if (!img) return;
+    if (img.dataset.requesting === '1') return;
+    if (Number(img.dataset.retryAt || 0) > Date.now()) return;
+
+    const role = img.parentElement.dataset.role;
+    const roleVersion = Number(state.frameVersions[role] || 0);
+    if (roleVersion <= 0) {
+        setPreviewLoadState(img, 'waiting');
+        return;
+    }
+
+    const frameKey = `${roleVersion}|${state.mode}`;
+    if (
+        img.dataset.frameKey === frameKey
+        && img.complete
+        && img.naturalWidth > 0
+    ) {
+        setPreviewLoadState(img, 'ready');
+        return;
+    }
+    if (img.dataset.requestedKey === frameKey) return;
+
+    const tmp = new Image();
+    const mySeq = ++_previewReqSeq;
+    img.dataset.requesting = '1';
+    img.dataset.requestedKey = frameKey;
+    img.dataset.reqSeq = String(mySeq);
+    setPreviewLoadState(img, 'loading');
+
+    const scheduleRetry = () => {
+        img.dataset.requestedKey = '';
+        img.dataset.requesting = '0';
+        img.dataset.retryAt = String(Date.now() + 750);
+        setPreviewLoadState(img, 'error');
+    };
+    const clearWatchdog = () => {
+        if (img._previewWatchdog) {
+            clearTimeout(img._previewWatchdog);
+            img._previewWatchdog = null;
+        }
+    };
+    clearWatchdog();
+    img._previewWatchdog = setTimeout(() => {
+        img._previewWatchdog = null;
+        const curSeq = Number(img.dataset.reqSeq || 0);
+        if (curSeq !== mySeq || img.dataset.requesting !== '1') return;
+        scheduleRetry();
+    }, PREVIEW_REQUEST_TIMEOUT);
+
+    tmp.onload = () => {
+        // Если за время загрузки уже запросили новее — игнорируем.
+        const curSeq = Number(img.dataset.reqSeq || 0);
+        if (curSeq !== mySeq) return;
+        clearWatchdog();
+        img.src = tmp.src;
+        img.dataset.frameKey = frameKey;
+        img.dataset.requestedKey = '';
+        img.dataset.requesting = '0';
+        img.dataset.retryAt = '0';
+        setPreviewLoadState(img, 'ready');
+        if (typeof checkUiReady === 'function') checkUiReady();
+        // Пока кадр грузился, могла выйти новая версия — добираем только её,
+        // не отправляя второй запрос того же уже загруженного кадра.
+        const latestKey = `${Number(state.frameVersions[role] || 0)}|${state.mode}`;
+        if (latestKey !== frameKey) requestPreviewImage(img);
+    };
+    tmp.onerror = () => {
+        const curSeq = Number(img.dataset.reqSeq || 0);
+        if (curSeq !== mySeq) return;
+        clearWatchdog();
+        scheduleRetry();
+    };
+    tmp.src = `/frame/${encodeURIComponent(role)}?mode=${encodeURIComponent(state.mode)}&preview=1&rv=${roleVersion}`;
+}
+
 function refreshPreviewStrip() {
     if (!els.previewStrip) return;
-    if (state.splashActive) return;
     if (state.pendingAnalysisVersion !== null) return;
 
-    els.previewStrip.querySelectorAll('.preview-cam img').forEach(img => {
-        if (img.dataset.requesting === '1') return;
-        const role = img.parentElement.dataset.role;
-        const roleVersion = Number(state.frameVersions[role] || 0);
-        const frameKey = `${roleVersion}|${state.mode}`;
-        if (img.dataset.frameKey === frameKey) return;
-        if (img.dataset.requestedKey === frameKey) return;
-
-        const tmp = new Image();
-        const mySeq = ++_previewReqSeq;
-        img.dataset.requesting = '1';
-        img.dataset.requestedKey = frameKey;
-        img.dataset.reqSeq = String(mySeq);
-
-        tmp.onload = () => {
-            // если за время загрузки уже запросили новее — игнорируем
-            const curSeq = Number(img.dataset.reqSeq || 0);
-            if (curSeq !== mySeq) return;
-            img.src = tmp.src;
-            img.dataset.frameKey = frameKey;
-            img.dataset.requestedKey = '';
-            img.dataset.requesting = '0';
-        };
-        tmp.onerror = () => {
-            const curSeq = Number(img.dataset.reqSeq || 0);
-            if (curSeq !== mySeq) return;
-            img.dataset.requestedKey = '';
-            img.dataset.requesting = '0';
-        };
-        tmp.src = `/frame/${role}?mode=${state.mode}&preview=1&rv=${roleVersion}`;
-    });
+    // Миниатюры загружаются и под splash: основной интерфейс откроется уже
+    // с декодированными кадрами всех трёх камер, а не с пустыми карточками.
+    els.previewStrip.querySelectorAll('.preview-cam img').forEach(requestPreviewImage);
 }
 
 function updateUptime() {
@@ -324,5 +440,5 @@ function updateUptime() {
     const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
     const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
     const s = String(elapsed % 60).padStart(2, '0');
-    setIfChanged(els.metricUptime, `${h}:${m}:${s}`);
+    setIfChanged(els.metricUptime, `${h}:${m}:${s}`, false);
 }

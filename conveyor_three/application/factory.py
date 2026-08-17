@@ -1,4 +1,4 @@
-"""Composition root для production-зависимостей трёхкамерной линии.
+"""Composition root для production-зависимостей.
 
 Здесь сосредоточены конкретные классы оборудования, vision и инспекции.
 Startup управляет только порядком и отображением этапов, не зная деталей их
@@ -44,7 +44,7 @@ class HardwareServices:
 
 
 class ProductionSystemFactory:
-    """Создаёт конкретные зависимости реальной трёхкамерной линии."""
+    """Создаёт конкретные зависимости реальной линии."""
 
     def __init__(self, debug_enabled: bool = True):
         # В режиме РАБОТА (debug_enabled=False) цикл не тратит время на
@@ -77,12 +77,6 @@ class ProductionSystemFactory:
         archive_config = load_archive_config()
         archive = PartArchive(
             root_folder=archive_config["root_path"],
-            enabled=archive_config["enabled"],
-            jpeg_quality=archive_config["jpeg_quality"],
-            compress_on_shutdown=archive_config["compress_on_shutdown"],
-            delete_original_after_zip=archive_config[
-                "delete_original_after_zip"
-            ],
         )
         return InspectionServices(
             threshold_loader=threshold_loader,
@@ -144,7 +138,6 @@ class ProductionSystemFactory:
             dist1_open_position=calibration["dist1_open_position"],
             dist2_bad_position=calibration["dist2_bad_position"],
             dist2_cleanup_position=calibration["dist2_cleanup_position"],
-            drop_time=calibration["drop_time"],
         )
         self._validate_distributor_endpoints(distributor, calibration)
         distributor.cancel_check = cancel_check

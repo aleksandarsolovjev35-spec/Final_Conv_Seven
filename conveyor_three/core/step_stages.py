@@ -5,18 +5,25 @@
 ```text
 MOTION    лента едет            камеры у live-просмотра
 SETTLE    лента встала          камеры у live-просмотра, гасим вибрацию
-CAPTURE   лента неподвижна      нужные роли временно у инспекции
-ANALYSIS  модели -> геометрия -> решение -> запись  сохранённые кадры; live-камеры свободны
-PUBLISH   результат на экран    камеры у live-просмотра
+CAPTURE   лента неподвижна      весь live заморожен, кадры стадии читаются по одной камере
+ANALYSIS  модели -> геометрия -> решение -> запись  live остаётся заморожен
+CAPTURE   следующая занятая стадия                  тот же exclusive-блок
+ANALYSIS  ...
+PUBLISH   результат на экран    live всё ещё заморожен (стоп-кадры)
+MOTION    следующий шаг         камеры возвращаются live-просмотру
 ```
+
+Абсолютная последовательность: занятая стадия полностью заканчивается
+(кадр → модели → геометрия → решение → запись). На протяжении всего
+инспекционного блока live не возобновляется.
 
 Переход между фазами — единственное место, где меняется владелец камер.
 Поэтому «снять кадр для правил во время движения» или «читать камеру из
 двух потоков» невозможно не по договорённости, а по построению:
 
 * :meth:`StepSequencer.enter_capture` не просто ставит флаг, а дожидается
-  завершения уже начатых live-чтений и только затем отдаёт кадры
-  инспекции;
+  завершения уже начатых live-чтений и забирает **все** камеры;
+* live возвращается только в :meth:`enter_motion` / :meth:`reset`;
 * порядок фаз проверяется таблицей ``_ALLOWED``: вызов не по порядку
   поднимает :class:`StageSequenceError`, а не тихо портит шаг.
 
@@ -61,12 +68,13 @@ class StepStage(str, Enum):
 
 # Разрешённые переходы. Возврат в IDLE доступен всегда: это сброс шага
 # при STOP, FAULT и завершении работы.
+# ANALYSIS → CAPTURE: следующая занятая стадия того же шага.
 _ALLOWED = {
     StepStage.IDLE: (StepStage.MOTION,),
     StepStage.MOTION: (StepStage.SETTLE,),
     StepStage.SETTLE: (StepStage.CAPTURE,),
     StepStage.CAPTURE: (StepStage.ANALYSIS,),
-    StepStage.ANALYSIS: (StepStage.PUBLISH,),
+    StepStage.ANALYSIS: (StepStage.CAPTURE, StepStage.PUBLISH),
     StepStage.PUBLISH: (StepStage.MOTION,),
 }
 
@@ -97,7 +105,6 @@ class StepSequencer:
         self._lock = threading.Lock()
         self._stage = StepStage.IDLE
         self._static_held = False
-        self._static_roles = None
         self._stage_started_at = time.monotonic()
         # Номер поколения шага. reset() увеличивает его, поэтому передача
         # камер, начатая до сброса, понимает, что её результат уже неактуален.
@@ -110,15 +117,19 @@ class StepSequencer:
 
     @property
     def static(self) -> bool:
-        """True, когда хотя бы одна роль принадлежит inspection."""
+        """True, когда камеры принадлежат inspection, а не live."""
         with self._lock:
             return self._static_held
 
     @property
     def static_roles(self):
-        """Роли в inspection; ``None`` означает глобальную паузу."""
-        with self._lock:
-            return self._static_roles
+        """Роли в inspection.
+
+        Всегда ``None``: инспекция забирает камеры целиком. Свойство
+        сохранено как контракт статуса для HMI, где ``None`` означает
+        «заморожены все роли» (``all_roles_static``).
+        """
+        return None
 
     def _switch(self, target: StepStage):
         """Перейти в фазу, выдержав наблюдательную паузу перед ней.
@@ -164,26 +175,20 @@ class StepSequencer:
             self._sleep(self._settle_seconds)
 
     def enter_capture(self, roles=None):
-        """Передать inspection только нужные роли, остальные оставить live.
+        """Начать exclusive-захват официальных кадров стадии.
 
-        ``roles=None`` приостанавливает все камеры. Пустой список означает,
-        что на этой остановке production-инспекция не нужна и live не
-        прерывается.
+        Непустой ``roles`` забирает **все** камеры у live до следующего
+        ``MOTION``: USB не делят инспекция и просмотр. Пустой список
+        означает, что на этой остановке инспекция не нужна и live не
+        прерывается. Повторный вход из ``ANALYSIS`` держит тот же
+        exclusive-блок для следующей стадии.
         """
         self._switch(StepStage.CAPTURE)
-        self._acquire_static(roles)
-
-    def release_capture_roles(self):
-        """Вернуть камеры в live сразу после копирования inspection-кадров.
-
-        Модели далее работают только с уже сохранёнными numpy-кадрами и не
-        требуют владения VideoCapture. Это сокращает паузу live до самого
-        чтения кадра, не смешивая корпуса.
-        """
-        self._release_static()
+        if roles:
+            self._acquire_static()
 
     def enter_analysis(self):
-        """Анализирует сохранённые кадры; камеры уже могут быть в live."""
+        """Модели и правила по уже снятым кадрам; live остаётся заморожен."""
         self._switch(StepStage.ANALYSIS)
 
     def enter_publish(self):
@@ -197,46 +202,33 @@ class StepSequencer:
             self._generation += 1
         self._release_static()
 
-    def _acquire_static(self, roles=None):
-        roles = None if roles is None else tuple(dict.fromkeys(roles))
-        if roles == ():
-            return
+    def _acquire_static(self):
+        """Забрать все камеры у live-просмотра до конца инспекции."""
         with self._lock:
             if self._static_held:
                 return
             generation = self._generation
 
-        paused = (
-            self._live.pause(self._handover_timeout)
-            if roles is None
-            else self._live.pause_roles(roles, self._handover_timeout)
-        )
-        if not paused:
-            target = "камеры" if roles is None else f"роли {', '.join(roles)}"
+        if not self._live.pause(self._handover_timeout):
             raise StageSequenceError(
-                f"Live-просмотр не освободил {target} за "
+                f"Live-просмотр не освободил камеры за "
                 f"{self._handover_timeout}s; шаг остановлен"
             )
         with self._lock:
-            if generation != self._generation:
-                stale = True
-            else:
-                stale = False
+            stale = generation != self._generation
+            if not stale:
                 self._static_held = True
-                self._static_roles = roles
         if stale:
-            if roles is None: self._live.resume()
-            else: self._live.resume_roles(roles)
-            raise StageSequenceError("Шаг сброшен во время передачи камер инспекции")
+            # reset() успел пройти, пока live отдавал камеры: удерживать
+            # паузу от имени отменённого шага нельзя.
+            self._live.resume()
+            raise StageSequenceError(
+                "Шаг сброшен во время передачи камер инспекции"
+            )
 
     def _release_static(self):
         with self._lock:
             if not self._static_held:
                 return
-            roles = self._static_roles
             self._static_held = False
-            self._static_roles = None
-        if roles is None:
-            self._live.resume()
-        else:
-            self._live.resume_roles(roles)
+        self._live.resume()

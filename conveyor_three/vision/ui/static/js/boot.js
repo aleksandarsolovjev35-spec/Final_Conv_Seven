@@ -39,16 +39,26 @@ function checkUiReady() {
     if (!state.bootDone) return;
     const timeSinceBoot = Date.now() - state.bootDoneAt;
     const timedOut = timeSinceBoot > UI_READY_TIMEOUT;
-    const ready = state.statusReceived && state.jogReceived && state.cameras.length > 0 && state.currentCamera !== null;
+    const framesReady = typeof cameraFramesReady === 'function' && cameraFramesReady();
+    const previewsReady = typeof cameraPreviewsReady === 'function' && cameraPreviewsReady();
+    const ready = state.statusReceived
+        && state.jogReceived
+        && state.cameras.length > 0
+        && state.currentCamera !== null
+        && framesReady
+        && previewsReady;
     if (!ready && !timedOut) updateSplashWaitingMessage();
     if (ready || timedOut) {
-        state.uiReady = true;
         if (timedOut && !ready) {
             console.warn('[UI] Ready timeout after boot — showing UI anyway.', {
                 statusReceived: state.statusReceived,
                 jogReceived: state.jogReceived,
                 cameras: state.cameras.length,
                 currentCamera: state.currentCamera,
+                missingFrames: typeof cameraRolesMissingFrames === 'function'
+                    ? cameraRolesMissingFrames() : [],
+                missingPreviews: typeof cameraRolesMissingPreviews === 'function'
+                    ? cameraRolesMissingPreviews() : [],
             });
         } else {
             console.log('[UI] Ready — showing main UI');
@@ -61,9 +71,23 @@ function updateSplashWaitingMessage() {
     const missing = [];
     if (!state.statusReceived) missing.push('состояние системы');
     if (!state.jogReceived) missing.push('ручное управление');
-    if (state.cameras.length === 0) missing.push('камеры');
+    if (state.cameras.length === 0) missing.push('список камер');
     if (state.currentCamera === null) missing.push('выбор камеры');
-    if (missing.length > 0) setIfChanged(els.splashMessage, `Ожидание: ${missing.join(', ')}`);
+
+    const missingFrames = typeof cameraRolesMissingFrames === 'function'
+        ? cameraRolesMissingFrames() : [];
+    const missingPreviews = typeof cameraRolesMissingPreviews === 'function'
+        ? cameraRolesMissingPreviews() : [];
+    // Компактно, одним счётчиком: сколько камер уже отдали изображение.
+    // Раньше здесь перечислялись все ожидающие камеры по названиям
+    // («первый кадр: ВХОД · СЛЕВА, …»), что растягивало строку сплэша.
+    if (state.cameras.length && (missingFrames.length || missingPreviews.length)) {
+        const total = state.cameras.length;
+        const waiting = missingFrames.length || missingPreviews.length;
+        missing.push(`камеры: ${total - waiting}/${total}`);
+    }
+
+    if (missing.length > 0) setIfChanged(els.splashMessage, `Ожидание: ${missing.join('; ')}`);
     else setIfChanged(els.splashMessage, 'Почти готово');
 }
 

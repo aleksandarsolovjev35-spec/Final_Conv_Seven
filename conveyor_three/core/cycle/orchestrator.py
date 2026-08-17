@@ -1,34 +1,33 @@
 """Производственный цикл трёхкамерной линии.
 
-Публичная точка входа — ``ProductionCycle``. Реализация разложена по
-миксинам:
+``ProductionCycle`` собран из частей:
 
-* ``step``         — один шаг ленты и инспекции;
-* ``diagnostics``  — предстартовые и операторские проверки;
-* ``jog``          — ручной ход;
-* ``status``       — снимок для HMI и публикация в монитор.
+* ``CycleStepMixin``         — один шаг ленты и инспекции;
+* ``CycleDiagnosticsMixin``  — предстартовые проверки;
+* ``CycleJogMixin``          — ручной ход;
+* ``CycleStatusMixin``       — снимок для HMI.
 
-Совместимый импорт: ``from core.production_cycle import ProductionCycle``.
+Публичный API (ПУСК / СТОП / пауза / JOG / диагностика) не меняется.
 """
 
-from __future__ import annotations
-
-import threading
 import time
+import threading
 import traceback
 from collections import deque
 
-from core.cycle.diagnostics import CycleDiagnosticsMixin
+from core.cycle.diagnostics import CycleDiagnosticsMixin, make_diagnostics
 from core.cycle.jog import CycleJogMixin
 from core.cycle.status import CycleStatusMixin
 from core.cycle.step import CycleStepMixin
 from core.live_preview import LivePreview
-from core.state_machine import State, StateMachine
+from core.state_machine import StateMachine, State
 from core.step_stages import (
     STAGE_SETTLE_SECONDS,
     STAGE_TRACE_SECONDS,
     StepSequencer,
 )
+from domain.part import CATEGORY_BAD, CATEGORY_UNKNOWN
+
 
 RECENT_PARTS_LIMIT = 10
 DRAIN_TIMEOUT = 120.0
@@ -37,14 +36,19 @@ DRAIN_TIMEOUT = 120.0
 # результат анализа до начала следующего шага.
 REVIEW_SECONDS = 2.0
 
+
 class ProductionCycle(
     CycleStepMixin,
     CycleDiagnosticsMixin,
     CycleJogMixin,
     CycleStatusMixin,
 ):
-    """
-    Оркестратор производственной линии трёхкамерника.
+    """Производственный цикл трёхкамерной линии.
+
+    Один шаг — абсолютная последовательность:
+    MOTION → SETTLE → единственная стадия INSPECT (+0):
+    CAPTURE → модели → геометрия → решение → запись → REVIEW → PUBLISH.
+    Live заморожен на весь инспекционный блок; USB читается по одной камере.
     """
 
     OFFSET_INSPECT = 0
@@ -55,7 +59,7 @@ class ProductionCycle(
 
     JOG_ALLOWED_STATES = ("IDLE", "STOPPED", "PAUSED")
 
-    FRAME_ANALYSIS_GROUPS = ("INPUT",)
+    FRAME_ANALYSIS_GROUPS = ("INSPECT",)
 
     def __init__(
         self,
@@ -70,19 +74,32 @@ class ProductionCycle(
         stage_trace_seconds=STAGE_TRACE_SECONDS,
         review_seconds=REVIEW_SECONDS,
     ):
-        self.conveyor     = conveyor
-        self.cameras      = cameras
-        self.inspector    = inspector
-        self.distributor  = distributor
-        self.monitor      = monitor
-        self.archive      = archive
-        self.jog          = jog
+        self.conveyor    = conveyor
+        self.cameras     = cameras
+        self.inspector   = inspector
+        self.distributor = distributor
+        self.monitor     = monitor
+        self.archive     = archive
+        self.jog         = jog
         self.review_seconds = max(0.0, float(review_seconds))
-
-        self.distributor.on_state_changed = self._refresh_monitor
 
         self.sm = StateMachine(on_transition=self._on_state_change)
 
+        self._init_counters()
+        self._init_runtime_state()
+        self._init_camera_pipeline(settle_seconds, stage_trace_seconds)
+
+        # Распределитель сообщает о смене заслонок в HMI и умеет прервать
+        # движение по запросу отмены.
+        self.distributor.on_state_changed = self._refresh_monitor
+        self.distributor.cancel_check = self._cancel_motion.is_set
+
+        # Инспектор сообщает внутренние этапы (модели, геометрия,
+        # решение, запись) в тот же telemetry-поток, что и движение линии.
+        self.inspector.set_progress_callback(self._on_inspection_progress)
+
+    def _init_counters(self):
+        """Учёт деталей на линии и итоги партии."""
         self.parts: list = []
         self.part_counter = 0
         self.current_step = 0
@@ -90,13 +107,13 @@ class ProductionCycle(
         self.good_count    = 0
         self.bad_count     = 0
         self.cleanup_count = 0
-        self.empty_count   = 0   # счётчик пустых ячеек
+        self.empty_count   = 0   # счётчик пустых лотков
 
         self.recent_parts = deque(maxlen=RECENT_PARTS_LIMIT)
-
-        self.force_all_bad = False
         self._pending_drop = None
 
+    def _init_runtime_state(self):
+        """Состояние шага, блокировки и телеметрия для HMI."""
         self._last_vision_results: dict = {}
         self._last_rule_results: list = []
         self._frame_analysis_groups = self._empty_frame_analysis_groups()
@@ -105,53 +122,18 @@ class ProductionCycle(
         self._fault_reason = None
         self._operation_lock = threading.Lock()
         self._cancel_motion = threading.Event()
-        self.distributor.cancel_check = self._cancel_motion.is_set
-        self._process_revision = 0
+
         # Снимки inspection остаются операторским стоп-кадром до следующего
-        # движения, хотя физические камеры уже вернулись в live.
+        # движения: live заморожен на весь инспекционный блок.
         self._inspection_display_roles = ()
-        self._diagnostics = {
-            "status": "NOT_RUN",
-            "kind": None,
-            "message": "Проверки ещё не запускались",
-            "cameras": [],
-            "models": [],
-            "rules": [],
-            "updated_at": None,
-        }
+        self._diagnostics = make_diagnostics()
         self._process = {
             "phase": "IDLE",
             "label": "Система готова к пуску",
             "step": 0,
             "part_id": None,
-            "positions": [],
             "conveyor": {},
-            "revision": 0,
-            "updated_at": time.time(),
         }
-
-        # Инспектор сообщает внутренние этапы (модели, геометрия,
-        # решение, запись) в тот же telemetry-поток, что и движение линии.
-        set_progress_callback = getattr(
-            self.inspector, "set_progress_callback", None,
-        )
-        if callable(set_progress_callback):
-            set_progress_callback(self._on_inspection_progress)
-
-        # Живой просмотр: работает и в JOG, и во время движения ленты.
-        self.live = LivePreview(
-            cameras=cameras,
-            monitor=monitor,
-            get_active_role=self._get_active_camera_role,
-        )
-
-        # Фазы шага и передача камер между live-просмотром и инспекцией.
-        self.stages = StepSequencer(
-            self.live,
-            settle_seconds=settle_seconds,
-            trace_seconds=stage_trace_seconds,
-            on_stage=self._on_stage_change,
-        )
 
         # JOG
         self.jog_active: bool = False
@@ -168,7 +150,82 @@ class ProductionCycle(
         # камерами, и только потом движение ленты.
         self._await_initial_inspection = False
 
+    def _init_camera_pipeline(self, settle_seconds, stage_trace_seconds):
+        """Живой просмотр и фазы шага — владельцы камер."""
+        # Живой просмотр: работает и в JOG, и во время движения ленты.
+        self.live = LivePreview(
+            cameras=self.cameras,
+            monitor=self.monitor,
+            get_active_role=self._get_active_camera_role,
+        )
+
+        # Фазы шага и передача камер между live-просмотром и инспекцией.
+        self.stages = StepSequencer(
+            self.live,
+            settle_seconds=settle_seconds,
+            trace_seconds=stage_trace_seconds,
+            on_stage=self._on_stage_change,
+        )
+
     # Process telemetry
+
+    def _set_process(
+        self,
+        phase: str,
+        label: str,
+        *,
+        part_id=None,
+        conveyor_status=None,
+        capture_roles=None,
+    ):
+        self._process = {
+            "phase": phase,
+            "label": label,
+            "step": self.current_step,
+            "part_id": part_id,
+            "conveyor": dict(conveyor_status or {}),
+            # Роли только что захваченных камер. UI использует это, чтобы
+            # оператор видел, какая стадия Part действительно снималась.
+            "capture_roles": list(capture_roles or []),
+            "inspection_roles": list(self._inspection_display_roles),
+        }
+        self._refresh_monitor()
+
+    def _on_inspection_progress(
+        self,
+        phase: str,
+        label: str,
+        *,
+        part_id=None,
+        roles=(),
+    ):
+        """Показать внутренний этап инспекции в статусе линии.
+
+        Callback наблюдательный: решение уже выполняется Inspector'ом, а
+        этот метод только публикует текущую фазу для HMI и не меняет порядок
+        обработки.
+        """
+        prefix = str(phase or "").upper()
+        self._set_process(
+            prefix,
+            label,
+            part_id=part_id,
+            capture_roles=roles,
+        )
+
+    def _on_conveyor_progress(self, status: dict):
+        current = self._process
+        conveyor_info = dict(status or {})
+        # Expose speed for frontend animation timing (higher = faster motion)
+        conveyor_info["speed"] = int(self.conveyor.speed)
+        self._set_process(
+            "CONVEYOR_MOVING",
+            "Лента перемещает корпуса на следующую позицию",
+            part_id=current.get("part_id"),
+            conveyor_status=conveyor_info,
+        )
+
+    # Public API
 
     def request_start(self):
         if not self._operation_lock.acquire(blocking=False):
@@ -198,7 +255,10 @@ class ProductionCycle(
             try:
                 self.distributor.park_production()
             except Exception as exc:
-                self._handle_fault(f"Не удалось установить распределитель в рабочее положение: {exc}")
+                self._handle_fault(
+                    "Не удалось установить распределитель "
+                    f"в рабочее положение: {exc}"
+                )
                 raise
             accepted = self.sm.request_start()
             if accepted:
@@ -210,15 +270,9 @@ class ProductionCycle(
                 # попала в учёт, а не уехала дальше непроверенной.
                 self._await_initial_inspection = True
                 if self._diagnostics.get("kind") == "SELECTED_MODEL":
-                    self._diagnostics = {
-                        "status": "NOT_RUN",
-                        "kind": None,
-                        "message": "Анализ кадра ещё не выполнялся",
-                        "cameras": [],
-                        "models": [],
-                        "rules": [],
-                        "updated_at": None,
-                    }
+                    self._diagnostics = make_diagnostics(
+                        message="Анализ кадра ещё не выполнялся",
+                    )
                 # Оператор видит поток всё время, пока линия работает;
                 # на статических этапах шага он приостанавливается.
                 self.live.start()
@@ -249,7 +303,6 @@ class ProductionCycle(
         self._set_process(
             "PAUSE_REQUESTED",
             "Пауза будет применена перед началом нового цикла анализа",
-            positions=range(self.OFFSET_REJECT + 1),
         )
         self._refresh_monitor()
         return True
@@ -263,8 +316,8 @@ class ProductionCycle(
                 return False
             if self.jog is not None and (self.jog.busy or self.jog.status.get("error")):
                 return False
-            # После возобновления всё равно проходит полный свежий
-            # захват, модели, геометрия и принятие решения.
+            # После возобновления стадия всё равно проходит полный свежий
+            # захват, модели, геометрию и принятие решения.
             self._pause_requested.clear()
             accepted = self.sm.request_resume()
             if not accepted:
@@ -274,7 +327,6 @@ class ProductionCycle(
             self._set_process(
                 "RESUMED",
                 "Работа возобновлена после паузы",
-                positions=range(self.OFFSET_REJECT + 1),
             )
             self._refresh_monitor()
             return True
@@ -455,45 +507,95 @@ class ProductionCycle(
         except Exception as e:
             errors.append(f"conveyor: {e}")
         try:
-            stop_distributor = getattr(self.distributor, "emergency_stop", None)
-            if stop_distributor is not None:
-                stop_distributor()
+            self.distributor.emergency_stop()
         except Exception as e:
             errors.append(f"distributor: {e}")
         if errors:
             print(f"[SHUTDOWN] Emergency stop errors: {'; '.join(errors)}")
 
-    def _check_motion_cancelled(self):
-        if self._cancel_motion.is_set() or self.sm.force_exit:
-            raise RuntimeError("physical operation cancelled")
+    # Archive
 
-    # Core step
+    def _archive_part(self, part, extra=None) -> bool:
+        """Записать деталь и вернуть подтверждённый результат записи."""
+        if not self.archive:
+            return False
+        kwargs = {
+            "part_id": part.id,
+            "category": part.route_category,
+            "decision": part.final_decision,
+            "defects": part.get_all_defects(),
+            "step": part.step_created,
+        }
+        archive_extra = {}
+        if extra:
+            archive_extra.update(extra)
+        if archive_extra:
+            kwargs["extra"] = archive_extra
+        try:
+            return bool(self.archive.finalize(**kwargs))
+        except Exception as exc:
+            print(f"[ARCHIVE] Не удалось записать деталь #{part.id}: {exc}")
+            return False
 
-    def _run_once(self):
-        """Один шаг линии: движение, затухание, съёмка, анализ, публикация.
+    def _archive_inflight(self, reason: str):
+        for part in list(self.parts):
+            if part.route_category == CATEGORY_UNKNOWN:
+                part.route_category = CATEGORY_BAD
+            part.final_decision = f"aborted_{reason}"
+            try:
+                self._archive_part(
+                    part,
+                    extra={"aborted": True, "abort_reason": reason},
+                )
+            except Exception as e:
+                print(f"[ARCHIVE] Failed to archive aborted part #{part.id}: {e}")
+            self._remove_part(part)
+        self._pending_drop = None
 
-        Владелец камер меняется только на границах фаз, поэтому кадры для
-        defect rules физически не могут быть сняты во время движения.
-        """
-        self._check_motion_cancelled()
-        print(f"\nШАГ {self.current_step + 1}")
+    # Helpers
 
-        # Право принять деталь фиксируется до движения: если STOP придёт уже
-        # во время проезда, вошедшая этим шагом деталь всё равно будет
-        # проинспектирована и останется синхронной со своей ячейкой.
-        accept_input_for_this_step = self.sm.accepts_new_parts
+    def _remove_part(self, part):
+        if part in self.parts:
+            self.parts.remove(part)
 
-        self._last_vision_results = {}
-        self._last_rule_results = []
+    def _register_finished(self, part):
+        record = {
+            "id":       part.id,
+            "decision": part.final_decision,
+            "category": part.route_category,
+            "time":      time.time(),
+        }
+        # UI получает только лёгкую ссылку на архивную запись. Само
+        # изображение не копируется в recent-кэш и не исчезает из архива,
+        # когда деталь покидает последние десять.
+        if self.archive:
+            try:
+                archive_info = self.archive.get_part_info(part.id)
+            except Exception as exc:
+                print(f"[ARCHIVE] Не удалось прочитать карточку #{part.id}: {exc}")
+                archive_info = None
+            if archive_info:
+                record["batch_id"] = self.archive.batch_id
+                record["archive_folder"] = archive_info.get("relative_folder")
+        self.recent_parts.append(record)
 
-        # Каждый производственный шаг проходит одну последовательную цепочку:
-        # свежий кадр -> модели -> геометрия/правила -> решение -> архив.
-        pending_id = self._stage_motion()
-        self._stage_settle(pending_id, accept_input_for_this_step)
-        self._check_pause_barrier()
-        frame_runs = self._stage_capture(accept_input_for_this_step)
-        display_frames = self._stage_analysis(
-            frame_runs, accept_input_for_this_step,
+    def _on_stage_change(self, previous, current, elapsed: float):
+        """Печать границы фаз шага: видно, где именно проводится время."""
+        print(
+            f"[STAGE] {previous.value} -> {current.value} "
+            f"(предыдущая фаза {elapsed:.2f} с)"
         )
-        self._stage_review(display_frames)
-        self._stage_publish(display_frames)
+
+    def _on_state_change(self, _old, new, _action: str):
+        if new == State.STOPPING:
+            self._set_process("DRAINING", "Остановка")
+        elif new == State.STOPPED:
+            # Линия пуста: последние кадры с разметкой остаются на экране,
+            # пока оператор не войдёт в JOG или не запустит цикл заново.
+            self.stages.reset()
+            self.live.stop()
+            self._set_process("STOPPED", "Линия остановлена и пуста")
+        elif new == State.FAULT:
+            self._set_process("FAULT", "Цикл остановлен из-за ошибки")
+        else:
+            self._refresh_monitor()

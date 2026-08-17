@@ -1,4 +1,4 @@
-"""Детерминированное завершение потоков и внешних ресурсов (3 камеры)."""
+"""Детерминированное завершение потоков и внешних ресурсов."""
 
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ class ShutdownManager:
 
     def after_window_closed(self) -> None:
         """Остановить цикл сразу после возврата из блокирующего webview."""
+
         print("[UI] Окно закрыто, завершение...")
         self._request_force_exit()
         self._join_cycle(warn=True)
@@ -58,7 +59,9 @@ class ShutdownManager:
         phase_started = time.monotonic()
         cycle_thread = runtime.cycle_thread
         if cycle_thread and cycle_thread.is_alive():
-            print("[SHUTDOWN] Cycle still active; archive compression skipped")
+            print(
+                "[SHUTDOWN] Cycle still active; archive compression skipped"
+            )
         else:
             self._shutdown_compress(runtime.archive)
         print(
@@ -81,6 +84,9 @@ class ShutdownManager:
             if not cycle.force_exit_requested:
                 cycle.request_force_exit()
         except Exception as exc:
+            # Остальные ресурсы всё равно должны освобождаться. Если цикл не
+            # смог выполнить собственный emergency stop, дублируем команды
+            # непосредственно через транспорт до закрытия COM.
             print(f"[SHUTDOWN] Cycle force-exit request failed: {exc}")
             self._send_controller_stop("Fallback stop")
 
@@ -125,8 +131,6 @@ class ShutdownManager:
     def _shutdown_compress(self, archive) -> None:
         if not archive:
             return
-        if not archive.enabled or not archive.compress_on_shutdown:
-            return
 
         try:
             worker = self._thread_factory(
@@ -141,18 +145,22 @@ class ShutdownManager:
                     f"{self.compress_timeout}с, пропускаем"
                 )
         except Exception as exc:
+            # Ошибка вспомогательного потока не должна препятствовать
+            # освобождению камер и закрытию контроллера.
             print(f"[SHUTDOWN] Ошибка потока сжатия архива: {exc}")
 
     @staticmethod
     def _safe_compress(archive) -> None:
         try:
             print("[SHUTDOWN] Сжатие архива...")
-            archive.compress(delete_original=archive.delete_original_after_zip)
+            archive.compress()
         except Exception as exc:
             print(f"[SHUTDOWN] Ошибка сжатия архива: {exc}")
 
     def _release_cameras(self) -> None:
         phase_started = time.monotonic()
+        # Live останавливается до VideoCapture, иначе фоновые чтения могут
+        # продолжиться на уже освобождённых камерах.
         cycle = self.runtime.cycle
         if cycle:
             try:

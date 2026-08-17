@@ -3,89 +3,50 @@
 
 // ─── Recent parts ────────────────────────────────────────────
 
+const HISTORY_SLOT_COUNT = 10;
+
+function historyPlaceholderCard() {
+    return `
+        <div class="history-card history-card-placeholder" aria-hidden="true">
+            <div class="history-card-id">&nbsp;</div>
+            <div class="history-card-symbol">—</div>
+        </div>
+    `;
+}
+
 function updateRecentParts(parts) {
-    const hash = parts.map(p =>
+    const visible = (parts || []).slice(-HISTORY_SLOT_COUNT);
+    const hash = visible.map(p =>
         `${p.id}:${p.category}:${p.decision}`
     ).join('|');
 
     if (els.historyCards.dataset.hash === hash) {
-        updateDefects(parts);
         return;
     }
     els.historyCards.dataset.hash = hash;
 
-    if (!parts.length) {
-        els.historyCards.innerHTML =
-            '<span class="history-empty">Корпусов пока нет</span>';
-        animateUiElement(els.historyCards, 'ui-content-change');
-        updateDefects(parts);
-        return;
-    }
-
-    const visible = parts.slice(-10);
-
-    els.historyCards.innerHTML = visible.map(p => {
+    const filled = visible.map(p => {
         const cat = (p.category || 'GOOD').toLowerCase();
         let symbol = 'ГОДНО';
         if (cat === 'bad')     symbol = 'БРАК';
-        if (cat === 'cleanup') symbol = 'ОЧИСТКА';
+        if (cat === 'cleanup') symbol = 'ЗАЧИСТКА';
 
         return `
             <div class="history-card cat-${cat}"
                  onclick="window._openPartGallery(${p.id})"
-                 title="Корпус #${p.id} · ${symbol}"
+                 title="Корпус \u2116\u00a0${p.id} · ${symbol}"
                  style="cursor:pointer">
-                <div class="history-card-id">#${p.id}</div>
+                <div class="history-card-id">\u2116\u00a0${p.id}</div>
                 <div class="history-card-symbol">${symbol}</div>
             </div>
         `;
-    }).join('');
+    });
+    const empty = Array.from(
+        {length: HISTORY_SLOT_COUNT - filled.length},
+        historyPlaceholderCard,
+    );
+    els.historyCards.innerHTML = [...filled, ...empty].join('');
     animateUiElement(els.historyCards, 'ui-content-change');
-
-    updateDefects(parts);
-}
-
-function updateDefects(parts) {
-    if (!els.defectsSection || !els.defectsList) return;
-    const working = state.lineState === 'RUNNING' || state.lineState === 'STOPPING';
-    if (!working) {
-        els.defectsSection.classList.add('is-hidden');
-        return;
-    }
-
-    setIfChanged(els.defectsTitle, 'ОСНОВНЫЕ ДЕФЕКТЫ');
-    const rows = [];
-    const counter = {};
-    for (const part of parts) {
-        // Prefer human-readable cause if available in future payloads
-        const cause = part.human_cause || part.decision;
-        if (!cause || cause === 0 || cause === '0' || cause === 'none' || cause === 'unknown') continue;
-        const key = String(cause).toUpperCase().slice(0, 42);
-        counter[key] = (counter[key] || 0) + 1;
-    }
-    for (const [name, count] of Object.entries(counter)
-        .sort((left, right) => right[1] - left[1])
-        .slice(0, 5)) {
-        rows.push({name, value: count});
-    }
-    if (!rows.length) rows.push({name: '(нет дефектов)', value: '—'});
-
-    const hash = JSON.stringify({working, rows});
-    if (els.defectsList.dataset.lastHash !== hash) {
-        els.defectsList.dataset.lastHash = hash;
-        els.defectsList.replaceChildren();
-        for (const row of rows) {
-            const item = document.createElement('li');
-            if (row.error) item.classList.add('diagnostic-error');
-            const name = document.createElement('span');
-            const value = document.createElement('b');
-            name.textContent = row.name;
-            value.textContent = row.value;
-            item.append(name, value);
-            els.defectsList.appendChild(item);
-        }
-    }
-    els.defectsSection.classList.remove('is-hidden');
 }
 
 // ─── Archive Gallery ─────────────────────────────────────────

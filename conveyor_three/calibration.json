@@ -1,5 +1,4 @@
 {
-  "micro_steps": 500,
   "jog_hold_steps": 1000000,
   "normal_steps": 19048,
   "conveyor_speed": 20000,
@@ -7,7 +6,6 @@
   "dist1_open_position": 340,
   "dist2_bad_position": 0,
   "dist2_cleanup_position": 340,
-  "drop_time": 0.8,
   "settle_time": 0.5,
   "stage_trace_time": 0.5,
   "axis_speed": 300,

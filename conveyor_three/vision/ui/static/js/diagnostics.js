@@ -62,7 +62,6 @@ function updateSelectedAnalysisStatus(ls) {
     const selectedActive = state.selectedAnalysisActive && JOG_ALLOWED_STATES.includes(state.lineState);
     if (els.statsSummary) els.statsSummary.classList.toggle('is-collapsed', selectedActive);
     if (els.distributorDiagnostics) els.distributorDiagnostics.classList.toggle('is-collapsed', selectedActive);
-    if (els.statsService) els.statsService.classList.toggle('is-collapsed', selectedActive);
 
     const live = ls.live || {};
     state.liveFps = Number(live.fps || (ls.jog || {}).live_fps || 0);
@@ -80,7 +79,6 @@ function updateSelectedAnalysisStatus(ls) {
     // Источник главной камеры зависит от её собственной роли, а не от
     // inspection другой группы камер.
     state.liveStreaming = live.running === true && !selectedRoleStatic;
-    state.liveStatic = selectedRoleStatic;
 
     if (wasLiveStreaming !== state.liveStreaming && typeof applyMainCameraSource === 'function') {
         applyMainCameraSource();
@@ -114,7 +112,6 @@ function showPendingSelectedFrameAnalysis() {
     panel.classList.remove('is-collapsed');
     if (els.statsSummary) els.statsSummary.classList.add('is-collapsed');
     if (els.distributorDiagnostics) els.distributorDiagnostics.classList.add('is-collapsed');
-    if (els.statsService) els.statsService.classList.add('is-collapsed');
 
     // Плейсхолдер в новом анализе — через основной рендер
     const tbody = document.getElementById('fa-new-tbody');
@@ -132,10 +129,6 @@ function showPendingSelectedFrameAnalysis() {
     }
     const ctxEl = document.getElementById('fa-new-context');
     if (ctxEl) setIfChanged(ctxEl, 'Ожидание моделей');
-
-    // Старый fallback очищаем если есть
-    const legacyRules = document.getElementById('frame-analysis-rules');
-    if (legacyRules) legacyRules.replaceChildren();
 }
 
 // ——— выбранный кадр: кнопки ———

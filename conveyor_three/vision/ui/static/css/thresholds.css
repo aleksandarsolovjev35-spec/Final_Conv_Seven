@@ -21,10 +21,11 @@
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     gap: 8px;
     min-width: 0;
     min-height: 16px;
+    text-align: center;
 }
 .thresholds-title {
     font-family: var(--font-ui);
@@ -33,27 +34,6 @@
     letter-spacing: 0.8px;
     color: var(--text-dim);
     white-space: nowrap;
-}
-.thresholds-camera {
-    font-family: var(--font-ui);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.4px;
-    color: var(--accent);
-    text-transform: uppercase;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.thresholds-hint {
-    flex: 0 0 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--font-ui);
-    font-size: 9px;
-    color: var(--text-muted);
 }
 .thresholds-body {
     display: flex;
@@ -182,6 +162,21 @@
    Высота панели фиксирована, поэтому правая колонка не прокручивается. */
 .thresholds-card:not(.is-active) {
     display: none;
+}
+
+/* Полное название правила в открытой карточке. */
+.thresholds-card-title {
+    flex: 0 0 auto;
+    min-width: 0;
+    padding: 1px 2px 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+    color: var(--text);
+    font: 700 9px var(--font-ui);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
 }
 
 /* ─── Строка параметра: название | число ────────────────────────── */
@@ -356,67 +351,5 @@
     color: var(--bad);
 }
 
-.btn-thresholds-save {
-    --btn-color: var(--ok);
-    --btn-fill: var(--ok-bg);
-    border-color: var(--ok);
-}
-
-.btn-thresholds-save:hover:not(:disabled) {
-    color: var(--ok);
-    border-color: var(--ok);
-}
-
-.btn-sm {
-    min-width: 0;
-    height: 28px;
-    padding: 4px 12px;
-    font-size: 10px;
-}
-
-/* Структурированное отображение по объектам (окна, контакты, раковины и т.д.) */
-.fa-obj-block {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-top: 6px;
-    padding: 6px 8px;
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-}
-
-.fa-obj-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-bottom: 3px;
-    border-bottom: 1px dashed var(--border);
-}
-
-.fa-obj-title {
-    font: 700 10px var(--font-ui);
-    color: var(--text);
-    letter-spacing: 0.3px;
-}
-
-.fa-obj-status {
-    font: 700 9px var(--font-mono);
-    color: var(--ok);
-}
-
-.fa-obj-content {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.fa-empty-status {
-    padding: 8px 10px;
-    text-align: center;
-    color: var(--warn);
-    font: 700 11px var(--font-ui);
-    background: var(--warn-bg);
-    border: 1px solid var(--warn);
-    border-radius: var(--radius-sm);
-}
+/* Кнопки «СОХРАНИТЬ» / «ОТМЕНИТЬ» порогов — .btn.btn-sm + зелёный
+   вариант .btn-thresholds-save; всё задано единообразно в controls.css. */

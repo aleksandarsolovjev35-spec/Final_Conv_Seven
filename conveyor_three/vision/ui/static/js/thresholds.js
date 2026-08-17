@@ -21,7 +21,8 @@ function thresholdsPanelVisible() {
     // панель скрыта и оператор не может изменить их задним числом.
     const jogMode = !!(state.jogActive || state.jogTogglePending);
     return (
-        !state.splashActive
+        state.debugMode
+        && !state.splashActive
         && !state.offline
         && !state.serverExitRequested
         && jogMode
@@ -93,10 +94,8 @@ function updateThresholdsPanel(force) {
 
 function renderThresholdsPanel() {
     if (!thresholdsData) return;
-    if (els.thresholdsCameraLabel) setIfChanged(els.thresholdsCameraLabel, cameraRoleLabel(state.currentCamera));
     const editable = thresholdsEditableNow() && thresholdsData.editable !== false;
     if (els.thresholdsPanel) els.thresholdsPanel.classList.toggle('is-locked', !editable);
-    if (els.thresholdsHint) setIfChanged(els.thresholdsHint, editable ? 'Линия остановлена — значения можно менять' : 'Редактирование доступно до пуска и после полной остановки');
     const key = `${thresholdsData.role}|${thresholdsData.revision}`;
     if (key !== thresholdsBodyKey) {
         // Если был активный drag — прерываем, чтобы не держать ссылку на удалённый DOM
@@ -120,7 +119,15 @@ function buildThresholdItem(param) {
     span.className = 'thresholds-item-label';
     span.textContent = param.label || param.key;
     const description = String(param.description || '').trim();
-    const tooltip = description ? `${description}\n\nТехнический ключ: ${param.key}` : param.key;
+    // Подсказка всегда начинается с полного читаемого названия, чтобы
+    // усечённую подпись можно было прочитать целиком; технический ключ —
+    // только дополнение для тех, кому он нужен.
+    const fullName = param.label || param.key;
+    const tooltip = [
+        fullName,
+        description,
+        param.key && param.key !== fullName ? `Технический ключ: ${param.key}` : '',
+    ].filter(Boolean).join('\n\n');
     span.title = tooltip;
     span.setAttribute('aria-label', `${param.label || param.key}. ${tooltip}`);
     item.appendChild(span);
@@ -219,6 +226,8 @@ function renderThresholdsBody() {
         if (!tab) return;
         const next = event.relatedTarget;
         if (next && tab.contains(next)) return;
+        // Активная вкладка остаётся раскрытой после ухода курсора.
+        if (tab.classList.contains('is-active')) return;
         tab.classList.remove('is-title-expanded');
         tab.style.flexBasis = '';
     });
@@ -231,6 +240,12 @@ function renderThresholdsBody() {
         card.className = 'thresholds-card';
         card.dataset.rule = group.rule || '';
         card.dataset.index = String(index);
+        // Полное название правила видно в открытой карточке, а не только
+        // в усечённой вкладке сверху.
+        const cardTitle = document.createElement('div');
+        cardTitle.className = 'thresholds-card-title';
+        cardTitle.textContent = group.label || group.rule;
+        card.appendChild(cardTitle);
         const cardBody = document.createElement('div');
         cardBody.className = 'thresholds-card-body';
         const rows = document.createElement('div');
@@ -270,6 +285,16 @@ function renderThresholdsBody() {
             const isActive = index === thresholdsCardIndex;
             tab.classList.toggle('is-active', isActive);
             tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            // Активная вкладка раскрывается до полного названия: открытое
+            // правило читается сразу, а не только при наведении.
+            if (isActive) {
+                const label = tab.querySelector('.thresholds-tab-label');
+                tab.classList.add('is-title-expanded');
+                tab.style.flexBasis = ((label ? label.scrollWidth : 0) + THRESHOLDS_TAB_PAD) + 'px';
+            } else {
+                tab.classList.remove('is-title-expanded');
+                tab.style.flexBasis = '';
+            }
         });
         syncTabHints();
         thresholdsSyncScroll();

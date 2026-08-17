@@ -1,33 +1,46 @@
-"""Предстартовые диагностики цикла (3 камеры).
+"""Диагностика камер, правил и распределителя.
 
-Часть ``ProductionCycle``: проверки камер, моделей и правил, а также
-анализ выбранной камеры оператором.
+Часть ``ProductionCycle``. Доступна только на пустой линии в IDLE/STOPPED.
 """
-
-from __future__ import annotations
 
 import time
 
 from core.rule_report import build_rule_report_row, build_rule_report_rows
-from domain.defect_rules import PartPresenceRule
 from domain.part import CATEGORY_BAD, CATEGORY_CLEANUP
-from inspection.consensus import (
-    combine_presence_results,
-    combine_rule_results,
-    describe_picture_run,
-    summarize_model_health,
-)
+
+
+def make_diagnostics(
+    status: str = "NOT_RUN",
+    kind=None,
+    message: str = "Проверки ещё не запускались",
+    *,
+    cameras=None,
+    models=None,
+    rules=None,
+    updated_at=None,
+    **extra,
+) -> dict:
+    """Снимок диагностики для HMI.
+
+    Единственное место, где задаётся форма этого словаря: UI полагается на
+    полный набор ключей, поэтому пустые списки подставляются всегда, а не
+    по месту вызова.
+    """
+    report = {
+        "status": status,
+        "kind": kind,
+        "message": message,
+        "cameras": list(cameras or []),
+        "models": list(models or []),
+        "rules": list(rules or []),
+        "updated_at": updated_at,
+    }
+    report.update(extra)
+    return report
+
 
 class CycleDiagnosticsMixin:
-    """Предстартовые и операторские проверки оборудования и правил."""
-
-    @staticmethod
-    def _rule_report_row(result) -> dict:
-        return build_rule_report_row(result)
-
-    @staticmethod
-    def _rule_report_rows(results, role: str | None = None) -> list:
-        return build_rule_report_rows(results, role=role)
+    """Предстартовые проверки без движения линии."""
 
     def distributor_diagnostic(self, command: str) -> bool:
         if not self._operation_lock.acquire(blocking=False):
@@ -74,12 +87,9 @@ class CycleDiagnosticsMixin:
                 return False
             self._set_diagnostic_running("CAMERAS", "Проверка трёх камер")
             self._set_process("CAMERA_DIAGNOSTIC", "Проверка трёх камер")
-            # Сброс буфера драйвера: в IDLE/STOPPED после JOG или прогрева
-            # cap.read() может вернуть устаревший кадр. См. комментарий
-            # в _stage_capture().
-            drain = getattr(self.cameras, "drain_buffers", None)
-            if callable(drain):
-                drain()
+            # После JOG драйвер может вернуть устаревший кадр из буфера.
+            # См. комментарий в _stage_capture().
+            self.cameras.drain_buffers()
             frames = self.cameras.capture_all()
             camera_rows = []
             for role, frame in frames.items():
@@ -92,15 +102,12 @@ class CycleDiagnosticsMixin:
                 })
             self._last_vision_results = {}
             self._last_rule_results = []
-            self._diagnostics = {
-                "status": "PASSED",
-                "kind": "CAMERAS",
-                "message": f"Камеры: {len(camera_rows)}/{len(camera_rows)} OK",
-                "cameras": camera_rows,
-                "models": [],
-                "rules": [],
-                "updated_at": time.time(),
-            }
+            self._diagnostics = make_diagnostics(
+                "PASSED", "CAMERAS",
+                f"Камеры: {len(camera_rows)}/{len(camera_rows)} OK",
+                cameras=camera_rows,
+                updated_at=time.time(),
+            )
             self._set_process("DIAGNOSTIC_DONE", "Три камеры проверены")
             self._refresh_monitor(frames)
             return True
@@ -124,31 +131,14 @@ class CycleDiagnosticsMixin:
             self._set_process(
                 "VISION_RULE_DIAGNOSTIC",
                 "Запуск всех моделей и правил дефектов без движения линии",
-                positions=[self.OFFSET_INSPECT],
             )
-            # Сброс буфера драйвера: в IDLE/STOPPED после JOG или прогрева
-            # cap.read() может вернуть устаревший кадр. См. комментарий
-            # в _stage_capture().
-            drain = getattr(self.cameras, "drain_buffers", None)
-            if callable(drain):
-                drain()
+            # После JOG драйвер может вернуть устаревший кадр из буфера.
+            # См. комментарий в _stage_capture().
+            self.cameras.drain_buffers()
             frames = self.cameras.capture_all()
-            vision_results = self.inspector.vision.process_all(frames)
-            presence_rule = PartPresenceRule(
-                self.inspector.decision.thresholds
+            vision_results, rule_results, model_rows = (
+                self.inspector.evaluate_all(frames)
             )
-            if not presence_rule.enabled:
-                raise RuntimeError("part_presence rule is disabled")
-            presence_result = presence_rule.check(vision_results)
-            rule_results = [presence_result]
-            if not presence_result.details.get("empty_tray"):
-                rule_results.extend(
-                    self.inspector.decision.evaluate_all_detailed(
-                        vision_results,
-                        frames=frames,
-                    )
-                )
-            model_rows = [dict(item) for item in self.inspector.vision.last_health]
             rule_rows = [
                 self._rule_report_row(result)
                 for result in rule_results
@@ -166,18 +156,17 @@ class CycleDiagnosticsMixin:
             self._last_vision_results = vision_results
             self._last_rule_results = rule_results
             triggered = sum(row["triggered"] for row in rule_rows)
-            self._diagnostics = {
-                "status": "PASSED",
-                "kind": "VISION_RULES",
-                "message": (
+            self._diagnostics = make_diagnostics(
+                "PASSED", "VISION_RULES",
+                (
                     f"Модели: {len(model_rows)} исправны; "
                     f"правил: {len(rule_rows)}, сработало: {triggered}"
                 ),
-                "cameras": camera_rows,
-                "models": model_rows,
-                "rules": rule_rows,
-                "updated_at": time.time(),
-            }
+                cameras=camera_rows,
+                models=model_rows,
+                rules=rule_rows,
+                updated_at=time.time(),
+            )
             self._set_process(
                 "DIAGNOSTIC_DONE",
                 "Модели и правила дефектов выполнены",
@@ -202,37 +191,33 @@ class CycleDiagnosticsMixin:
         )
 
     def _set_diagnostic_running(self, kind: str, message: str):
-        self._diagnostics = {
-            "status": "RUNNING",
-            "kind": kind,
-            "message": message,
-            "cameras": [],
-            "models": [],
-            "rules": [],
-            "updated_at": time.time(),
-        }
+        self._diagnostics = make_diagnostics(
+            "RUNNING", kind, message, updated_at=time.time(),
+        )
         self._refresh_monitor()
 
     def _set_diagnostic_error(self, kind: str, exc: Exception):
-        self._diagnostics = {
-            "status": "ERROR",
-            "kind": kind,
-            "message": f"{type(exc).__name__}: {exc}",
-            "cameras": [],
-            "models": [],
-            "rules": [],
-            "updated_at": time.time(),
-        }
+        self._diagnostics = make_diagnostics(
+            "ERROR", kind, f"{type(exc).__name__}: {exc}",
+            updated_at=time.time(),
+        )
         self._refresh_monitor()
 
     @staticmethod
+    def _rule_report_row(result) -> dict:
+        return build_rule_report_row(result)
+
+    @staticmethod
+    def _rule_report_rows(results, role: str | None = None) -> list:
+        return build_rule_report_rows(results, role=role)
+
     def diagnostic_analyze_selected_camera(self, role: str) -> bool:
         if not self._operation_lock.acquire(blocking=False):
             return False
         try:
             if not self._prestart_diagnostic_allowed():
                 return False
-            available_roles = set(getattr(self.cameras, "mapping", {}))
+            available_roles = set(self.cameras.mapping)
             if not available_roles:
                 available_roles = set(self.inspector.INSPECT_ROLES)
             if role not in available_roles:
@@ -245,9 +230,7 @@ class CycleDiagnosticsMixin:
             # Сброс буфера драйвера: после паузы live cap.read()
             # может вернуть устаревший кадр. См. комментарий
             # в _stage_capture().
-            drain = getattr(self.cameras, "drain_buffers", None)
-            if callable(drain):
-                drain((role,))
+            self.cameras.drain_buffers((role,))
 
             self._selected_analysis_active = True
             self._selected_analysis_role = role
@@ -267,7 +250,8 @@ class CycleDiagnosticsMixin:
                     f"Для камеры {role} нет активных правил анализа"
                 )
 
-            is_presence_role = role in self.inspector.PRESENCE_ROLES
+            # Наличие детали проверяют только камеры, видящие окна.
+            is_presence = role in self.inspector.PRESENCE_ROLES
 
             self._set_process(
                 "SELECTED_MODEL_ANALYSIS", f"{role}: свежий кадр",
@@ -281,60 +265,27 @@ class CycleDiagnosticsMixin:
                 )
             detection_count = len(vision_results.get(role, []))
 
-            raw_model_health = [
-                {**item, "run": 1}
-                for item in (getattr(self.inspector.vision, "last_health", None) or [])
-                if isinstance(item, dict)
-            ]
-
             presence_result = None
             rule_results = []
-            consensus = None
-            if is_presence_role:
-                presence_result, presence_vote, _ = combine_presence_results(
-                    [self.inspector._evaluate_part_presence(vision_results)]
+            if is_presence:
+                presence_result = self.inspector.evaluate_presence(
+                    vision_results
                 )
-                if not presence_result.details.get("empty_tray"):
-                    rule_results, consensus, _ = combine_rule_results([
-                        decision.evaluate_rules_detailed(
-                            decision_rules, vision_results, frames=stage_frames,
-                        )
-                    ])
-                    consensus["part_presence"] = presence_vote
-                else:
-                    # Пустая ячейка: defect-правила не выполняются.
-                    consensus = {
-                        "runs": 1,
-                        "required_votes": 1,
-                        "evidence_run": 1,
-                        "part_presence": presence_vote,
-                        "rules": {},
-                    }
-            else:
-                rule_results, consensus, _ = combine_rule_results([
-                    decision.evaluate_rules_detailed(
-                        decision_rules, vision_results, frames=stage_frames,
-                    )
-                ])
+            if presence_result is None or not presence_result.details.get(
+                "empty_tray"
+            ):
+                rule_results = self.inspector.evaluate_rules(
+                    vision_results, frames=stage_frames, roles=(role,),
+                )
 
-            picture_candidates = (
-                [presence_result] + list(rule_results)
-                if is_presence_role and presence_result is not None
-                else rule_results
-            )
-            consensus["picture_run"] = 1
-            consensus["picture_reason"] = describe_picture_run(
-                picture_candidates, 0,
-            )
-
-            model_rows = summarize_model_health(raw_model_health)
+            model_rows = self.inspector.model_health()
             if not model_rows or any(not row.get("ok") for row in model_rows):
                 raise RuntimeError(
                     f"Нет полного комплекта model health для камеры {role}"
                 )
 
             rule_rows = []
-            if is_presence_role and presence_result is not None:
+            if is_presence and presence_result is not None:
                 rule_rows.append(self._rule_report_row(presence_result))
             rule_rows.extend(
                 self._rule_report_row(result) for result in rule_results
@@ -347,43 +298,36 @@ class CycleDiagnosticsMixin:
                 "ok": True,
                 "width": int(width),
                 "height": int(height),
-                "runs": 1,
                 "detections": int(detection_count),
-                "detections_by_run": [int(detection_count)],
             }]
 
             self._last_vision_results = vision_results
             self._last_rule_results = rule_results
-            self._diagnostics = {
-                "status": "PASSED",
-                "kind": "SELECTED_MODEL",
-                "message": (
+            self._diagnostics = make_diagnostics(
+                "PASSED", "SELECTED_MODEL",
+                (
                     f"{role}: свежий кадр; моделей {len(model_rows)}; "
                     f"правил {len(rule_rows)}; объекты {detection_count}"
                 ),
-                "selected_role": role,
-                "cameras": camera_rows,
-                "models": model_rows,
-                "rules": rule_rows,
-                "consensus": consensus,
-                "picture_run": 1,
-                "picture_reason": consensus.get("picture_reason"),
-                "updated_at": time.time(),
-            }
+                cameras=camera_rows,
+                models=model_rows,
+                rules=rule_rows,
+                updated_at=time.time(),
+                selected_role=role,
+            )
             self._set_process(
                 "SELECTED_MODEL_READY",
                 f"Анализ кадра {role} завершён; поток приостановлен",
             )
-            self._refresh_monitor(
-                stage_frames,
-                run_frames=[stage_frames],
-                run_rule_results=[rule_results],
-            )
+            self._refresh_monitor(stage_frames)
             return True
         except Exception as exc:
             self._selected_analysis_active = False
             self._selected_analysis_role = None
-            self.live.resume()
+            try:
+                self.live.resume()
+            except Exception as resume_exc:
+                print(f"[LIVE] resume after selected analysis failed: {resume_exc}")
             self._set_diagnostic_error("SELECTED_MODEL", exc)
             self._handle_fault(f"Ошибка анализа выбранного кадра: {exc}")
             raise
@@ -402,28 +346,25 @@ class CycleDiagnosticsMixin:
             self._last_vision_results = {}
             self._last_rule_results = []
             self._reset_frame_analysis()
-            self._diagnostics = {
-                "status": "NOT_RUN",
-                "kind": None,
-                "message": "Анализ кадра не выполнялся",
-                "cameras": [],
-                "models": [],
-                "rules": [],
-                "updated_at": None,
-            }
+            self._diagnostics = make_diagnostics(
+                message="Анализ кадра не выполнялся",
+            )
             self.live.resume()
             # Убрать геометрию анализа с экрана: разметка построена по
             # статичному кадру и на движущемся изображении указывала бы
             # мимо детали (эффект маркера на лобовом стекле).
-            self.live.clear_overlays()
+            try:
+                self.live.clear_overlays()
+            except Exception:
+                pass
             try:
                 fresh_frames = self.cameras.capture_all()
                 # Публикуем свежие кадры без оверлеев — возврат к живому виду.
-                self._refresh_monitor(fresh_frames, run_frames=[])
+                self._refresh_monitor(fresh_frames)
             except Exception:
                 # Если захват недоступен (камеры заняты / ошибка), хотя бы
                 # гарантируем очистку оверлеев и обновление статуса.
-                self._refresh_monitor(run_frames=[])
+                self._refresh_monitor()
             self._set_process(
                 "LIVE_SELECTED_CAMERA",
                 f"Поток восстановлен: {role}",

@@ -1,4 +1,4 @@
-// archive.js — настройка хранения партий и политики сжатия
+// archive.js — выбор папки обязательного архива партий
 'use strict';
 
 let archiveSettingsData = null;
@@ -52,19 +52,12 @@ function renderArchiveSettings(data, preserveForm = false) {
 
     if (!preserveForm) {
         if (els.archiveRootPath) els.archiveRootPath.value = data.root_path || '';
-        if (els.archiveJpegQuality) els.archiveJpegQuality.value = data.jpeg_quality ?? 92;
-        if (els.archiveEnabled) els.archiveEnabled.checked = data.enabled !== false;
-        if (els.archiveCompressOnShutdown) els.archiveCompressOnShutdown.checked = data.compress_on_shutdown !== false;
-        if (els.archiveDeleteOriginal) els.archiveDeleteOriginal.checked = data.delete_original_after_zip !== false;
         archiveSettingsDirty = false;
     }
 
     const validation = data.validation || {};
     if (els.archiveSettingsValidation) {
-        if (data.enabled === false) {
-            els.archiveSettingsValidation.className = 'archive-settings-validation';
-            setIfChanged(els.archiveSettingsValidation, 'Архивирование отключено');
-        } else if (validation.writable) {
+        if (validation.writable) {
             els.archiveSettingsValidation.className = 'archive-settings-validation ok';
             const free = validation.free_mb == null ? '' : ` · свободно ${validation.free_mb} МБ`;
             setIfChanged(els.archiveSettingsValidation, `Папка доступна${free}`);
@@ -135,13 +128,8 @@ async function chooseArchiveFolder() {
 
 async function saveArchiveSettings() {
     if (!archiveSettingsEditable() || archiveSettingsBusy) return;
-    const quality = Math.max(70, Math.min(98, Number(els.archiveJpegQuality && els.archiveJpegQuality.value) || 92));
     const payload = {
         root_path: String(els.archiveRootPath && els.archiveRootPath.value || '').trim(),
-        enabled: !!(els.archiveEnabled && els.archiveEnabled.checked),
-        jpeg_quality: quality,
-        compress_on_shutdown: !!(els.archiveCompressOnShutdown && els.archiveCompressOnShutdown.checked),
-        delete_original_after_zip: !!(els.archiveDeleteOriginal && els.archiveDeleteOriginal.checked),
     };
     archiveSettingsBusy = true;
     updateArchiveButton();
@@ -185,16 +173,8 @@ function setupArchiveSettings() {
     els.archivePickFolder?.addEventListener('click', chooseArchiveFolder);
     els.archiveSettingsSave?.addEventListener('click', saveArchiveSettings);
 
-    [
-        els.archiveRootPath,
-        els.archiveJpegQuality,
-        els.archiveEnabled,
-        els.archiveCompressOnShutdown,
-        els.archiveDeleteOriginal,
-    ].forEach(element => {
-        element?.addEventListener('input', markArchiveSettingsDirty);
-        element?.addEventListener('change', markArchiveSettingsDirty);
-    });
+    els.archiveRootPath?.addEventListener('input', markArchiveSettingsDirty);
+    els.archiveRootPath?.addEventListener('change', markArchiveSettingsDirty);
     updateArchiveButton();
 }
 

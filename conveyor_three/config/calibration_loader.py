@@ -8,10 +8,8 @@ DEFAULTS = {
     "dist1_open_position":    340,
     "dist2_bad_position":     0,
     "dist2_cleanup_position": 340,
-    "drop_time":              0.8,
     "axis_speed":             300,
     "axis_accel":             100,
-    "micro_steps":            500,
     "jog_hold_steps":         1_000_000,
     "normal_steps":           19048,
 }
@@ -31,7 +29,7 @@ OPTIONAL_DEFAULTS = {
     "review_time": 2.0,
 }
 
-_FLOAT_KEYS = ("drop_time", "settle_time", "stage_trace_time", "review_time")
+_FLOAT_KEYS = ("settle_time", "stage_trace_time", "review_time")
 _INTEGER_KEYS = tuple(key for key in DEFAULTS if key not in _FLOAT_KEYS)
 
 
@@ -61,22 +59,17 @@ def _validate(data: dict) -> dict:
         "dist1_open_position",
         "axis_speed",
         "axis_accel",
-        "micro_steps",
         "jog_hold_steps",
         "normal_steps",
     )
     if any(data[key] <= 0 for key in positive):
         raise ValueError("Положительные calibration-параметры должны быть > 0")
-    if not 1 <= data["micro_steps"] <= 5000:
-        raise ValueError("micro_steps должен быть в диапазоне 1..5000")
     if not 10_000 <= data["jog_hold_steps"] <= 10_000_000:
         raise ValueError("jog_hold_steps должен быть в диапазоне 10000..10000000")
     if data["dist2_bad_position"] < 0 or data["dist2_cleanup_position"] < 0:
         raise ValueError("Позиции DIST2 не могут быть отрицательными")
     if data["dist2_bad_position"] == data["dist2_cleanup_position"]:
         raise ValueError("BAD и CLEANUP позиции должны различаться")
-    if not 0.05 <= float(data["drop_time"]) <= 30.0:
-        raise ValueError("drop_time должен быть в диапазоне 0.05..30 секунд")
     if not 0.0 <= float(data["settle_time"]) <= 5.0:
         raise ValueError("settle_time должен быть в диапазоне 0..5 секунд")
     if not 0.0 <= float(data["stage_trace_time"]) <= 5.0:
@@ -97,9 +90,6 @@ def load_calibration(path: str = "calibration.json") -> dict:
         raise RuntimeError(f"Файл калибровки не найден: {path}") from exc
     except (OSError, json.JSONDecodeError) as exc:
         raise RuntimeError(f"Ошибка чтения {path}: {exc}") from exc
-    try:
-        result = _validate(data)
-    except ValueError as exc:
-        raise RuntimeError(f"Невалидная калибровка {path}: {exc}") from exc
+    result = _validate(data)
     print(f"[CALIB] Loaded and validated from {path}")
     return result

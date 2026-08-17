@@ -6,7 +6,6 @@
 
 from core.rule_report.constants import (
     DETAILED_RULES,
-    HUMAN_CAUSE_MAP,
     METRIC_PARAM_LABELS,
     NO_MEASUREMENT,
     PART_PRESENCE_RULE,
@@ -15,7 +14,7 @@ from core.rule_report.constants import (
     SUMMARY_LINES_LIMIT,
 )
 from core.rule_report.cards import build_presence_summary, build_rule_summary
-from core.rule_report.human_cause import get_human_cause
+from core.rule_report.human_cause import HUMAN_CAUSE_MAP, get_human_cause
 from core.rule_report.row import build_rule_report_row, build_rule_report_rows
 from core.rule_report.scope import (
     filter_rule_report_rows,

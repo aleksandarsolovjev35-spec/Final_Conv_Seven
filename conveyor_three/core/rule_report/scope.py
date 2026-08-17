@@ -1,15 +1,37 @@
-"""Срез результата правила до одной камеры (3 камеры)."""
-
-from __future__ import annotations
-
+"""Срез результата правила до одной камеры и фильтрация строк отчёта."""
 import copy
 from types import SimpleNamespace
 
-from core.rule_report.constants import (
-    PART_PRESENCE_RULE,
-    PRESENCE_ROLE_FIELDS,
-    RULE_CAMERA_ROLES,
+from core.rule_report.constants import PART_PRESENCE_RULE, RULE_CAMERA_ROLES
+
+
+# Ролевые поля part_presence, привязанные к конкретной камере.
+_PRESENCE_ROLE_FIELDS = {
+    "NEAR": {"windows": "windows_near"},
+    "FAR": {"windows": "windows_far"},
+}
+
+# Словари presence-деталей, которые фильтруются по выбранной роли.
+_PRESENCE_ROLE_DICTS = (
+    "min_confidence_by_role",
+    "min_windows_by_role",
+    "windows_by_role",
+    "presence_by_role",
 )
+
+
+def filter_rule_report_rows(rows) -> list:
+    """Оставить только решающие правила.
+
+    Если деталь не обнаружена, все прочие правила не влияли на решение —
+    показывается единственная строка «ДЕТАЛЬ НЕ ОБНАРУЖЕНА».
+    """
+    rows = list(rows or [])
+
+    for row in rows:
+        if row.get("name") == PART_PRESENCE_RULE and row.get("part_absent"):
+            return [row]
+    return rows
 
 
 def rule_applies_to_role(rule_name: str, role: str | None) -> bool:
@@ -18,6 +40,7 @@ def rule_applies_to_role(rule_name: str, role: str | None) -> bool:
         return True
     roles = RULE_CAMERA_ROLES.get(rule_name)
     if roles is None:
+        # Неизвестное правило: оставляем, если role явно есть в данных.
         return True
     return role in roles
 
@@ -31,68 +54,64 @@ def _filter_role_cards(cards, role: str) -> list:
     ]
 
 
-def _filter_run_cards(run_cards, role: str) -> list:
-    if not isinstance(run_cards, list):
-        return []
-    return [_filter_role_cards(cards, role) for cards in run_cards]
+def _filter_measurement_cards(cards, role: str) -> list:
+    return _filter_role_cards(cards, role)
 
 
-def _filter_run_status(run_status, role: str) -> list:
-    if not isinstance(run_status, list):
+def _filter_role_status(rows, role: str) -> list:
+    if not isinstance(rows, list):
         return []
-    filtered = []
-    for rows in run_status:
-        if not isinstance(rows, list):
-            filtered.append([])
-            continue
-        filtered.append([
-            row for row in rows
-            if isinstance(row, dict) and (
-                row.get("role") == role
-                or row.get("role") in (None, "", "INPUT")
-            )
-        ])
-    return filtered
+    return [
+        row for row in rows
+        if isinstance(row, dict) and (
+            row.get("role") == role
+            # part_presence пишет общий статус role=INSPECT — оставляем.
+            or row.get("role") in (None, "", "INSPECT")
+        )
+    ]
 
 
 def _scope_presence_details(details: dict, role: str) -> dict:
     """Оставить в part_presence только поля выбранной камеры."""
     scoped = dict(details)
-    if role not in PRESENCE_ROLE_FIELDS:
-        return scoped
 
-    for details_key in (
-        "min_confidence_by_role",
-        "min_windows_by_role",
-        "presence_by_role",
-        "windows_by_role",
-    ):
-        raw = details.get(details_key)
+    for details_key in _PRESENCE_ROLE_DICTS:
+        raw = scoped.get(details_key)
         if isinstance(raw, dict):
             scoped[details_key] = {
                 key: value for key, value in raw.items() if key == role
             }
 
+    # Убираем поля чужой камеры (None → summary её пропустит).
     other = "FAR" if role == "NEAR" else "NEAR"
-    for key in PRESENCE_ROLE_FIELDS[other].values():
-        scoped[key] = None
+    other_fields = _PRESENCE_ROLE_FIELDS.get(other)
+    if other_fields:
+        for key in other_fields.values():
+            scoped[key] = None
     return scoped
 
 
-def _scope_consensus_to_role(consensus: dict, role: str) -> dict:
-    """Оставить в consensus только карточки/статусы выбранной камеры."""
-    scoped = dict(consensus)
-    if "run_cards" in scoped:
-        scoped["run_cards"] = _filter_run_cards(scoped.get("run_cards"), role)
-    if "run_status" in scoped:
-        scoped["run_status"] = _filter_run_status(
-            scoped.get("run_status"), role
+def _scope_measurement_to_role(details: dict, role: str) -> dict:
+    """Оставить в details только карточки/статусы выбранной камеры."""
+    scoped = dict(details)
+    if "measurement_cards" in scoped:
+        scoped["measurement_cards"] = _filter_measurement_cards(
+            scoped.get("measurement_cards"), role,
+        )
+    if "role_status" in scoped:
+        scoped["role_status"] = _filter_role_status(
+            scoped.get("role_status"), role,
         )
     return scoped
 
 
 def scope_rule_result_to_role(result, role: str | None):
-    """Срез RuleResult до данных одной камеры."""
+    """Срез RuleResult до данных одной камеры.
+
+    В UI анализа кадра остаются только измерения выбранной роли.
+    ``triggered`` берётся из per_role выбранной камеры (если есть),
+    чтобы статус «СРАБОТАЛО/НОРМА» соответствовал тому, что видно на кадре.
+    """
     if not role or result is None:
         return result
 
@@ -115,9 +134,7 @@ def scope_rule_result_to_role(result, role: str | None):
             if isinstance(role_details, dict) and "triggered" in role_details:
                 triggered = bool(role_details.get("triggered"))
 
-    consensus = details.get("consensus")
-    if isinstance(consensus, dict):
-        details["consensus"] = _scope_consensus_to_role(consensus, role)
+    details = _scope_measurement_to_role(details, role)
 
     return SimpleNamespace(
         rule_name=rule_name,
@@ -125,16 +142,3 @@ def scope_rule_result_to_role(result, role: str | None):
         details=details,
         drawings=getattr(result, "drawings", []) or [],
     )
-
-
-def filter_rule_report_rows(rows) -> list:
-    """Оставить только решающие правила.
-
-    Если деталь не обнаружена, все прочие правила не влияли на решение —
-    показывается единственная строка «ДЕТАЛЬ НЕ ОБНАРУЖЕНА».
-    """
-    rows = list(rows or [])
-    for row in rows:
-        if row.get("name") == PART_PRESENCE_RULE and row.get("part_absent"):
-            return [row]
-    return rows

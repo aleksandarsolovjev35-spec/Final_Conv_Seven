@@ -19,6 +19,10 @@ from vision.ui.server.routes_api     import setup_api_routes
 from vision.ui.server.routes_archive import setup_archive_routes
 
 
+_UI_DIR        = Path(__file__).parent.parent
+_TEMPLATES_DIR = _UI_DIR / "templates"
+_STATIC_DIR    = _UI_DIR / "static"
+
 # HMI всегда должен загружать актуальные файлы: в предпросмотре браузер
 # и прокси агрессивно кэшируют страницу, из-за чего старый index.html со
 # старым DOM мог сочетаться со свежими скриптами и интерфейс «зависал»
@@ -35,21 +39,14 @@ class NoCacheStaticFiles(StarletteStaticFiles):
         return response
 
 
-_UI_DIR        = Path(__file__).parent.parent
-_TEMPLATES_DIR = _UI_DIR / "templates"
-_STATIC_DIR    = _UI_DIR / "static"
-
-
 BOOT_STEPS = [
     ("cameras",       "Камеры"),
-    ("camera_warmup", "Прогрев камер"),
     ("models_load",   "Загрузка моделей"),
     ("models_warm",   "Прогрев моделей"),
     ("inspection",    "Система контроля"),
     ("serial",        "Контроллер"),
     ("hardware",      "Оборудование"),
     ("cycle",         "Производственный цикл"),
-    ("preview",       "Начальные кадры"),
     ("ready",         "Готовность"),
 ]
 
@@ -84,18 +81,14 @@ class UIServer:
         # Режим РАБОТА (False) отдаёт чистый поток без какой-либо отрисовки:
         # превью, основной кадр и MJPEG-стрим только кодируются в JPEG.
         self.debug_enabled = bool(debug_enabled)
-
         self.frames: dict         = {}
-        # Роли и маппинг открытых камер (публикуются после CameraManager).
-        self.camera_roles: list = []
-        # role -> физический Camera ID (индекс устройства)
+        self.camera_roles: list   = []
+        # role -> физический Camera ID (индекс устройства) из camera_mapping.json
         self.camera_mapping: dict = {}
-        # Набор кадров текущей стадии: один элемент {role: кадр}.
-        self.run_frames: list = []
-        # Правила стадии: кадр размечается drawings этих правил, чтобы
-        # оверлей совпадал с кадром. Один элемент — список строк отчёта.
-        self.run_rule_results: list = []
         self.vision_results: dict = {}
+        # Подпись последней опубликованной порции детекций (см.
+        # _vision_signature): сравнение под общим lock должно быть дешёвым.
+        self._vision_signature_cache: tuple = ()
         self.rule_results: list   = []
         self.line_status: dict    = {}
         self.recent_parts: list   = []
@@ -178,36 +171,58 @@ class UIServer:
     # Public API
 
     @staticmethod
-    def _same_frames(left: dict, right: dict) -> bool:
-        """Кадры считаются одинаковыми, если это те же объекты массивов.
+    def _snapshot_vision_results(vision_results: dict) -> dict:
+        """Снимок детекций по ролям, независимый от источника.
 
-        Сравнение по значению запрещено: ``array == array`` возвращает массив,
-        а ``bool()`` на нём падает. Объектной идентичности достаточно:
-        визуально кадр меняется только тогда, когда пришёл новый массив
-        (те же массивы в REVIEW/PUBLISH не должны перерисовывать UI).
+        ``ProductionCycle`` держит один и тот же ``_last_vision_results`` и
+        дополняет его по стадиям (``update()`` внутри шага). Если сохранить
+        сам объект, то published-состояние и состояние источника станут
+        одним и тем же dict: следующее сравнение всегда даст «не менялось»,
+        и RAW-разметка не попадёт в кэш JPEG. Поэтому публикуется копия.
         """
-        if left is right:
-            return True
-        if left.keys() != right.keys():
-            return False
-        return all(left[role] is right[role] for role in left)
+        return {
+            role: list(detections) if isinstance(detections, list)
+            else detections
+            for role, detections in (vision_results or {}).items()
+        }
 
     @staticmethod
-    def _same_run_frames(left: list, right: list) -> bool:
-        """Сравнить наборы кадров стадии по объектам массивов."""
-        if left is right:
-            return True
-        if len(left) != len(right):
-            return False
-        return all(
-            UIServer._same_frames(a, b)
-            for a, b in zip(left, right)
-        )
+    def _vision_signature(vision_results: dict):
+        """Дешёвая подпись публикации детекций.
+
+        Полное рекурсивное сравнение здесь недопустимо: маски несут тысячи
+        точек, и обход занимает десятки миллисекунд под общим ``self.lock``,
+        который держат и ``/api/status``, и рендер кадров. Для инвалидации
+        кэша достаточно заметить смену набора ролей и состава детекций —
+        внутри одного шага модели не переписывают уже опубликованные
+        объекты, а лишь добавляют новые роли.
+        """
+        signature = []
+        for role in sorted(vision_results or {}):
+            detections = vision_results.get(role) or []
+            if isinstance(detections, list):
+                signature.append((
+                    role,
+                    len(detections),
+                    tuple(
+                        (
+                            item.get("class"),
+                            item.get("confidence"),
+                            tuple(item.get("bbox") or ()),
+                        )
+                        if isinstance(item, dict) else id(item)
+                        for item in detections
+                    ),
+                ))
+            else:
+                signature.append((role, -1, id(detections)))
+        return tuple(signature)
 
     @staticmethod
     def _rules_equal(left, right) -> bool:
-        """Глубокое сравнение результатов правил, безопасное для numpy.
+        """Глубокое сравнение опубликованных данных, безопасное для numpy.
 
+        Используется и для результатов правил, и для детекций моделей.
         ``details``/``drawings`` правил могут нести numpy-массивы и
         numpy-скаляры: обычное ``!=`` на них бросает ValueError («truth
         value of an array is ambiguous») и ломает сравнение. Обход:
@@ -256,8 +271,6 @@ class UIServer:
         rule_results=None,
         line_status=None,
         recent_parts=None,
-        run_frames=None,
-        run_rule_results=None,
     ):
         """Атомарно опубликовать снимок: кадры + результаты + статус линии.
 
@@ -271,33 +284,9 @@ class UIServer:
         with self.lock:
             should_invalidate = False
             stream_overlay_changed = False
-            if run_frames is not None:
-                # None — не трогаем (например, обычный тик статуса); пустой
-                # список — очищаем (анализ завершён); непустой список —
-                # заменяем набор кадров текущей стадии.
-                incoming_run_frames = [
-                    dict(item)
-                    for item in run_frames
-                    if isinstance(item, dict)
-                ]
-                if not self._same_run_frames(
-                    self.run_frames, incoming_run_frames,
-                ):
-                    self.run_frames = incoming_run_frames
-                    # При замене кадра связанная разметка сбрасывается и
-                    # заполняется run_rule_results этого же update().
-                    self.run_rule_results = []
-                    should_invalidate = True
-            if run_rule_results is not None:
-                incoming_run_rules = [
-                    list(rows) if isinstance(rows, (list, tuple)) else []
-                    for rows in run_rule_results
-                ]
-                if not UIServer._rules_equal(
-                    self.run_rule_results, incoming_run_rules,
-                ):
-                    self.run_rule_results = incoming_run_rules
-                    should_invalidate = True
+            changed_frame_roles = set()
+            raw_overlay_changed = False
+            rules_overlay_changed = False
             if frames is not None:
                 for role, frame in frames.items():
                     if self.frames.get(role) is not frame:
@@ -306,26 +295,49 @@ class UIServer:
                             self._latest_frames_ver.get(role, 0) + 1
                         )
                         should_invalidate = True
+                        changed_frame_roles.add(role)
             if vision_results is not None:
-                # Тот же объект (in-place обновления внутри шага) — контент
-                # не менялся с прошлой публикации.
-                if self.vision_results is not vision_results:
-                    self.vision_results = vision_results
+                # Сравнение по подписи, а не по identity: источник дополняет
+                # один и тот же dict по стадиям шага, поэтому identity всегда
+                # совпадала бы и RAW-разметка не доезжала до кэша JPEG.
+                new_signature = self._vision_signature(vision_results)
+                if new_signature != self._vision_signature_cache:
+                    self.vision_results = self._snapshot_vision_results(
+                        vision_results
+                    )
+                    self._vision_signature_cache = new_signature
                     should_invalidate = True
                     stream_overlay_changed = True
+                    raw_overlay_changed = True
             if rule_results is not None:
                 new_rules = list(rule_results)
                 if not UIServer._rules_equal(self.rule_results, new_rules):
                     self.rule_results = new_rules
                     should_invalidate = True
                     stream_overlay_changed = True
+                    rules_overlay_changed = True
             if line_status is not None:
                 self.line_status = line_status
                 self._apply_custom_threshold_labels(line_status)
             if recent_parts is not None:
                 self.recent_parts = list(recent_parts)
             if should_invalidate:
-                self._jpeg_cache.clear()
+                # Точечная инвалидация JPEG-кэша: обновление кадра одной
+                # камеры (например, выбранной, 30 кадров/с) не должно
+                # сбрасывать готовые превью остальных — иначе вторичные
+                # камеры не успевают отрисоваться между публикациями.
+                for role in changed_frame_roles:
+                    for mode in ("RAW", "RULES"):
+                        self._jpeg_cache.pop((role, mode, "preview"), None)
+                        self._jpeg_cache.pop((role, mode, "main"), None)
+                if raw_overlay_changed:
+                    for role in self.frames:
+                        self._jpeg_cache.pop((role, "RAW", "preview"), None)
+                        self._jpeg_cache.pop((role, "RAW", "main"), None)
+                if rules_overlay_changed:
+                    for role in self.frames:
+                        self._jpeg_cache.pop((role, "RULES", "preview"), None)
+                        self._jpeg_cache.pop((role, "RULES", "main"), None)
                 if stream_overlay_changed:
                     self._latest_stream_jpeg.clear()
                 self._cache_version += 1
@@ -333,8 +345,8 @@ class UIServer:
     def _apply_custom_threshold_labels(self, line_status: dict) -> None:
         """Подставить ручные названия порогов (_label.*) в анализ кадра.
 
-        Каждое правило несёт ``run_cards`` — замеры по прогонам с
-        ключами метрик. Для метрик, у которых есть ручное название в
+        Каждое правило несёт ``measurement_cards`` — замеры текущего кадра
+        с ключами метрик. Для метрик, у которых есть ручное название в
         thresholds.json (``_label.<параметр>``), заменяем встроенный перевод
         на пользовательский, как и в панели «Пороги правил».
         """
@@ -354,25 +366,22 @@ class UIServer:
             group_id = RULE_THRESHOLD_GROUPS.get(rule.get("name"))
             if not group_id:
                 continue
-            for cards in rule.get("run_cards") or []:
-                if not isinstance(cards, list):
+            for card in rule.get("measurement_cards") or []:
+                if not isinstance(card, dict):
                     continue
-                for card in cards:
-                    if not isinstance(card, dict):
+                role = card.get("role")
+                if not role:
+                    continue
+                for metric in card.get("metrics") or []:
+                    if not isinstance(metric, dict):
                         continue
-                    role = card.get("role")
-                    if not role:
+                    key = metric.get("key")
+                    if not key:
                         continue
-                    for metric in card.get("metrics") or []:
-                        if not isinstance(metric, dict):
-                            continue
-                        key = metric.get("key")
-                        if not key:
-                            continue
-                        full_key = f"{group_id}_{key}"
-                        custom = custom_labels.get(f"{role}.{full_key}")
-                        if custom:
-                            metric["label"] = custom
+                    full_key = f"{group_id}_{key}"
+                    custom = custom_labels.get(f"{role}.{full_key}")
+                    if custom:
+                        metric["label"] = custom
 
     def set_camera_roles(self, roles) -> None:
         """Опубликовать роли открытых камер без обязательного чтения кадров.
@@ -385,16 +394,12 @@ class UIServer:
         for role, camera_id in (roles or {}).items():
             if role:
                 mapping[str(role)] = int(camera_id)
-        normalized = [
-            str(role) for role in dict.fromkeys(roles or ()) if role
-        ]
+        normalized = [str(role) for role in dict.fromkeys(roles or ()) if role]
         with self.lock:
             self.camera_mapping = mapping
             self.camera_roles = normalized
             if self.active_camera_role not in normalized:
-                self.active_camera_role = (
-                    normalized[0] if normalized else None
-                )
+                self.active_camera_role = normalized[0] if normalized else None
 
     def set_active_camera_role(self, role: str) -> bool:
         with self.lock:
@@ -650,8 +655,8 @@ class UIServer:
 
     def archive_ready_for_start(self) -> tuple[bool, str | None]:
         archive = self.archive
-        if archive is None or not archive.enabled:
-            return True, None
+        if archive is None:
+            return False, "архив не инициализирован"
         try:
             archive.validate_root(archive.root_folder)
         except ValueError as exc:
@@ -663,8 +668,7 @@ class UIServer:
             raise RuntimeError("Архив ещё не инициализирован")
         if not self.archive_editable():
             raise RuntimeError(
-                "Настройки архива доступны только до начала партии "
-                "и после полной остановки"
+                "Папку архива можно менять только до начала текущей партии"
             )
 
         from config.archive_config import normalise_archive_config, save_archive_config
@@ -675,10 +679,6 @@ class UIServer:
         config = normalise_archive_config(incoming)
         settings = self.archive.reconfigure(
             root_folder=config["root_path"],
-            enabled=config["enabled"],
-            jpeg_quality=config["jpeg_quality"],
-            compress_on_shutdown=config["compress_on_shutdown"],
-            delete_original_after_zip=config["delete_original_after_zip"],
         )
         save_archive_config(self.archive_config_path, config)
         settings["available"] = True
@@ -799,10 +799,6 @@ class UIServer:
 
     # Stream helpers
 
-    def get_frame_count(self) -> int:
-        """Число наборов кадров текущей стадии: 0 или 1."""
-        return len(self.run_frames)
-
     def get_frame_version(self, role: str) -> int:
         with self.lock:
             return self._latest_frames_ver.get(role, 0)
@@ -874,32 +870,14 @@ class UIServer:
 
     # Rendering & caching (pull)
 
-    def _get_or_render(self, role, mode, size_kind, run=None):
-        """Кадр камеры (JPEG). ``run`` — номер набора текущей стадии (1).
-        Без ``run`` (или вне диапазона) — текущий кадр.
-        """
-        cache_key = (role, mode, size_kind, run or 0)
+    def _get_or_render(self, role, mode, size_kind):
+        """Кадр камеры (JPEG) с текущей разметкой."""
+        cache_key = (role, mode, size_kind)
         with self.lock:
             cached = self._jpeg_cache.get(cache_key)
             if cached is not None:
                 return cached
-            frame = None
-            run_index = None
-            requested_run_is_valid = False
-            if run:
-                run_index = run - 1
-                requested_run_is_valid = (
-                    0 <= run_index < len(self.run_frames)
-                )
-                if (
-                    requested_run_is_valid
-                    and role in self.run_frames[run_index]
-                ):
-                    frame = self.run_frames[run_index][role]
-            # Для роли вне текущего набора стадии показываем последний
-            # доступный live-кадр.
-            if frame is None:
-                frame = self.frames.get(role)
+            frame = self.frames.get(role)
             if frame is None:
                 return None
             version_before = self._cache_version
@@ -908,19 +886,9 @@ class UIServer:
                 list(self.vision_results.get(role, []))
                 if mode == "RAW" else None
             )
-            # Оверлей кадра прогона: правила, посчитанные по этому же
-            # прогону; без прогона — общий набор (evidence).
-            if mode == "RULES":
-                if run_index is not None and 0 <= run_index < len(
-                    self.run_rule_results,
-                ):
-                    rule_results = list(
-                        self.run_rule_results[run_index],
-                    )
-                else:
-                    rule_results = list(self.rule_results)
-            else:
-                rule_results = None
+            rule_results = (
+                list(self.rule_results) if mode == "RULES" else None
+            )
 
         rendered = self._render(
             frame_copy, role, mode, vision_dets, rule_results,

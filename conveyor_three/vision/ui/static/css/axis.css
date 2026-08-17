@@ -2,15 +2,6 @@
 
 /* ─── Axis panel ──────────────────────────────────────────────────── */
 
-.axis-panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 18px;
-    flex-shrink: 0;
-    flex-grow: 0;
-}
-
 .axis-row {
     display: flex;
     align-items: center;
@@ -92,22 +83,6 @@
     color: var(--bad);
     background: var(--bad-bg);
     border-color: var(--bad);
-}
-
-.axis-bar {
-    height: 6px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 999px;
-    overflow: hidden;
-    margin-bottom: 12px;
-}
-
-.axis-bar-fill {
-    height: 100%;
-    background: var(--accent);
-    transition: width var(--t-slow) var(--ease);
-    width: 0%;
-    border-radius: 999px;
 }
 
 .axis-action {

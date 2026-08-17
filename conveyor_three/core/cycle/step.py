@@ -1,24 +1,57 @@
-"""Один шаг ленты и инспекции (3 камеры).
+"""Один производственный шаг ленты и инспекции (3 камеры).
 
-Часть ``ProductionCycle``: фазы MOTION/SETTLE/CAPTURE/ANALYSIS/REVIEW/
-PUBLISH, единственная стадия INSPECT на +0, пауза и архив детали.
+Часть ``ProductionCycle``: MOTION → SETTLE → единственная стадия INSPECT
+на +0 → REVIEW → PUBLISH, пауза и выброс корпуса на +3.
 """
-
-from __future__ import annotations
 
 import time
 
 from core.state_machine import State
 from domain.part import (
+    Part,
+    CATEGORY_GOOD,
     CATEGORY_BAD,
     CATEGORY_CLEANUP,
-    CATEGORY_GOOD,
     CATEGORY_UNKNOWN,
-    Part,
 )
 
+
 class CycleStepMixin:
-    """Механика одного производственного шага."""
+    """Последовательный шаг ленты, инспекции и распределителя."""
+
+    def _check_motion_cancelled(self):
+        if self._cancel_motion.is_set() or self.sm.force_exit:
+            raise RuntimeError("physical operation cancelled")
+
+    # Core step
+
+    def _run_once(self):
+        """Один шаг линии: движение, затухание, съёмка, анализ, публикация.
+
+        Владелец камер меняется только на границах фаз, поэтому кадры для
+        defect rules физически не могут быть сняты во время движения.
+        """
+        self._check_motion_cancelled()
+        print(f"\nШАГ {self.current_step + 1}")
+
+        # Право принять деталь фиксируется до движения: если STOP придёт
+        # уже во время проезда, вошедшая этим шагом деталь всё равно будет
+        # проинспектирована и останется синхронной со своей ячейкой.
+        accept_input_for_this_step = self.sm.accepts_new_parts
+
+        self._last_vision_results = {}
+        self._last_rule_results = []
+
+        # Абсолютная последовательность: сначала механика, затем занятая
+        # стадия целиком (кадр → модели → геометрия → решение → запись).
+        pending_id = self._stage_motion()
+        self._stage_settle(pending_id)
+        self._check_pause_barrier()
+        display_frames = self._inspect_occupied_stages(
+            accept_input_for_this_step,
+        )
+        self._stage_review(display_frames)
+        self._stage_publish(display_frames)
 
     def _stage_motion(self):
         """MOTION: подготовить маршрут и переместить ленту на шаг."""
@@ -26,7 +59,10 @@ class CycleStepMixin:
         self._inspection_display_roles = ()
         # Разметка прошлого шага построена по статичному кадру и на
         # движущемся изображении указывала бы мимо детали.
-        self.live.clear_overlays()
+        try:
+            self.live.clear_overlays()
+        except Exception as exc:
+            print(f"[LIVE] Не удалось снять разметку: {exc}")
 
         if self._await_initial_inspection:
             # Деталь уже стоит под камерами: сначала её контроль,
@@ -36,7 +72,6 @@ class CycleStepMixin:
             self._set_process(
                 "INITIAL_INSPECTION",
                 "Корпус уже под камерами: контроль без движения ленты",
-                positions=[self.OFFSET_INSPECT],
             )
             self._check_motion_cancelled()
             return None
@@ -47,7 +82,6 @@ class CycleStepMixin:
             "ROUTE_PREPARE",
             "Подготовка маршрута распределителя",
             part_id=pending_id,
-            positions=[self.OFFSET_REJECT] if pending_id else [],
         )
         self._prepare_drop()
         self._check_motion_cancelled()
@@ -56,7 +90,6 @@ class CycleStepMixin:
             "CONVEYOR_COMMAND",
             "Команда движения ленты отправлена",
             part_id=pending_id,
-            positions=range(self.OFFSET_REJECT + 1),
         )
         self.conveyor.move_step()
         self.conveyor.wait_stop(progress_callback=self._on_conveyor_progress)
@@ -66,118 +99,91 @@ class CycleStepMixin:
         self.current_step += 1
         return pending_id
 
-    def _stage_settle(self, pending_id, accept_input_for_this_step: bool = False):
+    def _stage_settle(self, pending_id):
         """SETTLE: подтвердить передачу корпуса и погасить вибрацию."""
         self._set_process(
             "CONVEYOR_CONFIRMED", "Позиции корпусов подтверждены контроллером",
-            part_id=pending_id, positions=range(self.OFFSET_REJECT + 1),
+            part_id=pending_id,
         )
         if self._pending_drop is not None:
             self._set_process(
                 "PART_TRANSFER", "Корпус прошёл распределитель",
-                part_id=pending_id, positions=[self.OFFSET_REJECT],
+                part_id=pending_id,
             )
         self._execute_drop()
         self._check_motion_cancelled()
-        active_cam_positions = [self.OFFSET_INSPECT] if accept_input_for_this_step else []
-        self._set_process("SETTLE", "Ожидание затухания вибрации перед съёмкой", positions=active_cam_positions)
+        self._set_process("SETTLE", "Ожидание затухания вибрации перед съёмкой")
         self.stages.enter_settle()
         self._check_motion_cancelled()
 
-    def _capture_roles_for_current_step(self, accept_input_for_this_step: bool = False) -> tuple[str, ...]:
-        """Вернуть камеры зоны инспекции (+0).
-
-        Все три камеры смотрят в одну зону, поэтому при работающем приёме
-        (accept_new_parts) захватываются все три роли. Решение о пустой
-        ячейке принимается тем же свежим кадром внутри общего pipeline.
-        """
+    def _occupied_inspection_stages(self, accept_input_for_this_step: bool):
+        """Занятые стадии этого шага: одна стадия INSPECT на +0."""
+        stages = []
         if accept_input_for_this_step:
-            return tuple(self.inspector.INSPECT_ROLES)
-        return ()
+            stages.append(("INSPECT", tuple(self.inspector.INSPECT_ROLES)))
+        return stages
 
-    def _stage_capture(self, accept_input_for_this_step: bool = False):
-        """CAPTURE: получить frozen snapshot для текущей инспекции."""
-        roles = self._capture_roles_for_current_step(accept_input_for_this_step)
-        self._inspection_display_roles = roles
-        # Пауза только у ролей, которые сейчас дают inspection-кадр.
+    def _inspect_occupied_stages(self, accept_input_for_this_step: bool):
+        """Занятая стадия: свой кадр, свои модели, своё решение.
+
+        Live заморожен на весь блок. Решение записывается до PUBLISH.
+        """
+        display_frames = {}
+        stages = self._occupied_inspection_stages(accept_input_for_this_step)
+        if not stages:
+            self.stages.enter_capture(())
+            self.stages.enter_analysis()
+            return display_frames
+
+        for name, roles in stages:
+            frames = self._stage_capture(roles)
+            self.stages.enter_analysis()
+            if name == "INSPECT":
+                self._set_process(
+                    "INSPECT_ANALYSIS",
+                    "Инспекция: модели и правила по свежему кадру",
+                )
+                result = self._process_inspect_stage(frames)
+            else:
+                raise RuntimeError(f"Неизвестная стадия инспекции: {name}")
+            if result is not None:
+                display_frames.update(result.raw_frames or {})
+                self._refresh_monitor(display_frames)
+            self._check_motion_cancelled()
+        return display_frames
+
+    def _stage_capture(self, roles):
+        """CAPTURE: последовательный frozen snapshot одной стадии."""
+        roles = tuple(roles or ())
+        self._inspection_display_roles = tuple(dict.fromkeys(
+            (*self._inspection_display_roles, *roles)
+        ))
         self.stages.enter_capture(roles)
-        active_cam_positions = [self.OFFSET_INSPECT] if roles else []
-
         self._set_process(
             "CAMERA_CAPTURE",
-            (f"Синхронный захват камер: {', '.join(roles)}" if roles
-             else "Нет корпуса под инспекционными камерами"),
-            positions=active_cam_positions,
+            (
+                f"Последовательный захват камер: {', '.join(roles)}"
+                if roles else "Нет корпуса под инспекционными камерами"
+            ),
             capture_roles=roles,
         )
         if not roles:
-            return [{}]
+            return {}
 
-        # Драйвер может отдать старый кадр из буфера после движения. Дренируем
-        # нужные роли, затем получаем один свежий набор.
-        drain = getattr(self.cameras, "drain_buffers", None)
-        if callable(drain):
-            drain(roles=roles)
-        capture_roles = getattr(self.cameras, "capture_roles", None)
-        if callable(capture_roles):
-            frames = capture_roles(roles)
-        else:
-            frames = self.cameras.capture_all()
-            frames = {role: frames[role] for role in roles}
+        # Драйвер может отдать старый кадр из буфера после движения.
+        # Дренируем и читаем роли этой стадии строго по одной.
+        self.cameras.drain_buffers(roles)
+        frames = self.cameras.capture_roles(roles)
         if set(frames) != set(roles):
             raise RuntimeError(
                 f"Неполный набор кадров для инспекции: ожидались {sorted(roles)}, "
                 f"получены {sorted(frames)}"
             )
         self._check_motion_cancelled()
-        # Нейросети используют только frames в памяти. Освобождаем камеры
-        # немедленно, чтобы live-просмотр продолжался во время анализа.
-        release_capture = getattr(self.stages, "release_capture_roles", None)
-        if callable(release_capture):
-            release_capture()
-        # Публикуем frozen snapshot отдельным inspection-слоем.
-        self._refresh_monitor(run_frames=[frames], run_rule_results=[[]])
-        return [frames]
-
-    def _stage_analysis(self, frame_runs, accept_input_for_this_step):
-        """ANALYSIS: модели -> геометрия -> решение по уже снятым кадрам."""
-        self.stages.enter_analysis()
-
-        display_frames = dict(frame_runs[-1])
-        markup_frames = {}
-        markup_rules = []
-
-        active_positions = []
-        if accept_input_for_this_step:
-            active_positions.append(self.OFFSET_INSPECT)
-
-        if accept_input_for_this_step:
-            self._set_process(
-                "INSPECT_ANALYSIS",
-                "Инспекция: модели и правила по свежему кадру",
-                positions=active_positions,
-            )
-            inspect_result = self._process_inspect_stage(frame_runs)
-            if inspect_result is not None:
-                display_frames.update(inspect_result.raw_frames)
-                markup_frames.update(inspect_result.raw_frames)
-                # Для разметки используются только defect-правила
-                # (run_rule_results), служебный part_presence не рисует.
-                if inspect_result.run_rule_results:
-                    markup_rules.extend(inspect_result.run_rule_results[0])
-                # Если деталь не обнаружена, убираем подсветку позиции.
-                if inspect_result.is_empty_tray and self.OFFSET_INSPECT in active_positions:
-                    active_positions.remove(self.OFFSET_INSPECT)
-            self._check_motion_cancelled()
-
-        # Набор кадров стадии уходит в UI одним снимком.
-        if markup_frames:
-            self._refresh_monitor(
-                display_frames,
-                run_frames=[markup_frames],
-                run_rule_results=[markup_rules],
-            )
-        return display_frames
+        # Exclusive-блок не отпускаем: live не должен затирать стоп-кадр
+        # во время моделей, геометрии и ревью.
+        self._refresh_monitor(frames)
+        return frames
 
     def _stage_review(self, display_frames):
         """REVIEW: пауза на просмотр работы нейросетей после анализа.
@@ -210,7 +216,6 @@ class CycleStepMixin:
                     "ANALYSIS_REVIEW",
                     "Просмотр результатов анализа: "
                     f"{whole} с до следующего шага",
-                    positions=[self.OFFSET_INSPECT],
                 )
             time.sleep(min(0.1, max(remaining, 0.01)))
         # FORCE EXIT во время паузы сбрасывает цепочку фаз: выходить нужно
@@ -218,13 +223,13 @@ class CycleStepMixin:
         self._check_motion_cancelled()
 
     def _stage_publish(self, display_frames):
-        """PUBLISH: вывод результата на экран."""
+        """PUBLISH: маршрут годных деталей и вывод результата на экран."""
         self.stages.enter_publish()
 
         self._set_process("STEP_COMPLETE", "Шаг полностью завершён")
         self._refresh_monitor(display_frames)
 
-    # Пауза в рабочем цикле
+    # Пауза
 
     def _check_pause_barrier(self):
         """Пауза после полной остановки шага и до работы нейронок.
@@ -274,24 +279,29 @@ class CycleStepMixin:
         # Пауза происходит ДО анализа изображения. Разметка предыдущего
         # шага построена по статичному кадру и на live-изображении из JOG
         # указывала бы мимо детали — убираем её немедленно.
-        self.live.clear_overlays()
+        try:
+            self.live.clear_overlays()
+        except Exception as exc:
+            print(f"[LIVE] Не удалось снять разметку: {exc}")
         print("[PAUSE] линия остановлена на границе шага после полной остановки")
         self._set_process(
             "PAUSED",
             "Пауза: доступна ручная коррекция ленты с помощью JOG",
-            positions=range(self.OFFSET_REJECT + 1),
         )
 
     def _stop_pause_frame_loop(self):
         if not self._pause_frame_active:
             return
         self._pause_frame_active = False
-        self.exit_jog()
+        try:
+            self.exit_jog()
+        except Exception as exc:
+            print(f"[PAUSE] Не удалось выйти из JOG: {exc}")
 
-    # Inspect stage (единственная стадия инспекции, +0)
+    # Inspect (единственная стадия инспекции, +0)
 
-    def _process_inspect_stage(self, frame_runs):
-        """Обработать зону инспекции по свежему кадру."""
+    def _process_inspect_stage(self, frames):
+        """Обработать зону инспекции (+0) по свежему кадру."""
 
         candidate_id = self.part_counter + 1
 
@@ -299,35 +309,23 @@ class CycleStepMixin:
             "INSPECT_ANALYSIS",
             f"Инспекция: анализ кандидата #{candidate_id}",
             part_id=candidate_id,
-            positions=[self.OFFSET_INSPECT],
         )
 
-        inspect_consensus = getattr(
-            self.inspector,
-            "inspect_consensus",
-            None,
-        )
-        if not callable(inspect_consensus):
-            raise RuntimeError(
-                "Inspector не поддерживает обязательную инспекцию"
-            )
-        result = inspect_consensus(
+        result = self.inspector.inspect(
             part_id=candidate_id,
             step=self.current_step,
-            frame_runs=frame_runs,
-            force_bad=self.force_all_bad,
+            frames=frames,
         )
         if result.is_empty_tray:
-            self._record_frame_analysis("INPUT", None, result)
+            self._record_frame_analysis("INSPECT", None, result)
             self.empty_count += 1
             # Очищаем детекции, чтобы не рисовать разметку на пустой ячейке.
             for role in self.inspector.INSPECT_ROLES:
                 self._last_vision_results[role] = []
-            self._last_rule_results.extend(result.rule_results)
+            self._last_rule_results.extend(result.rule_results or [])
             self._set_process(
                 "INSPECT_RESULT_RECORDED",
                 "Инспекция: пустая ячейка записана",
-                positions=[self.OFFSET_INSPECT],
             )
             print(
                 f"[EMPTY] Пустая ячейка на step {self.current_step} "
@@ -338,35 +336,23 @@ class CycleStepMixin:
 
         self.part_counter += 1
         part = Part(self.part_counter, self.current_step)
-        part.inspection_consensus["inspect"] = dict(result.consensus)
         for defect in result.defects:
             part.add_input_defect(defect)
         # Результат правил становится состоянием Part только после того,
         # как модели и геометрия отработали для этого же набора кадров.
         part.mark_input_done()
         self.parts.append(part)
-        self._record_frame_analysis("INPUT", part.id, result)
+        self._record_frame_analysis("INSPECT", part.id, result)
         print(f"[INSPECT] Деталь #{part.id}")
 
-        self._last_vision_results.update(result.vision_results)
-        self._last_rule_results.extend(result.rule_results)
+        self._last_vision_results.update(result.vision_results or {})
+        self._last_rule_results.extend(result.rule_results or [])
 
-        if self.archive:
-            self.archive.store_frames(
-                part_id=part.id,
-                stage="inspect",
-                raw_frames=result.raw_frames,
-                annotated_frames=result.annotated,
-                raw_overlay_frames=result.raw_overlay_frames,
-                run_frames=getattr(result, "run_frames", None),
-                run_rule_results=getattr(result, "run_rule_results", None),
-                run_vision_results=getattr(result, "run_vision_results", None),
-            )
+        self._store_stage_frames(part.id, result)
         self._set_process(
             "INSPECT_RESULT_RECORDED",
             "Инспекция: решение стадии записано",
             part_id=part.id,
-            positions=[self.OFFSET_INSPECT],
         )
 
         print(
@@ -376,7 +362,7 @@ class CycleStepMixin:
         )
         return result
 
-    # Distributor flow
+    # Распределитель
 
     def _find_pending_drop(self):
         """Вернуть корпус на +3, который на следующем шаге пройдёт заслонки."""
@@ -392,9 +378,15 @@ class CycleStepMixin:
             return
         category = part.route_category
         if category == CATEGORY_UNKNOWN:
-            print(f"[WARN] Деталь #{part.id} не прошла полную инспекцию -> принудительно BAD")
-            part.route_category, part.final_decision, category = CATEGORY_BAD, "incomplete_inspection", CATEGORY_BAD
-        # GOOD: DIST1=0. BAD/CLEANUP: сначала DIST2, затем DIST1=340.
+            print(
+                f"[WARN] Деталь #{part.id} не прошла полную инспекцию "
+                "-> принудительно BAD"
+            )
+            part.route_category = CATEGORY_BAD
+            part.final_decision = "incomplete_inspection"
+            category = CATEGORY_BAD
+        # GOOD: DIST1=0. BAD/CLEANUP: DIST1=340 и DIST2->канал едут
+        # одновременно (см. _move_parallel в hardware/distributor.py).
         self.distributor.prepare_route(category, part.id)
 
     def _execute_drop(self):
@@ -402,6 +394,9 @@ class CycleStepMixin:
         if part is None:
             return
         category = part.route_category
+        # Шаг ленты уже закончился. Заслонки остаются как есть до
+        # ROUTE_PREPARE следующего шага, поэтому ждать падение отдельно
+        # не нужно: к следующей смене маршрута корпус давно ушёл.
         self.distributor.confirm_transfer(part.id, category)
         if category == CATEGORY_GOOD:
             self.good_count += 1
@@ -412,73 +407,39 @@ class CycleStepMixin:
         elif category == CATEGORY_CLEANUP:
             self.cleanup_count += 1
             print(f"[CLEANUP] #{part.id} -> CLEANUP ({self.cleanup_count})")
-        self._archive_part(part)
-        self._set_process(
-            "FINAL_DECISION_ARCHIVED",
-            f"Финальное решение #{part.id}: {category} записано в архив",
-            part_id=part.id,
-            positions=[self.OFFSET_REJECT],
-        )
+        else:
+            print(f"[WARN] Деталь #{part.id} неизвестная категория {category} -> BAD")
+            part.route_category = CATEGORY_BAD
+            category = CATEGORY_BAD
+            self.bad_count += 1
+        archived = self._archive_part(part)
+        if archived:
+            self._set_process(
+                "FINAL_DECISION_ARCHIVED",
+                f"Финальное решение #{part.id}: {category} записано в архив",
+                part_id=part.id,
+            )
+        else:
+            self._set_process(
+                "FINAL_DECISION_NOT_ARCHIVED",
+                f"Финальное решение #{part.id}: {category}; "
+                "запись в архив не выполнена",
+                part_id=part.id,
+            )
         self._register_finished(part)
         self._remove_part(part)
         self._pending_drop = None
 
-    # Archive
-
-    def _archive_part(self, part, extra=None):
-        if not self.archive:
+    def _store_stage_frames(self, part_id, result):
+        """Кадры стадии в архив. Сбой диска не откатывает решение Part."""
+        if not self.archive or result is None:
             return
-        kwargs = {
-            "part_id": part.id,
-            "category": part.route_category,
-            "decision": part.final_decision,
-            "defects": part.get_all_defects(),
-            "step": part.step_created,
-        }
-        archive_extra = {}
-        consensus = getattr(part, "inspection_consensus", None)
-        if consensus:
-            archive_extra["inspection_consensus"] = consensus
-        if extra:
-            archive_extra.update(extra)
-        if archive_extra:
-            kwargs["extra"] = archive_extra
-        self.archive.finalize(**kwargs)
-
-    def _archive_inflight(self, reason: str):
-        for part in list(self.parts):
-            if part.route_category == CATEGORY_UNKNOWN:
-                part.route_category = CATEGORY_BAD
-            part.final_decision = f"aborted_{reason}"
-            try:
-                self._archive_part(
-                    part,
-                    extra={"aborted": True, "abort_reason": reason},
-                )
-            except Exception as e:
-                print(f"[ARCHIVE] Failed to archive aborted part #{part.id}: {e}")
-            self._remove_part(part)
-        self._pending_drop = None
-
-    # Helpers
-
-    def _remove_part(self, part):
-        if part in self.parts:
-            self.parts.remove(part)
-
-    def _register_finished(self, part):
-        record = {
-            "id":       part.id,
-            "decision": part.final_decision,
-            "category": part.route_category,
-            "time":      time.time(),
-        }
-        # UI получает только лёгкую ссылку на архивную запись.
-        if self.archive:
-            archive_info = self.archive.get_part_info(part.id)
-            if archive_info:
-                record["batch_id"] = self.archive.batch_id
-                record["archive_folder"] = archive_info.get("relative_folder")
-        self.recent_parts.append(record)
-
-    # Анализ кадра зоны инспекции
+        try:
+            self.archive.store_frames(
+                part_id=part_id,
+                raw_frames=result.raw_frames or {},
+                annotated_frames=result.annotated or {},
+                raw_overlay_frames=result.raw_overlay_frames or {},
+            )
+        except Exception as exc:
+            print(f"[ARCHIVE] Не удалось сохранить кадры #{part_id}: {exc}")

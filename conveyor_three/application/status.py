@@ -1,8 +1,4 @@
-"""Начальный снимок статуса линии для HMI (3 камеры)."""
-
-from __future__ import annotations
-
-import time
+"""Начальный снимок статуса линии для HMI."""
 
 
 def make_idle_status(distributor) -> dict:
@@ -26,18 +22,12 @@ def make_idle_status(distributor) -> dict:
         "dist2_state": "IDLE",
         "dist2_target": "BAD",
         "last_distributor_action": "-",
-        "axis_position": 0,
-        "axis_max": distributor.dist1_open_position,
-        "distributor_state": "IDLE",
         "process": {
             "phase": "IDLE",
             "label": "Система готова к пуску",
             "step": 0,
             "part_id": None,
-            "positions": [],
             "conveyor": {},
-            "revision": 0,
-            "updated_at": time.time(),
         },
         "diagnostic_allowed": False,
         "diagnostic_busy": False,
@@ -61,32 +51,15 @@ def make_idle_status(distributor) -> dict:
             "streaming": False,
             "static": False,
             "fps": 0.0,
-            "error": None,
         },
         "frame_analysis": {
             "available": False,
             "kind": None,
-            "active": False,
-            "models": [],
             "rules": [],
-        },
-        "diagnostics": {
-            "status": "NOT_RUN",
-            "kind": None,
-            "message": "Проверки ещё не запускались",
-            "cameras": [],
-            "models": [],
-            "rules": [],
-            "updated_at": None,
         },
         "jog": {
             "active": False,
             "can_enter": False,
-            "hold_steps": 0,
-            "last_action": "-",
             "busy": False,
-            "direction": None,
-            "error": None,
-            "live_fps": 0.0,
         },
     }

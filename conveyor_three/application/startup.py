@@ -1,11 +1,4 @@
-"""Последовательность фоновой инициализации production-системы (3 камеры).
-
-Сохранена проверенная на линии последовательность трёхкамерника:
-открытие камер -> стартовый прогрев с восстановлением слабых ролей ->
-загрузка и прогрев моделей -> настройка контроля -> контроллер ->
-оборудование -> homing -> создание цикла -> повторный прогрев перед
-preview -> получение начальных кадров -> запуск цикла.
-"""
+"""Последовательность фоновой инициализации production-системы."""
 
 from __future__ import annotations
 
@@ -30,105 +23,8 @@ class StartupDisplayError(RuntimeError):
     """Ошибка, текст которой уже подготовлен для splash-экрана."""
 
 
-def env_clamped_float(
-    name: str, default: float, minimum: float, maximum: float,
-) -> float:
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    try:
-        value = float(raw)
-    except ValueError:
-        print(f"[CONFIG] {name}={raw!r} не число, используется {default}")
-        value = default
-    return max(minimum, min(maximum, value))
-
-
-def weak_camera_warmup_reasons(stats: dict) -> dict:
-    """Вернуть роли, не отдавшие ни одного кадра во время прогрева."""
-    reasons = {}
-    for role, row in (stats or {}).items():
-        try:
-            reads = int(row.get("reads", 0) or 0)
-        except Exception:
-            reads = 0
-        if reads <= 0:
-            reasons[role] = "нет кадров"
-    return reasons
-
-
-def format_warmup_reasons(reasons: dict) -> str:
-    return "; ".join(
-        f"{role}: {reason}" for role, reason in sorted(reasons.items())
-    )
-
-
-def recover_weak_cameras_after_warmup(cameras, stats: dict, phase: str) -> dict:
-    """Повторно прогреть роли без кадров и проверить их готовность.
-
-    Если менеджер поддерживает ``reopen_roles``, после неудачного прогрева
-    выполняется попытка переоткрытия. Текущий CameraManager возвращает
-    неуспех и запуск завершается ошибкой.
-    """
-    reasons = weak_camera_warmup_reasons(stats)
-    if not reasons:
-        return stats
-
-    roles = tuple(reasons)
-    retry_seconds = env_clamped_float(
-        "CAMERA_RECOVERY_WARMUP_SECONDS", 2.5, 0.2, 10.0,
-    )
-    print(
-        f"[CAMERA] {phase}: слабый прогрев "
-        f"({format_warmup_reasons(reasons)}); повторно прогреваем "
-        f"{', '.join(roles)} {retry_seconds:.1f}с"
-    )
-    retry_stats = cameras.warmup_roles(roles, duration=retry_seconds)
-    retry_reasons = weak_camera_warmup_reasons(retry_stats)
-    merged = dict(stats or {})
-    merged.update(retry_stats)
-    if not retry_reasons:
-        return merged
-
-    reopen = getattr(cameras, "reopen_roles", None)
-    if reopen is None:
-        raise RuntimeError(
-            f"Камеры не стабилизировались после прогрева ({phase}): "
-            f"{format_warmup_reasons(retry_reasons)}"
-        )
-    stuck = tuple(retry_reasons)
-    print(
-        f"[CAMERA] {phase}: повторный прогрев не помог "
-        f"({format_warmup_reasons(retry_reasons)}); "
-        f"пересоздаём потоки {', '.join(stuck)}"
-    )
-    reopened = reopen(stuck)
-    final_stats = cameras.warmup_roles(stuck, duration=retry_seconds)
-    merged.update(final_stats)
-    final_reasons = weak_camera_warmup_reasons(final_stats)
-    if final_reasons:
-        not_reopened = ", ".join(
-            role for role in stuck if not reopened.get(role)
-        )
-        hint = (
-            f" (поток не пересоздался: {not_reopened})"
-            if not_reopened
-            else ""
-        )
-        raise RuntimeError(
-            f"Камеры не стабилизировались после прогрева ({phase}): "
-            f"{format_warmup_reasons(final_reasons)}{hint}"
-        )
-    recovered = ", ".join(role for role in stuck if reopened.get(role))
-    print(
-        f"[CAMERA] {phase}: камеры восстановлены пересозданием "
-        f"потока: {recovered or '—'}"
-    )
-    return merged
-
-
 class SystemInitializer:
-    """Выполняет startup-этапы и публикует их состояние в HMI."""
+    """Выполняет восемь startup-этапов и публикует их состояние в HMI."""
 
     def __init__(
         self,
@@ -170,19 +66,6 @@ class SystemInitializer:
             if cameras is _FAILED:
                 return
 
-            warmed = self._run_step(
-                "camera_warmup",
-                "Прогрев камер",
-                self._warmup_cameras,
-                done=lambda stats: (
-                    f"Прогрев камер: "
-                    f"{sum(s.get('reads', 0) for s in stats.values())} кадров"
-                ),
-                error=lambda exc: f"Ошибка прогрева камер: {exc}",
-            )
-            if warmed is _FAILED:
-                return
-
             vision = self._run_step(
                 "models_load",
                 "Загрузка моделей",
@@ -193,14 +76,14 @@ class SystemInitializer:
             if vision is _FAILED:
                 return
 
-            warmed_models = self._run_step(
+            warmed = self._run_step(
                 "models_warm",
                 "Прогрев моделей",
-                lambda: self._warmup_models(vision),
+                lambda: self._warmup(vision),
                 done="Прогрев завершён",
                 error=lambda exc: f"Ошибка прогрева моделей: {exc}",
             )
-            if warmed_models is _FAILED:
+            if warmed is _FAILED:
                 return
 
             inspection = self._run_step(
@@ -219,7 +102,9 @@ class SystemInitializer:
                 "serial",
                 "Поиск контроллера",
                 self._initialize_serial,
-                done=lambda value: f"Контроллер: {value[0]} @ {value[1]}",
+                done=lambda value: (
+                    f"Контроллер: {value[0]} @ {value[1]}"
+                ),
                 error=self._serial_error,
             )
             if serial_info is _FAILED:
@@ -253,16 +138,12 @@ class SystemInitializer:
             if cycle is _FAILED:
                 return
 
-            pre_preview = self._run_step(
-                "preview",
-                "Получение начальных кадров",
-                self._initial_preview,
-                done="Начальные кадры получены",
-                error=lambda exc: f"Ошибка получения начальных кадров: {exc}",
+            self.monitor.update(
+                vision_results={},
+                rule_results=[],
+                line_status=make_idle_status(hardware.distributor),
+                recent_parts=[],
             )
-            if pre_preview is _FAILED:
-                return
-
             self._ensure_active()
 
             ready = self._run_step(
@@ -310,21 +191,21 @@ class SystemInitializer:
 
     def _initialize_cameras(self):
         cameras = self.factory.create_cameras()
+        # Публикуем ресурс сразу: shutdown сможет освободить камеры даже если
+        # следующий UI-вызов завершится ошибкой.
         self.runtime.cameras = cameras
         self.monitor.set_camera_roles(cameras.mapping)
         return cameras
 
-    def _warmup_cameras(self):
-        warmup_seconds = env_clamped_float(
-            "CAMERA_WARMUP_SECONDS", 2.5, 0.5, 10.0,
-        )
-        stats = self.runtime.cameras.warmup_all(duration=warmup_seconds)
-        return recover_weak_cameras_after_warmup(
-            self.runtime.cameras, stats, "стартовый прогрев",
+    @staticmethod
+    def _log_camera_error(exc: Exception) -> None:
+        print(
+            f"[CAMERA] Ошибка инициализации: "
+            f"{type(exc).__name__}: {exc}"
         )
 
     @staticmethod
-    def _warmup_models(vision):
+    def _warmup(vision):
         vision.warmup()
         return vision
 
@@ -349,6 +230,7 @@ class SystemInitializer:
             baudrate=serial_baud,
         )
         self.runtime.transport = transport
+        # Любая конфигурация начинается с остановленного контроллера.
         transport.send("G1")
         transport.send("G25")
         return found_port, serial_baud
@@ -388,28 +270,6 @@ class SystemInitializer:
         )
         return cycle
 
-    def _initial_preview(self):
-        # Некоторые UVC-камеры после простоя снова отдают пустые/тёмные
-        # кадры; короткой паузы боковой камеры не всегда хватало.
-        quick = env_clamped_float(
-            "CAMERA_PRE_PREVIEW_WARMUP_SECONDS", 2.5, 0.0, 5.0,
-        )
-        if quick > 0.0:
-            stats = self.runtime.cameras.warmup_all(duration=quick)
-            recover_weak_cameras_after_warmup(
-                self.runtime.cameras, stats, "прогрев перед preview",
-            )
-
-        preview_frames = self.runtime.cameras.capture_all()
-        self.monitor.update(
-            frames=preview_frames,
-            vision_results={},
-            rule_results=[],
-            line_status=make_idle_status(self.runtime.cycle.distributor),
-            recent_parts=[],
-        )
-        return preview_frames
-
     def _start_cycle(self, cycle):
         cycle_thread = self._thread_factory(
             target=cycle.start,
@@ -418,9 +278,10 @@ class SystemInitializer:
         self.runtime.cycle_thread = cycle_thread
         cycle_thread.start()
 
-        # В IDLE цикл автоматически входит в JOG для live-вида. Делаем это
-        # до снятия splash, чтобы готовность означала не только три открытых
-        # VideoCapture, но и первый корректный кадр от каждой роли.
+        # В IDLE интерфейс всё равно автоматически входит в JOG для live-вида.
+        # Делаем это на backend до снятия splash, чтобы готовность означала не
+        # только семь открытых VideoCapture, но и первый корректный кадр от
+        # каждой назначенной роли.
         if not cycle.enter_jog():
             raise RuntimeError("Не удалось запустить стартовый просмотр камер")
         camera_roles = tuple(self.runtime.cameras.mapping)
@@ -435,19 +296,13 @@ class SystemInitializer:
                 message += f"; {detail}"
             raise RuntimeError(message)
 
+        # На этапе ready отмена проверяется до отметки «Система готова».
         self._ensure_active()
         return cycle_thread
 
     def _ensure_active(self) -> None:
         if self.runtime.shutdown_requested.is_set():
             raise RuntimeError("initialization cancelled by operator")
-
-    @staticmethod
-    def _log_camera_error(exc: Exception) -> None:
-        print(
-            f"[CAMERA] Ошибка инициализации: "
-            f"{type(exc).__name__}: {exc}"
-        )
 
     @staticmethod
     def _report_failure() -> None:
