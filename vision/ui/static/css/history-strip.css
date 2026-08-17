@@ -88,7 +88,7 @@
 
 .history-card-id {
     overflow: hidden;
-    font-family: var(--font-mono);
+    font-family: var(--font-ui);
     font-size: 10px;
     color: var(--text-dim);
     font-weight: 500;

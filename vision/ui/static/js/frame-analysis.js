@@ -457,7 +457,7 @@ function renderNewFrameAnalysis(report, ls) {
         const stage = String(report.stage || '').toUpperCase();
         if (stage) parts.push(stage);
         if (report.role) parts.push(typeof cameraRoleLabel === 'function' ? cameraRoleLabel(report.role) : report.role);
-        if (report.part_id != null) parts.push('КОРПУС №' + report.part_id);
+        if (report.part_id != null) parts.push('КОРПУС \u2116\u00a0' + report.part_id);
         setIfChanged(contextEl, parts.join(' · '));
     }
 
