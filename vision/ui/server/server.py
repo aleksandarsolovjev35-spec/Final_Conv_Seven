@@ -7,7 +7,7 @@ from pathlib import Path
 
 import cv2
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
+from fastapi.staticfiles import StaticFiles as StarletteStaticFiles
 from fastapi.responses import FileResponse
 import uvicorn
 
@@ -22,6 +22,21 @@ from vision.ui.server.routes_archive import setup_archive_routes
 _UI_DIR        = Path(__file__).parent.parent
 _TEMPLATES_DIR = _UI_DIR / "templates"
 _STATIC_DIR    = _UI_DIR / "static"
+
+# HMI всегда должен загружать актуальные файлы: в предпросмотре браузер
+# и прокси агрессивно кэшируют страницу, из-за чего старый index.html со
+# старым DOM мог сочетаться со свежими скриптами и интерфейс «зависал»
+# на сплэше. Поэтому HTML и статику отдаём с запретом кэширования.
+NO_CACHE = "no-store, no-cache, must-revalidate"
+
+
+class NoCacheStaticFiles(StarletteStaticFiles):
+    """Статика без кэширования (версии ?v= в HTML и так делают её уникальной)."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = NO_CACHE
+        return response
 
 
 BOOT_STEPS = [
@@ -854,7 +869,7 @@ class UIServer:
         if _STATIC_DIR.exists():
             self.app.mount(
                 "/static",
-                StaticFiles(directory=str(_STATIC_DIR)),
+                NoCacheStaticFiles(directory=str(_STATIC_DIR)),
                 name="static",
             )
 
@@ -863,6 +878,7 @@ class UIServer:
         async def index():
             return FileResponse(
                 str(_TEMPLATES_DIR / "index.html"),
+                headers={"Cache-Control": NO_CACHE},
             )
 
         setup_frame_routes(self.app, self)

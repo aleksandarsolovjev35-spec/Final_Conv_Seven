@@ -146,9 +146,6 @@ const els = {
 
     main:             $('main'),
 
-    stateSection:     $('state-section'),
-    stateIndicator:   $('state-indicator'),
-    stateLabel:       $('state-label'),
     metricStep:       $('metric-step'),
     metricUptime:     $('metric-uptime'),
 
@@ -163,13 +160,11 @@ const els = {
 
     dist1Blade:       $('dist1-blade'),
     dist2Blade:       $('dist2-blade'),
-    distRoute:        $('dist-route'),
     distributorDiagnostics: $('distributor-diagnostics'),
     controlError:      $('control-error'),
 
     statsSummary:         $('stats-summary'),
     statsBody:            $('stats-body'),
-    statsService:         $('stats-service'),
 
     historyCards:     $('history-cards'),
     statsPanel:       $('stats-panel'),
@@ -179,11 +174,9 @@ const els = {
     statBad:          $('stat-bad'),
     statCleanup:      $('stat-cleanup'),
     statInline:       $('stat-inline'),
-    statEmpty:        $('stat-empty'),
     lineCells:        $('line-cells'),
     processPhaseLabel: $('process-phase-label'),
     processPhaseDetail: $('process-phase-detail'),
-    processPhaseCode: $('process-phase-code'),
     processPhaseStep: $('process-phase-step'),
     processStageTrack: $('process-stage-track'),
 
@@ -218,8 +211,6 @@ const els = {
     btnExit:          $('btn-exit'),
 
     thresholdsPanel:      $('thresholds-panel'),
-    thresholdsCameraLabel: $('thresholds-camera-label'),
-    thresholdsHint:       $('thresholds-hint'),
     thresholdsBody:       $('thresholds-body'),
     thresholdsStatus:     $('thresholds-status'),
     thresholdsSave:       $('thresholds-save'),
@@ -369,19 +360,19 @@ function animateUiElement(el, className = 'ui-value-change') {
     setTimeout(() => el.classList.remove(className), 260);
 }
 function normalizeOperatorText(value) { return String(value).replace(/\u2116\s*/g, '#'); }
-function setIfChanged(el, value) {
+function setIfChanged(el, value, animate = true) {
     if (!el) return;
     const text = normalizeOperatorText(value);
     if (el.textContent === text) return;
     el.textContent = text;
-    if (el.classList.contains('stats-value') || el.classList.contains('state-label')) {
+    if (animate && el.classList.contains('stats-value')) {
         animateUiElement(el);
     }
 }
 function cameraRoleLabel(role) { return CAMERA_ROLE_LABELS[role] || role || '—'; }
 function lineStateLabel(value) { return LINE_STATE_LABELS[String(value || '').toUpperCase()] || value || '—'; }
 function categoryLabel(value) { return CATEGORY_LABELS[String(value || '').toUpperCase()] || value || '—'; }
-function formatFrameRate(value) { const n = Number(value || 0).toFixed(1).replace('.', ','); return `${n} КАДР/С`; }
+function formatFrameRate(value) { const n = Math.round(Number(value || 0)); return `${n} КАДР/С`; }
 // Немедленный статус — отменяет запланированный тик и делает внеплановый запрос
 let _statusLoopTimer = null;
 let _statusImmediatePending = false;

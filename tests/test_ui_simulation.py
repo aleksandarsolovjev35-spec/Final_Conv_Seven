@@ -67,20 +67,57 @@ class SimulationApiTest(unittest.TestCase):
         self.assertTrue(self.sim.jog_active)
         self.assertFalse(self.sim.enter_jog() is False)  # повторный вход
         self.assertTrue(self.sim.jog_hold_start("+"))
-        self.assertEqual(self.sim.dist1_position, 5)
+        self.assertEqual(self.sim.conveyor_position, 5)
         self.assertTrue(self.sim.jog_hold_start("-"))
-        self.assertEqual(self.sim.dist1_position, 0)
+        self.assertEqual(self.sim.conveyor_position, 0)
         self.assertTrue(self.sim.jog_hold_release())
         self.assertFalse(self.sim.jog_busy)
         self.assertTrue(self.sim.exit_jog())
         self.assertFalse(self.sim.jog_active)
 
+    def test_jog_does_not_move_distributor(self):
+        # Ручной ход двигает ленту, а не заслонки распределителя.
+        self.sim.enter_jog()
+        self.assertTrue(self.sim.jog_hold_start("+"))
+        self.assertTrue(self.sim.jog_hold_heartbeat("+"))
+        self.assertEqual(self.sim.conveyor_position, 6)  # 5 + 1 heartbeat
+        self.assertEqual(self.sim.dist1_position, 0)
+        self.assertEqual(self.sim.dist1_state, "GOOD")
+        self.assertEqual(self.sim.dist2_position, 0)
+        self.assertTrue(self.sim.jog_hold_release())
+        self.sim.exit_jog()
+
+    def test_jog_heartbeat_continuous_move_and_bounds(self):
+        self.sim.enter_jog()
+        self.assertTrue(self.sim.jog_hold_start("+"))
+        for _ in range(500):
+            self.sim.jog_hold_heartbeat("+")
+        self.assertEqual(self.sim.conveyor_position, 340)  # ограничено осью
+        self.assertEqual(self.sim.dist1_position, 0)
+        self.sim.exit_jog()
+
     def test_jog_bounded_position(self):
         self.sim.enter_jog()
         for _ in range(100):
             self.sim.jog_hold_start("+")
-        self.assertEqual(self.sim.dist1_position, 340)
+        self.assertEqual(self.sim.conveyor_position, 340)
         self.sim.exit_jog()
+
+    def test_jog_allowed_while_paused(self):
+        # Пауза — разрешённое состояние для ручного хода, как в production:
+        # оператор корректирует положение ленты до продолжения цикла.
+        self.sim.start()
+        self.assertTrue(self.sim.pause())
+        self.assertTrue(self.sim.enter_jog())
+        self.assertTrue(self.sim.jog_active)
+        self.assertTrue(self.sim.jog_hold_start("+"))
+        self.assertEqual(self.sim.conveyor_position, 5)
+        self.assertTrue(self.sim.jog_hold_release())
+        self.assertFalse(self.sim.jog_busy)
+        self.assertTrue(self.sim.exit_jog())
+        self.assertFalse(self.sim.jog_active)
+        self.assertEqual(self.sim.state, "PAUSED")
+        self.sim.close()
 
     def test_selected_analysis(self):
         self.assertFalse(self.sim.selected_analysis("NOPE"))
@@ -247,7 +284,7 @@ class DemoFramesTest(unittest.TestCase):
             "SPIDER_IN", "SPIDER_OUT", "TOP",
         })
         for frame in frames.values():
-            self.assertEqual(frame.shape, (480, 800, 3))
+            self.assertEqual(frame.shape, (720, 1280, 3))
 
     def test_demo_frames_default(self):
         frames = demo_frames()

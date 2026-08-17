@@ -142,7 +142,7 @@ function renderPreviewStrip() {
     els.previewStrip.innerHTML = state.cameras.map((role, i) => `
         <div class="preview-cam ${role === state.currentCamera ? 'active' : ''}" data-role="${role}" data-index="${i}">
             <img alt="" data-frame-key="" data-requested-key="" data-requesting="0" data-req-seq="0">
-            <div class="preview-cam-label">[${i + 1}] ${cameraRoleLabel(role)}${cameraIdSuffix(role)}</div>
+            <div class="preview-cam-label">${cameraRoleLabel(role)}${cameraIdSuffix(role)}</div>
         </div>
     `).join('');
     els.previewStrip.querySelectorAll('.preview-cam').forEach(el => {
@@ -365,5 +365,5 @@ function updateUptime() {
     const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
     const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
     const s = String(elapsed % 60).padStart(2, '0');
-    setIfChanged(els.metricUptime, `${h}:${m}:${s}`);
+    setIfChanged(els.metricUptime, `${h}:${m}:${s}`, false);
 }

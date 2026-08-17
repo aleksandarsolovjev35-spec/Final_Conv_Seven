@@ -61,7 +61,7 @@
     flex-wrap: wrap;
     gap: 6px 12px;
     min-width: 0;
-    font-family: var(--font-mono);
+    font-family: var(--font-ui);
     font-size: 12px;
 }
 
@@ -83,26 +83,13 @@
     letter-spacing: 1px;
 }
 
+/* Кнопка закрытия галереи — .btn.btn-icon.btn-icon-lg;
+   наведение инвертирует её в красный (деструктивное действие). */
 .gallery-close-btn {
-    width: 36px;
-    height: 36px;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-dim);
-    font-size: 18px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all var(--t-fast) var(--ease);
     flex-shrink: 0;
-}
-
-.gallery-close-btn:hover {
-    color: var(--bad);
-    border-color: var(--bad);
-    background: var(--bad-bg);
+    --btn-color:  var(--text-dim);
+    --btn-invert: var(--bad);
+    --btn-focus:  var(--bad);
 }
 
 .gallery-mode-toggle {
@@ -112,28 +99,15 @@
     flex-shrink: 0;
 }
 
-.gallery-mode-btn {
-    padding: 4px 16px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-dim);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    cursor: pointer;
-    transition: all var(--t-fast) var(--ease);
-}
-
+/* Переключатель ВИД в галерее — .btn.btn-sm; активный вариант подсвечен. */
+/* Переключатель ВИД в галерее — .btn.btn-sm; активный вариант помечен
+   акцентом и инвертируется в него же при наведении. */
 .gallery-mode-btn.active {
-    color: var(--accent);
-    border-color: var(--accent);
-    background: rgba(34, 211, 238, 0.1);
-}
-
-.gallery-mode-btn:hover:not(.active) {
-    border-color: var(--border-strong);
-    color: var(--text);
+    --btn-color:  var(--accent);
+    --btn-border: var(--accent);
+    --btn-invert: var(--accent);
+    --btn-focus:  var(--accent);
+    background: var(--accent-glow);
 }
 
 .gallery-grid {
@@ -167,7 +141,7 @@
     letter-spacing: 1px;
     text-transform: uppercase;
     border-bottom: 1px solid var(--border);
-    font-family: var(--font-mono);
+    font-family: var(--font-ui);
 }
 
 .gallery-card-img-wrap {
@@ -196,7 +170,7 @@
     content: attr(data-error-label);
     padding: 12px;
     color: var(--text-muted);
-    font: 700 10px var(--font-mono);
+    font: 700 10px var(--font-ui);
     text-align: center;
     overflow-wrap: anywhere;
 }
@@ -222,7 +196,7 @@
     padding: 10px 24px;
     border-top: 1px solid var(--border);
     font-size: 12px;
-    font-family: var(--font-mono);
+    font-family: var(--font-ui);
     flex-shrink: 0;
     display: flex;
     gap: 8px;
@@ -291,9 +265,3 @@
     color: var(--bad);
 }
 
-/* ─── State dot for FAULT ─────────────────────────────────────────── */
-
-.state-dot.state-fault {
-    background: var(--bad);
-    box-shadow: none;
-}

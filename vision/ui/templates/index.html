@@ -5,19 +5,20 @@
 <head>
     <meta charset="UTF-8">
     <title>Роботехнический комплекс конвейерного типа 7</title>
-    <link rel="stylesheet" href="/static/css/base.css?v=33">
-    <link rel="stylesheet" href="/static/css/blocks.css?v=26">
-    <link rel="stylesheet" href="/static/css/camera.css?v=34">
+    <link rel="stylesheet" href="/static/css/base.css?v=36">
+    <link rel="stylesheet" href="/static/css/blocks.css?v=29">
+    <link rel="stylesheet" href="/static/css/camera.css?v=37">
     <link rel="stylesheet" href="/static/css/axis.css?v=33">
-    <link rel="stylesheet" href="/static/css/history-strip.css?v=39">
-    <link rel="stylesheet" href="/static/css/stats.css?v=44">
-    <link rel="stylesheet" href="/static/css/jog.css?v=32">
-    <link rel="stylesheet" href="/static/css/controls.css?v=32">
-    <link rel="stylesheet" href="/static/css/gallery.css?v=31">
-    <link rel="stylesheet" href="/static/css/process.css?v=48">
-    <link rel="stylesheet" href="/static/css/motion.css?v=35">
-    <link rel="stylesheet" href="/static/css/thresholds.css?v=20">
-    <link rel="stylesheet" href="/static/css/archive.css?v=1">
+    <link rel="stylesheet" href="/static/css/history-strip.css?v=42">
+    <link rel="stylesheet" href="/static/css/stats.css?v=50">
+    <link rel="stylesheet" href="/static/css/jog.css?v=36">
+    <link rel="stylesheet" href="/static/css/controls.css?v=38">
+    <link rel="stylesheet" href="/static/css/gallery.css?v=34">
+    <link rel="stylesheet" href="/static/css/process.css?v=54">
+    <link rel="stylesheet" href="/static/css/motion.css?v=39">
+    <link rel="stylesheet" href="/static/css/thresholds.css?v=24">
+    <link rel="stylesheet" href="/static/css/archive.css?v=5">
+    <link rel="stylesheet" href="/static/css/panel-deck.css?v=3">
 </head>
 <body>
 
@@ -34,25 +35,13 @@
             <div id="splash-error" class="splash-error is-hidden">
                 <div class="splash-error-title">ОШИБКА</div>
                 <div id="splash-error-message" class="splash-error-message"></div>
-                <button id="splash-exit" class="splash-exit-btn">ЗАКРЫТЬ</button>
+                <button id="splash-exit" class="btn btn-bad splash-exit-btn">ЗАКРЫТЬ</button>
             </div>
         </div>
     </div>
 
     <!-- MAIN UI -->
     <div id="main" class="main is-hidden">
-
-        <header class="header" data-ui-block="operator-header">
-            <div id="state-section" class="state-section state-box-idle">
-                <span id="state-indicator" class="state-dot state-idle"></span>
-                <span id="state-label" class="state-label">ГОТОВА К ПУСКУ</span>
-            </div>
-            <h1 class="title">РОБОТЕХНИЧЕСКИЙ КОМПЛЕКС КОНВЕЙЕРНОГО ТИПА 7</h1>
-            <div class="metrics">
-                <span>ШАГ: <span id="metric-step">0</span></span>
-                <span>ВРЕМЯ РАБОТЫ: <span id="metric-uptime">00:00:00</span></span>
-            </div>
-        </header>
 
         <main class="body">
             <section class="left-column">
@@ -62,9 +51,9 @@
                     <div class="mode-badge is-faded" id="mode-badge" aria-live="polite"></div>
                     <img id="main-camera" class="main-camera" alt="Камера">
                     <div class="camera-live-controls" data-ui-block="camera-controls">
-                        <button id="view-mode-toggle" class="is-faded" disabled
+                        <button id="view-mode-toggle" class="btn btn-overlay btn-accent is-faded" disabled
                                 aria-label="Переключить режим отображения кадра">ВИД: RAW</button>
-                        <button id="analyze-selected-frame" disabled>АНАЛИЗ КАДРА</button>
+                        <button id="analyze-selected-frame" class="btn btn-overlay btn-accent" disabled>АНАЛИЗ КАДРА</button>
                     </div>
                     <div id="camera-overlay" class="camera-overlay is-hidden"></div>
                 </div>
@@ -113,7 +102,6 @@
                         </div>
                         <div class="process-phase-row">
                             <div id="process-phase-label" class="process-phase-label" data-line-state="IDLE" aria-live="polite">ГОТОВА К ПУСКУ</div>
-                            <span id="process-phase-code" class="process-phase-code">IDLE</span>
                         </div>
                         <div id="process-phase-detail" class="process-phase-detail">Ожидание команды оператора</div>
                         <div id="process-stage-track" class="process-stage-track" aria-label="Последовательность производственного шага">
@@ -129,15 +117,27 @@
                 </div>
             </section>
 
-            <aside id="stats-panel" class="stats-panel" data-ui-block="right-panel">
+            <aside id="stats-panel" class="stats-panel" data-face="ready" data-ui-block="right-panel">
                 <div id="control-error" class="control-error is-hidden"></div>
+
+                <!-- Лицо «АВАРИЯ»: заменяет обычные блоки, когда цикл в FAULT. -->
+                <section id="fault-face" class="fault-face" data-ui-block="fault" aria-label="Авария">
+                    <div class="fault-face-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 3 L21.5 19.5 H2.5 Z"></path>
+                            <line x1="12" y1="9" x2="12" y2="13.5"></line>
+                            <circle cx="12" cy="16.6" r="0.9"></circle>
+                        </svg>
+                    </div>
+                    <div class="fault-face-title">АВАРИЯ</div>
+                    <div id="fault-reason" class="fault-face-reason">—</div>
+                    <div class="fault-face-inline">На линии корпусов: <span id="fault-inline">0</span> / 8</div>
+                    <div class="fault-face-hint">Устраните причину и перезапустите линию</div>
+                </section>
 
                 <section id="stats-summary" class="stats-summary ui-collapse" data-ui-block="cycle-stats">
                     <div class="accordion-header" aria-label="Статистика рабочего цикла">
                         <span>СТАТИСТИКА РАБОЧЕГО ЦИКЛА</span>
-                        <svg class="accordion-chevron" viewBox="0 0 20 20" aria-hidden="true">
-                            <path d="M5 7 L10 12 L15 7"></path>
-                        </svg>
                     </div>
                     <div id="stats-body" class="stats-body ui-collapse is-collapsed">
                         <div class="stats-row stats-half"><span class="stats-label">Всего корпусов</span><span id="stat-total" class="stats-value">0</span></div>
@@ -145,20 +145,14 @@
                         <div class="stats-row stats-third"><span class="stats-label">Годные</span><span id="stat-good" class="stats-value good">0</span></div>
                         <div class="stats-row stats-third"><span class="stats-label">Брак</span><span id="stat-bad" class="stats-value bad">0</span></div>
                         <div class="stats-row stats-third"><span class="stats-label">На зачистку</span><span id="stat-cleanup" class="stats-value warn">0</span></div>
+                        <div class="stats-row stats-half"><span class="stats-label">Шаг</span><span id="metric-step" class="stats-value">0</span></div>
+                        <div class="stats-row stats-half"><span class="stats-label">Время работы</span><span id="metric-uptime" class="stats-value">00:00:00</span></div>
                     </div>
                 </section>
-
-                <div id="stats-service" class="stats-service ui-collapse" data-ui-block="service-stats">
-                    <div class="stats-service-row">
-                        <span class="stats-service-label">Пустые лотки</span>
-                        <span class="stats-service-value" id="stat-empty">0</span>
-                    </div>
-                </div>
 
                 <section id="distributor-diagnostics" class="distributor-panel ui-collapse" data-ui-block="distributor">
                     <div class="distributor-head">
                         <span class="distributor-title">РАСПРЕДЕЛИТЕЛЬ</span>
-                        <span id="dist-route" class="dist-route"></span>
                     </div>
                     <div class="blade-card">
                         <div class="blade-track">
@@ -169,8 +163,8 @@
                             <span>БРАК</span>
                         </div>
                         <div class="diagnostic-grid blade-diagnostic-grid ui-collapse">
-                            <button data-distributor-command="DIST1_HOME" disabled>ГОДНО</button>
-                            <button data-distributor-command="DIST1_OPEN" disabled>БРАК</button>
+                            <button class="btn btn-sm" data-distributor-command="DIST1_HOME" disabled>ГОДНО</button>
+                            <button class="btn btn-sm" data-distributor-command="DIST1_OPEN" disabled>БРАК</button>
                         </div>
                     </div>
                     <div class="blade-card">
@@ -182,8 +176,8 @@
                             <span>ЗАЧИСТКА</span>
                         </div>
                         <div class="diagnostic-grid blade-diagnostic-grid ui-collapse">
-                            <button data-distributor-command="DIST2_BAD" disabled>БРАК</button>
-                            <button data-distributor-command="DIST2_CLEANUP" disabled>ЗАЧИСТКА</button>
+                            <button class="btn btn-sm" data-distributor-command="DIST2_BAD" disabled>БРАК</button>
+                            <button class="btn btn-sm" data-distributor-command="DIST2_CLEANUP" disabled>ЗАЧИСТКА</button>
                         </div>
                     </div>
                 </section>
@@ -202,9 +196,7 @@
                          data-ui-block="thresholds" aria-label="Пороги правил">
                     <div class="thresholds-head">
                         <span class="thresholds-title">ПОРОГИ ПРАВИЛ</span>
-                        <span id="thresholds-camera-label" class="thresholds-camera">—</span>
                     </div>
-                    <div id="thresholds-hint" class="thresholds-hint"></div>
                     <div id="thresholds-body" class="thresholds-body"></div>
                     <div class="thresholds-actions">
                         <span id="thresholds-status" class="thresholds-status"></span>
@@ -228,25 +220,40 @@
                     </div>
                 </section>
 
-                <section id="jog-panel" class="jog-panel jog-panel-embedded ui-collapse" data-ui-block="jog">
-                    <div class="jog-header">
-                        <h2 class="jog-title">РУЧНОЕ УПРАВЛЕНИЕ ЛЕНТОЙ</h2>
-                    </div>
-                    <div class="jog-dpad jog-dpad-hold">
-                        <button class="jog-dpad-btn jog-hold-btn" data-direction="-" disabled
-                                aria-label="Двигать ленту назад" title="Удерживайте для движения назад">
-                            <svg class="jog-hold-arrow" viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M15 5 L8 12 L15 19"></path>
+                <div class="jog-deck">
+                    <section id="jog-panel" class="jog-panel jog-panel-embedded ui-collapse" data-ui-block="jog">
+                        <div class="jog-header">
+                            <h2 class="jog-title">РУЧНОЕ УПРАВЛЕНИЕ ЛЕНТОЙ</h2>
+                        </div>
+                        <div class="jog-dpad jog-dpad-hold">
+                            <button class="jog-dpad-btn jog-hold-btn" data-direction="-" disabled
+                                    aria-label="Двигать ленту назад" title="Удерживайте для движения назад">
+                                <svg class="jog-hold-arrow" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M15 5 L8 12 L15 19"></path>
+                                </svg>
+                            </button>
+                            <button class="jog-dpad-btn jog-hold-btn" data-direction="+" disabled
+                                    aria-label="Двигать ленту вперёд" title="Удерживайте для движения вперёд">
+                                <svg class="jog-hold-arrow" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M9 5 L16 12 L9 19"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </section>
+                    <!-- Шторка с замком: накрывает ручное управление во время
+                         работы линии и поднимается после полной остановки. -->
+                    <div class="jog-shutter" aria-hidden="true">
+                        <div class="jog-shutter-slats"></div>
+                        <div class="jog-shutter-body">
+                            <svg class="jog-shutter-lock" viewBox="0 0 24 24">
+                                <rect x="5" y="10.5" width="14" height="9.5" rx="2"></rect>
+                                <path d="M8 10.5 V7.5 a4 4 0 0 1 8 0 v3"></path>
                             </svg>
-                        </button>
-                        <button class="jog-dpad-btn jog-hold-btn" data-direction="+" disabled
-                                aria-label="Двигать ленту вперёд" title="Удерживайте для движения вперёд">
-                            <svg class="jog-hold-arrow" viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M9 5 L16 12 L9 19"></path>
-                            </svg>
-                        </button>
+                            <div class="jog-shutter-caption">ЗАБЛОКИРОВАНО</div>
+                            <div class="jog-shutter-sub">ДОСТУПНО ПОСЛЕ ОСТАНОВКИ</div>
+                        </div>
                     </div>
-                </section>
+                </div>
             </aside>
 
             
@@ -273,7 +280,7 @@
         <section class="archive-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="archive-settings-title">
             <div class="archive-settings-head">
                 <h2 id="archive-settings-title">АРХИВ ПАРТИЙ</h2>
-                <button id="archive-settings-close" class="archive-settings-close" type="button" aria-label="Закрыть">&times;</button>
+                <button id="archive-settings-close" class="btn btn-icon archive-settings-close" type="button" aria-label="Закрыть">&times;</button>
             </div>
             <div class="archive-settings-body">
                 <div class="archive-settings-row archive-settings-path-row">
@@ -321,12 +328,12 @@
                     <span id="gallery-time">ВРЕМЯ: —</span>
                     <span id="gallery-batch">ПАРТИЯ: —</span>
                 </div>
-                <button id="gallery-close" class="gallery-close-btn"
+                <button id="gallery-close" class="btn btn-icon btn-icon-lg gallery-close-btn"
                         type="button" aria-label="Закрыть">&times;</button>
             </div>
             <div class="gallery-mode-toggle">
-                <button id="gallery-mode-debug" class="gallery-mode-btn active">ПРАВИЛА</button>
-                <button id="gallery-mode-raw" class="gallery-mode-btn">RAW</button>
+                <button id="gallery-mode-debug" class="btn btn-sm gallery-mode-btn active">ПРАВИЛА</button>
+                <button id="gallery-mode-raw" class="btn btn-sm gallery-mode-btn">RAW</button>
             </div>
             <div id="gallery-grid" class="gallery-grid"><div class="gallery-loading">Загрузка...</div></div>
             <div class="gallery-defects">
@@ -336,17 +343,18 @@
         </div>
     </div>
 
-    <script src="/static/js/core.js?v=48"></script>
+    <script src="/static/js/core.js?v=55"></script>
     <script src="/static/js/boot.js?v=31"></script>
-    <script src="/static/js/diagnostics.js?v=50"></script>
-    <script src="/static/js/status.js?v=51"></script>
+    <script src="/static/js/diagnostics.js?v=51"></script>
+    <script src="/static/js/status.js?v=57"></script>
     <script src="/static/js/controls.js?v=35"></script>
-    <script src="/static/js/thresholds.js?v=18"></script>
-    <script src="/static/js/cameras.js?v=37"></script>
+    <script src="/static/js/thresholds.js?v=20"></script>
+    <script src="/static/js/cameras.js?v=39"></script>
     <script src="/static/js/frame-analysis.js?v=12"></script>
     <script src="/static/js/jog.js?v=35"></script>
     <script src="/static/js/history.js?v=34"></script>
     <script src="/static/js/archive.js?v=1"></script>
+    <script src="/static/js/panel-deck.js?v=2"></script>
     <script src="/static/js/bootstrap.js?v=35"></script>
 </body>
 </html>

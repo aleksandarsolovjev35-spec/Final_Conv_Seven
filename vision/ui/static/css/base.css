@@ -40,7 +40,6 @@
     --bad-fill:     rgba(201, 118, 118, 0.18);
     --warn-fill:    rgba(193, 166, 106, 0.18);
 
-    --header-h:     56px;
     --footer-h:     58px;
     --gap:          12px;
     --margin:       16px;
@@ -132,7 +131,7 @@ html, body {
 
 .splash-status {
     color: var(--text-dim);
-    font-family: var(--font-mono);
+    font-family: var(--font-ui);
     font-size: 13px;
     letter-spacing: 0.5px;
     text-align: center;
@@ -212,7 +211,7 @@ html, body {
 
 .splash-error-message {
     color: var(--text);
-    font-family: var(--font-mono);
+    font-family: var(--font-ui);
     font-size: 11px;
     line-height: 1.5;
     white-space: nowrap;
@@ -226,135 +225,10 @@ html, body {
 
 .main {
     display: grid;
-    grid-template-rows: var(--header-h) 1fr var(--footer-h);
+    grid-template-rows: 1fr var(--footer-h);
     height: 100vh;
     width: 100vw;
     overflow: hidden;
-}
-
-/* ─── Header ──────────────────────────────────────────────────────── */
-
-.header {
-    background: var(--bg-1);
-    border-bottom: 1px solid var(--border-strong);
-    display: flex;
-    align-items: center;
-    padding: 0 var(--margin);
-    gap: var(--gap);
-    z-index: 100;
-}
-
-.state-section {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    min-width: 190px;
-    min-height: 34px;
-    padding: 5px 11px;
-    overflow: hidden;
-    background: var(--panel);
-    border: 1px solid var(--border-strong);
-    border-left: 3px solid var(--text-dim);
-    border-radius: var(--radius-sm);
-    transition: border-color var(--t-normal) var(--ease);
-}
-
-.state-section.state-box-running { border-left-color: var(--ok); }
-.state-section.state-box-paused { border-left-color: var(--warn); }
-.state-section.state-box-stopping { border-left-color: var(--warn); }
-.state-section.state-box-fault,
-.state-section.state-box-offline { border-left-color: var(--bad); }
-.state-section.state-box-idle,
-.state-section.state-box-stopped { border-left-color: var(--text-dim); }
-
-.state-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    transition: all var(--t-normal) var(--ease);
-    flex-shrink: 0;
-}
-
-.state-dot.state-idle {
-    background: var(--text-dim);
-}
-
-.state-dot.state-running {
-    background: var(--ok);
-}
-
-.state-dot.state-paused {
-    background: var(--warn);
-    box-shadow: 0 0 6px var(--warn);
-}
-
-.state-dot.state-stopping {
-    background: var(--warn);
-}
-
-.state-dot.state-stopped {
-    background: var(--text-dim);
-}
-
-.state-label {
-    min-width: 0;
-    overflow: hidden;
-    font-size: 11px;
-    font-weight: 650;
-    letter-spacing: 0.7px;
-    text-transform: uppercase;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--text);
-    transition: color var(--t-normal);
-}
-
-.title {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    text-align: center;
-    color: var(--text);
-    font-size: 16px;
-    font-weight: 650;
-    letter-spacing: 1.8px;
-    text-transform: uppercase;
-}
-
-.title::before {
-    content: '';
-}
-
-.metrics {
-    display: flex;
-    flex: 0 1 340px;
-    gap: 6px;
-    min-width: 240px;
-    color: var(--text-dim);
-    justify-content: flex-end;
-    font-family: var(--font-mono);
-    font-size: 10px;
-}
-
-.metrics > span {
-    min-width: 0;
-    min-height: 34px;
-    padding: 7px 10px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    letter-spacing: 0.25px;
-}
-
-.metrics span span {
-    color: var(--accent);
-    font-weight: 500;
-    margin-left: 4px;
 }
 
 /* ─── Body ────────────────────────────────────────────────────────── */
@@ -384,15 +258,6 @@ html, body {
     grid-row: 1;
 }
 
-
-
-@media (max-width: 1040px) {
-    .header { gap: 8px; padding: 0 10px; }
-    .state-section { min-width: 160px; padding-inline: 8px; }
-    .metrics { flex-basis: 270px; min-width: 210px; }
-    .metrics > span { padding-inline: 7px; }
-    .title { font-size: 14px; letter-spacing: 1px; }
-}
 
 
 /* ─── Режим РАБОТА (CONVEY_MODE=work): скрыть отладочные элементы ─── */

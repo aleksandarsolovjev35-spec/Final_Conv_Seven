@@ -79,7 +79,10 @@
 .main-camera {
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    /* Заполняем экран камеры без чёрных полос letterboxing. Полные
+       кадры 1280×720 при этом сохраняются в архиве и в переключателе
+       RAW/ПРАВИЛА — обрезка касается только живого показа. */
+    object-fit: cover;
     display: block;
     transition: opacity 0.05s;
 }
@@ -192,7 +195,7 @@
     font-size: 16px;
     color: var(--text-dim);
     margin-top: 12px;
-    font-family: var(--font-mono);
+    font-family: var(--font-ui);
 }
 
 
@@ -208,36 +211,15 @@
     gap: 10px;
     pointer-events: none;
 }
-.camera-live-controls button {
-    min-height: 34px;
-    padding: 0 12px;
-    border: 1px solid var(--accent);
-    border-radius: var(--radius-sm);
-    background: rgba(15, 19, 23, 0.94);
-    color: var(--accent);
-    font: 700 9px var(--font-mono);
-    cursor: pointer;
-    pointer-events: auto;
-}
-.camera-live-controls button:hover:not(:disabled) {
-    background: var(--accent-glow);
-    color: var(--text);
-}
-.camera-live-controls button:disabled { opacity: 0.35; cursor: not-allowed; }
-#view-mode-toggle {
-    min-height: 34px;
-    border-color: var(--border-strong);
-    color: var(--text-dim);
-}
+/* Кнопки поверх видео наследуют единый стиль .btn (см. controls.css);
+   здесь только возврат перехвата кликов через pointer-events: none
+   контейнера и ограничение ширины длинной подписи. */
+.camera-live-controls button { pointer-events: auto; }
 #analyze-selected-frame {
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-.camera-live-controls button.analysis-active {
-    color: var(--warn);
-    border-color: var(--warn);
 }
 
 /* The standard operator window is 1280×720.  On a shorter window the
