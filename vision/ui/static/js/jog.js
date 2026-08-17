@@ -75,9 +75,16 @@ function showJogPanel(active) {
         && !state.selectedAnalysisActive
         && !state.selectedAnalysisPending
     );
+    const pauseHandoff = visible && !active && state.lineState === 'PAUSED';
     els.statsPanel.classList.remove('is-hidden');
     els.jogPanel.classList.toggle('is-collapsed', !visible);
-    els.jogPanel.classList.toggle('jog-inactive', visible && !active);
+    // При переходе RUNNING → PAUSED backend включает JOG следующим запросом.
+    // Не показываем промежуточное приглушённое состояние кнопок под
+    // поднимающейся шторкой — оно воспринималось как короткое мигание.
+    els.jogPanel.classList.toggle(
+        'jog-inactive', visible && !active && !pauseHandoff,
+    );
+    els.jogPanel.classList.toggle('jog-pause-handoff', pauseHandoff);
     els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(button => {
         if (!visible || !active) button.disabled = true;
     });
