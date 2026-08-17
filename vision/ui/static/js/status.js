@@ -288,7 +288,7 @@ function updateProcessPhaseLabel(lineState, process = {}) {
         : lineStateLabel(activeState);
     const detailParts = [];
     if (processLabel && processLabel !== label) detailParts.push(processLabel);
-    if (process.part_id != null) detailParts.push(`КОРПУС #${process.part_id}`);
+    if (process.part_id != null) detailParts.push(`КОРПУС №${process.part_id}`);
     const captureRoles = Array.isArray(process.capture_roles) ? process.capture_roles : [];
     if (captureRoles.length && isInspectionDisplayPhase(phase)) {
         detailParts.push(`КАМЕР: ${captureRoles.length}`);
@@ -637,8 +637,8 @@ function updateLineCells(lineParts, process = {}) {
             } else {
                 piece.style.left = targetLeft;
             }
-            piece.textContent = `#${token.id}`;
-            piece.title = `Корпус #${token.id} · ${categoryLabel(token.category)}`;
+            piece.textContent = `№${token.id}`;
+            piece.title = `Корпус №${token.id} · ${categoryLabel(token.category)}`;
             nextPieces.push(piece);
         }
         token.pieces.forEach(piece => { if (!nextPieces.includes(piece)) piece.remove(); });

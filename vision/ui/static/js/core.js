@@ -355,7 +355,7 @@ function animateUiElement(el, className = 'ui-value-change') {
     el.classList.add(className);
     setTimeout(() => el.classList.remove(className), 260);
 }
-function normalizeOperatorText(value) { return String(value).replace(/\u2116\s*/g, '#'); }
+function normalizeOperatorText(value) { return String(value).replace(/#(?=\d)/g, '№'); }
 function setIfChanged(el, value, animate = true) {
     if (!el) return;
     const text = normalizeOperatorText(value);
