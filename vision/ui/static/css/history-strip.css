@@ -123,11 +123,20 @@
 .history-card.cat-bad .history-card-symbol     { color: var(--bad); }
 .history-card.cat-cleanup .history-card-symbol { color: var(--warn); }
 
-.history-empty {
+.history-card.history-card-placeholder {
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.015);
+    cursor: default;
+    opacity: 0.58;
+}
+
+.history-card.history-card-placeholder:hover {
+    border-color: var(--border);
+}
+
+.history-card-placeholder .history-card-symbol {
     color: var(--text-muted);
-    font-style: italic;
-    font-size: 12px;
-    font-family: var(--font-ui);
+    font-weight: 500;
 }
 
 /* ─── Process Phase Block (Right side under Путь корпусов) ──────── */
