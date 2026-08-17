@@ -435,6 +435,63 @@ class CycleBehaviorTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             cycle._run_once()
 
+    def test_drain_empties_line_without_new_parts(self):
+        cycle, log = make_cycle()
+        cycle.request_start()
+        cycle._run_once()
+        self.assertEqual(len(cycle.parts), 1)
+        first = cycle.parts[0]
+        self.assertTrue(cycle.request_stop())
+        before = cycle.part_counter
+        safety = 0
+        while cycle.parts and safety < 8:
+            cycle._run_once()
+            safety += 1
+        self.assertEqual(safety, 4)
+        self.assertEqual(cycle.parts, [])
+        self.assertEqual(cycle.part_counter, before)
+        self.assertEqual(cycle.good_count, 1)
+        self.assertTrue(any(item == ("confirm", first.id, "GOOD") for item in log))
+        self.assertTrue(cycle.sm.notify_line_empty())
+        self.assertEqual(cycle.state, "STOPPED")
+
+    def test_stop_from_pause_keeps_live_and_then_inspects(self):
+        cycle, log = make_cycle(with_jog=True)
+        cycle.request_start()
+        self.assertTrue(cycle.live.running)
+        self.assertTrue(cycle.request_pause())
+        thread = threading.Thread(target=cycle._run_once, daemon=True)
+        thread.start()
+        deadline = time.time() + 2
+        while cycle.state != "PAUSED" and time.time() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(cycle.state, "PAUSED")
+        self.assertTrue(cycle.live.running)
+        self.assertTrue(cycle.request_stop())
+        self.assertEqual(cycle.state, "STOPPING")
+        thread.join(timeout=2)
+        self.assertFalse(thread.is_alive())
+        self.assertTrue(cycle.live.running)
+        self.assertEqual(cycle.part_counter, 1)
+        self.assertEqual(len(cycle.parts), 1)
+
+    def test_exit_from_pause_starts_drain(self):
+        cycle, log = make_cycle(with_jog=True)
+        cycle.request_start()
+        self.assertTrue(cycle.request_pause())
+        thread = threading.Thread(target=cycle._run_once, daemon=True)
+        thread.start()
+        deadline = time.time() + 2
+        while cycle.state != "PAUSED" and time.time() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(cycle.state, "PAUSED")
+        self.assertTrue(cycle.request_exit())
+        self.assertTrue(cycle.exit_requested)
+        self.assertEqual(cycle.state, "STOPPING")
+        thread.join(timeout=2)
+        self.assertFalse(thread.is_alive())
+        self.assertTrue(cycle.live.running)
+
 
 if __name__ == "__main__":
     unittest.main()

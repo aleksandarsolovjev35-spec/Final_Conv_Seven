@@ -403,8 +403,8 @@ class UIServerTest(unittest.TestCase):
 
     def test_sort_by_order(self):
         self.assertEqual(
-            UIServer._sort_by_order(["TOP", "INPUT_LEFT", "X"]),
-            ["INPUT_LEFT", "TOP", "X"],
+            UIServer._sort_by_order(["FAR", "NEAR", "X"]),
+            ["NEAR", "FAR", "X"],
         )
 
     # ---------- HTTP ----------
@@ -648,6 +648,15 @@ class UIServerTest(unittest.TestCase):
     def test_index_route(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
+        html = response.text
+        self.assertIn("типа 3", html)
+        self.assertIn("+0 · ИНСПЕКЦИЯ", html)
+        self.assertIn("+3 · СОРТИРОВКА", html)
+        self.assertIn("+4 · СБРОС", html)
+        self.assertIn('data-pos="4"', html)
+        self.assertNotIn('data-pos="8"', html)
+        self.assertNotIn("+7 · СОРТИРОВКА", html)
+        self.assertIn("0 / 4", html)
 
     def test_static_css(self):
         response = self.client.get("/static/css/base.css")

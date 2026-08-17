@@ -25,6 +25,13 @@ const CAMERA_ROLE_LABELS = {
     FAR:    'ДАЛЬНЯЯ',
 };
 
+// Трёхкамерная линия: все камеры смотрят в +0, маршрут готовится на +3,
+// визуальный сброс — в окне +4. На ленте одновременно до 4 корпусов.
+const LINE_INSPECT_POS = 0;
+const LINE_SORT_POS = 3;
+const LINE_DROP_POS = 4;
+const LINE_SLOT_COUNT = 4;
+
 const LINE_STATE_LABELS = {
     IDLE: 'ГОТОВА К ПУСКУ',
     RUNNING: 'РАБОТАЕТ',

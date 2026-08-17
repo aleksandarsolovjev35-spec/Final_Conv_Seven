@@ -102,8 +102,8 @@
         const status = String(state.status || 'WAITING').toUpperCase();
         elements.stateBox.className = `calibration-state state-${status.toLowerCase()}`;
         elements.stateLabel.textContent = statusLabels[status] || status;
-        elements.foundCount.textContent = `${state.found ?? 0} / ${state.required ?? 7}`;
-        elements.assignedCount.textContent = `${Object.keys(state.assignments || {}).length} / ${state.total_steps || 7}`;
+        elements.foundCount.textContent = `${state.found ?? 0} / ${state.required ?? 3}`;
+        elements.assignedCount.textContent = `${Object.keys(state.assignments || {}).length} / ${state.total_steps || 3}`;
         elements.configPath.textContent = state.config_path || 'camera_mapping.json';
         renderRoles(Array.isArray(state.roles) ? state.roles : []);
 
@@ -146,7 +146,7 @@
             );
         } else if (status === 'REVIEW') {
             elements.currentRole.textContent = 'ПРОВЕРКА НАЗНАЧЕНИЙ';
-            elements.stepCounter.textContent = '7 / 7';
+            elements.stepCounter.textContent = '3 / 3';
             setPreviewPlaceholder(
                 'ВСЕ РОЛИ НАЗНАЧЕНЫ',
                 'Проверьте таблицу справа и сохраните конфигурацию',

@@ -7,18 +7,10 @@
 
 const FA_RULE_NAMES = {
     part_presence: 'Наличие корпуса',
-    window_geometry: 'Геометрия входа',
-    window_sinks: 'Раковины в окнах',
-    contacts_long: 'Длинные контакты',
-    contacts_short: 'Короткие контакты',
-    long_omission: 'Длинная полоса',
-    short_omission: 'Короткая полоса',
-    top_contacts: 'Контакты сверху',
-    top_platform: 'Платформа',
-    platform_contacts_overlap: 'Заплыв платформы',
-    sinks: 'Раковины корпуса',
-    glass: 'Стекло',
-    glass_on_contacts: 'Стекло на контактах',
+    uneven_heights: 'Разновысотность окон',
+    window_sinks: 'Раковины окон',
+    bottom_glass: 'Стекло на дне',
+    welding: 'Брак сварки',
 };
 
 // ——— состояние ———

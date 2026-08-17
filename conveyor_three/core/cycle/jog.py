@@ -51,7 +51,10 @@ class CycleJogMixin:
                 release_error = exc
             finally:
                 self.jog_active = False
-                if not self.sm.is_active:
+                # Live нужен и в PAUSED (коррекция ленты), и в STOPPING
+                # (опустошение). Гасим поток только когда линия реально
+                # стоит и не выполняет цикл.
+                if self.state in ("IDLE", "STOPPED"):
                     self.live.stop()
                 print("[JOG] exited")
 

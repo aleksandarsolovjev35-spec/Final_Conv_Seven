@@ -268,6 +268,7 @@ class ProductionCycle(
                 # Деталь могла остаться под камерами ещё до пуска:
                 # первый шаг выполняется без движения ленты, чтобы она
                 # попала в учёт, а не уехала дальше непроверенной.
+                self._pause_requested.clear()
                 self._await_initial_inspection = True
                 if self._diagnostics.get("kind") == "SELECTED_MODEL":
                     self._diagnostics = make_diagnostics(
@@ -283,15 +284,20 @@ class ProductionCycle(
 
     def request_stop(self):
         self._pause_requested.clear()
+        # Сначала STOPPING: exit_jog не должен гасить live, пока линия
+        # ещё дренирует корпуса. Если сначала выйти из JOG в PAUSED,
+        # is_active=False и оператор теряет видеопоток на всём стопе.
+        accepted = self.sm.request_stop()
         if self._pause_frame_active:
             self._stop_pause_frame_loop()
-        return self.sm.request_stop()
+        return accepted
 
     def request_exit(self):
         self._pause_requested.clear()
+        accepted = self.sm.request_exit()
         if self._pause_frame_active:
             self._stop_pause_frame_loop()
-        return self.sm.request_exit()
+        return accepted
 
     def request_pause(self) -> bool:
         """Запросить паузу перед началом нового цикла анализа."""

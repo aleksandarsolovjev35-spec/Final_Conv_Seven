@@ -42,9 +42,9 @@
     min-width: 0;
     height: 32px;
     display: grid;
-    /* Девять позиций ленты (+0 … +8): +0 вход, +4 контроль, +7 сортировка,
-       +8 зона сброса между +7 и +8 по фактической логике сортировки. */
-    grid-template-columns: repeat(9, minmax(0, 1fr));
+    /* Пять позиций ленты (+0 … +4): +0 инспекция NEAR/MIDDLE/FAR,
+       +3 сортировка, +4 зона сброса после распределителя. */
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 3px;
     overflow: hidden;
 }
@@ -62,10 +62,10 @@
 }
 .line-position-labels {
     display: grid;
-    grid-template-columns: repeat(9, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     min-width: 0;
     gap: 3px;
-    /* Labels aligned with the nine cells. */
+    /* Labels aligned with the five cells. */
     margin: 3px 0 0;
 }
 .line-position-labels span {
@@ -99,7 +99,7 @@
 }
 
 /* Маршрут распределителя: заливка панели показывает текущий маршрут
-   детали на +7 (или положение заслонок, если детали нет). При переходе
+   детали на +3 (или положение заслонок, если детали нет). При переходе
    в route-good/bad/cleanup цвет панели сменяется автоматически. */
 .distributor-panel.route-good { background: var(--ok-fill); border-color: var(--ok); }
 .distributor-panel.route-bad { background: var(--bad-fill); border-color: var(--bad); }
@@ -294,7 +294,7 @@
 }
 
 /* ─── Carriage stencil: final process-line model ──────────────────────
-   This is a single carriage wall, not nine status cards.  The only labels
+   This is a single carriage wall, not five status cards.  The only labels
    are below the apertures; the apertures themselves never get a route state. */
 .process-line-head { justify-content: center; }
 .line-position-labels { margin-top: 4px; }

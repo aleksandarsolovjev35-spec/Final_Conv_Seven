@@ -180,7 +180,7 @@ function markUiOffline() {
 const PROCESS_PHASE_LABELS = {
     START_POSITIONING: 'ПОДГОТОВКА · ПОЗИЦИОНИРОВАНИЕ',
     READY: 'ЦИКЛ ЗАПУЩЕН',
-    INITIAL_INSPECTION: 'СТАРТ · КОНТРОЛЬ ПОД INPUT',
+    INITIAL_INSPECTION: 'СТАРТ · КОНТРОЛЬ ПОД КАМЕРАМИ',
     ROUTE_PREPARE: 'ДВИЖЕНИЕ · ПОДГОТОВКА МАРШРУТА',
     CONVEYOR_COMMAND: 'ДВИЖЕНИЕ · КОМАНДА ЛЕНТЕ',
     CONVEYOR_MOVING: 'ДВИЖЕНИЕ · ЛЕНТА В ХОДЕ',
@@ -328,7 +328,7 @@ function updateLineStatus(ls) {
 
     const pendingAnalysis = state.pendingAnalysisVersion !== null;
     const inLine = pendingAnalysis ? _appliedInLine : (ls.in_line || 0);
-    setIfChanged(els.statInline, `${inLine} / 8`);
+    setIfChanged(els.statInline, `${inLine} / ${LINE_SLOT_COUNT}`);
 
     const process = ls.process || {};
     _updateDistributorRoute(ls);
@@ -367,8 +367,8 @@ function updateLineStatus(ls) {
 
 // ─── Line cells ──────────────────────────────────────────────
 const _lineTokens = new Map();
-// Bodies removed by the backend at +7 remain physically on the stencil until
-// the next conveyor step carries them to +8.
+// Bodies removed by the backend at +3 remain physically on the stencil until
+// the next conveyor step carries them to +4.
 const _lineDepartingTokens = new Set();
 let _lineSyncDone = false;
 let _appliedLineParts = [];
@@ -457,7 +457,7 @@ function _resolveDistributorRoute(ls) {
         const d1State = String(ls.dist1_state || '').toUpperCase();
         const d1ToDist2 = ['TO_DIST2', 'MOVING_TO_DIST2'].includes(d1State)
             || (d1State !== 'MOVING_TO_GOOD' && Number(ls.dist1_position || 0) > 0);
-        // Если деталей на +7 нет (в частности, при ручной диагностике),
+        // Если деталей на +3 нет (в частности, при ручной диагностике),
         // цвет обязан всё равно показывать выбранное положение заслонок.
         // Раньше fallback назначал только BAD/CLEANUP, поэтому возврат
         // DIST1 в GOOD снимал все route-классы и панель теряла зелёный цвет.
@@ -505,33 +505,33 @@ function updateLineCells(lineParts, process = {}) {
         if (!Number.isFinite(id) || (pendingAnalysis && !appliedById.has(id))) continue;
         const category = pendingAnalysis && appliedById.has(id)
             ? appliedById.get(id) : String(part.category || '').toUpperCase();
-        let position = Math.max(0, Math.min(Number(part.position) || 0, 7));
-        const wasInDropWindow = _lineTokens.get(id)?.position === 8;
+        let position = Math.max(0, Math.min(Number(part.position) || 0, LINE_SORT_POS));
+        const wasInDropWindow = _lineTokens.get(id)?.position === LINE_DROP_POS;
         // Статус во время хода относится к позиции до подтверждения остановки.
         // Визуально все корпуса делают один и тот же непрерывный шаг. После
-        // подтверждения корпус остаётся виден в +8 до отдельного падения.
-        // «dropping» на +7 означает, что корпус уже прошёл заслонки и падает
-        // в +8 — кроме фазы ROUTE_PREPARE, где маршрут ещё только готовится,
+        // подтверждения корпус остаётся виден в +4 до отдельного падения.
+        // «dropping» на +3 означает, что корпус уже прошёл заслонки и падает
+        // в +4 — кроме фазы ROUTE_PREPARE, где маршрут ещё только готовится,
         // а лента стоит. Поэтому не полагаемся только на то, что фронтенд
         // успел увидеть фазу хода: если ход пропущен (редкий медленный тик),
-        // корпус всё равно уезжает в +8 и падает, а не «замирает» на +7.
-        if (moving) position = part.dropping ? 8 : Math.min(position + 1, 8);
-        else if (part.dropping && (wasInDropWindow || phase !== 'ROUTE_PREPARE')) position = 8;
+        // корпус всё равно уезжает в +4 и падает, а не «замирает» на +3.
+        if (moving) position = part.dropping ? LINE_DROP_POS : Math.min(position + 1, LINE_DROP_POS);
+        else if (part.dropping && (wasInDropWindow || phase !== 'ROUTE_PREPARE')) position = LINE_DROP_POS;
         wanted.set(id, {position, category, dropping: !!part.dropping});
     }
 
-    // Удалённый из статуса корпус уже стоит в +8: только теперь он падает
-    // под вагон. Никакого исчезновения или выхода во время горизонтального
-    // шага нет.
+    // Удалённый из статуса корпус уже стоит в +4: только теперь он падает
+        // под вагон. Никакого исчезновения или выхода во время горизонтального
+        // шага нет.
     for (const [id, token] of [..._lineTokens.entries()]) {
         if (wanted.has(id)) continue;
         _lineTokens.delete(id);
-        if (token.position === 8) {
+        if (token.position === LINE_DROP_POS) {
             token.pieces.forEach(piece => piece.classList.add('token-exiting'));
             token.exitTimer = setTimeout(() => _removeStencilToken(token), dropDuration);
-        } else if (token.position === 7) {
+        } else if (token.position === LINE_SORT_POS) {
             // The logical list may release a body at sorting before the next
-            // step. Keep its physical body visible until that step reaches +8.
+            // step. Keep its physical body visible until that step reaches +4.
             token.departing = true;
             token.movedToExit = false;
             _lineDepartingTokens.add(token);
@@ -542,10 +542,10 @@ function updateLineCells(lineParts, process = {}) {
 
     for (const token of [..._lineDepartingTokens]) {
         token.previousPosition = token.position;
-        if (moving && token.position === 7) {
-            token.position = 8;
+        if (moving && token.position === LINE_SORT_POS) {
+            token.position = LINE_DROP_POS;
             token.movedToExit = true;
-        } else if (!moving && token.position === 8 && token.movedToExit && !token.exitTimer) {
+        } else if (!moving && token.position === LINE_DROP_POS && token.movedToExit && !token.exitTimer) {
             token.pieces.forEach(piece => piece.classList.add('token-exiting'));
             token.exitTimer = setTimeout(() => {
                 _lineDepartingTokens.delete(token);
@@ -576,7 +576,7 @@ function updateLineCells(lineParts, process = {}) {
         const center = rects[token.position].left + rects[token.position].width / 2;
         const left = center - bodyWidth / 2;
         token.bodyLeft = left;
-        for (let pos = 0; pos <= 8; pos += 1) {
+        for (let pos = 0; pos <= LINE_DROP_POS; pos += 1) {
             const r = rects[pos];
             if (Math.min(left + bodyWidth, r.left + r.width) > Math.max(left, r.left)) {
                 const list = visibleByCell.get(pos) || [];

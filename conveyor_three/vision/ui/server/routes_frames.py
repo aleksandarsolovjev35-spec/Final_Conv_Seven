@@ -22,7 +22,7 @@ def setup_frame_routes(app, server):
         )
         size_kind = "preview" if preview else "main"
         # RAW/RULES overlay + JPEG-кодирование заметно тяжелее обычного HTTP.
-        # Не блокируем event loop семью стартовыми превью: статус и команды
+        # Не блокируем event loop тремя стартовыми превью: статус и команды
         # управления должны отвечать, пока изображения готовятся в worker pool.
         jpeg = await asyncio.to_thread(
             server._get_or_render, role, actual_mode, size_kind,
