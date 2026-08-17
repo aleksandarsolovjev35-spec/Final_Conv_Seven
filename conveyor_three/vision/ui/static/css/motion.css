@@ -27,13 +27,14 @@
     pointer-events: none;
 }
 
-#stats-summary.ui-collapse { max-height: 128px; }
-#stats-body.ui-collapse { max-height: 94px; }
+#stats-summary.ui-collapse { max-height: 196px; }
+#stats-body.ui-collapse { max-height: 148px; }
 .blade-diagnostic-grid.ui-collapse { max-height: 32px; }
 #distributor-diagnostics.ui-collapse { max-height: 290px; }
 #jog-panel.ui-collapse { max-height: 190px; }
-#stats-service.ui-collapse { max-height: 48px; }
-#frame-analysis-panel.ui-collapse { max-height: 1600px; }
+/* Не перекрываем ограничение высоты из blocks.css: иначе панель росла
+   до полного списка, а внутреннему scroll-контейнеру было нечего прокручивать. */
+#frame-analysis-panel.ui-collapse { max-height: 420px; }
 
 #view-mode-toggle,
 .mode-badge {
@@ -90,17 +91,5 @@
     .ui-value-change,
     .ui-content-change {
         animation: none !important;
-    }
-}
-
-/* ─── Движение производственной линии ─────────────────────────────── */
-/* Движение линии реализовано без ключевых кадров: маркеры деталей
-   (.line-token, status.js) скользят по ячейкам через CSS-переход left,
-   а лента лишь слегка светлеет во время шага. Циклических анимаций
-   (прокрутка насечек, покачивание деталей) больше нет — строгая тема. */
-
-@media (prefers-reduced-motion: reduce) {
-    .line-token {
-        transition-duration: 1ms !important;
     }
 }

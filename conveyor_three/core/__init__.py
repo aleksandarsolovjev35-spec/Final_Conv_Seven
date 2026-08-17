@@ -1,10 +1,16 @@
-"""Пакет ядра трёхкамерной линии.
+"""Пакет ядра линии.
 
-Импорты ленивые: ``from core.production_cycle import ProductionCycle`` не
-должен тянуть YOLO/OpenCV через DecisionEngine.
+Импорты ленивые: ``from core.production_cycle import ProductionCycle``
+(или ``from core.cycle import ProductionCycle``) не должен тянуть
+YOLO/OpenCV через DecisionEngine.
 """
 
-__all__ = ["StateMachine", "State", "DecisionEngine", "ProductionCycle"]
+__all__ = [
+    "StateMachine",
+    "State",
+    "DecisionEngine",
+    "ProductionCycle",
+]
 
 
 def __getattr__(name):

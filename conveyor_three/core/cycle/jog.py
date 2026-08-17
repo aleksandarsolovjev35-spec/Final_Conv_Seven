@@ -1,13 +1,13 @@
-"""Ручной ход (JOG) ProductionCycle (3 камеры).
+"""Ручной ход ленты (JOG).
 
-Часть ``ProductionCycle``: вход/выход в JOG, удержание хода и live-вид.
+Часть ``ProductionCycle``. Разрешён в IDLE / STOPPED / PAUSED.
 """
-
-from __future__ import annotations
 
 
 class CycleJogMixin:
-    """Ручное перемещение ленты оператором."""
+    """Dead-man JOG поверх безопасных состояний линии."""
+
+    # JOG mode
 
     def can_enter_jog(self) -> bool:
         if self.jog is None or self._shutdown:
@@ -74,11 +74,13 @@ class CycleJogMixin:
                 return False
             accepted = self.jog.start_hold(direction)
             if accepted:
-                label = "Ручное движение ленты вправо" if direction == "+" else "Ручное движение ленты влево"
+                label = (
+                    "Ручное движение ленты вправо" if direction == "+"
+                    else "Ручное движение ленты влево"
+                )
                 self._set_process(
                     "JOG_HOLD",
                     label,
-                    positions=range(self.OFFSET_REJECT + 1),
                 )
             else:
                 self._refresh_monitor()
@@ -109,5 +111,3 @@ class CycleJogMixin:
         else:
             self._refresh_monitor()
         return accepted
-
-    # Живой просмотр камер

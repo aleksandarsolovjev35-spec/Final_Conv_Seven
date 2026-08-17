@@ -2,7 +2,7 @@
 
 Карточка — ``{"role", "ok", "verdict", "found", "metrics"}``.
 Метрика — ``{"label", "value", "limit", "ok", "key", "value_raw",
-"limit_raw", "object"?}``. Формат совместим с consensus и панелью
+"limit_raw", "object"?}``. Формат совместим с панелью
 «Анализ кадра» семикамерной версии.
 """
 

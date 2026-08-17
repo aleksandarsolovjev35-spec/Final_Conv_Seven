@@ -30,9 +30,15 @@ def setup_api_routes(app, server):
     @app.get("/api/cameras")
     async def get_cameras():
         with server.lock:
-            roles = list(server.frames.keys())
+            roles = list(dict.fromkeys(
+                [*server.camera_roles, *server.frames.keys()]
+            ))
+            camera_ids = dict(server.camera_mapping)
         sorted_roles = server._sort_by_order(roles)
-        return JSONResponse({"cameras": sorted_roles})
+        return JSONResponse({
+            "cameras": sorted_roles,
+            "camera_ids": camera_ids,
+        })
 
     @app.get("/api/boot")
     async def get_boot():
@@ -75,13 +81,12 @@ def setup_api_routes(app, server):
                 "line_status":   server.line_status,
                 "recent_parts":  server.recent_parts,
                 "mode":          server.mode,
+                "debug":         server.debug_enabled,
                 "frame_version": server._cache_version,
                 "frame_versions": dict(server._latest_frames_ver),
                 "active_camera": server.active_camera_role,
                 "thresholds_revision": server.thresholds_revision,
                 "archive": server.archive_status_payload(),
-                # Число наборов кадров текущей стадии (0 или 1).
-                "frame_runs": server.get_frame_count(),
             })
 
     @app.get("/api/mode")
@@ -175,7 +180,7 @@ def setup_api_routes(app, server):
             )
         return JSONResponse({"ok": True, "thresholds": result})
 
-    # Архив партий: путь и политика сжатия меняются только до начала партии.
+    # Обязательный архив партий: до начала партии меняется только корневая папка.
 
     @app.get("/api/archive/settings")
     async def api_get_archive_settings():

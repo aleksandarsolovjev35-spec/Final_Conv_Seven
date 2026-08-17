@@ -83,6 +83,11 @@ def setup_archive_routes(app, server):
             content=data,
             media_type="image/jpeg",
             headers={
-                "Cache-Control": "public, max-age=3600",
+                # Номер детали начинается заново в каждой партии, а URL не
+                # содержит batch_id. Запрещаем долговременный кэш WebView,
+                # иначе новая деталь #1 могла показать снимок прошлой партии.
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
             },
         )

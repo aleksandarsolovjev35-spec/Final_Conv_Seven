@@ -16,16 +16,17 @@ def setup_frame_routes(app, server):
         role: str,
         mode: str | None = None,
         preview: int = 0,
-        run: int | None = None,
     ):
         actual_mode = (
             mode if mode in ("RAW", "RULES") else server.mode
         )
         size_kind = "preview" if preview else "main"
-        # Номер набора текущей стадии (1); вне диапазона — текущий кадр.
-        if run is not None and not (1 <= run <= server.get_frame_count()):
-            run = None
-        jpeg = server._get_or_render(role, actual_mode, size_kind, run)
+        # RAW/RULES overlay + JPEG-кодирование заметно тяжелее обычного HTTP.
+        # Не блокируем event loop семью стартовыми превью: статус и команды
+        # управления должны отвечать, пока изображения готовятся в worker pool.
+        jpeg = await asyncio.to_thread(
+            server._get_or_render, role, actual_mode, size_kind,
+        )
         if jpeg is None:
             raise HTTPException(404, f"No frame for role: {role}")
         return Response(

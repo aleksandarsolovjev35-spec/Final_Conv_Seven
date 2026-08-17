@@ -1,4 +1,4 @@
-"""Composition root и публичный запуск production-приложения (3 камеры)."""
+"""Composition root и публичный запуск production-приложения."""
 
 from __future__ import annotations
 
@@ -35,7 +35,10 @@ def ensure_camera_mapping(path: str = CAMERA_MAPPING_PATH) -> bool:
         return True
     if launch_camera_calibrator(path):
         return True
-    print(f"[STARTUP] {path} не создан; основное приложение не запускается")
+    print(
+        f"[STARTUP] {path} не создан; "
+        "основное приложение не запускается"
+    )
     return False
 
 

@@ -18,12 +18,11 @@ const LIVE_CAM_MIN_GAP     = 1000 / 30;
 
 const JOG_ALLOWED_STATES = ["IDLE", "STOPPED", "PAUSED"];
 const JOG_HEARTBEAT_INTERVAL = 100;
-const EXPECTED_CAMERAS = 3;
 
 const CAMERA_ROLE_LABELS = {
-    NEAR:   'БЛИЖНЯЯ КАМЕРА',
-    MIDDLE: 'ЦЕНТРАЛЬНАЯ КАМЕРА',
-    FAR:    'ДАЛЬНЯЯ КАМЕРА',
+    NEAR:   'БЛИЖНЯЯ',
+    MIDDLE: 'ЦЕНТРАЛЬНАЯ',
+    FAR:    'ДАЛЬНЯЯ',
 };
 
 const LINE_STATE_LABELS = {
@@ -36,23 +35,10 @@ const LINE_STATE_LABELS = {
     OFFLINE: 'НЕТ СВЯЗИ',
 };
 
-const AXIS_STATE_LABELS = {
-    IDLE: 'В ПОЗИЦИИ',
-    READY: 'В ПОЗИЦИИ',
-    WAITING: 'ОЖИДАНИЕ',
-    HOMING: 'ПОИСК НУЛЯ',
-    MOVING: 'ПЕРЕМЕЩЕНИЕ',
-    MOVING_TO_GOOD: 'К ГОДНОМУ',
-    GOOD: 'ГОДНО',
-    MOVING_TO_DIST2: 'НА DIST2',
-    TO_DIST2: 'НА DIST2',
-    FAULT: 'АВАРИЯ',
-};
-
 const CATEGORY_LABELS = {
     GOOD: 'ГОДНО',
     BAD: 'БРАК',
-    CLEANUP: 'НА ОЧИСТКУ',
+    CLEANUP: 'НА ЗАЧИСТКУ',
     UNKNOWN: 'НЕ ОПРЕДЕЛЕНО',
 };
 
@@ -63,9 +49,13 @@ const UI_READY_CHECK_INT = 100;
 
 const state = {
     cameras:             [],
+    // role -> физический Camera ID (из camera_mapping.json), для показа оператору
+    cameraIds:           {},
     currentCamera:       null,
     mode:                'RULES',
     modePending:         false,
+    // Режим запуска: true = ОТЛАДКА (разметка и панели), false = РАБОТА (чистый поток).
+    debugMode:           true,
     startTime:           Date.now(),
     splashActive:        true,
     lastFrameTime:       0,
@@ -85,7 +75,6 @@ const state = {
 
     statusReceived:      false,
     jogReceived:         false,
-    uiReady:             false,
     uiRevealed:          false,
 
     jogActive:           false,
@@ -103,17 +92,11 @@ const state = {
     selectedAnalysisRole:   null,
     selectedAnalysisPending: false,
 
-    frameAnalysisRulesCache: null,
-    frameAnalysisRulesFilter: 'triggered',
-    frameAnalysisModelsCache: null,
-    lastFrameAnalysisRenderKey: null,
-
     liveFps:              0.0,
     // Backend сообщает целевой режим, но изображение меняется асинхронно.
     // Бейдж использует displayedFrameKind — режим кадра, уже загруженного в
     // главное окно, а не только состояние камеры на сервере.
     liveStreaming:        false,
-    liveStatic:           false,
     displayedFrameKind:   null, // 'live' | 'static' | 'analysis' | null
     pendingDisplayKind:   null,
     pendingDisplaySeq:    0,
@@ -128,7 +111,6 @@ const state = {
     activeCameraRequestBusy: false,
     thresholdsRevision:   null,
 
-    pictureRun: 0,
     mainCamMode:          'pull',
     mainCamStreamRole:    null,
     mainCamStreamView:    null,
@@ -160,9 +142,6 @@ const els = {
 
     main:             $('main'),
 
-    stateSection:     $('state-section'),
-    stateIndicator:   $('state-indicator'),
-    stateLabel:       $('state-label'),
     metricStep:       $('metric-step'),
     metricUptime:     $('metric-uptime'),
 
@@ -175,24 +154,13 @@ const els = {
     analyzeSelectedFrame: $('analyze-selected-frame'),
     cameraContainer:  null,
 
-    dist1State:       $('dist1-state'),
-    dist1Pos:         $('dist1-pos'),
-    dist1Max:         $('dist1-max'),
     dist1Blade:       $('dist1-blade'),
-    dist1Target:      $('dist1-target'),
-    dist2State:       $('dist2-state'),
-    dist2Pos:         $('dist2-pos'),
-    dist2Max:         $('dist2-max'),
     dist2Blade:       $('dist2-blade'),
-    dist2Target:      $('dist2-target'),
-    distAction:       $('dist-action'),
-    distRoute:        $('dist-route'),
     distributorDiagnostics: $('distributor-diagnostics'),
     controlError:      $('control-error'),
 
     statsSummary:         $('stats-summary'),
     statsBody:            $('stats-body'),
-    statsService:         $('stats-service'),
 
     historyCards:     $('history-cards'),
     statsPanel:       $('stats-panel'),
@@ -202,27 +170,13 @@ const els = {
     statBad:          $('stat-bad'),
     statCleanup:      $('stat-cleanup'),
     statInline:       $('stat-inline'),
-    statEmpty:        $('stat-empty'),
     lineCells:        $('line-cells'),
     processPhaseLabel: $('process-phase-label'),
-    processPhaseDetail: $('process-phase-detail'),
-    processPhaseCode: $('process-phase-code'),
     processPhaseStep: $('process-phase-step'),
     processStageTrack: $('process-stage-track'),
-    defectsSection:   $('defects-section'),
-    defectsTitle:     $('defects-title'),
-    defectsList:      $('defects-list'),
 
     jogPanel:         $('jog-panel'),
-    jogLastAction:    $('jog-last-action'),
 
-    jogHwSerial:      $('jog-hw-serial'),
-    jogHwCameras:     $('jog-hw-cameras'),
-    jogHwConveyor:    $('jog-hw-conveyor'),
-    jogHwDist1:       $('jog-hw-dist1'),
-    jogHwDist2:       $('jog-hw-dist2'),
-
-    frameAnalysisPanelNew: $('frame-analysis-panel'),
     frameAnalysisPanel: $('frame-analysis-panel'),
 
     archiveSettingsOpen: $('archive-settings-open'),
@@ -234,12 +188,6 @@ const els = {
     archivePickFolder: $('archive-pick-folder'),
     archiveSettingsSave: $('archive-settings-save'),
     archiveRootPath: $('archive-root-path'),
-    archiveJpegQuality: $('archive-jpeg-quality'),
-    archiveZipCompression: $('archive-zip-compression'),
-    archiveZipLevel: $('archive-zip-level'),
-    archiveEnabled: $('archive-enabled'),
-    archiveCompressOnShutdown: $('archive-compress-on-shutdown'),
-    archiveDeleteOriginal: $('archive-delete-original'),
     archiveSettingsValidation: $('archive-settings-validation'),
     archiveSettingsStatus: $('archive-settings-status'),
     archiveBatchId: $('archive-batch-id'),
@@ -254,8 +202,6 @@ const els = {
     btnExit:          $('btn-exit'),
 
     thresholdsPanel:      $('thresholds-panel'),
-    thresholdsCameraLabel: $('thresholds-camera-label'),
-    thresholdsHint:       $('thresholds-hint'),
     thresholdsBody:       $('thresholds-body'),
     thresholdsStatus:     $('thresholds-status'),
     thresholdsSave:       $('thresholds-save'),
@@ -404,59 +350,20 @@ function animateUiElement(el, className = 'ui-value-change') {
     el.classList.add(className);
     setTimeout(() => el.classList.remove(className), 260);
 }
-function normalizeOperatorText(value) { return String(value).replace(/\u2116\s*/g, '#'); }
-function setIfChanged(el, value) {
+function normalizeOperatorText(value) { return String(value).replace(/#\s*(?=\d)/g, '\u2116\u00a0'); }
+function setIfChanged(el, value, animate = true) {
     if (!el) return;
     const text = normalizeOperatorText(value);
     if (el.textContent === text) return;
     el.textContent = text;
-    if (el.classList.contains('stats-value') || el.classList.contains('axis-state') || el.classList.contains('state-label')) {
+    if (animate && el.classList.contains('stats-value')) {
         animateUiElement(el);
     }
 }
 function cameraRoleLabel(role) { return CAMERA_ROLE_LABELS[role] || role || '—'; }
 function lineStateLabel(value) { return LINE_STATE_LABELS[String(value || '').toUpperCase()] || value || '—'; }
-function axisStateLabel(value) { return AXIS_STATE_LABELS[String(value || '').toUpperCase()] || value || '—'; }
 function categoryLabel(value) { return CATEGORY_LABELS[String(value || '').toUpperCase()] || value || '—'; }
-function formatFrameRate(value) { const n = Number(value || 0).toFixed(1).replace('.', ','); return `${n} КАДР/С`; }
-function distributorTargetLabel(value) { if (!value || value === '-') return '—'; return categoryLabel(value); }
-function distributorActionLabel(value) {
-    if (!value || value === '-') return '—';
-    return String(value)
-        .replace('HOMED', 'ОСИ В НУЛЕ')
-        .replace('PARK FOR PRODUCTION', 'ПОДГОТОВКА К РАБОТЕ')
-        .replace('PRODUCTION READY', 'ГОТОВО К РАБОТЕ')
-        .replace('DIAGNOSTIC', 'ПРОВЕРКА')
-        .replace('DIST1 -> HOME', 'DIST1 -> ГОДНО')
-        .replace('DIST1 -> OPEN', 'DIST1 -> НА DIST2')
-        .replace('DIST2 -> BAD', 'DIST2 -> БРАК')
-        .replace('DIST2 -> CLEANUP', 'DIST2 -> ОЧИСТКА')
-        .replace('DIST1_HOME', 'DIST1 ПРОХОД')
-        .replace('DIST1_OPEN', 'DIST1 СБРОС')
-        .replace('DIST2_BAD', 'DIST2 БРАК')
-        .replace('DIST2_CLEANUP', 'DIST2 ОЧИСТКА')
-        .replace(/PART #(\d+)/g, 'ДЕТАЛЬ #$1')
-        .replace('PART', 'ДЕТАЛЬ')
-        .replace('DROP...', 'СБРОС...')
-        .replace('PASS', 'ПРОХОД')
-        .replace('DONE', 'ГОТОВО')
-        .replace('BAD', 'БРАК')
-        .replace('CLEANUP', 'ОЧИСТКА')
-        .replace('EMERGENCY STOP', 'АВАРИЙНАЯ ОСТАНОВКА');
-}
-function jogActionLabel(value) {
-    if (!value || value === '-') return '—';
-    const text = String(value);
-    if (text === 'HOLD RIGHT') return 'ДВИЖЕНИЕ ВПРАВО';
-    if (text === 'HOLD LEFT') return 'ДВИЖЕНИЕ ВЛЕВО';
-    if (text.startsWith('ERR:')) return `ОШИБКА:${text.slice(4)}`;
-    if (text.startsWith('STOP:')) {
-        if (text.includes('heartbeat timeout')) return 'ОСТАНОВЛЕНО: ПОТЕРЯ СИГНАЛА УДЕРЖАНИЯ';
-        return 'ОСТАНОВЛЕНО';
-    }
-    return text.replace('UI ONLY', 'ДЕМО-РЕЖИМ');
-}
-
+function formatFrameRate(value) { const n = Math.round(Number(value || 0)); return `${n} КАДР/С`; }
 // Немедленный статус — отменяет запланированный тик и делает внеплановый запрос
 let _statusLoopTimer = null;
 let _statusImmediatePending = false;
@@ -526,11 +433,3 @@ function startStatusPolling() {
     scheduleNextStatusTick();
 }
 
-function stopStatusPolling() {
-    if (_statusLoopTimer) { clearTimeout(_statusLoopTimer); _statusLoopTimer = null; }
-    if (state.statusInterval) {
-        try { clearInterval(state.statusInterval); } catch (_) {}
-        try { clearTimeout(state.statusInterval); } catch (_) {}
-        state.statusInterval = null;
-    }
-}

@@ -23,7 +23,6 @@ class JogController:
         heartbeat_timeout: float = DEFAULT_HOLD_HEARTBEAT_TIMEOUT,
     ):
         self.transport = transport
-        self.calib = calibration
         self.hold_steps = int(calibration["jog_hold_steps"])
         if not 10_000 <= self.hold_steps <= 10_000_000:
             raise ValueError("jog_hold_steps должен быть 10000..10000000")

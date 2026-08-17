@@ -2,19 +2,18 @@ from domain.defect_rules import PartPresenceRule
 
 from vision.overlay.raw_overlay import RawOverlay
 
-from inspection.consensus import (
-    combine_presence_results,
-    combine_rule_results,
-    describe_picture_run,
+from inspection.result import InspectionResult
+from inspection.run_report import (
+    prepare_presence_result,
+    prepare_rule_results,
     summarize_model_health,
 )
-from inspection.result import InspectionResult
 
 
 class Inspector:
     """Выполняет инспекцию по одному свежему кадру (трёхкамерная линия).
 
-    Одна стадия: все три камеры смотрят в одну зону инспекции (+0):
+    Одна стадия: все три камеры смотрят в зону инспекции (+0):
     NEAR/FAR — разновысотность и раковины окон, MIDDLE — стекло и сварка.
     """
 
@@ -34,6 +33,57 @@ class Inspector:
     def set_progress_callback(self, callback):
         self.on_progress = callback
 
+    # Публичный API для диагностики без движения линии.
+    #
+    # ProductionCycle прогоняет те же модели и правила, что и рабочий шаг,
+    # но не создаёт Part и не пишет архив. Чтобы предстартовая проверка и
+    # production не разошлись в трактовке результатов, порядок «наличие
+    # корпуса -> defect rules» и проверка контракта результата живут здесь,
+    # а не в вызывающем коде.
+
+    def evaluate_presence(self, vision_results: dict):
+        """Проверить наличие детали и вернуть результат с карточками."""
+        return prepare_presence_result(
+            self._evaluate_part_presence(vision_results)
+        )
+
+    def evaluate_rules(self, vision_results: dict, frames=None, roles=None):
+        """Выполнить defect rules и вернуть их с карточками замера.
+
+        ``roles`` ограничивает набор правил камерами стадии; без него
+        берутся все активные правила.
+        """
+        rules = (
+            self.decision.rules_for_roles(roles)
+            if roles is not None
+            else self.decision.rules
+        )
+        return prepare_rule_results(
+            self.decision.evaluate_rules_detailed(
+                rules, vision_results, frames=frames,
+            )
+        )
+
+    def evaluate_all(self, frames: dict):
+        """Полный прогон диагностики по готовым кадрам.
+
+        Возвращает ``(vision_results, rule_results, model_rows)``. Пустая
+        ячейка обрывает цепочку на наличии детали — ровно как в рабочем
+        шаге, где defect rules по пустой ячейке не считаются.
+        """
+        vision_results = self.vision.process_all(frames)
+        presence_result = self.evaluate_presence(vision_results)
+        rule_results = [presence_result]
+        if not presence_result.details.get("empty_tray"):
+            rule_results.extend(
+                self.evaluate_rules(vision_results, frames=frames)
+            )
+        return vision_results, rule_results, self.model_health()
+
+    def model_health(self) -> list:
+        """Строки состояния моделей последнего прогона для HMI."""
+        return summarize_model_health(self.vision.last_health)
+
     def _notify_progress(self, phase, label, *, part_id=None, roles=()):
         callback = self.on_progress
         if not callable(callback):
@@ -48,27 +98,23 @@ class Inspector:
         except Exception as exc:
             print(f"[INSPECTION] Ошибка отображения этапа {phase}: {exc}")
 
-    # ProductionCycle передаёт один набор кадров как [frames]. Инспектор
-    # проверяет этот контракт и обрабатывает единственный элемент.
-
-    def inspect_consensus(
+    def inspect(
         self,
         part_id: int,
         step: int,
-        frame_runs,
-        force_bad: bool = False,
+        frames,
     ) -> InspectionResult:
-        # Строгий порядок стадии: кадры -> модели -> проверка наличия
-        # (gate) -> замеры/defect rules -> разметка -> результат.
-        # Все последующие шаги используют ровно этот ``frames`` snapshot.
-        frames = self._single_stage_frames(frame_runs)
+        # Строгий порядок единственной стадии: кадры -> модели ->
+        # проверка наличия (gate) -> геометрия/defect rules -> разметка ->
+        # результат.
+        frames = self._stage_frames(frames, self.INSPECT_ROLES, "inspect")
         self._notify_progress(
             "INSPECT_MODELS",
             "ИНСПЕКЦИЯ: запуск моделей по свежему кадру",
             part_id=part_id,
             roles=self.INSPECT_ROLES,
         )
-        vision_results, model_health = self._run_vision(frames)
+        vision_results = self._run_vision(frames, self.INSPECT_ROLES)
 
         self._notify_progress(
             "INSPECT_PRESENCE",
@@ -76,9 +122,8 @@ class Inspector:
             part_id=part_id,
             roles=self.PRESENCE_ROLES,
         )
-        presence_result = self._evaluate_part_presence(vision_results)
-        presence_result, presence_vote, _ = combine_presence_results(
-            [presence_result]
+        presence_result = prepare_presence_result(
+            self._evaluate_part_presence(vision_results)
         )
 
         if bool(presence_result.details.get("empty_tray")):
@@ -88,17 +133,6 @@ class Inspector:
                 part_id=part_id,
                 roles=self.INSPECT_ROLES,
             )
-            consensus = {
-                "runs": 1,
-                "required_votes": 1,
-                "evidence_run": 1,
-                "part_presence": presence_vote,
-                "rules": {},
-                "picture_run": 1,
-                "picture_reason": describe_picture_run(
-                    [presence_result], 0,
-                ),
-            }
             return InspectionResult(
                 stage="inspect",
                 defects=[],
@@ -108,10 +142,6 @@ class Inspector:
                 raw_frames=frames,
                 raw_overlay_frames={},
                 is_empty_tray=True,
-                consensus=consensus,
-                model_health=model_health,
-                run_frames=[frames],
-                run_rule_results=[[]],
             )
 
         self._notify_progress(
@@ -120,8 +150,12 @@ class Inspector:
             part_id=part_id,
             roles=self.INSPECT_ROLES,
         )
-        defect_results, consensus, _evidence = combine_rule_results(
-            [self.decision.evaluate_all_detailed(vision_results, frames=frames)]
+        defect_results = prepare_rule_results(
+            self.decision.evaluate_rules_detailed(
+                self.decision.rules_for_roles(self.INSPECT_ROLES),
+                vision_results,
+                frames=frames,
+            )
         )
         self._notify_progress(
             "INSPECT_DECISION",
@@ -129,73 +163,52 @@ class Inspector:
             part_id=part_id,
             roles=self.INSPECT_ROLES,
         )
-        consensus["part_presence"] = presence_vote
-
-        final_results = [presence_result] + defect_results
-        consensus["picture_run"] = 1
-        consensus["picture_reason"] = describe_picture_run(final_results, 0)
-
         return self._build_result(
+            stage="inspect",
             part_id=part_id,
             step=step,
             frames=frames,
             vision_results=vision_results,
-            rule_results=final_results,
+            rule_results=[presence_result] + defect_results,
             markup_rule_results=defect_results,
-            force_bad=force_bad,
-            consensus=consensus,
-            model_health=model_health,
         )
 
-    def _single_stage_frames(self, frame_runs) -> dict:
-        runs = list(frame_runs)
-        if len(runs) != 1:
-            raise RuntimeError(
-                f"inspect: ожидался один набор кадров, получено {len(runs)}"
-            )
-        frames = runs[0]
+    @staticmethod
+    def _stage_frames(frames, roles, stage: str) -> dict:
         if not isinstance(frames, dict):
-            raise RuntimeError("inspect: кадры должны быть словарём")
-        missing = set(self.INSPECT_ROLES) - set(frames)
+            raise RuntimeError(f"{stage}: кадры должны быть словарём")
+        missing = set(roles) - set(frames)
         if missing:
             raise RuntimeError(
-                f"Missing inspect camera frames: {sorted(missing)}"
+                f"Missing {stage} camera frames: {sorted(missing)}"
             )
-        return {role: frames[role] for role in self.INSPECT_ROLES}
+        return {role: frames[role] for role in roles}
 
-    def _run_vision(self, frames: dict):
+    def _run_vision(self, frames: dict, roles: tuple):
         vision_results = self.vision.process_all(frames)
-        missing = set(self.INSPECT_ROLES) - set(vision_results)
+        missing = set(roles) - set(vision_results)
         if missing:
             raise RuntimeError(f"Missing vision results: {sorted(missing)}")
-        health_rows = getattr(self.vision, "last_health", None) or []
-        model_health = summarize_model_health(
-            [{**row, "run": 1} for row in health_rows if isinstance(row, dict)]
-        )
-        return vision_results, model_health
+        return vision_results
 
     def _build_result(
         self,
         *,
+        stage: str,
         part_id: int,
         step: int,
         frames: dict,
         vision_results: dict,
         rule_results: list,
-        force_bad: bool,
-        consensus: dict,
-        model_health: list,
         markup_rule_results: list | None = None,
     ) -> InspectionResult:
-        defects = [r.defect for r in rule_results if r.triggered]
-        if force_bad:
-            defects = ["forced_bad"]
+        defects = [result.defect for result in rule_results if result.triggered]
 
-        # Разметка строится последней: сначала ``rule_results`` уже
-        # содержат вычисленную геометрию и решение, затем эти же drawings
-        # накладываются на исходный snapshot. Служебный part_presence
-        # ничего не рисует.
-        markup = markup_rule_results if markup_rule_results is not None else rule_results
+        markup = (
+            markup_rule_results
+            if markup_rule_results is not None
+            else rule_results
+        )
         self._notify_progress(
             "INSPECT_FRAME_RECORD",
             "ИНСПЕКЦИЯ: запись кадра и геометрической разметки",
@@ -216,7 +229,7 @@ class Inspector:
             roles=frames.keys(),
         )
         return InspectionResult(
-            stage="inspect",
+            stage=stage,
             defects=defects,
             vision_results=vision_results,
             rule_results=rule_results,
@@ -224,14 +237,7 @@ class Inspector:
             raw_frames=frames,
             raw_overlay_frames=raw_overlay_frames,
             is_empty_tray=False,
-            consensus=consensus,
-            model_health=model_health,
-            run_frames=[frames],
-            run_rule_results=[markup],
-            run_vision_results=[dict(vision_results)],
         )
-
-    # Empty tray detector
 
     def _evaluate_part_presence(self, vision_results: dict):
         rule = PartPresenceRule(thresholds=self.decision.thresholds)

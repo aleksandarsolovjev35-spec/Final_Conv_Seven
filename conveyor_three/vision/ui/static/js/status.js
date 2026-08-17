@@ -4,6 +4,17 @@
 // - синхронизация монитор->UI сохранена
 'use strict';
 
+// Режим запуска. В РАБОТЕ (debug=false) скрываем отладочные элементы:
+// переключатель RAW/ПРАВИЛА, анализ кадра, пороги правил и ручные кнопки
+// распределителя. Остаются видеопоток, статистика, ПУСК/СТОП/пауза, JOG
+// и путь корпусов.
+function applyDebugMode(debug) {
+    const enabled = debug !== false;
+    if (state.debugMode === enabled) return;
+    state.debugMode = enabled;
+    document.body.classList.toggle('work-mode', !enabled);
+}
+
 function isInspectionDisplayPhase(phase) {
     const value = String(phase || '').toUpperCase();
     return value.includes('CAMERA')
@@ -13,6 +24,7 @@ function isInspectionDisplayPhase(phase) {
         || value.includes('PRESENCE')
         || value.includes('DECISION')
         || value.includes('RECORD')
+        || value === 'INSPECT_ANALYSIS'
         || value === 'PUBLISH';
 }
 
@@ -20,11 +32,15 @@ function updateOperationalAccordions(lineState) {
     const fullyStopped = lineState === 'IDLE' || lineState === 'STOPPED';
     if (els.statsBody) els.statsBody.classList.remove('is-collapsed');
     if (els.statsSummary) els.statsSummary.classList.add('is-open');
-    if (els.statsService) els.statsService.classList.remove('is-collapsed');
     if (els.distributorDiagnostics) {
-        els.distributorDiagnostics.classList.toggle('controls-collapsed', !fullyStopped);
+        // Блок распределителя всегда выглядит как во время рабочего
+        // процесса: в режиме РАБОТА он компактный в любом состоянии
+        // линии, кнопки диагностики появляются только в отладке и
+        // только на полностью остановленной линии.
+        const compact = !fullyStopped || !state.debugMode;
+        els.distributorDiagnostics.classList.toggle('controls-collapsed', compact);
         els.distributorDiagnostics.querySelectorAll('.blade-diagnostic-grid').forEach(grid => {
-            grid.classList.toggle('is-collapsed', !fullyStopped);
+            grid.classList.toggle('is-collapsed', compact);
         });
     }
 }
@@ -63,6 +79,7 @@ async function fetchStatus() {
 
     state.lastStatusAt = Date.now();
     state.statusReceived = true;
+    applyDebugMode(status.debug);
     if (state.offline) {
         state.offline = false;
         els.main.classList.remove('ui-offline');
@@ -145,8 +162,6 @@ function markUiOffline() {
     state.mainCamMode = 'pull';
     mainBufferLoading = false;
     els.main.classList.add('ui-offline');
-    setIfChanged(els.stateLabel, lineStateLabel('OFFLINE'));
-    if (els.stateSection) els.stateSection.className = 'state-section state-box-offline';
     updateProcessPhaseLabel('OFFLINE');
     showControlError('Нет связи с backend. Все команды заблокированы.');
     releaseJogHoldBestEffort('backend offline');
@@ -165,7 +180,7 @@ function markUiOffline() {
 const PROCESS_PHASE_LABELS = {
     START_POSITIONING: 'ПОДГОТОВКА · ПОЗИЦИОНИРОВАНИЕ',
     READY: 'ЦИКЛ ЗАПУЩЕН',
-    INITIAL_INSPECTION: 'СТАРТ · КОНТРОЛЬ ПОД КАМЕРАМИ',
+    INITIAL_INSPECTION: 'СТАРТ · КОНТРОЛЬ ПОД INPUT',
     ROUTE_PREPARE: 'ДВИЖЕНИЕ · ПОДГОТОВКА МАРШРУТА',
     CONVEYOR_COMMAND: 'ДВИЖЕНИЕ · КОМАНДА ЛЕНТЕ',
     CONVEYOR_MOVING: 'ДВИЖЕНИЕ · ЛЕНТА В ХОДЕ',
@@ -188,6 +203,7 @@ const PROCESS_PHASE_LABELS = {
     STEP_COMPLETE: 'ИТОГ · ШАГ ЗАВЕРШЁН',
     PUBLISH: 'ИТОГ · ПУБЛИКАЦИЯ РЕЗУЛЬТАТА',
     FINAL_DECISION_ARCHIVED: 'ИТОГ · РЕШЕНИЕ В АРХИВЕ',
+    FINAL_DECISION_NOT_ARCHIVED: 'ИТОГ · РЕШЕНИЕ БЕЗ АРХИВА',
     PAUSE_REQUESTED: 'ПАУЗА · ОЖИДАНИЕ ГРАНИЦЫ ШАГА',
     RESUMED: 'ВОЗОБНОВЛЕНИЕ · СВЕЖИЙ CAPTURE',
     STOPPING: 'ОСТАНОВКА · ВЫВОД КОРПУСОВ',
@@ -214,14 +230,17 @@ const PROCESS_STAGE_PHASES = {
     SETTLE: new Set(['CONVEYOR_CONFIRMED', 'PART_TRANSFER', 'SETTLE']),
     CAPTURE: new Set(['CAMERA_CAPTURE', 'CAPTURE']),
     ANALYSIS: new Set([
-        'ANALYSIS', 'INSPECT_ANALYSIS', 'INSPECT_MODELS', 'INSPECT_PRESENCE',
-        'INSPECT_GEOMETRY', 'INSPECT_DECISION', 'INSPECT_FRAME_RECORD',
-        'INSPECT_FRAME_RECORDED', 'INSPECT_RESULT_RECORDED',
-        'VISION_RULE_DIAGNOSTIC',
+        'ANALYSIS', 'INSPECT_ANALYSIS', 'INSPECT_MODELS',
+        'INSPECT_PRESENCE', 'INSPECT_GEOMETRY', 'INSPECT_DECISION',
+        'INSPECT_FRAME_RECORD', 'INSPECT_FRAME_RECORDED',
+        'INSPECT_RESULT_RECORDED', 'VISION_RULE_DIAGNOSTIC',
         'SELECTED_MODEL_ANALYSIS', 'SELECTED_MODEL_READY',
     ]),
     REVIEW: new Set(['ANALYSIS_REVIEW']),
-    PUBLISH: new Set(['STEP_COMPLETE', 'PUBLISH', 'FINAL_DECISION_ARCHIVED']),
+    PUBLISH: new Set([
+        'STEP_COMPLETE', 'PUBLISH', 'FINAL_DECISION_ARCHIVED',
+        'FINAL_DECISION_NOT_ARCHIVED',
+    ]),
 };
 
 function processStageForPhase(phase) {
@@ -259,20 +278,19 @@ function updateProcessPhaseLabel(lineState, process = {}) {
         : lineStateLabel(activeState);
     const detailParts = [];
     if (processLabel && processLabel !== label) detailParts.push(processLabel);
-    if (process.part_id != null) detailParts.push(`КОРПУС #${process.part_id}`);
+    if (process.part_id != null) detailParts.push(`КОРПУС \u2116\u00a0${process.part_id}`);
     const captureRoles = Array.isArray(process.capture_roles) ? process.capture_roles : [];
     if (captureRoles.length && isInspectionDisplayPhase(phase)) {
         detailParts.push(`КАМЕР: ${captureRoles.length}`);
     }
-    if (!detailParts.length && hasProcessPhase) detailParts.push(`ФАЗА ${phase}`);
+    if (!detailParts.length && hasProcessPhase && (mappedLabel || processLabel)) {
+        detailParts.push(mappedLabel || processLabel);
+    }
     const detail = detailParts.join(' · ') || (
         activeState === 'IDLE' ? 'Ожидание команды оператора' : lineStateLabel(activeState)
     );
-    const code = phase || activeState;
     const processStep = process.step != null ? process.step : null;
     setIfChanged(phaseEl, label);
-    if (els.processPhaseDetail) setIfChanged(els.processPhaseDetail, detail);
-    if (els.processPhaseCode) setIfChanged(els.processPhaseCode, code);
     if (els.processPhaseStep && processStep !== null) setIfChanged(els.processPhaseStep, `ШАГ ${processStep}`);
     phaseEl.dataset.lineState = activeState;
     phaseEl.dataset.processPhase = phase;
@@ -296,9 +314,6 @@ function updateLineStatus(ls) {
     if (!['IDLE', 'STOPPED'].includes(lineState)) state.startPending = false;
     updateOperationalAccordions(lineState);
 
-    if (els.stateIndicator) els.stateIndicator.className = `state-dot state-${lineState.toLowerCase()}`;
-    if (els.stateSection) els.stateSection.className = `state-section state-box-${lineState.toLowerCase()}`;
-    setIfChanged(els.stateLabel, lineStateLabel(lineState));
     updateProcessPhaseLabel(lineState, ls.process || {});
     setIfChanged(els.metricStep, ls.step || 0);
 
@@ -310,7 +325,6 @@ function updateLineStatus(ls) {
     setIfChanged(els.statGood, ls.good || 0);
     setIfChanged(els.statBad, ls.rejected || 0);
     setIfChanged(els.statCleanup, ls.cleanup || 0);
-    setIfChanged(els.statEmpty, ls.empty || 0);
 
     const pendingAnalysis = state.pendingAnalysisVersion !== null;
     const inLine = pendingAnalysis ? _appliedInLine : (ls.in_line || 0);
@@ -325,40 +339,27 @@ function updateLineStatus(ls) {
         updateNewFrameAnalysisStatus(ls);
     }
 
-    const d1State = ls.dist1_state || 'IDLE';
-    if (els.dist1State) els.dist1State.className = `axis-state axis-${d1State.toLowerCase()}`;
-    setIfChanged(els.dist1State, axisStateLabel(d1State));
+    // В блоке распределителя остались только ползунки: бегунки двигаются
+    // по координатам осей, текстовые значения из HMI убраны.
     const d1Pos = Math.max(0, Number(ls.dist1_position || 0));
     const d1Max = Math.max(1, Number(ls.dist1_max || 340));
-    setIfChanged(els.dist1Pos, d1Pos);
-    setIfChanged(els.dist1Max, d1Max);
     if (els.dist1Blade) {
         const d1Percent = Math.max(0, Math.min(100, d1Pos / d1Max * 100));
         setBladeMarkerPosition(els.dist1Blade, d1Percent);
     }
-    const d1Moving = ['MOVING', 'MOVING_TO_GOOD', 'MOVING_TO_DIST2', 'HOMING'].includes(String(d1State).toUpperCase());
-    const d1TargetLabel = d1Moving ? 'ПЕРЕМЕЩЕНИЕ' : (d1Pos <= 0 ? 'ГОДНО' : (d1Pos >= d1Max ? 'НА DIST2' : `ПОЗИЦИЯ ${d1Pos}`));
-    setIfChanged(els.dist1Target, d1TargetLabel);
 
-    const d2State = ls.dist2_state || 'IDLE';
-    if (els.dist2State) els.dist2State.className = `axis-state axis-${d2State.toLowerCase()}`;
-    setIfChanged(els.dist2State, axisStateLabel(d2State));
     const d2Pos = Math.max(0, Number(ls.dist2_position || 0));
     const d2Max = Math.max(1, Number(ls.dist2_max || 340));
-    setIfChanged(els.dist2Pos, d2Pos);
-    setIfChanged(els.dist2Max, d2Max);
-    setIfChanged(els.dist2Target, distributorTargetLabel(ls.dist2_target));
     if (els.dist2Blade) {
         const d2Percent = Math.max(0, Math.min(100, d2Pos / d2Max * 100));
         setBladeMarkerPosition(els.dist2Blade, d2Percent);
     }
 
-    setIfChanged(els.distAction, distributorActionLabel(ls.last_distributor_action));
-
     updateJogState(ls.jog || null);
     updateStateOverlay(ls);
-    updateJogHardware(ls);
     handleJogAutoToggle(lineState, ls.jog || null);
+
+    if (typeof updatePanelFace === 'function') updatePanelFace(ls);
 
     if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
     if (typeof updateArchiveButton === 'function') updateArchiveButton();
@@ -366,8 +367,8 @@ function updateLineStatus(ls) {
 
 // ─── Line cells ──────────────────────────────────────────────
 const _lineTokens = new Map();
-// Bodies removed by the backend at +3 remain physically on the stencil until
-// the next conveyor step carries them to +4.
+// Bodies removed by the backend at +7 remain physically on the stencil until
+// the next conveyor step carries them to +8.
 const _lineDepartingTokens = new Set();
 let _lineSyncDone = false;
 let _appliedLineParts = [];
@@ -439,7 +440,6 @@ function _applyTokenCategory(el, category) {
 
 
 const ROUTE_CATEGORIES = ['GOOD', 'BAD', 'CLEANUP'];
-let _currentDistributorCategory = '';
 
 function _resolveDistributorRoute(ls) {
     const parts = Array.isArray(ls.line_parts) ? ls.line_parts : [];
@@ -450,13 +450,20 @@ function _resolveDistributorRoute(ls) {
     if (routingPhase && process.part_id != null) {
         part = parts.find(item => Number(item.id) === Number(process.part_id)) || null;
     }
-    if (!part) part = parts.find(item => Number(item.position) === 3) || null;
+    if (!part) part = parts.find(item => Number(item.position) === 7) || null;
     let category = part ? String(part.category || '').toUpperCase() : '';
     if (!ROUTE_CATEGORIES.includes(category)) category = '';
     if (!category) {
         const d1State = String(ls.dist1_state || '').toUpperCase();
-        const d1ToDist2 = ['TO_DIST2', 'MOVING_TO_DIST2'].includes(d1State) || (d1State !== 'MOVING_TO_GOOD' && Number(ls.dist1_position || 0) > 0);
-        if (d1ToDist2) category = String(ls.dist2_target || '').toUpperCase() === 'CLEANUP' ? 'CLEANUP' : 'BAD';
+        const d1ToDist2 = ['TO_DIST2', 'MOVING_TO_DIST2'].includes(d1State)
+            || (d1State !== 'MOVING_TO_GOOD' && Number(ls.dist1_position || 0) > 0);
+        // Если деталей на +7 нет (в частности, при ручной диагностике),
+        // цвет обязан всё равно показывать выбранное положение заслонок.
+        // Раньше fallback назначал только BAD/CLEANUP, поэтому возврат
+        // DIST1 в GOOD снимал все route-классы и панель теряла зелёный цвет.
+        category = d1ToDist2
+            ? (String(ls.dist2_target || '').toUpperCase() === 'CLEANUP' ? 'CLEANUP' : 'BAD')
+            : 'GOOD';
     }
     return category;
 }
@@ -464,25 +471,11 @@ function _resolveDistributorRoute(ls) {
 function _updateDistributorRoute(ls) {
     const panel = els.distributorDiagnostics;
     if (!panel) return;
-    panel.classList.remove('route-good', 'route-bad', 'route-cleanup', 'production-ready');
+    panel.classList.remove('route-good', 'route-bad', 'route-cleanup');
     const category = _resolveDistributorRoute(ls);
-    let effective = '';
-    if (category === 'GOOD') { panel.classList.add('route-good'); effective = 'GOOD'; }
-    else if (category === 'BAD') { panel.classList.add('route-bad'); effective = 'BAD'; }
-    else if (category === 'CLEANUP') { panel.classList.add('route-cleanup'); effective = 'CLEANUP'; }
-    else {
-        const lineState = (ls.state || state.lineState || '').toUpperCase();
-        const d1State = String(ls.dist1_state || '').toUpperCase();
-        const movingToGood = d1State === 'MOVING_TO_GOOD';
-        const parked = ['IDLE', 'STOPPED'].includes(lineState) && (d1State === 'GOOD' || movingToGood) && (Number(ls.dist1_position || 0) === 0 || movingToGood);
-        if (parked) { panel.classList.add('production-ready'); effective = 'GOOD'; }
-    }
-    _currentDistributorCategory = effective;
-    if (els.distRoute) {
-        const ready = panel.classList.contains('production-ready');
-        const label = category ? `→ ${categoryLabel(category)}` : (ready ? 'ПРОИЗВОДСТВО ГОТОВО' : '');
-        setIfChanged(els.distRoute, label);
-    }
+    if (category === 'GOOD') panel.classList.add('route-good');
+    else if (category === 'BAD') panel.classList.add('route-bad');
+    else if (category === 'CLEANUP') panel.classList.add('route-cleanup');
 }
 
 function _removeStencilToken(token) {
@@ -512,28 +505,33 @@ function updateLineCells(lineParts, process = {}) {
         if (!Number.isFinite(id) || (pendingAnalysis && !appliedById.has(id))) continue;
         const category = pendingAnalysis && appliedById.has(id)
             ? appliedById.get(id) : String(part.category || '').toUpperCase();
-        let position = Math.max(0, Math.min(Number(part.position) || 0, 3));
-        const wasInDropWindow = _lineTokens.get(id)?.position === 4;
+        let position = Math.max(0, Math.min(Number(part.position) || 0, 7));
+        const wasInDropWindow = _lineTokens.get(id)?.position === 8;
         // Статус во время хода относится к позиции до подтверждения остановки.
         // Визуально все корпуса делают один и тот же непрерывный шаг. После
-        // подтверждения корпус остаётся виден в +4 до отдельного падения.
-        if (moving) position = part.dropping ? 4 : Math.min(position + 1, 4);
-        else if (part.dropping && wasInDropWindow) position = 4;
+        // подтверждения корпус остаётся виден в +8 до отдельного падения.
+        // «dropping» на +7 означает, что корпус уже прошёл заслонки и падает
+        // в +8 — кроме фазы ROUTE_PREPARE, где маршрут ещё только готовится,
+        // а лента стоит. Поэтому не полагаемся только на то, что фронтенд
+        // успел увидеть фазу хода: если ход пропущен (редкий медленный тик),
+        // корпус всё равно уезжает в +8 и падает, а не «замирает» на +7.
+        if (moving) position = part.dropping ? 8 : Math.min(position + 1, 8);
+        else if (part.dropping && (wasInDropWindow || phase !== 'ROUTE_PREPARE')) position = 8;
         wanted.set(id, {position, category, dropping: !!part.dropping});
     }
 
-    // Удалённый из статуса корпус уже стоит в +4: только теперь он падает
+    // Удалённый из статуса корпус уже стоит в +8: только теперь он падает
     // под вагон. Никакого исчезновения или выхода во время горизонтального
     // шага нет.
     for (const [id, token] of [..._lineTokens.entries()]) {
         if (wanted.has(id)) continue;
         _lineTokens.delete(id);
-        if (token.position === 4) {
+        if (token.position === 8) {
             token.pieces.forEach(piece => piece.classList.add('token-exiting'));
             token.exitTimer = setTimeout(() => _removeStencilToken(token), dropDuration);
-        } else if (token.position === 3) {
+        } else if (token.position === 7) {
             // The logical list may release a body at sorting before the next
-            // step. Keep its physical body visible until that step reaches +4.
+            // step. Keep its physical body visible until that step reaches +8.
             token.departing = true;
             token.movedToExit = false;
             _lineDepartingTokens.add(token);
@@ -544,10 +542,10 @@ function updateLineCells(lineParts, process = {}) {
 
     for (const token of [..._lineDepartingTokens]) {
         token.previousPosition = token.position;
-        if (moving && token.position === 3) {
-            token.position = 4;
+        if (moving && token.position === 7) {
+            token.position = 8;
             token.movedToExit = true;
-        } else if (!moving && token.position === 4 && token.movedToExit && !token.exitTimer) {
+        } else if (!moving && token.position === 8 && token.movedToExit && !token.exitTimer) {
             token.pieces.forEach(piece => piece.classList.add('token-exiting'));
             token.exitTimer = setTimeout(() => {
                 _lineDepartingTokens.delete(token);
@@ -628,8 +626,8 @@ function updateLineCells(lineParts, process = {}) {
             } else {
                 piece.style.left = targetLeft;
             }
-            piece.textContent = `#${token.id}`;
-            piece.title = `Корпус #${token.id} · ${categoryLabel(token.category)}`;
+            piece.textContent = `\u2116\u00a0${token.id}`;
+            piece.title = `Корпус \u2116\u00a0${token.id} · ${categoryLabel(token.category)}`;
             nextPieces.push(piece);
         }
         token.pieces.forEach(piece => { if (!nextPieces.includes(piece)) piece.remove(); });

@@ -103,14 +103,15 @@ class RuleReportRowTest(unittest.TestCase):
         row = build_rule_report_row(_result("window_sinks", False))
         self.assertEqual(row["name"], "window_sinks")
         self.assertFalse(row["triggered"])
-        self.assertEqual(row["status_label"], None)
+        self.assertEqual(row["status_label"], "НОРМА")
         self.assertIn("summary_cards", row)
-        self.assertIn("run_cards", row)
+        self.assertIn("measurement_cards", row)
+        self.assertIn("role_status", row)
 
     def test_triggered_row_has_human_cause(self):
         row = build_rule_report_row(_result("bottom_glass", True))
         self.assertTrue(row["triggered"])
-        self.assertEqual(row["human_cause"], "СТЕКЛО НА ДНЕ ИЗДЕЛИЯ")
+        self.assertEqual(row["human_cause"], "СТЕКЛО НА ДНЕ")
         self.assertTrue(row["decisive"])
 
     def test_part_absent_collapses_rows(self):

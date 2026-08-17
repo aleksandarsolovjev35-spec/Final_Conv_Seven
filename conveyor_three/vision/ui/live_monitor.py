@@ -73,9 +73,6 @@ class LiveMonitor:
         self.server = UIServer(debug_enabled=self.debug_enabled)
         self._bind_server_callbacks()
 
-    def set_camera_roles(self, roles):
-        self.server.set_camera_roles(roles)
-
         self._webview_window = None
         self.webview_api = LiveMonitorApi(self)
         self._close_requested = False
@@ -84,6 +81,9 @@ class LiveMonitor:
 
     def set_splash_status(self, text: str):
         self.server.set_splash_status(text)
+
+    def set_camera_roles(self, roles):
+        self.server.set_camera_roles(roles)
 
     def boot_step_start(self, key: str, message: str | None = None):
         self.server.boot_step_start(key, message)

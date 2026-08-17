@@ -31,8 +31,6 @@ function updateJogState(jog) {
     showJogPanel(state.jogActive);
     applyLiveBadge(state.jogActive);
 
-    setIfChanged(els.jogLastAction, jogActionLabel(jog.last_action));
-
     if (els.jogPanel) {
         els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(btn => {
             const sameDirection =
@@ -77,9 +75,16 @@ function showJogPanel(active) {
         && !state.selectedAnalysisActive
         && !state.selectedAnalysisPending
     );
+    const pauseHandoff = visible && !active && state.lineState === 'PAUSED';
     els.statsPanel.classList.remove('is-hidden');
     els.jogPanel.classList.toggle('is-collapsed', !visible);
-    els.jogPanel.classList.toggle('jog-inactive', visible && !active);
+    // При переходе RUNNING → PAUSED backend включает JOG следующим запросом.
+    // Не показываем промежуточное приглушённое состояние кнопок под
+    // поднимающейся шторкой — оно воспринималось как короткое мигание.
+    els.jogPanel.classList.toggle(
+        'jog-inactive', visible && !active && !pauseHandoff,
+    );
+    els.jogPanel.classList.toggle('jog-pause-handoff', pauseHandoff);
     els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(button => {
         if (!visible || !active) button.disabled = true;
     });
@@ -106,9 +111,11 @@ function applyLiveBadge(active) {
         return;
     }
     if (state.displayedFrameKind === 'static') {
-        els.modeBadge.textContent = (state.mode === 'RAW'
-            ? 'СТОП-КАДР · RAW'
-            : 'СТОП-КАДР · ПРАВИЛА');
+        els.modeBadge.textContent = (!state.debugMode
+            ? 'СТОП-КАДР'
+            : (state.mode === 'RAW'
+                ? 'СТОП-КАДР · RAW'
+                : 'СТОП-КАДР · ПРАВИЛА'));
         els.modeBadge.classList.add('mode-static');
         return;
     }
@@ -131,90 +138,6 @@ async function handleJogAutoToggle(lineState, jog) {
         state.jogTogglePending = true;
         const result = await apiPost('/api/jog/exit');
         if (!result) state.jogTogglePending = false;
-    }
-}
-
-// ─── JOG hardware status ─────────────────────────────────────
-
-function updateJogHardware(ls) {
-    setHwCell(els.jogHwSerial, 'ПОДКЛЮЧЕНО', 'hw-ok');
-
-    const camCount = state.cameras.length;
-    if (camCount === 0) {
-        setHwCell(els.jogHwCameras, '— / —', 'hw-bad');
-    } else if (camCount < EXPECTED_CAMERAS) {
-        setHwCell(
-            els.jogHwCameras,
-            `${camCount} / ${EXPECTED_CAMERAS}`,
-            'hw-warn',
-        );
-    } else {
-        setHwCell(
-            els.jogHwCameras,
-            `${camCount} / ${EXPECTED_CAMERAS}`,
-            'hw-ok',
-        );
-    }
-
-    const lineState = (ls.state || 'IDLE').toUpperCase();
-    if (lineState === 'FAULT') {
-        setHwCell(els.jogHwConveyor, 'ОШИБКА', 'hw-bad');
-    } else if (lineState === 'RUNNING') {
-        setHwCell(els.jogHwConveyor, 'РАБОТА', 'hw-warn');
-    } else if (lineState === 'STOPPING') {
-        setHwCell(els.jogHwConveyor, 'ОСТАНОВКА', 'hw-warn');
-    } else if (lineState === 'STOPPED') {
-        setHwCell(els.jogHwConveyor, 'ОСТАНОВЛЕНО', 'hw-ok');
-    } else {
-        setHwCell(els.jogHwConveyor, 'ОЖИДАНИЕ', 'hw-ok');
-    }
-
-    const d1State = (ls.dist1_state || 'IDLE').toUpperCase();
-    const d1Pos   = ls.dist1_position || 0;
-    let d1Class = 'hw-ok';
-    if (d1State === 'MOVING' || d1State === 'MOVING_TO_GOOD'
-        || d1State === 'MOVING_TO_DIST2') {
-        d1Class = 'hw-warn';
-    } else if (d1State === 'TO_DIST2') {
-        d1Class = 'hw-bad';
-    }
-    setHwCell(
-        els.jogHwDist1,
-        `${axisStateLabel(d1State)} (${d1Pos})`,
-        d1Class,
-    );
-
-    const d2State = (ls.dist2_state || 'IDLE').toUpperCase();
-    const d2Pos   = ls.dist2_position || 0;
-    let d2Class = 'hw-ok';
-    if (d2State === 'MOVING') {
-        d2Class = 'hw-warn';
-    }
-    setHwCell(
-        els.jogHwDist2,
-        `${axisStateLabel(d2State)} (${d2Pos})`,
-        d2Class,
-    );
-}
-
-function setHwCell(el, text, statusClass) {
-    if (!el) return;
-    el.classList.remove('hw-ok', 'hw-warn', 'hw-bad');
-    if (statusClass) el.classList.add(statusClass);
-
-    let textNode = null;
-    for (const node of el.childNodes) {
-        if (node.nodeType === Node.TEXT_NODE) {
-            textNode = node;
-            break;
-        }
-    }
-    if (textNode) {
-        if (textNode.nodeValue !== text) {
-            textNode.nodeValue = text;
-        }
-    } else {
-        el.appendChild(document.createTextNode(text));
     }
 }
 
