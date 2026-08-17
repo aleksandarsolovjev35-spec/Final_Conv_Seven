@@ -32,7 +32,6 @@ function updateOperationalAccordions(lineState) {
     const fullyStopped = lineState === 'IDLE' || lineState === 'STOPPED';
     if (els.statsBody) els.statsBody.classList.remove('is-collapsed');
     if (els.statsSummary) els.statsSummary.classList.add('is-open');
-    if (els.statsService) els.statsService.classList.remove('is-collapsed');
     if (els.distributorDiagnostics) {
         // Блок распределителя всегда выглядит как во время рабочего
         // процесса: в режиме РАБОТА он компактный в любом состоянии
@@ -163,8 +162,6 @@ function markUiOffline() {
     state.mainCamMode = 'pull';
     mainBufferLoading = false;
     els.main.classList.add('ui-offline');
-    setIfChanged(els.stateLabel, lineStateLabel('OFFLINE'));
-    if (els.stateSection) els.stateSection.className = 'state-section state-box-offline';
     updateProcessPhaseLabel('OFFLINE');
     showControlError('Нет связи с backend. Все команды заблокированы.');
     releaseJogHoldBestEffort('backend offline');
@@ -296,15 +293,15 @@ function updateProcessPhaseLabel(lineState, process = {}) {
     if (captureRoles.length && isInspectionDisplayPhase(phase)) {
         detailParts.push(`КАМЕР: ${captureRoles.length}`);
     }
-    if (!detailParts.length && hasProcessPhase) detailParts.push(`ФАЗА ${phase}`);
+    if (!detailParts.length && hasProcessPhase && (mappedLabel || processLabel)) {
+        detailParts.push(mappedLabel || processLabel);
+    }
     const detail = detailParts.join(' · ') || (
         activeState === 'IDLE' ? 'Ожидание команды оператора' : lineStateLabel(activeState)
     );
-    const code = phase || activeState;
     const processStep = process.step != null ? process.step : null;
     setIfChanged(phaseEl, label);
     if (els.processPhaseDetail) setIfChanged(els.processPhaseDetail, detail);
-    if (els.processPhaseCode) setIfChanged(els.processPhaseCode, code);
     if (els.processPhaseStep && processStep !== null) setIfChanged(els.processPhaseStep, `ШАГ ${processStep}`);
     phaseEl.dataset.lineState = activeState;
     phaseEl.dataset.processPhase = phase;
@@ -328,9 +325,6 @@ function updateLineStatus(ls) {
     if (!['IDLE', 'STOPPED'].includes(lineState)) state.startPending = false;
     updateOperationalAccordions(lineState);
 
-    if (els.stateIndicator) els.stateIndicator.className = `state-dot state-${lineState.toLowerCase()}`;
-    if (els.stateSection) els.stateSection.className = `state-section state-box-${lineState.toLowerCase()}`;
-    setIfChanged(els.stateLabel, lineStateLabel(lineState));
     updateProcessPhaseLabel(lineState, ls.process || {});
     setIfChanged(els.metricStep, ls.step || 0);
 
@@ -342,7 +336,6 @@ function updateLineStatus(ls) {
     setIfChanged(els.statGood, ls.good || 0);
     setIfChanged(els.statBad, ls.rejected || 0);
     setIfChanged(els.statCleanup, ls.cleanup || 0);
-    setIfChanged(els.statEmpty, ls.empty || 0);
 
     const pendingAnalysis = state.pendingAnalysisVersion !== null;
     const inLine = pendingAnalysis ? _appliedInLine : (ls.in_line || 0);
@@ -376,6 +369,8 @@ function updateLineStatus(ls) {
     updateJogState(ls.jog || null);
     updateStateOverlay(ls);
     handleJogAutoToggle(lineState, ls.jog || null);
+
+    if (typeof updatePanelFace === 'function') updatePanelFace(ls);
 
     if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
     if (typeof updateArchiveButton === 'function') updateArchiveButton();
@@ -485,9 +480,6 @@ function _updateDistributorRoute(ls) {
     if (category === 'GOOD') panel.classList.add('route-good');
     else if (category === 'BAD') panel.classList.add('route-bad');
     else if (category === 'CLEANUP') panel.classList.add('route-cleanup');
-    if (els.distRoute) {
-        setIfChanged(els.distRoute, category ? `→ ${categoryLabel(category)}` : '');
-    }
 }
 
 function _removeStencilToken(token) {
@@ -522,8 +514,13 @@ function updateLineCells(lineParts, process = {}) {
         // Статус во время хода относится к позиции до подтверждения остановки.
         // Визуально все корпуса делают один и тот же непрерывный шаг. После
         // подтверждения корпус остаётся виден в +8 до отдельного падения.
+        // «dropping» на +7 означает, что корпус уже прошёл заслонки и падает
+        // в +8 — кроме фазы ROUTE_PREPARE, где маршрут ещё только готовится,
+        // а лента стоит. Поэтому не полагаемся только на то, что фронтенд
+        // успел увидеть фазу хода: если ход пропущен (редкий медленный тик),
+        // корпус всё равно уезжает в +8 и падает, а не «замирает» на +7.
         if (moving) position = part.dropping ? 8 : Math.min(position + 1, 8);
-        else if (part.dropping && wasInDropWindow) position = 8;
+        else if (part.dropping && (wasInDropWindow || phase !== 'ROUTE_PREPARE')) position = 8;
         wanted.set(id, {position, category, dropping: !!part.dropping});
     }
 

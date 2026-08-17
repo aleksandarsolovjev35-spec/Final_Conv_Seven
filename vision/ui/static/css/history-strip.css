@@ -63,7 +63,9 @@
     padding: 3px 4px;
     display: flex;
     flex-direction: column;
+    align-items: center;
     justify-content: center;
+    text-align: center;
     max-width: 84px;
     background: rgba(0, 0, 0, 0.3);
     transition:
@@ -125,7 +127,7 @@
     color: var(--text-muted);
     font-style: italic;
     font-size: 12px;
-    font-family: var(--font-mono);
+    font-family: var(--font-ui);
 }
 
 /* ─── Process Phase Block (Right side under Путь корпусов) ──────── */
@@ -155,6 +157,19 @@
     min-width: 0;
 }
 
+/* Заголовок и строка фазы: текст по центру, правый маркер (ШАГ / код
+   фазы) прижат к правому краю и не мешает центрированию. */
+.process-phase-head,
+.process-phase-row {
+    position: relative;
+    justify-content: center;
+}
+
+.process-phase-head .process-phase-step {
+    position: absolute;
+    right: 0;
+}
+
 .process-phase-title {
     color: var(--text-dim);
     font-size: 9px;
@@ -166,8 +181,7 @@
     text-overflow: ellipsis;
 }
 
-.process-phase-step,
-.process-phase-code {
+.process-phase-step {
     flex: 0 0 auto;
     color: var(--text-muted);
     font: 700 8px var(--font-mono);
@@ -179,7 +193,7 @@
 
 .process-phase-label {
     min-width: 0;
-    font-family: var(--font-mono);
+    font-family: var(--font-ui);
     font-size: 10.5px;
     font-weight: 700;
     color: var(--accent);
@@ -194,9 +208,10 @@
     min-width: 0;
     overflow: hidden;
     color: var(--text-dim);
-    font: 8px var(--font-mono);
+    font: 8px var(--font-ui);
     letter-spacing: 0.15px;
     line-height: 1.2;
+    text-align: center;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -217,7 +232,7 @@
     border-radius: 2px;
     background: var(--bg-1);
     color: var(--text-muted);
-    font: 700 7px var(--font-mono);
+    font: 700 7px var(--font-ui);
     letter-spacing: 0.15px;
     text-align: center;
     text-overflow: ellipsis;

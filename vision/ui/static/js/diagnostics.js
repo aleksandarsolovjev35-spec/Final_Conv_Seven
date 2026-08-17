@@ -62,7 +62,6 @@ function updateSelectedAnalysisStatus(ls) {
     const selectedActive = state.selectedAnalysisActive && JOG_ALLOWED_STATES.includes(state.lineState);
     if (els.statsSummary) els.statsSummary.classList.toggle('is-collapsed', selectedActive);
     if (els.distributorDiagnostics) els.distributorDiagnostics.classList.toggle('is-collapsed', selectedActive);
-    if (els.statsService) els.statsService.classList.toggle('is-collapsed', selectedActive);
 
     const live = ls.live || {};
     state.liveFps = Number(live.fps || (ls.jog || {}).live_fps || 0);
@@ -113,7 +112,6 @@ function showPendingSelectedFrameAnalysis() {
     panel.classList.remove('is-collapsed');
     if (els.statsSummary) els.statsSummary.classList.add('is-collapsed');
     if (els.distributorDiagnostics) els.distributorDiagnostics.classList.add('is-collapsed');
-    if (els.statsService) els.statsService.classList.add('is-collapsed');
 
     // Плейсхолдер в новом анализе — через основной рендер
     const tbody = document.getElementById('fa-new-tbody');

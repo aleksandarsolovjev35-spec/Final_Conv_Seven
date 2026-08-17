@@ -22,6 +22,11 @@ from inspection.part_archive import PartArchive
 from vision.ui.server.server import CAMERA_ORDER, UIServer
 
 
+# Ручной ход (JOG) разрешён в тех же состояниях, что и в production:
+# IDLE / STOPPED / PAUSED. Пауза — это как раз коррекция положения ленты.
+JOG_ALLOWED_STATES = ("IDLE", "STOPPED", "PAUSED")
+
+
 PROCESS_LABELS = {
     "IDLE": "Система готова к пуску",
     "READY": "Цикл запущен",
@@ -43,11 +48,12 @@ PROCESS_LABELS = {
     "STOPPING": "Остановка",
     "STOPPED": "Линия остановлена и пуста",
     "PAUSED": "Пауза линии",
-    "JOG": "Ручное перемещение",
-    "SELECTED_ANALYSIS": "Анализ выбранного стоп-кадра",
+    "SELECTED_MODEL_ANALYSIS": "Анализ выбранного стоп-кадра",
+    "JOG_HOLD": "JOG: удерживаемое движение ленты",
+    "JOG_STOPPED": "JOG: движение ленты остановлено",
     "DISTRIBUTOR_DIAGNOSTIC": "Проверка распределителя",
     "CAMERA_DIAGNOSTIC": "Проверка семи камер",
-    "VISION_DIAGNOSTIC": "Проверка моделей и правил",
+    "VISION_RULE_DIAGNOSTIC": "Проверка моделей и правил",
 }
 
 
@@ -92,9 +98,13 @@ class LineSimulation:
         self.dist1_position = 0
         self.dist2_position = 0
         self.dist1_state = "GOOD"
-        self.dist2_state = "READY"
+        self.dist2_state = "IDLE"
         self._planned_route = "GOOD"
         self.last_distributor_action = "SIMULATION READY"
+        # Ручной ход (JOG) двигает ЛЕНТУ, а не распределитель. Это отдельная
+        # координата виртуального конвейера, ограниченная как физическая ось.
+        self.conveyor_position = 0
+        self.conveyor_max = 340
         self.jog_active = False
         self.jog_busy = False
         self.selected_role: str | None = None
@@ -153,40 +163,72 @@ class LineSimulation:
         self._publish("READY")
         return True
 
+    def _rest_phase(self) -> str:
+        """Фаза после входа/выхода из JOG без движения: не перетираем
+        паузу, когда ручной режим открыт на паузе."""
+        return "PAUSED" if self.state == "PAUSED" else "IDLE"
+
     def enter_jog(self) -> bool:
         with self._lock:
-            if self.state not in ("IDLE", "STOPPED"):
+            if self.state not in JOG_ALLOWED_STATES:
                 return False
             self.jog_active = True
-        self._publish("IDLE")
+        self._publish(self._rest_phase())
         return True
 
     def exit_jog(self) -> bool:
         with self._lock:
             self.jog_active = False
             self.jog_busy = False
-        self._publish("IDLE")
+        self._publish(self._rest_phase())
         return True
 
     def jog_hold_start(self, direction: str) -> bool:
         with self._lock:
-            if not self.jog_active or self.state not in ("IDLE", "STOPPED"):
+            if (
+                not self.jog_active
+                or self.state not in JOG_ALLOWED_STATES
+                or self.selected_role is not None
+            ):
                 return False
             self.jog_busy = True
-            # JOG changes the visible virtual conveyor coordinate. It is
-            # bounded exactly like a hardware axis and remains in the status.
+            # JOG двигает ленту: сдвигаем координату виртуального
+            # конвейера. Распределитель (DIST1/DIST2) при этом не меняется —
+            # им управляют только маршрутизация и ручная диагностика.
             delta = 5 if direction == "+" else -5
-            self.dist1_position = max(0, min(340, self.dist1_position + delta))
-            self.dist1_state = "MOVING"
-            self.last_distributor_action = f"JOG {direction}"
-        self._publish("JOG")
+            self.conveyor_position = max(
+                0, min(self.conveyor_max, self.conveyor_position + delta)
+            )
+        self._publish("JOG_HOLD")
+        return True
+
+    def jog_hold_heartbeat(self, direction: str) -> bool:
+        """Dead-man: продлеваем удержание и продолжаем непрерывный ход.
+
+        В отличие от production-``heartbeat`` (только «поддержание жизни»),
+        здесь ещё сдвигаем ленту на малый шаг: в реальной линии удержание
+        кнопки двигает конвейер непрерывно. Распределитель не трогаем.
+        """
+        with self._lock:
+            if (
+                not self.jog_active
+                or not self.jog_busy
+                or self.state not in JOG_ALLOWED_STATES
+            ):
+                return False
+            delta = 1 if direction == "+" else -1
+            self.conveyor_position = max(
+                0, min(self.conveyor_max, self.conveyor_position + delta)
+            )
+        # Публикуем состояние, чтобы непрерывное движение ленты было
+        # видно в UI во время удержания (heartbeat приходит каждые ~100 мс).
+        self._publish("JOG_HOLD")
         return True
 
     def jog_hold_release(self, _reason: str = "") -> bool:
         with self._lock:
             self.jog_busy = False
-            self.dist1_state = "GOOD" if self.dist1_position == 0 else "TO_DIST2"
-        self._publish("IDLE")
+        self._publish("JOG_STOPPED")
         return True
 
     def selected_analysis(self, role: str) -> bool:
@@ -194,7 +236,7 @@ class LineSimulation:
             if self.state not in ("IDLE", "STOPPED") or role not in CAMERA_ORDER:
                 return False
             self.selected_role = role
-        self._publish("SELECTED_ANALYSIS")
+        self._publish("SELECTED_MODEL_ANALYSIS")
         return True
 
     def release_selected_analysis(self) -> bool:
@@ -218,12 +260,16 @@ class LineSimulation:
                 self.dist1_state = "TO_DIST2"
                 self.last_distributor_action = "DIAGNOSTIC DIST1 -> DIST2"
             elif command == "DIST2_BAD":
+                moved = self.dist2_position != 0
                 self.dist2_position = 0
-                self.dist2_state = "READY"
+                if moved:
+                    self.dist2_state = "READY"
                 self.last_distributor_action = "DIAGNOSTIC DIST2 -> BAD"
             elif command == "DIST2_CLEANUP":
+                moved = self.dist2_position != 340
                 self.dist2_position = 340
-                self.dist2_state = "READY"
+                if moved:
+                    self.dist2_state = "READY"
                 self.last_distributor_action = "DIAGNOSTIC DIST2 -> CLEANUP"
             else:
                 return False
@@ -235,7 +281,7 @@ class LineSimulation:
         return True
 
     def vision_rule_diagnostic(self) -> bool:
-        self._publish("VISION_DIAGNOSTIC")
+        self._publish("VISION_RULE_DIAGNOSTIC")
         return True
 
     def stop(self) -> bool:
@@ -365,7 +411,11 @@ class LineSimulation:
         category = (part.category if part else "GOOD") or "GOOD"
         self.last_distributor_action = f"ROUTE {category}"
         self.dist1_state = "MOVING_TO_GOOD" if category == "GOOD" else "MOVING_TO_DIST2"
-        self.dist2_state = "MOVING" if category in ("BAD", "CLEANUP") else "READY"
+        # Маршрут GOOD двигает только DIST1; DIST2 остаётся в текущем
+        # состоянии (IDLE после homing / READY после предыдущего маршрута),
+        # как в hardware/distributor.py — prepare_route(GOOD) её не трогает.
+        if category in ("BAD", "CLEANUP"):
+            self.dist2_state = "MOVING"
         self._planned_route = category
 
     def _settle_distributor(self) -> None:
@@ -373,7 +423,10 @@ class LineSimulation:
         self.dist1_position = 0 if category == "GOOD" else 340
         self.dist2_position = 340 if category == "CLEANUP" else 0
         self.dist1_state = "GOOD" if category == "GOOD" else "TO_DIST2"
-        self.dist2_state = "READY"
+        # DIST2 получает READY только если реально ехала (BAD/CLEANUP);
+        # при маршруте GOOD она остаётся IDLE/прежней — как в эталоне.
+        if category in ("BAD", "CLEANUP"):
+            self.dist2_state = "READY"
 
     def _virtual_overlay_data(self, roles: list[str], line_parts: list[dict]) -> tuple[dict, list[SimRule]]:
         """Supply valid RAW detections and RULES drawings to the real renderers."""
@@ -382,8 +435,8 @@ class LineSimulation:
         raw = {}
         drawings = []
         for index, role in enumerate(roles or CAMERA_ORDER):
-            x = 145 + (index % 4) * 18
-            bbox = [x, 230, x + 175, 350]
+            x = 232 + (index % 4) * 29
+            bbox = [x, 345, x + 280, 525]
             raw[role] = [{"class": "glass" if category == "CLEANUP" else "case", "bbox": bbox}]
             drawings.append({
                 "role": role,
@@ -502,7 +555,7 @@ class LineSimulation:
                 "controls": {"start": state in ("IDLE", "STOPPED") and self.selected_role is None,
                              "stop": state in ("RUNNING", "PAUSED"), "pause": state == "RUNNING",
                              "resume": state == "PAUSED", "exit": True,
-                             "jog_hold": self.jog_active and state in ("IDLE", "STOPPED") and self.selected_role is None,
+                             "jog_hold": self.jog_active and state in JOG_ALLOWED_STATES and self.selected_role is None,
                              "selected_model_analysis": state in ("IDLE", "STOPPED") and self.selected_role is None,
                              "selected_model_release": self.selected_role is not None,
                              "distributor_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None,
@@ -514,7 +567,9 @@ class LineSimulation:
                             "part_id": self.egress.id if self.egress else None,
                             "capture_roles": capture_roles,
                             "inspection_roles": active_roles,
-                            "conveyor": {"speed": 18000}},
+                            "conveyor": {"speed": 18000,
+                                         "position": self.conveyor_position,
+                                         "max": self.conveyor_max}},
                 "selected_analysis": {"active": self.selected_role is not None, "role": self.selected_role},
                 "diagnostic_allowed": state in ("IDLE", "STOPPED") and self.selected_role is None,
                 "diagnostic_busy": False,
@@ -524,7 +579,7 @@ class LineSimulation:
                          "streaming": self.selected_role is None and not inspection_static,
                          "static_roles": [self.selected_role] if self.selected_role else (active_roles if inspection_static else []),
                          "all_roles_static": False, "fps": 25},
-                "jog": {"active": self.jog_active, "busy": self.jog_busy, "can_enter": state in ("IDLE", "STOPPED"),
+                "jog": {"active": self.jog_active, "busy": self.jog_busy, "can_enter": state in JOG_ALLOWED_STATES,
                         "live_fps": 25},
             }
             recent = list(self.recent)
@@ -678,26 +733,33 @@ def configure_simulated_thresholds(server: UIServer) -> None:
     server.on_thresholds_apply = apply
 
 
+# Виртуальные кадры — в production-разрешении 1280×720 (16:9). Совпадение
+# пропорции с реальными камерами убирает letterboxing (чёрные полосы по
+# бокам) в главном окне HMI.
+FRAME_WIDTH = 1280
+FRAME_HEIGHT = 720
+
+
 def demo_frames(step: int = 0, phase: str = "IDLE", line_parts: list[dict] | None = None) -> dict:
     """Generate changing camera feeds rather than static placeholder images."""
     frames = {}
     line_parts = line_parts or []
-    moving_x = 105 + (step % 7) * 76
+    moving_x = 168 + (step % 7) * 122
     for index, role in enumerate(CAMERA_ORDER):
-        frame = np.zeros((480, 800, 3), dtype=np.uint8)
+        frame = np.zeros((FRAME_HEIGHT, FRAME_WIDTH, 3), dtype=np.uint8)
         frame[:] = (20 + index * 3, 27 + index * 2, 33 + index * 2)
-        cv2.putText(frame, "UI SIMULATION · VIRTUAL CAMERA", (42, 54), cv2.FONT_HERSHEY_SIMPLEX, .65, (105, 205, 170), 2)
-        cv2.putText(frame, role, (42, 90), cv2.FONT_HERSHEY_SIMPLEX, .68, (205, 214, 224), 2)
-        cv2.putText(frame, f"STEP {step:04d} · {phase}", (42, 122), cv2.FONT_HERSHEY_SIMPLEX, .48, (142, 165, 185), 1)
-        cv2.rectangle(frame, (42, 155), (758, 420), (72, 94, 110), 2)
+        cv2.putText(frame, "UI SIMULATION · VIRTUAL CAMERA", (67, 81), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (105, 205, 170), 3)
+        cv2.putText(frame, role, (67, 135), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (205, 214, 224), 3)
+        cv2.putText(frame, f"STEP {step:04d} · {phase}", (67, 183), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (142, 165, 185), 2)
+        cv2.rectangle(frame, (67, 232), (1213, 630), (72, 94, 110), 3)
         # A moving virtual case lets the preview strip and main viewport show
         # actual image updates during every conveyor step.
         category = next((p.get("category") for p in line_parts if p.get("category")), "")
         color = {"GOOD": (80, 205, 105), "BAD": (85, 85, 225), "CLEANUP": (70, 190, 230)}.get(category, (110, 125, 135))
-        x = moving_x + (index % 3) * 12
-        cv2.rectangle(frame, (x, 245), (x + 165, 340), color, -1)
-        cv2.rectangle(frame, (x, 245), (x + 165, 340), (220, 230, 235), 2)
-        cv2.putText(frame, "VIRTUAL PART", (x + 18, 298), cv2.FONT_HERSHEY_SIMPLEX, .48, (15, 20, 24), 1)
+        x = moving_x + (index % 3) * 19
+        cv2.rectangle(frame, (x, 368), (x + 264, 510), color, -1)
+        cv2.rectangle(frame, (x, 368), (x + 264, 510), (220, 230, 235), 3)
+        cv2.putText(frame, "VIRTUAL PART", (x + 29, 447), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (15, 20, 24), 2)
         frames[role] = frame
     return frames
 
@@ -725,7 +787,7 @@ def main() -> None:
     server.on_jog_enter = simulation.enter_jog
     server.on_jog_exit = simulation.exit_jog
     server.on_jog_hold_start = simulation.jog_hold_start
-    server.on_jog_hold_heartbeat = simulation.jog_hold_start
+    server.on_jog_hold_heartbeat = simulation.jog_hold_heartbeat
     server.on_jog_hold_release = simulation.jog_hold_release
     server.on_distributor_diagnostic = simulation.distributor_diagnostic
     server.on_camera_diagnostic = simulation.camera_diagnostic
