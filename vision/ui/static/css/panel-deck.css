@@ -144,9 +144,19 @@
     flex: 0 0 auto;
     /* Прижимаем к низу колонки, как раньше сам блок jog-panel. */
     margin-top: auto;
+    background: var(--panel);
+    border: 1px solid var(--border-accent);
     border-radius: var(--radius-sm);
-    /* Шторка в свёрнутом виде не вылезает за карточку. */
+    /* Внешняя рамка принадлежит deck, а не движущейся шторке: поэтому
+       границы ручного управления остаются видимыми на всём ходе анимации. */
     overflow: hidden;
+}
+
+/* Внутренние лица не рисуют вторую рамку поверх постоянной внешней. */
+.jog-deck #jog-panel,
+.jog-deck .jog-shutter {
+    border: 0;
+    border-radius: 0;
 }
 
 .jog-shutter {
