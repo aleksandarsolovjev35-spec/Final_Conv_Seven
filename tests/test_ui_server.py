@@ -616,6 +616,11 @@ class UIServerTest(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.content, b"jpeg-data")
             self.assertEqual(response.headers["content-type"], "image/jpeg")
+            # part_id начинается с единицы в каждой партии, поэтому WebView
+            # не должен переиспользовать снимок с тем же URL после перезапуска.
+            self.assertIn("no-store", response.headers["cache-control"])
+            self.assertEqual(response.headers["pragma"], "no-cache")
+            self.assertEqual(response.headers["expires"], "0")
 
     def test_archive_image_route_bad_kind(self):
         self.server.archive = mock.Mock()

@@ -453,6 +453,25 @@ class PartArchiveTest(unittest.TestCase):
         self.assertFalse(archive.delete_original_after_zip)
         self.assertIn("archive2", settings["root_path"])
 
+    def test_reconfigure_can_disable_unavailable_archive_root(self):
+        archive = self.make_archive(enabled=True)
+        unavailable = os.path.join(self.tmp.name, "unavailable")
+        # Обычный файл вместо каталога воспроизводит отключённый/сломанный
+        # носитель: validate_root() такой путь обоснованно отклоняет.
+        with open(unavailable, "w", encoding="utf-8") as stream:
+            stream.write("not a directory")
+
+        settings = archive.reconfigure(
+            root_folder=unavailable,
+            enabled=False,
+            jpeg_quality=92,
+        )
+
+        self.assertFalse(archive.enabled)
+        self.assertFalse(settings["enabled"])
+        self.assertEqual(archive.root_folder, os.path.abspath(unavailable))
+        self.assertIsNone(settings["validation"])
+
     def test_reconfigure_after_finalize_raises(self):
         archive = self.make_archive()
         self.store_and_finalize(archive)

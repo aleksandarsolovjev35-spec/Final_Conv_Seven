@@ -132,7 +132,7 @@ class LivePreview:
     @property
     def running(self) -> bool:
         with self._state_lock:
-            return bool(self._threads)
+            return any(thread.is_alive() for thread in self._threads)
 
     @property
     def error(self):
@@ -163,6 +163,13 @@ class LivePreview:
         """
         with self._lifecycle_lock:
             with self._state_lock:
+                # После тайм-аута stop() хранит ссылку на ещё живой поток и
+                # не снимает стоп-сигнал. Когда зависшее чтение всё же
+                # вернётся, поток завершится; перед новым стартом удаляем
+                # только такие уже завершившиеся ссылки.
+                self._threads = [
+                    thread for thread in self._threads if thread.is_alive()
+                ]
                 if self._threads:
                     return False
                 self._stop_event.clear()
@@ -187,29 +194,43 @@ class LivePreview:
             print("[LIVE] preview started")
             return True
 
-    def stop(self):
-        """Остановить потоки просмотра и дождаться их завершения."""
+    def stop(self) -> bool:
+        """Остановить потоки просмотра и дождаться их завершения.
+
+        Если системный вызов камеры не вернулся до тайм-аута, стоп-сигнал
+        остаётся выставленным, а ссылка на поток сохраняется. Поэтому после
+        разблокировки старый поток завершится, а не возобновит скрытые чтения
+        камер. ``False`` означает отложенное завершение такого потока.
+        """
         with self._lifecycle_lock:
-            # Стоп-сигнал выставляется до снятия списка потоков, иначе
-            # параллельный start() увидел бы пустой список и поднял новые
-            # потоки, которые тут же погасил бы наш set().
+            # Стоп-сигнал выставляется до ожидания потоков. Пока хотя бы один
+            # поток жив, start() не должен поднять вторую пару читателей.
             self._stop_event.set()
             with self._state_lock:
                 threads = list(self._threads)
-                self._threads = []
             if not threads:
                 self._stop_event.clear()
-                return
+                return True
+
             deadline = time.monotonic() + LIVE_THREAD_JOIN_TIMEOUT
             for thread in threads:
                 thread.join(max(0.0, deadline - time.monotonic()))
-                if thread.is_alive():
+
+            alive = [thread for thread in threads if thread.is_alive()]
+            with self._state_lock:
+                self._threads = alive
+
+            if alive:
+                for thread in alive:
                     print(
                         f"[LIVE] поток {thread.name} не остановился за "
-                        f"{LIVE_THREAD_JOIN_TIMEOUT}s"
+                        f"{LIVE_THREAD_JOIN_TIMEOUT}s; стоп-сигнал сохранён"
                     )
+                return False
+
             self._stop_event.clear()
             print("[LIVE] preview stopped")
+            return True
 
     # Пауза на время статической инспекции
 

@@ -95,13 +95,18 @@ class PartArchive:
         value = str(category or "").upper()
         return value if value in cls.CATEGORY_DIRS else "BAD"
 
+    @staticmethod
+    def _normalise_root(root_folder: str) -> str:
+        text = str(root_folder or "").strip()
+        if not text:
+            raise ValueError("Папка архива не указана")
+        return os.path.abspath(
+            os.path.expandvars(os.path.expanduser(text))
+        )
+
     @classmethod
     def validate_root(cls, root_folder: str) -> dict:
-        candidate = os.path.abspath(
-            os.path.expandvars(os.path.expanduser(str(root_folder or "")))
-        )
-        if not candidate:
-            raise ValueError("Папка архива не указана")
+        candidate = cls._normalise_root(root_folder)
         try:
             os.makedirs(candidate, exist_ok=True)
             probe = os.path.join(
@@ -142,9 +147,18 @@ class PartArchive:
             raise RuntimeError(
                 "Настройки архива можно менять только до начала партии"
             )
-        checked = self.validate_root(root_folder)
-        self.root_folder = checked["path"]
-        self.enabled = bool(enabled)
+        requested_enabled = bool(enabled)
+        if requested_enabled:
+            # Для включённого архива до применения настроек обязательно
+            # подтверждаем запись и свободное место.
+            root_path = self.validate_root(root_folder)["path"]
+        else:
+            # Отключение должно быть доступно даже после пропажи сетевого,
+            # внешнего или неисправного диска. Путь сохраняем, но не трогаем.
+            root_path = self._normalise_root(root_folder)
+
+        self.root_folder = root_path
+        self.enabled = requested_enabled
         self.jpeg_quality = max(70, min(98, int(jpeg_quality)))
         if compress_on_shutdown is not None:
             self.compress_on_shutdown = bool(compress_on_shutdown)

@@ -10,6 +10,7 @@ from __future__ import annotations
 import threading
 import time
 import unittest
+from unittest import mock
 
 import numpy as np
 
@@ -125,6 +126,26 @@ class FakeLiveCameras:
         pass
 
 
+class BlockingLiveCameras:
+    """Камера, чей первый read остаётся внутри системного вызова."""
+
+    def __init__(self):
+        self.mapping = {"TOP": 0}
+        self.read_started = threading.Event()
+        self.release_read = threading.Event()
+        self.read_count = 0
+
+    def capture_single(self, _role):
+        self.read_count += 1
+        self.read_started.set()
+        self.release_read.wait(2.0)
+        return make_frame()
+
+    @staticmethod
+    def capture_roles(_roles):
+        return {}
+
+
 class FakeLiveMonitor:
     def __init__(self):
         self.updates = []
@@ -164,6 +185,33 @@ class LivePreviewTest(unittest.TestCase):
         preview.stop()
         self.assertTrue(preview.start())
         preview.stop()
+
+    def test_stop_timeout_does_not_restart_hidden_camera_reads(self):
+        cameras = BlockingLiveCameras()
+        preview, _, _ = self.make_preview(cameras=cameras)
+
+        with mock.patch("core.live_preview.LIVE_THREAD_JOIN_TIMEOUT", 0.05):
+            self.assertTrue(preview.start())
+            self.assertTrue(cameras.read_started.wait(1.0))
+            self.assertFalse(preview.stop())
+
+        # stop() завершился по тайм-ауту, но старый поток всё ещё считается
+        # живым и новая пара потоков поверх него не запускается.
+        self.assertTrue(preview.running)
+        self.assertFalse(preview.start())
+        reads_before_release = cameras.read_count
+
+        cameras.release_read.set()
+        deadline = time.monotonic() + 1.0
+        while preview.running and time.monotonic() < deadline:
+            time.sleep(0.01)
+        time.sleep(0.05)
+
+        self.assertFalse(preview.running)
+        self.assertEqual(cameras.read_count, reads_before_release)
+        # Завершившаяся ссылка очищается при следующем штатном старте.
+        self.assertTrue(preview.start())
+        self.assertTrue(preview.stop())
 
     def test_camera_error_sets_error(self):
         preview, _, _ = self.make_preview(cameras=FakeLiveCameras(fail=True))
