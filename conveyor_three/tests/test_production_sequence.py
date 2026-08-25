@@ -60,7 +60,7 @@ class FakeConveyor:
 
 
 class FakeCameras:
-    mapping = {"RIGHT": 0, "MIDDLE": 1, "LEFT": 2}
+    mapping = {"NEAR": 0, "MIDDLE": 1, "FAR": 2}
 
     def __init__(self, log):
         self.log = log
@@ -81,8 +81,8 @@ class FakeCameras:
 
 
 class FakeInspector:
-    INSPECT_ROLES = ("RIGHT", "MIDDLE", "LEFT")
-    PRESENCE_ROLES = ("RIGHT", "LEFT")
+    INSPECT_ROLES = ("NEAR", "MIDDLE", "FAR")
+    PRESENCE_ROLES = ("NEAR", "FAR")
 
     def __init__(self, log):
         self.log = log
@@ -140,10 +140,10 @@ class StepSequencerSequenceTest(unittest.TestCase):
         stages = StepSequencer(live, settle_seconds=0, trace_seconds=0)
         stages.enter_motion()
         stages.enter_settle()
-        stages.enter_capture(("RIGHT",))
+        stages.enter_capture(("INPUT_LEFT",))
         self.assertEqual(live.events, ["pause_all"])
         stages.enter_analysis()
-        stages.enter_capture(("MIDDLE",))
+        stages.enter_capture(("TOP",))
         stages.enter_analysis()
         stages.enter_publish()
         self.assertEqual(live.events, ["pause_all"])
@@ -157,7 +157,7 @@ class StepSequencerSequenceTest(unittest.TestCase):
         stages = StepSequencer(live, settle_seconds=0, trace_seconds=0)
         stages.enter_motion()
         stages.enter_settle()
-        stages.enter_capture(("RIGHT",))
+        stages.enter_capture(("INPUT_LEFT",))
         stages.enter_analysis()
         with self.assertRaises(StageSequenceError):
             stages.enter_motion()
@@ -217,16 +217,16 @@ class ProductionCycleSequenceTest(unittest.TestCase):
 
         cycle._run_once()
 
-        inspect_stage = log.index("inspect:RIGHT,MIDDLE,LEFT")
-        first_capture = log.index("capture:RIGHT")
+        inspect_stage = log.index("inspect:NEAR,MIDDLE,FAR")
+        first_capture = log.index("capture:NEAR")
         self.assertLess(first_capture, inspect_stage)
         # Захват строго последовательный: одна камера в момент времени.
         self.assertEqual(
             [item for item in log if item.startswith("capture:")],
             [
-                "capture:RIGHT",
+                "capture:NEAR",
                 "capture:MIDDLE",
-                "capture:LEFT",
+                "capture:FAR",
             ],
         )
         # Live заморожен на весь инспекционный блок одним exclusive-захватом.

@@ -2,7 +2,7 @@ from domain.defect_rules.base import BaseRule, RuleResult, detections_of_kind
 
 
 class PartPresenceRule(BaseRule):
-    """Детектор наличия детали по окнам на камерах RIGHT и LEFT.
+    """Детектор наличия детали по окнам на камерах NEAR и FAR.
 
     Маркер присутствия — детекции ``uneven_heights`` (ячейки окон), как в
     трёхкамернике: деталь «есть», если хотя бы одна сторона видит не
@@ -14,7 +14,7 @@ class PartPresenceRule(BaseRule):
     """
 
     name = "part_presence"
-    ROLES = ("RIGHT", "LEFT")
+    ROLES = ("NEAR", "FAR")
     TARGET_KIND = "uneven_heights"
 
     def check(self, vision_results: dict, **kwargs) -> RuleResult:
@@ -65,8 +65,8 @@ class PartPresenceRule(BaseRule):
         details = {
             "min_confidence_by_role": min_confidence_by_role,
             "min_windows_by_role": min_windows_by_role,
-            "windows_right": windows_by_role.get("RIGHT", 0),
-            "windows_left": windows_by_role.get("LEFT", 0),
+            "windows_near": windows_by_role.get("NEAR", 0),
+            "windows_far": windows_by_role.get("FAR", 0),
             "windows_by_role": windows_by_role,
             "presence_by_role": presence_by_role,
             "empty_tray": is_empty,

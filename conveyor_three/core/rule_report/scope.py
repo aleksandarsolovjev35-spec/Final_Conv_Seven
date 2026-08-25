@@ -7,8 +7,8 @@ from core.rule_report.constants import PART_PRESENCE_RULE, RULE_CAMERA_ROLES
 
 # Ролевые поля part_presence, привязанные к конкретной камере.
 _PRESENCE_ROLE_FIELDS = {
-    "RIGHT": {"windows": "windows_right"},
-    "LEFT": {"windows": "windows_left"},
+    "NEAR": {"windows": "windows_near"},
+    "FAR": {"windows": "windows_far"},
 }
 
 # Словари presence-деталей, которые фильтруются по выбранной роли.
@@ -83,7 +83,7 @@ def _scope_presence_details(details: dict, role: str) -> dict:
             }
 
     # Убираем поля чужой камеры (None → summary её пропустит).
-    other = "LEFT" if role == "RIGHT" else "RIGHT"
+    other = "FAR" if role == "NEAR" else "NEAR"
     other_fields = _PRESENCE_ROLE_FIELDS.get(other)
     if other_fields:
         for key in other_fields.values():

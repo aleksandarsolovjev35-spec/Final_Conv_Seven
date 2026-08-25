@@ -38,16 +38,16 @@ class UIServerTest(unittest.TestCase):
     def test_update_publishes_frames_and_increments_version(self):
         version_before = self.server._cache_version
         frame = make_frame()
-        self.server.update(frames={"MIDDLE": frame})
-        self.assertIs(self.server.frames["MIDDLE"], frame)
+        self.server.update(frames={"TOP": frame})
+        self.assertIs(self.server.frames["TOP"], frame)
         self.assertEqual(self.server._cache_version, version_before + 1)
-        self.assertEqual(self.server.get_frame_version("MIDDLE"), 1)
+        self.assertEqual(self.server.get_frame_version("TOP"), 1)
 
     def test_update_same_frame_object_no_invalidate(self):
         frame = make_frame()
-        self.server.update(frames={"MIDDLE": frame})
+        self.server.update(frames={"TOP": frame})
         version = self.server._cache_version
-        self.server.update(frames={"MIDDLE": frame})
+        self.server.update(frames={"TOP": frame})
         self.assertEqual(self.server._cache_version, version)
 
     def test_mutated_vision_results_invalidate_cache(self):
@@ -57,26 +57,26 @@ class UIServerTest(unittest.TestCase):
         # не попадала в кэш JPEG — оператор видел кадр без детекций.
         frame = make_frame()
         vision = {}
-        self.server.update(frames={"MIDDLE": frame}, vision_results=vision)
-        before = self.server._get_or_render("MIDDLE", "RAW", "main")
+        self.server.update(frames={"TOP": frame}, vision_results=vision)
+        before = self.server._get_or_render("TOP", "RAW", "main")
         version = self.server._cache_version
 
-        vision["MIDDLE"] = [{
+        vision["TOP"] = [{
             "class": "glass", "confidence": 0.9,
             "bbox": [1.0, 1.0, 50.0, 50.0], "mask": None,
         }]
-        self.server.update(frames={"MIDDLE": frame}, vision_results=vision)
+        self.server.update(frames={"TOP": frame}, vision_results=vision)
 
         self.assertGreater(self.server._cache_version, version)
         self.assertNotEqual(
-            before, self.server._get_or_render("MIDDLE", "RAW", "main"),
+            before, self.server._get_or_render("TOP", "RAW", "main"),
         )
 
     def test_unchanged_vision_results_do_not_invalidate(self):
         # Обратная сторона: повторная публикация того же содержимого не
         # должна дёргать кэш, иначе фронтенд перезапрашивает кадры зря.
-        vision = {"MIDDLE": [{"class": "glass", "confidence": 0.5}]}
-        self.server.update(frames={"MIDDLE": make_frame()}, vision_results=vision)
+        vision = {"TOP": [{"class": "glass", "confidence": 0.5}]}
+        self.server.update(frames={"TOP": make_frame()}, vision_results=vision)
         version = self.server._cache_version
         self.server.update(vision_results=dict(vision))
         self.assertEqual(self.server._cache_version, version)
@@ -91,7 +91,7 @@ class UIServerTest(unittest.TestCase):
                 "bbox": [1.0, 2.0, 3.0, 4.0],
                 "mask": [[float(i), float(i)] for i in range(400)],
             } for _ in range(12)]
-            for role in ("RIGHT", "MIDDLE", "MIDDLE")
+            for role in ("INPUT_LEFT", "SPIDER_LEFT", "TOP")
         }
         started = time.monotonic()
         for _ in range(10):
@@ -103,10 +103,10 @@ class UIServerTest(unittest.TestCase):
     def test_vision_results_snapshot_is_isolated(self):
         # Опубликованное состояние не должно меняться «задним числом»
         # вместе с исходным dict вызывающей стороны.
-        vision = {"MIDDLE": [{"class": "glass", "confidence": 0.5}]}
+        vision = {"TOP": [{"class": "glass", "confidence": 0.5}]}
         self.server.update(vision_results=vision)
-        vision["MIDDLE"].append({"class": "pin", "confidence": 0.7})
-        self.assertEqual(len(self.server.vision_results["MIDDLE"]), 1)
+        vision["TOP"].append({"class": "pin", "confidence": 0.7})
+        self.assertEqual(len(self.server.vision_results["TOP"]), 1)
 
     def test_update_rule_results_invalidate(self):
         from domain.defect_rules import RuleResult
@@ -127,18 +127,18 @@ class UIServerTest(unittest.TestCase):
         # Обновление кадра одной камеры не должно сбрасывать готовые
         # превью остальных (иначе вторичные камеры не успевают грузиться).
         self.server.update(frames={
-            "MIDDLE": make_frame(10), "RIGHT": make_frame(20),
+            "TOP": make_frame(10), "INPUT_LEFT": make_frame(20),
         })
-        for role in ("MIDDLE", "RIGHT"):
+        for role in ("TOP", "INPUT_LEFT"):
             response = self.client.get(f"/frame/{role}?preview=1")
             self.assertEqual(response.status_code, 200)
         mode = self.server.mode
-        self.assertIn(("MIDDLE", mode, "preview"), self.server._jpeg_cache)
-        self.assertIn(("RIGHT", mode, "preview"), self.server._jpeg_cache)
-        # Меняется только кадр MIDDLE.
-        self.server.update(frames={"MIDDLE": make_frame(99)})
-        self.assertNotIn(("MIDDLE", mode, "preview"), self.server._jpeg_cache)
-        self.assertIn(("RIGHT", mode, "preview"), self.server._jpeg_cache)
+        self.assertIn(("TOP", mode, "preview"), self.server._jpeg_cache)
+        self.assertIn(("INPUT_LEFT", mode, "preview"), self.server._jpeg_cache)
+        # Меняется только кадр TOP.
+        self.server.update(frames={"TOP": make_frame(99)})
+        self.assertNotIn(("TOP", mode, "preview"), self.server._jpeg_cache)
+        self.assertIn(("INPUT_LEFT", mode, "preview"), self.server._jpeg_cache)
 
     def test_rules_equal_with_numpy(self):
         self.assertTrue(UIServer._rules_equal(
@@ -152,24 +152,24 @@ class UIServerTest(unittest.TestCase):
 
     def test_set_camera_roles(self):
         self.server.set_camera_roles({
-            "MIDDLE": 2, "RIGHT": 0,
+            "TOP": 2, "INPUT_LEFT": 0,
         })
-        self.assertEqual(self.server.camera_roles, ["MIDDLE", "RIGHT"])
-        self.assertEqual(self.server.camera_mapping, {"MIDDLE": 2, "RIGHT": 0})
-        self.assertEqual(self.server.active_camera_role, "MIDDLE")
+        self.assertEqual(self.server.camera_roles, ["TOP", "INPUT_LEFT"])
+        self.assertEqual(self.server.camera_mapping, {"TOP": 2, "INPUT_LEFT": 0})
+        self.assertEqual(self.server.active_camera_role, "TOP")
 
     def test_set_active_camera_role(self):
-        self.server.set_camera_roles({"MIDDLE": 2, "RIGHT": 0})
-        self.assertTrue(self.server.set_active_camera_role("RIGHT"))
-        self.assertEqual(self.server.active_camera_role, "RIGHT")
+        self.server.set_camera_roles({"TOP": 2, "INPUT_LEFT": 0})
+        self.assertTrue(self.server.set_active_camera_role("INPUT_LEFT"))
+        self.assertEqual(self.server.active_camera_role, "INPUT_LEFT")
         self.assertFalse(self.server.set_active_camera_role("NOPE"))
 
     def test_set_active_camera_callback(self):
-        self.server.set_camera_roles({"MIDDLE": 2, "RIGHT": 0})
+        self.server.set_camera_roles({"TOP": 2, "INPUT_LEFT": 0})
         calls = []
         self.server.on_active_camera_changed = lambda role: calls.append(role)
-        self.server.set_active_camera_role("RIGHT")
-        self.assertEqual(calls, ["RIGHT"])
+        self.server.set_active_camera_role("INPUT_LEFT")
+        self.assertEqual(calls, ["INPUT_LEFT"])
 
     # ---------- пороги ----------
 
@@ -189,7 +189,7 @@ class UIServerTest(unittest.TestCase):
     def test_thresholds_payload_with_data(self):
         thresholds = ThresholdLoader(THRESHOLDS_PATH).get_all()
         self.server.thresholds = thresholds
-        payload = self.server.build_thresholds_payload("RIGHT")
+        payload = self.server.build_thresholds_payload("NEAR")
         self.assertTrue(payload["available"])
         self.assertIn("rules", payload)
         self.assertIn("uneven_heights", {
@@ -200,33 +200,33 @@ class UIServerTest(unittest.TestCase):
         thresholds = ThresholdLoader(THRESHOLDS_PATH).get_all()
         self.server.thresholds = thresholds
         payload = self.server.build_thresholds_payload()
-        self.assertIn("RIGHT", payload["roles"])
+        self.assertIn("NEAR", payload["roles"])
 
     def test_apply_thresholds_requires_callback(self):
         self.server.splash_active = False
         self.server.line_status = {"state": "IDLE"}
         with self.assertRaisesRegex(RuntimeError, "не подключено"):
-            self.server.apply_thresholds("MIDDLE", {})
+            self.server.apply_thresholds("TOP", {})
 
     def test_apply_thresholds_calls_callback(self):
         self.server.splash_active = False
         self.server.line_status = {"state": "IDLE"}
         self.server.thresholds = {
-            "RIGHT.uneven_heights_min_confidence": 0.7,
+            "NEAR.uneven_heights_min_confidence": 0.7,
         }
         self.server.on_thresholds_apply = mock.Mock(return_value={
-            "RIGHT.uneven_heights_min_confidence": 0.75,
+            "NEAR.uneven_heights_min_confidence": 0.75,
         })
         result = self.server.apply_thresholds(
-            "RIGHT", {"uneven_heights_min_confidence": 0.75},
+            "NEAR", {"uneven_heights_min_confidence": 0.75},
         )
         self.assertTrue(result["available"])
         self.assertEqual(
-            self.server.thresholds["RIGHT.uneven_heights_min_confidence"], 0.75,
+            self.server.thresholds["NEAR.uneven_heights_min_confidence"], 0.75,
         )
         self.assertEqual(self.server.thresholds_revision, 1)
         self.server.on_thresholds_apply.assert_called_once_with(
-            "RIGHT", {"uneven_heights_min_confidence": 0.75}, {},
+            "NEAR", {"uneven_heights_min_confidence": 0.75}, {},
         )
 
     def test_reload_thresholds_from_file(self):
@@ -343,25 +343,25 @@ class UIServerTest(unittest.TestCase):
     # ---------- stream / frame ----------
 
     def test_get_stream_jpeg_no_frame(self):
-        jpeg, version = self.server.get_stream_jpeg("MIDDLE")
+        jpeg, version = self.server.get_stream_jpeg("TOP")
         self.assertIsNone(jpeg)
         self.assertEqual(version, 0)
 
     def test_get_stream_jpeg_with_frame(self):
-        self.server.update(frames={"MIDDLE": make_frame()})
-        jpeg, version = self.server.get_stream_jpeg("MIDDLE", "RAW")
+        self.server.update(frames={"TOP": make_frame()})
+        jpeg, version = self.server.get_stream_jpeg("TOP", "RAW")
         self.assertIsNotNone(jpeg)
         self.assertGreater(version, 0)
         self.assertEqual(jpeg[:2], b"\xff\xd8")  # JPEG magic
 
     def test_get_stream_jpeg_rules_mode(self):
-        self.server.update(frames={"MIDDLE": make_frame()})
-        jpeg, _ = self.server.get_stream_jpeg("MIDDLE", "RULES")
+        self.server.update(frames={"TOP": make_frame()})
+        jpeg, _ = self.server.get_stream_jpeg("TOP", "RULES")
         self.assertIsNotNone(jpeg)
 
     def test_render_and_encode(self):
         rendered = self.server._render(
-            make_frame(), "MIDDLE", "RAW", [], [],
+            make_frame(), "TOP", "RAW", [], [],
         )
         self.assertEqual(rendered.shape, (64, 96, 3))
         jpeg = self.server._encode_jpeg(make_frame())
@@ -372,18 +372,18 @@ class UIServerTest(unittest.TestCase):
         frame = make_frame()
         detections = [{"class": "contacts", "bbox": [0, 0, 20, 20]}]
         rule_results = [{"drawings": [{
-            "type": "rule_bbox", "role": "MIDDLE", "bbox": [0, 0, 20, 20],
+            "type": "rule_bbox", "role": "TOP", "bbox": [0, 0, 20, 20],
         }]}]
         # Даже при наличии детекций и результатов правил кадр не меняется.
-        raw = server._render(frame, "MIDDLE", "RAW", detections, rule_results)
-        rules = server._render(frame, "MIDDLE", "RULES", None, rule_results)
+        raw = server._render(frame, "TOP", "RAW", detections, rule_results)
+        rules = server._render(frame, "TOP", "RULES", None, rule_results)
         np.testing.assert_array_equal(raw, frame)
         np.testing.assert_array_equal(rules, frame)
 
     def test_work_mode_status_reports_debug_false(self):
         server = UIServer(debug_enabled=False)
         client = TestClient(server.app)
-        server.update(frames={"MIDDLE": make_frame()},
+        server.update(frames={"TOP": make_frame()},
                       line_status={"state": "IDLE"})
         response = client.get("/api/status")
         self.assertEqual(response.status_code, 200)
@@ -392,7 +392,7 @@ class UIServerTest(unittest.TestCase):
     def test_debug_mode_status_reports_debug_true(self):
         server = UIServer(debug_enabled=True)
         client = TestClient(server.app)
-        server.update(frames={"MIDDLE": make_frame()},
+        server.update(frames={"TOP": make_frame()},
                       line_status={"state": "IDLE"})
         response = client.get("/api/status")
         self.assertTrue(response.json()["debug"])
@@ -403,17 +403,17 @@ class UIServerTest(unittest.TestCase):
 
     def test_sort_by_order(self):
         self.assertEqual(
-            UIServer._sort_by_order(["LEFT", "RIGHT", "X"]),
-            ["RIGHT", "LEFT", "X"],
+            UIServer._sort_by_order(["FAR", "NEAR", "X"]),
+            ["NEAR", "FAR", "X"],
         )
 
     # ---------- HTTP ----------
 
     def test_api_cameras(self):
-        self.server.set_camera_roles({"MIDDLE": 2})
+        self.server.set_camera_roles({"TOP": 2})
         response = self.client.get("/api/cameras")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["camera_ids"], {"MIDDLE": 2})
+        self.assertEqual(response.json()["camera_ids"], {"TOP": 2})
 
     def test_api_boot(self):
         self.server.boot_step_start("cameras")
@@ -423,7 +423,7 @@ class UIServerTest(unittest.TestCase):
         self.assertEqual(data["steps"][0]["status"], "running")
 
     def test_api_status(self):
-        self.server.update(frames={"MIDDLE": make_frame()},
+        self.server.update(frames={"TOP": make_frame()},
                            line_status={"state": "IDLE"})
         response = self.client.get("/api/status")
         self.assertEqual(response.status_code, 200)
@@ -436,14 +436,14 @@ class UIServerTest(unittest.TestCase):
         self.assertEqual(self.server.mode, "RAW")
 
     def test_api_active_camera(self):
-        self.server.set_camera_roles({"MIDDLE": 2})
-        response = self.client.post("/api/active_camera/MIDDLE")
+        self.server.set_camera_roles({"TOP": 2})
+        response = self.client.post("/api/active_camera/TOP")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.server.active_camera_role, "MIDDLE")
+        self.assertEqual(self.server.active_camera_role, "TOP")
 
     def test_api_thresholds_get(self):
         self.server.thresholds = ThresholdLoader(THRESHOLDS_PATH).get_all()
-        response = self.client.get("/api/thresholds?role=RIGHT")
+        response = self.client.get("/api/thresholds?role=NEAR")
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["available"])
 
@@ -451,14 +451,14 @@ class UIServerTest(unittest.TestCase):
         self.server.splash_active = False
         self.server.line_status = {"state": "IDLE"}
         response = self.client.post("/api/thresholds", json={
-            "role": "RIGHT", "values": {"uneven_heights_min_confidence": 0.75},
+            "role": "NEAR", "values": {"uneven_heights_min_confidence": 0.75},
         })
         self.assertEqual(response.status_code, 503)
         self.assertFalse(response.json()["ok"])
 
     def test_api_thresholds_post_empty_values_400(self):
         response = self.client.post("/api/thresholds", json={
-            "role": "MIDDLE", "values": {},
+            "role": "TOP", "values": {},
         })
         self.assertEqual(response.status_code, 400)
 
@@ -516,19 +516,19 @@ class UIServerTest(unittest.TestCase):
         self.assertEqual(self.client.post("/api/jog/exit").status_code, 200)
 
     def test_frame_route_404_without_frames(self):
-        response = self.client.get("/frame/MIDDLE")
+        response = self.client.get("/frame/TOP")
         self.assertEqual(response.status_code, 404)
 
     def test_frame_route_with_frame(self):
-        self.server.update(frames={"MIDDLE": make_frame()})
-        response = self.client.get("/frame/MIDDLE")
+        self.server.update(frames={"TOP": make_frame()})
+        response = self.client.get("/frame/TOP")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["content-type"], "image/jpeg")
         self.assertEqual(response.content[:2], b"\xff\xd8")
 
     def test_frame_route_preview(self):
-        self.server.update(frames={"MIDDLE": make_frame()})
-        response = self.client.get("/frame/MIDDLE?preview=1")
+        self.server.update(frames={"TOP": make_frame()})
+        response = self.client.get("/frame/TOP?preview=1")
         self.assertEqual(response.status_code, 200)
 
     def test_mjpeg_generator_disconnected(self):
@@ -542,7 +542,7 @@ class UIServerTest(unittest.TestCase):
         async def run():
             chunks = []
             async for chunk in _mjpeg_generator(
-                self.server, "MIDDLE", FakeRequest(), "RAW",
+                self.server, "TOP", FakeRequest(), "RAW",
             ):
                 chunks.append(chunk)
             return chunks
@@ -554,7 +554,7 @@ class UIServerTest(unittest.TestCase):
         import asyncio
         from vision.ui.server.routes_frames import _mjpeg_generator
 
-        self.server.update(frames={"MIDDLE": make_frame()})
+        self.server.update(frames={"TOP": make_frame()})
         calls = {"n": 0}
 
         class FakeRequest:
@@ -565,7 +565,7 @@ class UIServerTest(unittest.TestCase):
         async def run():
             chunks = []
             async for chunk in _mjpeg_generator(
-                self.server, "MIDDLE", FakeRequest(), "RAW",
+                self.server, "TOP", FakeRequest(), "RAW",
             ):
                 chunks.append(chunk)
             return chunks
@@ -589,9 +589,9 @@ class UIServerTest(unittest.TestCase):
             archive = mock.Mock()
             archive.get_part_info.return_value = {"folder": tmp}
             archive.get_part_images.return_value = {
-                "MIDDLE": {
-                    "raw": os.path.join(tmp, "MIDDLE.jpg"),
-                    "debug": os.path.join(tmp, "MIDDLE_debug.jpg"),
+                "TOP": {
+                    "raw": os.path.join(tmp, "TOP.jpg"),
+                    "debug": os.path.join(tmp, "TOP_debug.jpg"),
                 },
             }
             self.server.archive = archive
@@ -599,7 +599,7 @@ class UIServerTest(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             data = response.json()
             self.assertEqual(data["meta"]["category"], "GOOD")
-            self.assertEqual(data["roles"][0]["role"], "MIDDLE")
+            self.assertEqual(data["roles"][0]["role"], "TOP")
             self.assertIn("raw_url", data["roles"][0])
 
     def test_archive_part_route_not_found(self):
@@ -613,16 +613,16 @@ class UIServerTest(unittest.TestCase):
         import tempfile as _tempfile
 
         with _tempfile.TemporaryDirectory() as tmp:
-            image_path = os.path.join(tmp, "MIDDLE.jpg")
+            image_path = os.path.join(tmp, "TOP.jpg")
             with open(image_path, "wb") as stream:
                 stream.write(b"jpeg-data")
             archive = mock.Mock()
             archive.get_part_images.return_value = {
-                "MIDDLE": {"raw": image_path},
+                "TOP": {"raw": image_path},
             }
             self.server.archive = archive
             response = self.client.get(
-                "/api/archive/image/1/MIDDLE/raw",
+                "/api/archive/image/1/TOP/raw",
             )
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.content, b"jpeg-data")
@@ -635,14 +635,14 @@ class UIServerTest(unittest.TestCase):
 
     def test_archive_image_route_bad_kind(self):
         self.server.archive = mock.Mock()
-        response = self.client.get("/api/archive/image/1/MIDDLE/other")
+        response = self.client.get("/api/archive/image/1/TOP/other")
         self.assertEqual(response.status_code, 400)
 
     def test_archive_image_route_missing_image(self):
         archive = mock.Mock()
         archive.get_part_images.return_value = {}
         self.server.archive = archive
-        response = self.client.get("/api/archive/image/1/MIDDLE/raw")
+        response = self.client.get("/api/archive/image/1/TOP/raw")
         self.assertEqual(response.status_code, 404)
 
     def test_index_route(self):

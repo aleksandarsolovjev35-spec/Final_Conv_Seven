@@ -261,7 +261,7 @@ class MappingTest(unittest.TestCase):
     def make_mapping(self, path):
         with open(path, "w", encoding="utf-8") as stream:
             json.dump({
-                "RIGHT": 0, "MIDDLE": 1, "LEFT": 2,
+                "NEAR": 0, "MIDDLE": 1, "FAR": 2,
             }, stream)
         return path
 
@@ -299,14 +299,14 @@ class MappingTest(unittest.TestCase):
     def test_check_mapping_runtime_error(self):
         class FailingManager:
             def __init__(self, config_file, capture_factory):
-                raise RuntimeError("Ошибка открытия LEFT (камера 9): x")
+                raise RuntimeError("Ошибка открытия FAR (камера 9): x")
 
         with mock.patch(
             "vision.camera_diagnostic.CameraManager", FailingManager,
         ):
             ok, message = diag.check_mapping("x.json", None)
         self.assertFalse(ok)
-        self.assertIn("LEFT", message)
+        self.assertIn("FAR", message)
 
     def test_check_mapping_unexpected_error(self):
         class BoomManager:
@@ -322,14 +322,14 @@ class MappingTest(unittest.TestCase):
 
     def test_failed_roles_from_message(self):
         self.assertEqual(
-            diag._failed_roles_from_message("Ошибка открытия LEFT (камера 9)"),
-            ["LEFT"],
+            diag._failed_roles_from_message("Ошибка открытия FAR (камера 9)"),
+            ["FAR"],
         )
         self.assertEqual(diag._failed_roles_from_message("no role"), [])
 
     def test_bad_mapped_roles(self):
         scan = {0: {"ok": True}, 1: {"ok": False}}
-        mapping = {"RIGHT": 0, "MIDDLE": 1}
+        mapping = {"NEAR": 0, "MIDDLE": 1}
         self.assertEqual(
             diag._bad_mapped_roles(scan, mapping),
             [(1, "MIDDLE")],
@@ -362,9 +362,9 @@ class ReportTest(unittest.TestCase):
         ))}
         report = diag._format_report(
             scan, mapping, False,
-            "Ошибка открытия LEFT (камера 9): x",
+            "Ошибка открытия FAR (камера 9): x",
         )
-        self.assertIn("не открылись роли: LEFT", report)
+        self.assertIn("не открылись роли: FAR", report)
 
     def test_format_report_missing_cameras(self):
         scan = {0: {"ok": True, "backend": "ANY", "detail": "1280x720"},
@@ -376,7 +376,7 @@ class ReportTest(unittest.TestCase):
     def test_format_report_missing_cameras_with_mapping(self):
         scan = {0: {"ok": True, "backend": "ANY", "detail": "1280x720"},
                 1: {"ok": False, "backend": "ANY", "detail": "нет камеры"}}
-        mapping = {"RIGHT": 0, "MIDDLE": 1}
+        mapping = {"NEAR": 0, "MIDDLE": 1}
         report = diag._format_report(scan, mapping, None, "")
         self.assertIn("Роли с неотвечающими ID", report)
         self.assertIn("MIDDLE (id 1)", report)
