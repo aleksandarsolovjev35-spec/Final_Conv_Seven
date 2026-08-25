@@ -193,6 +193,7 @@ const PROCESS_PHASE_LABELS = {
     INSPECT_ANALYSIS: 'ИНСПЕКЦИЯ · АНАЛИЗ',
     INSPECT_MODELS: 'ИНСПЕКЦИЯ · МОДЕЛИ',
     INSPECT_PRESENCE: 'ИНСПЕКЦИЯ · ПРОВЕРКА НАЛИЧИЯ',
+    INSPECT_PRESENT: 'ИНСПЕКЦИЯ · НАЛИЧИЕ ПОДТВЕРЖДЕНО',
     INSPECT_GEOMETRY: 'ИНСПЕКЦИЯ · ПОСТРОЕНИЕ ГЕОМЕТРИИ',
     INSPECT_DECISION: 'ИНСПЕКЦИЯ · РЕШЕНИЕ ПРАВИЛ',
     INSPECT_FRAME_RECORD: 'ИНСПЕКЦИЯ · ЗАПИСЬ РАЗМЕТКИ',
@@ -231,8 +232,8 @@ const PROCESS_STAGE_PHASES = {
     CAPTURE: new Set(['CAMERA_CAPTURE', 'CAPTURE']),
     ANALYSIS: new Set([
         'ANALYSIS', 'INSPECT_ANALYSIS', 'INSPECT_MODELS',
-        'INSPECT_PRESENCE', 'INSPECT_GEOMETRY', 'INSPECT_DECISION',
-        'INSPECT_FRAME_RECORD', 'INSPECT_FRAME_RECORDED',
+        'INSPECT_PRESENCE', 'INSPECT_PRESENT', 'INSPECT_GEOMETRY',
+        'INSPECT_DECISION', 'INSPECT_FRAME_RECORD', 'INSPECT_FRAME_RECORDED',
         'INSPECT_RESULT_RECORDED', 'VISION_RULE_DIAGNOSTIC',
         'SELECTED_MODEL_ANALYSIS', 'SELECTED_MODEL_READY',
     ]),
