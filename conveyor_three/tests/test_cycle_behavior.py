@@ -492,6 +492,68 @@ class CycleBehaviorTest(unittest.TestCase):
         self.assertFalse(thread.is_alive())
         self.assertTrue(cycle.live.running)
 
+    def test_part_on_line_during_analysis(self):
+        # Корпус физически стоит на +0, пока работают модели, поэтому он
+        # обязан быть в списке линии ВО ВРЕМЯ анализа: HMI строит
+        # «Путь корпусов» из self.parts, и именно так оператор видит
+        # корпус в инспекционной зоне, а не «внезапно» на +1 после хода.
+        cycle, log = make_cycle()
+        seen_during_analysis = {}
+        original = cycle.inspector.inspect
+
+        def spy(part_id, step, frames):
+            seen_during_analysis["parts"] = [
+                (p.id, p.step_created) for p in cycle.parts
+            ]
+            return original(part_id, step, frames)
+
+        cycle.inspector.inspect = spy
+        cycle.request_start()
+        cycle._run_once()
+        self.assertEqual(seen_during_analysis["parts"], [(1, 0)])
+        status = cycle._build_status()
+        self.assertEqual(
+            [item["position"] for item in status["line_parts"]], [0]
+        )
+
+    def test_empty_tray_part_removed_after_analysis(self):
+        # Пустая ячейка: корпус виден в линии, пока идёт анализ, но в
+        # учёт не попадает — Part не остаётся, счётчик не растёт.
+        cycle, log = make_cycle(empty=True)
+        seen_during_analysis = {}
+        original = cycle.inspector.inspect
+
+        def spy(part_id, step, frames):
+            seen_during_analysis["parts"] = [p.id for p in cycle.parts]
+            return original(part_id, step, frames)
+
+        cycle.inspector.inspect = spy
+        cycle.sm._state = State.RUNNING
+        cycle._await_initial_inspection = True
+        cycle._run_once()
+        self.assertEqual(seen_during_analysis["parts"], [1])
+        self.assertEqual(cycle.parts, [])
+        self.assertEqual(cycle.part_counter, 0)
+        self.assertEqual(cycle.empty_count, 1)
+
+    def test_numbering_unchanged_after_empty_tray(self):
+        # Пустая ячейка не смещает нумерацию: следующая реальная деталь
+        # получает тот же id и тот же step_created, что и до фикса.
+        cycle, log = make_cycle()
+        cycle.inspector.empty = True
+        cycle.sm._state = State.RUNNING
+        cycle._await_initial_inspection = True
+        cycle._run_once()
+        cycle.inspector.empty = False
+        cycle._run_once()
+        self.assertEqual(cycle.part_counter, 1)
+        self.assertEqual([(p.id, p.step_created) for p in cycle.parts],
+                         [(1, 1)])
+        status = cycle._build_status()
+        self.assertEqual(
+            [item["position"] for item in status["line_parts"]], [0]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
