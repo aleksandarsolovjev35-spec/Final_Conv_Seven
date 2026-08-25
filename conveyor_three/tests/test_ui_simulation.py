@@ -140,8 +140,8 @@ class SimulationApiTest(unittest.TestCase):
         self.assertTrue(self.sim.selected_analysis("MIDDLE"))
         self.assertEqual(self.sim.selected_role, "MIDDLE")
         # Другая роль в IDLE просто переназначает выбор.
-        self.assertTrue(self.sim.selected_analysis("RIGHT"))
-        self.assertEqual(self.sim.selected_role, "RIGHT")
+        self.assertTrue(self.sim.selected_analysis("NEAR"))
+        self.assertEqual(self.sim.selected_role, "NEAR")
         self.assertTrue(self.sim.release_selected_analysis())
         self.assertIsNone(self.sim.selected_role)
 
@@ -210,8 +210,8 @@ class SimulationApiTest(unittest.TestCase):
 
     def test_virtual_overlay_data(self):
         line = [{"id": 1, "position": 0, "category": "BAD", "dropping": False}]
-        raw, rules = self.sim._virtual_overlay_data(["RIGHT"], line)
-        self.assertEqual(raw["RIGHT"][0]["class"], "windows")
+        raw, rules = self.sim._virtual_overlay_data(["NEAR"], line)
+        self.assertEqual(raw["NEAR"][0]["class"], "windows")
         self.assertTrue(rules[0].drawings[0]["triggered"])
         line = [{"id": 1, "position": 0, "category": "CLEANUP", "dropping": False}]
         raw, rules = self.sim._virtual_overlay_data(["MIDDLE"], line)
@@ -229,13 +229,13 @@ class SimulationApiTest(unittest.TestCase):
 
     def test_frame_analysis_follows_stage(self):
         # ИНСПЕКЦИЯ +0: выбранная камера и корпус в зоне инспекции.
-        self.server.active_camera_role = "RIGHT"
+        self.server.active_camera_role = "NEAR"
         self.sim.parts = [SimPart(1, position=0)]
         payload = self.sim._frame_analysis_payload()
         self.assertTrue(payload["available"])
         self.assertEqual(payload["kind"], "production")
         self.assertEqual(payload["stage"], "ИНСПЕКЦИЯ +0")
-        self.assertEqual(payload["role"], "RIGHT")
+        self.assertEqual(payload["role"], "NEAR")
         self.assertEqual(payload["part_id"], 1)
         self.assertFalse(payload["rules"][1]["triggered"])
         # Корпус проинспектирован — замеры с вердиктом.
@@ -258,7 +258,7 @@ class SimulationApiTest(unittest.TestCase):
         self.assertEqual(status["state"], "RUNNING")
         self.assertEqual(status["process"]["phase"], "MOTION")
         self.assertEqual(status["controls"]["stop"], True)
-        self.assertIn("RIGHT", self.server.frames)
+        self.assertIn("NEAR", self.server.frames)
         self.sim.close()
 
     def test_inspect_part(self):
@@ -295,7 +295,7 @@ class SimulationApiTest(unittest.TestCase):
 class DemoFramesTest(unittest.TestCase):
     def test_demo_frames_shape(self):
         frames = demo_frames(step=3, phase="MOTION")
-        self.assertEqual(set(frames), {"RIGHT", "MIDDLE", "LEFT"})
+        self.assertEqual(set(frames), {"NEAR", "MIDDLE", "FAR"})
         for frame in frames.values():
             self.assertEqual(frame.shape, (720, 1280, 3))
 
@@ -311,17 +311,17 @@ class ConfigureThresholdsTest(unittest.TestCase):
         self.assertIsNotNone(server.thresholds)
         self.assertGreater(server.thresholds_revision, 0)
         updated = server.on_thresholds_apply(
-            "RIGHT", {"uneven_heights_min_confidence": 0.75}, {},
+            "NEAR", {"uneven_heights_min_confidence": 0.75}, {},
         )
         self.assertEqual(
-            updated["RIGHT.uneven_heights_min_confidence"], 0.75,
+            updated["NEAR.uneven_heights_min_confidence"], 0.75,
         )
 
     def test_apply_unknown_threshold_raises(self):
         server = UIServer()
         configure_simulated_thresholds(server)
         with self.assertRaises(ValueError):
-            server.on_thresholds_apply("RIGHT", {"nope": 1}, {})
+            server.on_thresholds_apply("NEAR", {"nope": 1}, {})
 
 
 class SimulationLoopTest(unittest.TestCase):

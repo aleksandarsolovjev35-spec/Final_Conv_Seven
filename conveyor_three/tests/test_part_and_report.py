@@ -77,13 +77,13 @@ class RuleCameraRolesTest(unittest.TestCase):
     def test_side_rules(self):
         for rule in ("uneven_heights", "window_sinks", "part_presence"):
             self.assertTrue(
-                set(RULE_CAMERA_ROLES[rule]).issubset({"RIGHT", "LEFT"}),
+                set(RULE_CAMERA_ROLES[rule]).issubset({"NEAR", "FAR"}),
                 rule,
             )
 
     def test_rule_applies_to_role(self):
         self.assertTrue(rule_applies_to_role("welding", "MIDDLE"))
-        self.assertFalse(rule_applies_to_role("welding", "RIGHT"))
+        self.assertFalse(rule_applies_to_role("welding", "NEAR"))
         # Без роли правило относится ко всем.
         self.assertTrue(rule_applies_to_role("welding", None))
 
@@ -131,7 +131,7 @@ class RuleReportRowTest(unittest.TestCase):
             "welding", True,
             {"per_role": {"MIDDLE": {"triggered": True, "found": 1}}},
         )
-        self.assertIsNone(scope_rule_result_to_role(result, "RIGHT"))
+        self.assertIsNone(scope_rule_result_to_role(result, "NEAR"))
         scoped = scope_rule_result_to_role(result, "MIDDLE")
         self.assertIsNotNone(scoped)
         self.assertTrue(scoped.triggered)

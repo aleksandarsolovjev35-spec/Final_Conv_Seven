@@ -78,12 +78,12 @@ class LiveCaptureGateTest(unittest.TestCase):
     def test_pause_blocks_new_reads(self):
         gate = self.gate_factory()
         self.assertTrue(gate.pause())
-        with gate.live_read("MIDDLE") as allowed:
+        with gate.live_read("TOP") as allowed:
             self.assertFalse(allowed)
-        with gate.live_reads(("MIDDLE", "RIGHT")) as roles:
+        with gate.live_reads(("TOP", "INPUT_LEFT")) as roles:
             self.assertEqual(roles, ())
         gate.resume()
-        with gate.live_read("MIDDLE") as allowed:
+        with gate.live_read("TOP") as allowed:
             self.assertTrue(allowed)
 
     def test_pause_is_reentrant(self):
@@ -91,10 +91,10 @@ class LiveCaptureGateTest(unittest.TestCase):
         gate.pause()
         gate.pause()
         gate.resume()
-        with gate.live_read("MIDDLE") as allowed:
+        with gate.live_read("TOP") as allowed:
             self.assertFalse(allowed, "одного resume не хватает для двух пауз")
         gate.resume()
-        with gate.live_read("MIDDLE") as allowed:
+        with gate.live_read("TOP") as allowed:
             self.assertTrue(allowed)
 
     def test_pause_waits_for_active_read(self):
@@ -103,7 +103,7 @@ class LiveCaptureGateTest(unittest.TestCase):
         release = threading.Event()
 
         def reader():
-            with gate.live_read("MIDDLE") as allowed:
+            with gate.live_read("TOP") as allowed:
                 if allowed:
                     started.set()
                     release.wait(2.0)
@@ -124,7 +124,7 @@ class LiveCaptureGateTest(unittest.TestCase):
         release = threading.Event()
 
         def reader():
-            with gate.live_read("MIDDLE") as allowed:
+            with gate.live_read("TOP") as allowed:
                 if allowed:
                     started.set()
                     release.wait(2.0)
@@ -138,7 +138,7 @@ class LiveCaptureGateTest(unittest.TestCase):
 
         # Неудавшаяся пауза снимает свой счётчик, иначе live остался бы
         # навсегда замороженным после одного таймаута.
-        with gate.live_read("MIDDLE") as allowed:
+        with gate.live_read("TOP") as allowed:
             self.assertTrue(allowed)
 
     def test_reset_clears_pauses(self):
@@ -146,7 +146,7 @@ class LiveCaptureGateTest(unittest.TestCase):
         gate.pause()
         gate.pause()
         gate.reset()
-        with gate.live_read("MIDDLE") as allowed:
+        with gate.live_read("TOP") as allowed:
             self.assertTrue(allowed)
 
 
@@ -185,9 +185,9 @@ class StepSequencerHandoverTest(unittest.TestCase):
         stages = self._sequencer(live)
         stages.enter_motion()
         stages.enter_settle()
-        stages.enter_capture(("RIGHT",))
+        stages.enter_capture(("INPUT_LEFT",))
         stages.enter_analysis()
-        stages.enter_capture(("MIDDLE",))
+        stages.enter_capture(("TOP",))
         stages.enter_analysis()
         stages.enter_publish()
 
@@ -206,7 +206,7 @@ class StepSequencerHandoverTest(unittest.TestCase):
         stages.enter_motion()
         stages.enter_settle()
         with self.assertRaises(self.sequence_error):
-            stages.enter_capture(("MIDDLE",))
+            stages.enter_capture(("TOP",))
         self.assertFalse(stages.static)
 
     def test_reset_during_handover_is_detected(self):
@@ -228,7 +228,7 @@ class StepSequencerHandoverTest(unittest.TestCase):
         stages.enter_motion()
         stages.enter_settle()
         with self.assertRaises(self.sequence_error):
-            stages.enter_capture(("MIDDLE",))
+            stages.enter_capture(("TOP",))
         # Камеры возвращены live, а не удержаны отменённым шагом.
         self.assertEqual(live.events, ["pause", "resume"])
         self.assertFalse(stages.static)
@@ -268,16 +268,16 @@ class DiagnosticsFactoryTest(unittest.TestCase):
 
     def test_extra_fields_are_passed_through(self):
         report = self._make(
-            "PASSED", "SELECTED_MODEL", "готово", selected_role="MIDDLE",
+            "PASSED", "SELECTED_MODEL", "готово", selected_role="TOP",
         )
-        self.assertEqual(report["selected_role"], "MIDDLE")
+        self.assertEqual(report["selected_role"], "TOP")
         for key in self.REQUIRED:
             self.assertIn(key, report)
 
     def test_sequences_are_copied(self):
-        cameras = [{"role": "MIDDLE"}]
+        cameras = [{"role": "TOP"}]
         report = self._make(cameras=cameras)
-        cameras.append({"role": "RIGHT"})
+        cameras.append({"role": "INPUT_LEFT"})
         self.assertEqual(len(report["cameras"]), 1)
 
 

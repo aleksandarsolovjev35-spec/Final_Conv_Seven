@@ -9,8 +9,8 @@
 # new_weights трёхкамерника в conveyor_three/weights/ с теми же именами.
 
 MODEL_GROUPS = {
-    # RIGHT / LEFT — боковые камеры: разновысотность + раковины окон.
-    "GROUP_LEFT_RIGHT": [
+    # NEAR / FAR — боковые камеры: разновысотность + раковины окон.
+    "GROUP_NEAR_FAR": [
         {
             "path": "weights/windows_4.pt",
             "conf": 0.7,
@@ -43,7 +43,7 @@ MODEL_GROUPS = {
 }
 
 ROLE_TO_GROUP = {
-    "RIGHT":   "GROUP_LEFT_RIGHT",
+    "NEAR":   "GROUP_NEAR_FAR",
     "MIDDLE": "GROUP_MIDDLE",
-    "LEFT":    "GROUP_LEFT_RIGHT",
+    "FAR":    "GROUP_NEAR_FAR",
 }

@@ -177,11 +177,11 @@ class CalibrationHelpersTest(unittest.TestCase):
 
 class AtomicWriteMappingTest(unittest.TestCase):
     def test_atomic_write_mapping(self):
-        mapping = {"RIGHT": 0, "MIDDLE": 1, "LEFT": 2}
+        mapping = {"NEAR": 0, "MIDDLE": 1, "FAR": 2}
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "sub", "camera_mapping.json")
             result = calib.atomic_write_mapping(path, mapping)
-            self.assertEqual(result["LEFT"], 2)
+            self.assertEqual(result["FAR"], 2)
             with open(path, encoding="utf-8") as stream:
                 saved = json.load(stream)
             self.assertEqual(len(saved), 3)
@@ -191,7 +191,7 @@ class AtomicWriteMappingTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "camera_mapping.json")
             with self.assertRaises(ValueError):
-                calib.atomic_write_mapping(path, {"MIDDLE": 0})
+                calib.atomic_write_mapping(path, {"TOP": 0})
 
 
 if __name__ == "__main__":

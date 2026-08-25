@@ -14,12 +14,12 @@ class Inspector:
     """Выполняет инспекцию по одному свежему кадру (трёхкамерная линия).
 
     Одна стадия: все три камеры смотрят в зону инспекции (+0):
-    RIGHT/LEFT — разновысотность и раковины окон, MIDDLE — стекло и сварка.
+    NEAR/FAR — разновысотность и раковины окон, MIDDLE — стекло и сварка.
     """
 
-    INSPECT_ROLES = ("RIGHT", "MIDDLE", "LEFT")
+    INSPECT_ROLES = ("NEAR", "MIDDLE", "FAR")
     # Камеры-маркеры наличия детали (окна видят только боковые камеры).
-    PRESENCE_ROLES = ("RIGHT", "LEFT")
+    PRESENCE_ROLES = ("NEAR", "FAR")
 
     def __init__(self, vision, decision, recorder, on_progress=None):
         self.vision = vision

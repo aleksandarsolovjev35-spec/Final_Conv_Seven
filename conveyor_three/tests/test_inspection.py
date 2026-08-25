@@ -91,9 +91,9 @@ class InspectorContractTest(unittest.TestCase):
     def test_roles(self):
         inspector = make_inspector(FakeVision({}))
         self.assertEqual(
-            inspector.INSPECT_ROLES, ("RIGHT", "MIDDLE", "LEFT"),
+            inspector.INSPECT_ROLES, ("NEAR", "MIDDLE", "FAR"),
         )
-        self.assertEqual(inspector.PRESENCE_ROLES, ("RIGHT", "LEFT"))
+        self.assertEqual(inspector.PRESENCE_ROLES, ("NEAR", "FAR"))
 
     def test_inspect_requires_dict_frames(self):
         inspector = make_inspector(FakeVision({}))
@@ -103,32 +103,32 @@ class InspectorContractTest(unittest.TestCase):
     def test_inspect_requires_all_roles(self):
         inspector = make_inspector(FakeVision({}))
         with self.assertRaisesRegex(RuntimeError, "inspect camera frames"):
-            inspector.inspect(1, 0, {"RIGHT": make_frame()})
+            inspector.inspect(1, 0, {"NEAR": make_frame()})
 
     def test_run_vision_missing_role(self):
         class PartialVision(FakeVision):
             def process_all(self, frames):
-                return {"RIGHT": []}
+                return {"NEAR": []}
 
         inspector = make_inspector(PartialVision({}))
         with self.assertRaisesRegex(RuntimeError, "Missing vision results"):
             inspector.inspect(1, 0, {
-                "RIGHT": make_frame(),
+                "NEAR": make_frame(),
                 "MIDDLE": make_frame(1),
-                "LEFT": make_frame(2),
+                "FAR": make_frame(2),
             })
 
 
 class InspectStageTest(unittest.TestCase):
     def frames(self) -> dict:
         return {
-            "RIGHT": make_frame(0),
+            "NEAR": make_frame(0),
             "MIDDLE": make_frame(1),
-            "LEFT": make_frame(2),
+            "FAR": make_frame(2),
         }
 
     def test_empty_tray_stops_before_defect_rules(self):
-        vision = FakeVision({"RIGHT": [], "MIDDLE": [], "LEFT": []})
+        vision = FakeVision({"NEAR": [], "MIDDLE": [], "FAR": []})
         inspector = make_inspector(vision)
         result = inspector.inspect(7, 3, self.frames())
         self.assertTrue(result.is_empty_tray)
@@ -142,9 +142,9 @@ class InspectStageTest(unittest.TestCase):
 
     def test_good_part_full_pipeline(self):
         vision = FakeVision({
-            "RIGHT": [window_detection(0.95, 100, 100, 160, 130)],
+            "NEAR": [window_detection(0.95, 100, 100, 160, 130)],
             "MIDDLE": [],
-            "LEFT": [window_detection(0.95, 300, 100, 360, 130)],
+            "FAR": [window_detection(0.95, 300, 100, 360, 130)],
         })
         inspector = make_inspector(vision)
         result = inspector.inspect(1, 0, self.frames())
@@ -158,14 +158,14 @@ class InspectStageTest(unittest.TestCase):
             ["part_presence", "uneven_heights", "window_sinks",
              "bottom_glass", "welding"],
         )
-        self.assertIn("RIGHT", result.annotated)
-        self.assertIn("RIGHT", result.raw_overlay_frames)
+        self.assertIn("NEAR", result.annotated)
+        self.assertIn("NEAR", result.raw_overlay_frames)
 
     def test_triggered_rule_becomes_defect(self):
         vision = FakeVision({
-            "RIGHT": [window_detection(0.95, 100, 100, 160, 130)],
+            "NEAR": [window_detection(0.95, 100, 100, 160, 130)],
             "MIDDLE": [glass_detection(0.9)],
-            "LEFT": [window_detection(0.95, 300, 100, 360, 130)],
+            "FAR": [window_detection(0.95, 300, 100, 360, 130)],
         })
         inspector = make_inspector(vision)
         result = inspector.inspect(2, 1, self.frames())
@@ -178,25 +178,25 @@ class InspectStageTest(unittest.TestCase):
             calls.append((phase, tuple(roles)))
 
         vision = FakeVision({
-            "RIGHT": [window_detection(0.95, 100, 100, 160, 130)],
+            "NEAR": [window_detection(0.95, 100, 100, 160, 130)],
             "MIDDLE": [],
-            "LEFT": [window_detection(0.95, 300, 100, 360, 130)],
+            "FAR": [window_detection(0.95, 300, 100, 360, 130)],
         })
         inspector = make_inspector(vision)
         inspector.set_progress_callback(on_progress)
         inspector.inspect(1, 0, self.frames())
         self.assertTrue(calls)
-        self.assertIn(("INSPECT_MODELS", ("RIGHT", "MIDDLE", "LEFT")), calls)
-        self.assertIn(("INSPECT_PRESENCE", ("RIGHT", "LEFT")), calls)
+        self.assertIn(("INSPECT_MODELS", ("NEAR", "MIDDLE", "FAR")), calls)
+        self.assertIn(("INSPECT_PRESENCE", ("NEAR", "FAR")), calls)
 
     def test_progress_callback_errors_swallowed(self):
         def broken_callback(*_args, **_kwargs):
             raise RuntimeError("ui is gone")
 
         vision = FakeVision({
-            "RIGHT": [window_detection(0.95, 100, 100, 160, 130)],
+            "NEAR": [window_detection(0.95, 100, 100, 160, 130)],
             "MIDDLE": [],
-            "LEFT": [window_detection(0.95, 300, 100, 360, 130)],
+            "FAR": [window_detection(0.95, 300, 100, 360, 130)],
         })
         inspector = make_inspector(vision)
         inspector.set_progress_callback(broken_callback)
@@ -206,12 +206,12 @@ class InspectStageTest(unittest.TestCase):
 
 class DiagnosticsApiTest(unittest.TestCase):
     def test_evaluate_all_empty_tray(self):
-        vision = FakeVision({"RIGHT": [], "MIDDLE": [], "LEFT": []})
+        vision = FakeVision({"NEAR": [], "MIDDLE": [], "FAR": []})
         inspector = make_inspector(vision)
         frames = {
-            "RIGHT": make_frame(0),
+            "NEAR": make_frame(0),
             "MIDDLE": make_frame(1),
-            "LEFT": make_frame(2),
+            "FAR": make_frame(2),
         }
         vision_results, rule_results, model_rows = inspector.evaluate_all(
             frames,
@@ -232,7 +232,7 @@ class DiagnosticsApiTest(unittest.TestCase):
 
     def test_summarize_model_health(self):
         rows = summarize_model_health([
-            {"role": "RIGHT", "model": "a.pt", "ok": True,
+            {"role": "NEAR", "model": "a.pt", "ok": True,
              "elapsed_ms": 2.5, "detections": 3, "error": None},
         ])
         self.assertEqual(len(rows), 1)

@@ -42,7 +42,7 @@
     min-width: 0;
     height: 32px;
     display: grid;
-    /* Пять позиций ленты (+0 … +4): +0 инспекция RIGHT/MIDDLE/LEFT,
+    /* Пять позиций ленты (+0 … +4): +0 инспекция NEAR/MIDDLE/FAR,
        +3 сортировка, +4 зона сброса после распределителя. */
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 3px;

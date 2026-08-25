@@ -52,9 +52,9 @@ BOOT_STEPS = [
 
 
 CAMERA_ORDER = [
-    "RIGHT",
+    "NEAR",
     "MIDDLE",
-    "LEFT",
+    "FAR",
 ]
 
 # Правило отчёта -> группа порогов (RULE_GROUPS в thresholds.json). Нужна
