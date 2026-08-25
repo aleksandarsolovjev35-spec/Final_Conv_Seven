@@ -53,9 +53,9 @@ ROLE_ORDER = (
 REQUIRED_CAMERA_COUNT = len(ROLE_ORDER)
 
 ROLE_LABELS = {
-    "NEAR": "БЛИЖНЯЯ",
+    "NEAR": "ЛЕВАЯ",
     "MIDDLE": "ЦЕНТРАЛЬНАЯ",
-    "FAR": "ДАЛЬНЯЯ",
+    "FAR": "ПРАВАЯ",
 }
 
 
