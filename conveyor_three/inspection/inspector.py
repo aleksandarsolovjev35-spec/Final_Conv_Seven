@@ -144,6 +144,14 @@ class Inspector:
                 is_empty_tray=True,
             )
 
+        # Наличие подтверждено: теперь корпус можно показывать в линии.
+        # Пустой лоток до этой точки «призрака» не создаёт.
+        self._notify_progress(
+            "INSPECT_PRESENT",
+            "ИНСПЕКЦИЯ: наличие детали подтверждено",
+            part_id=part_id,
+            roles=self.INSPECT_ROLES,
+        )
         self._notify_progress(
             "INSPECT_GEOMETRY",
             "ИНСПЕКЦИЯ: построение геометрии и измерений",

@@ -206,6 +206,15 @@ class ProductionCycle(
         обработки.
         """
         prefix = str(phase or "").upper()
+        if prefix == "INSPECT_PRESENT" and part_id is not None:
+            # Корпус подтверждён правилом наличия — показываем его в
+            # «Пути корпусов». Вызов синхронный (один поток цикла),
+            # поэтому статус не успеет уйти в HMI раньше разметки.
+            part = next(
+                (p for p in self.parts if p.id == part_id), None,
+            )
+            if part is not None:
+                part.present = True
         self._set_process(
             prefix,
             label,

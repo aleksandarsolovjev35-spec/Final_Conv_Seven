@@ -28,6 +28,12 @@ class Part:
         self.id = part_id
         self.step_created = step_created
 
+        # Корпус попадает в учёт до анализа (он физически стоит на +0),
+        # но появляется в «Пути корпусов» только после подтверждения
+        # наличия правилом part_presence: пустая ячейка не рисует
+        # «призрак» в инспекционной зоне.
+        self.present: bool = False
+
         self.defects: list = []
         self.inspected: bool = False
 

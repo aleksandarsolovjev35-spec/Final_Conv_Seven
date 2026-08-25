@@ -107,9 +107,16 @@ class CycleStatusMixin:
         }
 
     def _line_parts(self, parts_snapshot: list, step_snapshot: int) -> list:
-        """Позиции корпусов на ленте для мнемосхемы HMI."""
+        """Позиции корпусов на ленте для мнемосхемы HMI.
+
+        Показывает только корпуса, чьё наличие подтверждено правилом
+        part_presence: новый корпус входит в учёт до анализа, но пустая
+        ячейка не должна рисовать «призрак» в инспекционной зоне.
+        """
         line_parts = []
         for part in parts_snapshot:
+            if not part.present:
+                continue
             position = step_snapshot - part.step_created
             position = max(0, min(position, self.OFFSET_REJECT))
             # На шаге передачи маршрут уже выставлен: GOOD проходит через
@@ -225,6 +232,10 @@ class CycleStatusMixin:
         # бы описывать разные моменты времени.
         parts_snapshot = list(self.parts)
         step_snapshot = self.current_step
+        # В линию для HMI попадают только корпуса с подтверждённым
+        # наличием: новый корпус появляется в схеме после проверки
+        # наличия, а не до неё (иначе пустая ячейка даёт «призрак»).
+        visible_parts = [p for p in parts_snapshot if p.present]
         state_name = sm_snap["state"]
         jog_snapshot = self.jog.status if self.jog is not None else {}
 
@@ -243,8 +254,8 @@ class CycleStatusMixin:
             "exit_requested": sm_snap["exit_requested"],
             "fault_reason": self._fault_reason,
             "step": step_snapshot,
-            "in_line": len(parts_snapshot),
-            "line_parts": self._line_parts(parts_snapshot, step_snapshot),
+            "in_line": len(visible_parts),
+            "line_parts": self._line_parts(visible_parts, step_snapshot),
             "total": self.part_counter,
             "good": self.good_count,
             "rejected": self.bad_count,
