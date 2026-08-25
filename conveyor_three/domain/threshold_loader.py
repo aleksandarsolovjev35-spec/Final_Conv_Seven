@@ -2,7 +2,7 @@ import json
 import math
 import os
 
-ROLE_SECTIONS = ("NEAR", "MIDDLE", "FAR")
+ROLE_SECTIONS = ("LEFT", "MIDDLE", "RIGHT")
 
 # (rule_id, UI label, parameter prefixes). More specific prefixes first.
 RULE_GROUPS = (
@@ -32,8 +32,8 @@ _DISPLAY_INDEX = {k: i for i, k in enumerate(DISPLAY_ORDER)}
 
 # Какие параметры допустимы у каждой роли.
 _ROLE_PARAM_RULES = {
-    "NEAR": ("part_presence_", "uneven_heights_", "window_sinks_"),
-    "FAR": ("part_presence_", "uneven_heights_", "window_sinks_"),
+    "LEFT": ("part_presence_", "uneven_heights_", "window_sinks_"),
+    "RIGHT": ("part_presence_", "uneven_heights_", "window_sinks_"),
     "MIDDLE": ("bottom_glass_", "welding_"),
 }
 
@@ -93,8 +93,8 @@ class ThresholdLoader:
             if name.endswith("_px") and v <= 0:
                 raise ValueError(f"{key} должен быть > 0")
 
-        # Диапазоны высот: min < max для NEAR и FAR.
-        for role in ("NEAR", "FAR"):
+        # Диапазоны высот: min < max для LEFT и RIGHT.
+        for role in ("LEFT", "RIGHT"):
             mn = data[f"{role}.uneven_heights_height_min_px"]
             mx = data[f"{role}.uneven_heights_height_max_px"]
             if mn >= mx:

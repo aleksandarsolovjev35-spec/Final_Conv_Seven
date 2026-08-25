@@ -231,7 +231,7 @@ class CameraMappingTest(unittest.TestCase):
 
     def test_validate_rejects_missing_roles(self):
         mapping = _valid_mapping()
-        del mapping["FAR"]
+        del mapping["RIGHT"]
         with self.assertRaisesRegex(ValueError, "missing="):
             validate_camera_mapping(mapping)
 
@@ -242,15 +242,15 @@ class CameraMappingTest(unittest.TestCase):
 
     def test_validate_rejects_negative_id(self):
         with self.assertRaisesRegex(ValueError, "неотрицательными"):
-            validate_camera_mapping(_valid_mapping(FAR=-1))
+            validate_camera_mapping(_valid_mapping(RIGHT=-1))
 
     def test_validate_rejects_non_int_id(self):
         with self.assertRaisesRegex(ValueError, "неотрицательными"):
-            validate_camera_mapping(_valid_mapping(FAR="2"))
+            validate_camera_mapping(_valid_mapping(RIGHT="2"))
 
     def test_validate_rejects_duplicate_ids(self):
         mapping = _valid_mapping()
-        mapping["FAR"] = mapping["NEAR"]
+        mapping["RIGHT"] = mapping["LEFT"]
         with self.assertRaisesRegex(ValueError, "уникальными"):
             validate_camera_mapping(mapping)
 

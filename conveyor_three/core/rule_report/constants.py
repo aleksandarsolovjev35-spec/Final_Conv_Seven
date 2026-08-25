@@ -1,7 +1,7 @@
 """Константы отчёта по правилам трёхкамерной линии.
 
 Лейблы метрик для UI, списки правил с детальной телеметрией, привязка
-правил к ролям камер NEAR / MIDDLE / FAR.
+правил к ролям камер LEFT / MIDDLE / RIGHT.
 """
 
 # Названия порогов для анализа кадра: (правило, ключ метрики) -> понятный
@@ -38,9 +38,9 @@ PART_PRESENCE_RULE = "part_presence"
 # Камеры, для которых правило имеет смысл в анализе кадра.
 # Панель «Анализ кадра» показывает только вычисления выбранной камеры.
 RULE_CAMERA_ROLES = {
-    "part_presence": ("NEAR", "FAR"),
-    "uneven_heights": ("NEAR", "FAR"),
-    "window_sinks": ("NEAR", "FAR"),
+    "part_presence": ("LEFT", "RIGHT"),
+    "uneven_heights": ("LEFT", "RIGHT"),
+    "window_sinks": ("LEFT", "RIGHT"),
     "bottom_glass": ("MIDDLE",),
     "welding": ("MIDDLE",),
 }

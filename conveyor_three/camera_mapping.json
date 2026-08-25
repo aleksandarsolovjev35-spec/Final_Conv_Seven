@@ -1,5 +1,5 @@
 {
-    "NEAR": 0,
+    "LEFT": 0,
     "MIDDLE": 1,
-    "FAR": 2
+    "RIGHT": 2
 }

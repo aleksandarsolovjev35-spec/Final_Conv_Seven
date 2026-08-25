@@ -60,7 +60,7 @@ class FakeConveyor:
 
 
 class FakeCameras:
-    mapping = {"NEAR": 0, "MIDDLE": 1, "FAR": 2}
+    mapping = {"LEFT": 0, "MIDDLE": 1, "RIGHT": 2}
 
     def __init__(self, log):
         self.log = log
@@ -81,8 +81,8 @@ class FakeCameras:
 
 
 class FakeInspector:
-    INSPECT_ROLES = ("NEAR", "MIDDLE", "FAR")
-    PRESENCE_ROLES = ("NEAR", "FAR")
+    INSPECT_ROLES = ("LEFT", "MIDDLE", "RIGHT")
+    PRESENCE_ROLES = ("LEFT", "RIGHT")
 
     def __init__(self, log):
         self.log = log
@@ -217,16 +217,16 @@ class ProductionCycleSequenceTest(unittest.TestCase):
 
         cycle._run_once()
 
-        inspect_stage = log.index("inspect:NEAR,MIDDLE,FAR")
-        first_capture = log.index("capture:NEAR")
+        inspect_stage = log.index("inspect:LEFT,MIDDLE,RIGHT")
+        first_capture = log.index("capture:LEFT")
         self.assertLess(first_capture, inspect_stage)
         # Захват строго последовательный: одна камера в момент времени.
         self.assertEqual(
             [item for item in log if item.startswith("capture:")],
             [
-                "capture:NEAR",
+                "capture:LEFT",
                 "capture:MIDDLE",
-                "capture:FAR",
+                "capture:RIGHT",
             ],
         )
         # Live заморожен на весь инспекционный блок одним exclusive-захватом.

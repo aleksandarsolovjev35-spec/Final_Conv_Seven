@@ -171,7 +171,7 @@ def build_presence_summary(details: dict) -> list:
     presence_by_role = details.get("presence_by_role") or {}
 
     cards = []
-    for role in ("NEAR", "FAR"):
+    for role in ("LEFT", "RIGHT"):
         if role not in windows_by_role and role not in min_windows_by_role:
             continue
         found = windows_by_role.get(role)

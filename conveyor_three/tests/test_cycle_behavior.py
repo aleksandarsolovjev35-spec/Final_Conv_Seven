@@ -65,7 +65,7 @@ class FakeConveyor:
 
 
 class FakeCameras:
-    mapping = {"NEAR": 0, "MIDDLE": 1, "FAR": 2}
+    mapping = {"LEFT": 0, "MIDDLE": 1, "RIGHT": 2}
 
     def __init__(self, log):
         self.log = log
@@ -87,8 +87,8 @@ class FakeCameras:
 class FakeInspector:
     # Публикует те же этапы, что и реальный Inspector: в тестах проверяется,
     # в какой момент корпус появляется в «Пути корпусов».
-    INSPECT_ROLES = ("NEAR", "MIDDLE", "FAR")
-    PRESENCE_ROLES = ("NEAR", "FAR")
+    INSPECT_ROLES = ("LEFT", "MIDDLE", "RIGHT")
+    PRESENCE_ROLES = ("LEFT", "RIGHT")
 
     def __init__(self, log, empty=False, fail=False):
         self.log = log
@@ -183,7 +183,7 @@ class FakeJog:
 class FakeMonitor:
     def __init__(self):
         self.updates = 0
-        self.server = type("S", (), {"active_camera_role": "NEAR"})()
+        self.server = type("S", (), {"active_camera_role": "LEFT"})()
 
     def update(self, **kwargs):
         self.updates += 1
@@ -338,7 +338,7 @@ class CycleBehaviorTest(unittest.TestCase):
         before = cycle.part_counter
         cycle._run_once()
         self.assertEqual(cycle.part_counter, before)
-        first_inspect = log.index(("inspect", ("NEAR", "MIDDLE", "FAR"), 1, 0))
+        first_inspect = log.index(("inspect", ("LEFT", "MIDDLE", "RIGHT"), 1, 0))
         self.assertFalse(any(
             item[0] == "inspect" for item in log[first_inspect + 1:]
             if isinstance(item, tuple)

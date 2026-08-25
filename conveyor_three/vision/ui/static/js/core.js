@@ -20,9 +20,9 @@ const JOG_ALLOWED_STATES = ["IDLE", "STOPPED", "PAUSED"];
 const JOG_HEARTBEAT_INTERVAL = 100;
 
 const CAMERA_ROLE_LABELS = {
-    NEAR:   'ЛЕВАЯ',
+    LEFT:   'ЛЕВАЯ',
     MIDDLE: 'ЦЕНТРАЛЬНАЯ',
-    FAR:    'ПРАВАЯ',
+    RIGHT:  'ПРАВАЯ',
 };
 
 // Трёхкамерная линия: все камеры смотрят в +0, маршрут готовится на +3,
