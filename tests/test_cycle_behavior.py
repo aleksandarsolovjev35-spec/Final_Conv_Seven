@@ -89,6 +89,8 @@ class FakeCameras:
 
 
 class FakeInspector:
+    # Публикует те же этапы, что и реальный Inspector: в тестах проверяется,
+    # в какой момент корпус появляется в «Пути корпусов».
     INPUT_ROLES = ("INPUT_LEFT", "INPUT_RIGHT")
     SPIDER_ROLES = (
         "SPIDER_LEFT", "SPIDER_RIGHT", "SPIDER_IN", "SPIDER_OUT", "TOP",
@@ -98,14 +100,27 @@ class FakeInspector:
         self.log = log
         self.empty = empty
         self.fail = fail
+        self.on_progress = None
 
     def set_progress_callback(self, callback):
         self.on_progress = callback
+
+    def _progress(self, phase, part_id, roles):
+        if self.on_progress is not None:
+            self.on_progress(phase, phase, part_id=part_id, roles=tuple(roles))
 
     def inspect_input(self, part_id, step, frames):
         self.log.append(("input", tuple(frames), part_id, step))
         if self.fail:
             raise RuntimeError("inspect failed")
+        self._progress("INPUT_MODELS", part_id, self.INPUT_ROLES)
+        self._progress("INPUT_PRESENCE", part_id, self.INPUT_ROLES)
+        if self.empty:
+            self._progress("INPUT_DECISION", part_id, self.INPUT_ROLES)
+        else:
+            self._progress("INPUT_PRESENT", part_id, self.INPUT_ROLES)
+            self._progress("INPUT_GEOMETRY", part_id, self.INPUT_ROLES)
+            self._progress("INPUT_DECISION", part_id, self.INPUT_ROLES)
         return InspectionResult(
             stage="input",
             defects=[],
@@ -281,6 +296,7 @@ class CycleBehaviorTest(unittest.TestCase):
         cycle.current_step = 7
         part = Part(3, 0)
         part.input_inspected = True
+        part.present = True
         cycle.parts.append(part)
         cycle._run_once()
         self.assertTrue(any(item == ("route", CATEGORY_BAD, 3) for item in log))
@@ -451,6 +467,93 @@ class CycleBehaviorTest(unittest.TestCase):
         self.assertTrue(cycle.force_exit_requested)
         with self.assertRaises(RuntimeError):
             cycle._run_once()
+
+    def test_part_in_account_during_input_analysis(self):
+        # Корпус физически стоит на +0, пока работают модели, поэтому он
+        # обязан быть в учёте (self.parts) ВСЁ ВРЕМЯ INPUT-анализа:
+        # иначе после следующего хода он бы появился на +1 со сдвигом.
+        cycle, log = make_cycle()
+        seen_during_analysis = {}
+        original = cycle.inspector.inspect_input
+
+        def spy(part_id, step, frames):
+            seen_during_analysis["parts"] = [
+                (p.id, p.step_created) for p in cycle.parts
+            ]
+            return original(part_id, step, frames)
+
+        cycle.inspector.inspect_input = spy
+        cycle.request_start()
+        cycle._run_once()
+        self.assertEqual(seen_during_analysis["parts"], [(1, 0)])
+        status = cycle._build_status()
+        self.assertEqual(
+            [item["position"] for item in status["line_parts"]], [0]
+        )
+
+    def test_part_visible_on_line_only_after_presence(self):
+        # Корпус появляется в «Пути корпусов» только после того, как
+        # правило наличия его подтвердило (INPUT_PRESENT): до этого зона
+        # входа на схеме пуста, и пустой лоток не создаёт «призрак».
+        cycle, log = make_cycle()
+        seen = {}
+        original = cycle.inspector.inspect_input
+
+        def spy(part_id, step, frames):
+            def snapshot():
+                return [
+                    item["position"]
+                    for item in cycle._build_status()["line_parts"]
+                ]
+            seen["before_models"] = snapshot()
+            result = original(part_id, step, frames)
+            seen["after_inspect"] = snapshot()
+            return result
+
+        original_progress = cycle._on_inspection_progress
+
+        def spy_progress(phase, label, **kwargs):
+            original_progress(phase, label, **kwargs)
+            if phase == "INPUT_PRESENT":
+                seen["at_present"] = [
+                    item["position"]
+                    for item in cycle._build_status()["line_parts"]
+                ]
+
+        cycle._on_inspection_progress = spy_progress
+        cycle.inspector.set_progress_callback(spy_progress)
+        cycle.inspector.inspect_input = spy
+        cycle.request_start()
+        cycle._run_once()
+        self.assertEqual(seen["before_models"], [])
+        self.assertEqual(seen["at_present"], [0])
+        self.assertEqual(seen["after_inspect"], [0])
+
+    def test_empty_tray_never_visible_on_line(self):
+        # Пустой лоток: «призрак» не появляется на схеме ни в одном
+        # этапе; Part в учёте не остаётся, счётчик не растёт.
+        cycle, log = make_cycle(empty=True)
+        seen = {"phases": []}
+        original_progress = cycle._on_inspection_progress
+
+        def spy_progress(phase, label, **kwargs):
+            original_progress(phase, label, **kwargs)
+            seen["phases"].append(
+                (phase, [item["position"]
+                         for item in cycle._build_status()["line_parts"]])
+            )
+
+        cycle._on_inspection_progress = spy_progress
+        cycle.inspector.set_progress_callback(spy_progress)
+        cycle.sm._state = State.RUNNING
+        cycle._await_initial_inspection = True
+        cycle._run_once()
+        self.assertTrue(seen["phases"])
+        for phase, positions in seen["phases"]:
+            self.assertEqual(positions, [], f"{phase}: призрак на линии")
+        self.assertEqual(cycle.parts, [])
+        self.assertEqual(cycle.part_counter, 0)
+        self.assertEqual(cycle.empty_count, 1)
 
 
 if __name__ == "__main__":

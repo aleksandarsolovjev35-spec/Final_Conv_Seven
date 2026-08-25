@@ -318,18 +318,34 @@ class CycleStepMixin:
 
         candidate_id = self.part_counter + 1
 
+        # Корпус физически стоит на +0 с момента остановки ленты, поэтому
+        # попадает в учёт ДО запуска моделей: HMI видит его в зоне входа на
+        # весь анализ (и дальше — пока идёт SPIDER), а не «внезапно» на +1
+        # после следующего хода. Модель позиций не меняется: step_created
+        # прежний — тот же шаг, на котором лента остановила корпус на +0.
+        part = Part(candidate_id, self.current_step)
+        self.parts.append(part)
+
         self._set_process(
             "INPUT_ANALYSIS",
             f"Вход: анализ кандидата #{candidate_id}",
             part_id=candidate_id,
         )
 
-        result = self.inspector.inspect_input(
-            part_id=candidate_id,
-            step=self.current_step,
-            frames=frames,
-        )
+        try:
+            result = self.inspector.inspect_input(
+                part_id=candidate_id,
+                step=self.current_step,
+                frames=frames,
+            )
+        except Exception:
+            # Сбой инспекции не оставляет неучтённый корпус в очереди:
+            # FAULT — терминальное состояние, учёт строится с нуля.
+            self.parts.remove(part)
+            raise
         if result.is_empty_tray:
+            # Пустой лоток остаётся нейтральным: Part и архив не создаются.
+            self.parts.remove(part)
             self._record_frame_analysis("INPUT", None, result)
             self.empty_count += 1
             # Очищаем детекции для входных камер, чтобы не рисовать прямоугольники
@@ -345,17 +361,14 @@ class CycleStepMixin:
                 f"[EMPTY] Пустой лоток на step {self.current_step} "
                 f"(total empty: {self.empty_count})"
             )
-            # Пустой лоток остаётся нейтральным: Part и архив не создаются.
             return result
 
         self.part_counter += 1
-        part = Part(self.part_counter, self.current_step)
         for defect in result.defects:
             part.add_input_defect(defect)
         # Результат правила становится состоянием Part только после того,
         # как модели и геометрия отработали для этого же набора кадров.
         part.mark_input_done()
-        self.parts.append(part)
         self._record_frame_analysis("INPUT", part.id, result)
         print(f"[INPUT] Деталь #{part.id}")
 
