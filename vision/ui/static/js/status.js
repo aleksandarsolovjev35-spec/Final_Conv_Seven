@@ -514,11 +514,24 @@ function updateLineCells(lineParts, process = {}) {
     const wanted = new Map();
     for (const part of lineParts || []) {
         const id = Number(part.id);
-        if (!Number.isFinite(id) || (pendingAnalysis && !appliedById.has(id))) continue;
-        const category = pendingAnalysis && appliedById.has(id)
+        if (!Number.isFinite(id)) continue;
+        // Пока ждём отрисовки нового стоп-кадра (pendingAnalysis), цвет уже
+        // стоящих на линии корпусов замораживаем, чтобы раскраска маршрута
+        // не опережала появление разметки правил. Но НОВЫЙ корпус, который
+        // бэкенд только что подтвердил правилом наличия (part_presence),
+        // скрывать нельзя: он физически стоит на +0, и в режиме РАБОТА с
+        // review_time=0 следующий MOTION успевает начаться до того, как
+        // выбранная оператором камера (часто не INPUT, а SPIDER/TOP)
+        // дорисует стоп-кадр и сбросит pendingAnalysis. Тогда корпус
+        // впервые появлялся бы в схеме уже на +1, «проскакивая» нулевую
+        // позицию.
+        const isNew = !appliedById.has(id);
+        if (pendingAnalysis && !isNew) continue;
+        const category = (pendingAnalysis && !isNew)
             ? appliedById.get(id) : String(part.category || '').toUpperCase();
         let position = Math.max(0, Math.min(Number(part.position) || 0, 7));
         const wasInDropWindow = _lineTokens.get(id)?.position === 8;
+        const alreadyTracked = _lineTokens.has(id);
         // Статус во время хода относится к позиции до подтверждения остановки.
         // Визуально все корпуса делают один и тот же непрерывный шаг. После
         // подтверждения корпус остаётся виден в +8 до отдельного падения.
@@ -527,7 +540,10 @@ function updateLineCells(lineParts, process = {}) {
         // а лента стоит. Поэтому не полагаемся только на то, что фронтенд
         // успел увидеть фазу хода: если ход пропущен (редкий медленный тик),
         // корпус всё равно уезжает в +8 и падает, а не «замирает» на +7.
-        if (moving) position = part.dropping ? 8 : Math.min(position + 1, 8);
+        // Новый корпус (isNew && !alreadyTracked), который статус впервые
+        // присылает уже во время MOTION, не должен «телепортироваться»
+        // сразу на +1 — его появление анимируем на реальной позиции +0.
+        if (moving && alreadyTracked) position = part.dropping ? 8 : Math.min(position + 1, 8);
         else if (part.dropping && (wasInDropWindow || phase !== 'ROUTE_PREPARE')) position = 8;
         wanted.set(id, {position, category, dropping: !!part.dropping});
     }
