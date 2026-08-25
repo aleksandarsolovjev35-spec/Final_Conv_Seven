@@ -6,8 +6,8 @@
 
 | Файл                    | Камеры        | `kind`           | conf | Назначение                     |
 | ----------------------- | ------------- | ---------------- | ---- | ------------------------------ |
-| `windows_4.pt`          | NEAR, FAR     | `uneven_heights` | 0.70 | ячейки окон (разновысотность)  |
-| `shells.pt`             | NEAR, FAR     | `window_sinks`   | 0.80 | раковины в окнах               |
+| `windows_4.pt`          | LEFT, RIGHT     | `uneven_heights` | 0.70 | ячейки окон (разновысотность)  |
+| `shells.pt`             | LEFT, RIGHT     | `window_sinks`   | 0.80 | раковины в окнах               |
 | `bottom_glass_new_v3.pt`| MIDDLE        | `bottom_glass`   | 0.65 | стекло на дне                  |
 | `welding_new_2.pt`      | MIDDLE        | `welding`        | 0.65 | брак сварки                    |
 

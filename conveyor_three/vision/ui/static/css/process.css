@@ -42,7 +42,7 @@
     min-width: 0;
     height: 32px;
     display: grid;
-    /* Пять позиций ленты (+0 … +4): +0 инспекция NEAR/MIDDLE/FAR,
+    /* Пять позиций ленты (+0 … +4): +0 инспекция LEFT/MIDDLE/RIGHT,
        +3 сортировка, +4 зона сброса после распределителя. */
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 3px;
@@ -157,7 +157,7 @@
     border-radius: 2px;
     transform: translate(-50%, -50%);
     will-change: left;
-    transition: left 100ms linear;
+    transition: left 100ms lileft;
     box-shadow: none;
     /* Оба ползунка одного цвета: маршрут детали показывает заливка всей
        панели, а не раскраска маркеров. */

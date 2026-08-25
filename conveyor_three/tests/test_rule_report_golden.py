@@ -33,7 +33,7 @@ def res(name, triggered, details):
                            details=details, drawings=[])
 
 
-def role(name="NEAR", **kw):
+def role(name="LEFT", **kw):
     return {name: kw}
 
 
@@ -41,41 +41,41 @@ CASES = [
     # --- part_presence ---
     res("part_presence", False, {
         "empty_tray": False,
-        "windows_by_role": {"NEAR": 4, "FAR": 3},
-        "min_windows_by_role": {"NEAR": 1, "FAR": 1},
-        "presence_by_role": {"NEAR": True, "FAR": True},
+        "windows_by_role": {"LEFT": 4, "RIGHT": 3},
+        "min_windows_by_role": {"LEFT": 1, "RIGHT": 1},
+        "presence_by_role": {"LEFT": True, "RIGHT": True},
     }),
     res("part_presence", False, {
         "empty_tray": True,
-        "windows_by_role": {"NEAR": 0, "FAR": 0},
-        "min_windows_by_role": {"NEAR": 1, "FAR": 1},
-        "presence_by_role": {"NEAR": False, "FAR": False},
+        "windows_by_role": {"LEFT": 0, "RIGHT": 0},
+        "min_windows_by_role": {"LEFT": 1, "RIGHT": 1},
+        "presence_by_role": {"LEFT": False, "RIGHT": False},
     }),
     # --- uneven_heights ---
     res("uneven_heights", False, {"per_role": role(
-        "NEAR", triggered=False, reason=None, found=4, measured=4,
+        "LEFT", triggered=False, reason=None, found=4, measured=4,
         heights=[30.0, 31.5], h_max=31.5, h_min=30.0, spread=1.5,
         height_min_px=20, height_max_px=42, height_difference_px=11,
     )}),
     res("uneven_heights", True, {"per_role": role(
-        "FAR", triggered=True, reason="height_above_max",
+        "RIGHT", triggered=True, reason="height_above_max",
         found=3, measured=3, heights=[80.0, 30.0],
         h_max=80.0, h_min=30.0, spread=50.0,
         height_min_px=21, height_max_px=47, height_difference_px=11,
     )}),
     res("uneven_heights", True, {"per_role": role(
-        "FAR", triggered=True, reason="spread_exceeded",
+        "RIGHT", triggered=True, reason="spread_exceeded",
         found=3, measured=3, heights=[25.0, 45.0],
         h_max=45.0, h_min=25.0, spread=20.0,
         height_min_px=21, height_max_px=47, height_difference_px=11,
     )}),
     # --- бинарные правила по числу детекций ---
     res("window_sinks", True, {"per_role": role(
-        "NEAR", triggered=True, reason="sinks_found", found=2,
+        "LEFT", triggered=True, reason="sinks_found", found=2,
         min_confidence=0.8,
     )}),
     res("window_sinks", False, {"per_role": role(
-        "FAR", triggered=False, reason=None, found=0, min_confidence=0.8,
+        "RIGHT", triggered=False, reason=None, found=0, min_confidence=0.8,
     )}),
     res("bottom_glass", True, {"per_role": role(
         "MIDDLE", triggered=True, reason="glass_found", found=1,
@@ -96,20 +96,20 @@ CASES = [
     # --- карточки замера, прикреплённые run_report ---
     res("uneven_heights", True, {
         "per_role": role(
-            "NEAR", triggered=True, reason="height_below_min",
+            "LEFT", triggered=True, reason="height_below_min",
             found=2, measured=2, heights=[12.0], h_max=12.0, h_min=12.0,
             spread=0.0, height_min_px=20, height_max_px=42,
             height_difference_px=11,
         ),
         "measurement_cards": [{
-            "role": "NEAR", "ok": False, "verdict": "отклонение",
+            "role": "LEFT", "ok": False, "verdict": "отклонение",
             "found": ["объекты: 2"], "metrics": [
                 {"label": "Высота ячейки, px", "value": "12", "limit": "42",
                  "ok": False, "key": "height_px"},
             ],
         }],
         "role_status": [
-            {"role": "NEAR", "status": "ОТКЛОНЕНИЕ", "reason": None},
+            {"role": "LEFT", "status": "ОТКЛОНЕНИЕ", "reason": None},
         ],
     }),
 ]
@@ -126,7 +126,7 @@ def render_corpus() -> str:
         lines.append(_stable(build_rule_report_row(case)))
     # Срез по роли фильтрует чужие правила и срабатывания.
     for case in CASES:
-        scoped = scope_rule_result_to_role(case, "NEAR")
+        scoped = scope_rule_result_to_role(case, "LEFT")
         if scoped is not None:
             lines.append(_stable(build_rule_report_row(scoped)))
     # Полный набор строк с фильтрацией решающих.
@@ -160,7 +160,7 @@ class RuleReportGoldenTest(unittest.TestCase):
             CASES[0],
             res("part_presence", False, {
                 "empty_tray": True,
-                "windows_by_role": {"NEAR": 0},
+                "windows_by_role": {"LEFT": 0},
             }),
         ])
         self.assertEqual(len(rows), 1)

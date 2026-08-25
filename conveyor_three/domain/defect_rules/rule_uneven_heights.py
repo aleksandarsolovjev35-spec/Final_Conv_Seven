@@ -3,7 +3,7 @@ from domain.defect_rules.window_measure import measure_window_by_intersections
 
 
 class UnevenHeightsRule(BaseRule):
-    """Разновысотность окон по камерам NEAR и FAR.
+    """Разновысотность окон по камерам LEFT и RIGHT.
 
     Перенос логики трёхкамерника: для каждой найденной ячейки окна
     вертикальная секущая через середину по X даёт высоту в пикселях.
@@ -13,11 +13,11 @@ class UnevenHeightsRule(BaseRule):
       * ``h_min <= height_min_px`` — ячейка слишком низкая;
       * ``h_max - h_min >= height_difference_px`` — перепад высот.
 
-    Триггеры оригинала: ``near_cam_*`` / ``far_cam_*`` из transporter.
+    Триггеры оригинала: ``left_cam_*`` / ``right_cam_*`` из transporter.
     """
 
     name = "uneven_heights"
-    ROLES = ("NEAR", "FAR")
+    ROLES = ("LEFT", "RIGHT")
     TARGET_KIND = "uneven_heights"
 
     def check(self, vision_results: dict, **kwargs) -> RuleResult:

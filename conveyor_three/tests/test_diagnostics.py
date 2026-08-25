@@ -34,7 +34,7 @@ class FakeConveyor:
 
 class FakeCameras:
     mapping = {
-        "NEAR": 0, "MIDDLE": 1, "FAR": 2,
+        "LEFT": 0, "MIDDLE": 1, "RIGHT": 2,
     }
 
     def __init__(self):
@@ -72,8 +72,8 @@ class FakeVision:
 
 
 class FakeInspector:
-    INSPECT_ROLES = ("NEAR", "MIDDLE", "FAR")
-    PRESENCE_ROLES = ("NEAR", "FAR")
+    INSPECT_ROLES = ("LEFT", "MIDDLE", "RIGHT")
+    PRESENCE_ROLES = ("LEFT", "RIGHT")
 
     def __init__(self, vision_results=None, model_health=None, fail_all=False):
         vision_results = vision_results or {
@@ -107,7 +107,7 @@ class FakeInspector:
 
     def evaluate_rules(self, vision_results, frames=None, roles=None):
         return [RuleResult("uneven_heights", False, details={
-            "per_role": {"NEAR": {"triggered": False, "found": 7}},
+            "per_role": {"LEFT": {"triggered": False, "found": 7}},
         })]
 
     def model_health(self):
@@ -292,7 +292,7 @@ class DiagnosticsMixinTest(unittest.TestCase):
 
     def test_analyze_selected_camera_input_role(self):
         cycle = make_cycle()
-        self.assertTrue(cycle.diagnostic_analyze_selected_camera("NEAR"))
+        self.assertTrue(cycle.diagnostic_analyze_selected_camera("LEFT"))
         report = cycle._diagnostics
         self.assertGreaterEqual(len(report["rules"]), 1)
 
@@ -332,7 +332,7 @@ class DiagnosticsMixinTest(unittest.TestCase):
                 "per_role": {"MIDDLE": {"triggered": False}},
             }),
             RuleResult("b", False, details={
-                "per_role": {"NEAR": {"triggered": False}},
+                "per_role": {"LEFT": {"triggered": False}},
             }),
         ]
         rows = make_cycle()._rule_report_rows(results, role="MIDDLE")

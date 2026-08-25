@@ -189,7 +189,7 @@ class UIServerTest(unittest.TestCase):
     def test_thresholds_payload_with_data(self):
         thresholds = ThresholdLoader(THRESHOLDS_PATH).get_all()
         self.server.thresholds = thresholds
-        payload = self.server.build_thresholds_payload("NEAR")
+        payload = self.server.build_thresholds_payload("LEFT")
         self.assertTrue(payload["available"])
         self.assertIn("rules", payload)
         self.assertIn("uneven_heights", {
@@ -200,7 +200,7 @@ class UIServerTest(unittest.TestCase):
         thresholds = ThresholdLoader(THRESHOLDS_PATH).get_all()
         self.server.thresholds = thresholds
         payload = self.server.build_thresholds_payload()
-        self.assertIn("NEAR", payload["roles"])
+        self.assertIn("LEFT", payload["roles"])
 
     def test_apply_thresholds_requires_callback(self):
         self.server.splash_active = False
@@ -212,21 +212,21 @@ class UIServerTest(unittest.TestCase):
         self.server.splash_active = False
         self.server.line_status = {"state": "IDLE"}
         self.server.thresholds = {
-            "NEAR.uneven_heights_min_confidence": 0.7,
+            "LEFT.uneven_heights_min_confidence": 0.7,
         }
         self.server.on_thresholds_apply = mock.Mock(return_value={
-            "NEAR.uneven_heights_min_confidence": 0.75,
+            "LEFT.uneven_heights_min_confidence": 0.75,
         })
         result = self.server.apply_thresholds(
-            "NEAR", {"uneven_heights_min_confidence": 0.75},
+            "LEFT", {"uneven_heights_min_confidence": 0.75},
         )
         self.assertTrue(result["available"])
         self.assertEqual(
-            self.server.thresholds["NEAR.uneven_heights_min_confidence"], 0.75,
+            self.server.thresholds["LEFT.uneven_heights_min_confidence"], 0.75,
         )
         self.assertEqual(self.server.thresholds_revision, 1)
         self.server.on_thresholds_apply.assert_called_once_with(
-            "NEAR", {"uneven_heights_min_confidence": 0.75}, {},
+            "LEFT", {"uneven_heights_min_confidence": 0.75}, {},
         )
 
     def test_reload_thresholds_from_file(self):
@@ -403,8 +403,8 @@ class UIServerTest(unittest.TestCase):
 
     def test_sort_by_order(self):
         self.assertEqual(
-            UIServer._sort_by_order(["FAR", "NEAR", "X"]),
-            ["NEAR", "FAR", "X"],
+            UIServer._sort_by_order(["RIGHT", "LEFT", "X"]),
+            ["LEFT", "RIGHT", "X"],
         )
 
     # ---------- HTTP ----------
@@ -443,7 +443,7 @@ class UIServerTest(unittest.TestCase):
 
     def test_api_thresholds_get(self):
         self.server.thresholds = ThresholdLoader(THRESHOLDS_PATH).get_all()
-        response = self.client.get("/api/thresholds?role=NEAR")
+        response = self.client.get("/api/thresholds?role=LEFT")
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["available"])
 
@@ -451,7 +451,7 @@ class UIServerTest(unittest.TestCase):
         self.server.splash_active = False
         self.server.line_status = {"state": "IDLE"}
         response = self.client.post("/api/thresholds", json={
-            "role": "NEAR", "values": {"uneven_heights_min_confidence": 0.75},
+            "role": "LEFT", "values": {"uneven_heights_min_confidence": 0.75},
         })
         self.assertEqual(response.status_code, 503)
         self.assertFalse(response.json()["ok"])

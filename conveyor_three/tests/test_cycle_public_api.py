@@ -51,7 +51,7 @@ class FakeLive:
 
 
 class FakeCameras:
-    mapping = {"NEAR": 0, "MIDDLE": 1, "FAR": 2}
+    mapping = {"LEFT": 0, "MIDDLE": 1, "RIGHT": 2}
 
     def capture_roles(self, roles):
         return {role: object() for role in roles}
@@ -80,8 +80,8 @@ class FakeConveyor:
 
 
 class FakeInspector:
-    INSPECT_ROLES = ("NEAR", "MIDDLE", "FAR")
-    PRESENCE_ROLES = ("NEAR", "FAR")
+    INSPECT_ROLES = ("LEFT", "MIDDLE", "RIGHT")
+    PRESENCE_ROLES = ("LEFT", "RIGHT")
 
     def set_progress_callback(self, callback):
         self.on_progress = callback
@@ -159,7 +159,7 @@ class FakeJog:
 class FakeMonitor:
     def __init__(self):
         self.updates = 0
-        self.server = type("S", (), {"active_camera_role": "NEAR"})()
+        self.server = type("S", (), {"active_camera_role": "LEFT"})()
 
     def update(self, **kwargs):
         self.updates += 1
@@ -465,10 +465,10 @@ class TelemetryTest(unittest.TestCase):
     def test_on_inspection_progress(self):
         cycle = make_cycle()
         cycle._on_inspection_progress(
-            "inspect_models", "метка", part_id=5, roles=("NEAR",),
+            "inspect_models", "метка", part_id=5, roles=("LEFT",),
         )
         self.assertEqual(cycle._process["phase"], "INSPECT_MODELS")
-        self.assertEqual(cycle._process["capture_roles"], ["NEAR"])
+        self.assertEqual(cycle._process["capture_roles"], ["LEFT"])
 
     def test_properties(self):
         cycle = make_cycle()

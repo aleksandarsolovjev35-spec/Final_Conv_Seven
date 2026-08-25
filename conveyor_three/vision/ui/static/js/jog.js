@@ -114,7 +114,7 @@ function applyLiveBadge(active) {
         els.modeBadge.textContent = (!state.debugMode
             ? 'СТОП-КАДР'
             : (state.mode === 'RAW'
-                ? 'СТОП-КАДР · RAW'
+                ? 'СТОП-КАДР · МОДЕЛИ'
                 : 'СТОП-КАДР · ПРАВИЛА'));
         els.modeBadge.classList.add('mode-static');
         return;
