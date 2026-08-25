@@ -1,4 +1,4 @@
-"""ThresholdLoader: flatten секций NEAR/MIDDLE/FAR и валидация."""
+"""ThresholdLoader: flatten секций RIGHT/MIDDLE/LEFT и валидация."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from domain.threshold_loader import (
 )
 
 SAMPLE = {
-    "NEAR": {
+    "RIGHT": {
         "part_presence_min_confidence": 0.6,
         "part_presence_min_windows": 1,
         "uneven_heights_min_confidence": 0.7,
@@ -29,7 +29,7 @@ SAMPLE = {
         "bottom_glass_min_confidence": 0.65,
         "welding_min_confidence": 0.65,
     },
-    "FAR": {
+    "LEFT": {
         "part_presence_min_confidence": 0.6,
         "part_presence_min_windows": 1,
         "uneven_heights_min_confidence": 0.7,
@@ -54,9 +54,9 @@ class ThresholdLoaderTest(unittest.TestCase):
     def test_flattens_role_sections(self):
         loader = ThresholdLoader(self.path)
         data = loader.get_all()
-        self.assertIn("NEAR.window_sinks_min_confidence", data)
+        self.assertIn("RIGHT.window_sinks_min_confidence", data)
         self.assertIn("MIDDLE.welding_min_confidence", data)
-        self.assertIn("FAR.uneven_heights_height_min_px", data)
+        self.assertIn("LEFT.uneven_heights_height_min_px", data)
         self.assertEqual(data["MIDDLE.bottom_glass_min_confidence"], 0.65)
 
     def test_required_keys_cover_three_roles(self):
@@ -83,7 +83,7 @@ class ThresholdLoaderTest(unittest.TestCase):
 
     def test_validate_rejects_missing_key(self):
         with self.assertRaises(ValueError):
-            ThresholdLoader.validate({"NEAR.window_sinks_min_confidence": 0.8})
+            ThresholdLoader.validate({"RIGHT.window_sinks_min_confidence": 0.8})
 
     def test_labels_saved_and_loaded(self):
         labels = {"MIDDLE.welding_min_confidence": "Сварка"}

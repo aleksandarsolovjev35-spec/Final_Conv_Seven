@@ -450,7 +450,8 @@ function _resolveDistributorRoute(ls) {
     if (routingPhase && process.part_id != null) {
         part = parts.find(item => Number(item.id) === Number(process.part_id)) || null;
     }
-    if (!part) part = parts.find(item => Number(item.position) === 7) || null;
+    // Позиция сортировки трёхкамерной линии — +3 (в семикамернике это +7).
+    if (!part) part = parts.find(item => Number(item.position) === LINE_SORT_POS) || null;
     let category = part ? String(part.category || '').toUpperCase() : '';
     if (!ROUTE_CATEGORIES.includes(category)) category = '';
     if (!category) {
@@ -589,7 +590,7 @@ function updateLineCells(lineParts, process = {}) {
     for (const token of visualTokens) {
         const relevant = new Set();
         [token.previousPosition, token.position].forEach(pos => {
-            for (let i = Math.max(0, pos - 1); i <= Math.min(8, pos + 1); i += 1) relevant.add(i);
+            for (let i = Math.max(0, pos - 1); i <= Math.min(LINE_DROP_POS, pos + 1); i += 1) relevant.add(i);
         });
         const previous = new Map(token.pieces.map(piece => [Number(piece.parentElement.dataset.pos), piece]));
         const nextPieces = [];
@@ -633,7 +634,15 @@ function updateLineCells(lineParts, process = {}) {
         token.pieces.forEach(piece => { if (!nextPieces.includes(piece)) piece.remove(); });
         token.pieces = nextPieces;
         if (token.entering) {
-            requestAnimationFrame(() => token.pieces.forEach(piece => piece.classList.remove('token-entering')));
+            // Класс снимаем только после того, как браузер отрисовал кадр со
+            // стартовым положением. Один requestAnimationFrame выполняется до
+            // отрисовки, поэтому «поднять и сразу опустить» в нём нельзя:
+            // transition не стартовал, корпус не падал в +0, а возникал из
+            // соседнего окна, которое в это же время уезжает дальше по ленте.
+            const enteringPieces = token.pieces;
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                enteringPieces.forEach(piece => piece.classList.remove('token-entering'));
+            }));
             token.entering = false;
         }
     }

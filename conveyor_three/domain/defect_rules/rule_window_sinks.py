@@ -2,7 +2,7 @@ from domain.defect_rules.base import BaseRule, RuleResult, detections_of_kind
 
 
 class WindowSinksRule(BaseRule):
-    """Раковины окон по камерам NEAR и FAR.
+    """Раковины окон по камерам RIGHT и LEFT.
 
     Перенос трёхкамерника (kind=window_sinks, модель shells): любая
     детекция с уверенностью выше порога — брак (код состояния 3,
@@ -10,7 +10,7 @@ class WindowSinksRule(BaseRule):
     """
 
     name = "window_sinks"
-    ROLES = ("NEAR", "FAR")
+    ROLES = ("RIGHT", "LEFT")
     TARGET_KIND = "window_sinks"
 
     def check(self, vision_results: dict, **kwargs) -> RuleResult:

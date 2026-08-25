@@ -643,7 +643,15 @@ function updateLineCells(lineParts, process = {}) {
         token.pieces.forEach(piece => { if (!nextPieces.includes(piece)) piece.remove(); });
         token.pieces = nextPieces;
         if (token.entering) {
-            requestAnimationFrame(() => token.pieces.forEach(piece => piece.classList.remove('token-entering')));
+            // Класс снимаем только после того, как браузер отрисовал кадр со
+            // стартовым положением. Один requestAnimationFrame выполняется до
+            // отрисовки, поэтому «поднять и сразу опустить» в нём нельзя:
+            // transition не стартовал, корпус не падал в +0, а возникал из
+            // соседнего окна, которое в это же время уезжает дальше по ленте.
+            const enteringPieces = token.pieces;
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                enteringPieces.forEach(piece => piece.classList.remove('token-entering'));
+            }));
             token.entering = false;
         }
     }

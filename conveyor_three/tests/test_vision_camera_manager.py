@@ -20,7 +20,7 @@ from vision import camera_manager
 from vision.camera_manager import CameraManager
 
 ROLES = (
-    "NEAR", "MIDDLE", "FAR",
+    "RIGHT", "MIDDLE", "LEFT",
 )
 
 
@@ -98,13 +98,13 @@ class CameraManagerTest(unittest.TestCase):
         manager, _ = self.make_manager()
         frames = manager.capture_all()
         self.assertEqual(set(frames), set(ROLES))
-        self.assertEqual(frames["FAR"].shape, (720, 1280, 3))
+        self.assertEqual(frames["LEFT"].shape, (720, 1280, 3))
 
     def test_capture_roles_order_and_single(self):
         manager, factory = self.make_manager()
-        frames = manager.capture_roles(("FAR", "NEAR"))
-        self.assertEqual(list(frames), ["FAR", "NEAR"])
-        frame = manager.capture_single("FAR")
+        frames = manager.capture_roles(("LEFT", "RIGHT"))
+        self.assertEqual(list(frames), ["LEFT", "RIGHT"])
+        frame = manager.capture_single("LEFT")
         self.assertEqual(frame.shape, (720, 1280, 3))
 
     def test_capture_roles_empty(self):
@@ -119,7 +119,7 @@ class CameraManagerTest(unittest.TestCase):
     def test_drain_buffers(self):
         captures = {index: FakeCapture(index) for index in range(3)}
         manager, _ = self.make_manager(captures)
-        manager.drain_buffers(("FAR",))
+        manager.drain_buffers(("LEFT",))
         self.assertGreaterEqual(len(captures[2].reads), 3)
         manager.drain_buffers()
         self.assertGreaterEqual(len(captures[0].reads), 3)
@@ -131,7 +131,7 @@ class CameraManagerTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "read returned no frame"):
             manager.capture_all()
         with self.assertRaisesRegex(RuntimeError, "заблокирован"):
-            manager.capture_single("FAR")
+            manager.capture_single("LEFT")
 
     def test_invalid_resolution_rejected(self):
         captures = {index: FakeCapture(index) for index in range(3)}
@@ -162,13 +162,13 @@ class CameraManagerTest(unittest.TestCase):
         with mock.patch.object(camera_manager, "_CAPTURE_TIMEOUT", 0.2):
             started = time.monotonic()
             with self.assertRaisesRegex(RuntimeError, "capture timeout"):
-                manager.capture_single("FAR")
+                manager.capture_single("LEFT")
             elapsed = time.monotonic() - started
 
         self.assertLess(elapsed, 2.0)
         # Отказ защёлкнут, а io_lock свободен: менеджер отвечает сразу.
         with self.assertRaisesRegex(RuntimeError, "заблокирован"):
-            manager.capture_single("NEAR")
+            manager.capture_single("RIGHT")
 
     def test_read_exception_is_wrapped(self):
         class ExplodingCapture(FakeCapture):
@@ -179,7 +179,7 @@ class CameraManagerTest(unittest.TestCase):
         captures[2] = ExplodingCapture(2)
         manager, _ = self.make_manager(captures)
         with self.assertRaisesRegex(RuntimeError, "read failed"):
-            manager.capture_single("FAR")
+            manager.capture_single("LEFT")
 
     def test_release_closes_cameras(self):
         captures = {index: FakeCapture(index) for index in range(3)}
@@ -213,13 +213,13 @@ class CameraManagerTest(unittest.TestCase):
     def test_config_bad_roles(self):
         path = os.path.join(self.tmp.name, "bad_roles.json")
         with open(path, "w", encoding="utf-8") as stream:
-            json.dump({"FAR": 0}, stream)
+            json.dump({"LEFT": 0}, stream)
         with self.assertRaisesRegex(RuntimeError, "Неверный набор камер"):
             CameraManager(config_file=path)
 
     def test_config_duplicate_ids(self):
         data = mapping()
-        data["FAR"] = 0
+        data["LEFT"] = 0
         path = os.path.join(self.tmp.name, "dup.json")
         with open(path, "w", encoding="utf-8") as stream:
             json.dump(data, stream)
@@ -228,7 +228,7 @@ class CameraManagerTest(unittest.TestCase):
 
     def test_config_non_int_id(self):
         data = mapping()
-        data["FAR"] = "2"
+        data["LEFT"] = "2"
         path = os.path.join(self.tmp.name, "str.json")
         with open(path, "w", encoding="utf-8") as stream:
             json.dump(data, stream)

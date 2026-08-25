@@ -179,7 +179,7 @@ class FakeFactory:
 
     def create_cameras(self):
         self.events.append("cameras")
-        return SimpleNamespace(mapping={"TOP": 6}, cameras=[object()])
+        return SimpleNamespace(mapping={"MIDDLE": 6}, cameras=[object()])
 
     def create_vision(self):
         factory_events = self.events
@@ -195,12 +195,12 @@ class FakeFactory:
 
     def create_inspection(self, vision):
         self.events.append("inspection")
-        decision = SimpleNamespace(rules=[object()], thresholds={"TOP.x": 1})
+        decision = SimpleNamespace(rules=[object()], thresholds={"MIDDLE.x": 1})
         inspector = SimpleNamespace(decision=decision)
         archive = SimpleNamespace()
         return SimpleNamespace(
-            threshold_loader=SimpleNamespace(labels={"TOP.x": "X"}),
-            thresholds={"TOP.x": 1},
+            threshold_loader=SimpleNamespace(labels={"MIDDLE.x": "X"}),
+            thresholds={"MIDDLE.x": 1},
             decision=decision,
             inspector=inspector,
             archive=archive,
@@ -302,9 +302,9 @@ class ApplicationStartupTest(unittest.TestCase):
                 getattr(factory.cycle, cycle_name),
             )
         self.assertEqual(monitor.exit_callback, exits.request_exit)
-        monitor.active_camera_callback("TOP")
+        monitor.active_camera_callback("MIDDLE")
         self.assertIn("monitor.refresh", events)
-        self.assertEqual(monitor.server.thresholds, {"TOP.x": 1})
+        self.assertEqual(monitor.server.thresholds, {"MIDDLE.x": 1})
         self.assertEqual(len(monitor.updates), 1)
         self.assertIn("boot.complete", events)
 
@@ -314,7 +314,7 @@ class ApplicationStartupTest(unittest.TestCase):
         runtime = RuntimeState(monitor=monitor)
         factory = FakeFactory(events)
         factory.cycle.live.wait_for_roles = (
-            lambda roles, timeout: ("TOP",)
+            lambda roles, timeout: ("MIDDLE",)
         )
         exits = ExitCoordinator(runtime, thread_factory=ImmediateThread)
         initializer = SystemInitializer(
@@ -334,7 +334,7 @@ class ApplicationStartupTest(unittest.TestCase):
         ]
         self.assertTrue(errors)
         self.assertEqual(errors[-1][1], "ready")
-        self.assertIn("Нет первого кадра: TOP", errors[-1][2])
+        self.assertIn("Нет первого кадра: MIDDLE", errors[-1][2])
         self.assertNotIn("boot.complete", events)
 
     def test_startup_failure_stops_before_serial_and_hardware(self):
@@ -381,14 +381,14 @@ class ThresholdCallbacksTest(unittest.TestCase):
     def test_apply_validates_saves_and_rebuilds_decision(self):
         events = []
         monitor = FakeMonitor(events)
-        monitor.server.threshold_labels = {"TOP.x": "Старое имя"}
+        monitor.server.threshold_labels = {"MIDDLE.x": "Старое имя"}
         runtime = RuntimeState(monitor=monitor)
         runtime.cycle = SimpleNamespace(
             state="IDLE",
             jog=SimpleNamespace(status={"busy": False}),
         )
         inspector = SimpleNamespace(
-            decision=SimpleNamespace(thresholds={"TOP.x": 1, "TOP.y": 2})
+            decision=SimpleNamespace(thresholds={"MIDDLE.x": 1, "MIDDLE.y": 2})
         )
 
         class Store:
@@ -413,12 +413,12 @@ class ThresholdCallbacksTest(unittest.TestCase):
             decision_factory=make_decision,
         )
         result = callbacks.apply(
-            "TOP",
+            "MIDDLE",
             {"x": 3},
             {"x": "Новое имя"},
         )
 
-        self.assertEqual(result, {"TOP.x": 3, "TOP.y": 2})
+        self.assertEqual(result, {"MIDDLE.x": 3, "MIDDLE.y": 2})
         self.assertEqual(inspector.decision.thresholds, result)
         self.assertEqual(events[0], ("validate", result))
         self.assertEqual(
@@ -427,7 +427,7 @@ class ThresholdCallbacksTest(unittest.TestCase):
                 "save",
                 "thresholds.json",
                 result,
-                {"TOP.x": "Новое имя"},
+                {"MIDDLE.x": "Новое имя"},
             ),
         )
         self.assertEqual(events[2], ("decision", result))
@@ -440,7 +440,7 @@ class ThresholdCallbacksTest(unittest.TestCase):
             jog=SimpleNamespace(status={"busy": False}),
         )
         inspector = SimpleNamespace(
-            decision=SimpleNamespace(thresholds={"TOP.x": 1})
+            decision=SimpleNamespace(thresholds={"MIDDLE.x": 1})
         )
         callbacks = ThresholdCallbacks(
             runtime,
@@ -450,7 +450,7 @@ class ThresholdCallbacksTest(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(RuntimeError, "только до пуска"):
-            callbacks.apply("TOP", {"x": 2}, {})
+            callbacks.apply("MIDDLE", {"x": 2}, {})
 
 
 class ExitAndShutdownTest(unittest.TestCase):

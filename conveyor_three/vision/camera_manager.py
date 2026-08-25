@@ -19,9 +19,9 @@ import numpy as np
 CONFIG_FILE = "camera_mapping.json"
 
 _REQUIRED_ROLES = (
-    "NEAR",
+    "RIGHT",
     "MIDDLE",
-    "FAR",
+    "LEFT",
 )
 _EXPECTED_SIZE = (1280, 720)
 

@@ -16,24 +16,24 @@ from domain.defect_rules import (
 
 def _thresholds(**overrides):
     base = {
-        "NEAR.uneven_heights_min_confidence": 0.7,
-        "NEAR.uneven_heights_height_min_px": 20,
-        "NEAR.uneven_heights_height_max_px": 42,
-        "NEAR.uneven_heights_height_difference_px": 11,
-        "NEAR.uneven_heights_min_intersection_gap_px": 7,
-        "NEAR.window_sinks_min_confidence": 0.8,
-        "FAR.uneven_heights_min_confidence": 0.7,
-        "FAR.uneven_heights_height_min_px": 21,
-        "FAR.uneven_heights_height_max_px": 47,
-        "FAR.uneven_heights_height_difference_px": 11,
-        "FAR.uneven_heights_min_intersection_gap_px": 7,
-        "FAR.window_sinks_min_confidence": 0.8,
+        "RIGHT.uneven_heights_min_confidence": 0.7,
+        "RIGHT.uneven_heights_height_min_px": 20,
+        "RIGHT.uneven_heights_height_max_px": 42,
+        "RIGHT.uneven_heights_height_difference_px": 11,
+        "RIGHT.uneven_heights_min_intersection_gap_px": 7,
+        "RIGHT.window_sinks_min_confidence": 0.8,
+        "LEFT.uneven_heights_min_confidence": 0.7,
+        "LEFT.uneven_heights_height_min_px": 21,
+        "LEFT.uneven_heights_height_max_px": 47,
+        "LEFT.uneven_heights_height_difference_px": 11,
+        "LEFT.uneven_heights_min_intersection_gap_px": 7,
+        "LEFT.window_sinks_min_confidence": 0.8,
         "MIDDLE.bottom_glass_min_confidence": 0.65,
         "MIDDLE.welding_min_confidence": 0.65,
-        "NEAR.part_presence_min_confidence": 0.6,
-        "NEAR.part_presence_min_windows": 1,
-        "FAR.part_presence_min_confidence": 0.6,
-        "FAR.part_presence_min_windows": 1,
+        "RIGHT.part_presence_min_confidence": 0.6,
+        "RIGHT.part_presence_min_windows": 1,
+        "LEFT.part_presence_min_confidence": 0.6,
+        "LEFT.part_presence_min_windows": 1,
         "disabled_rules": [],
     }
     base.update(overrides)
@@ -78,7 +78,7 @@ class DecisionEngineTest(unittest.TestCase):
         engine = DecisionEngine(_thresholds())
         middle = {r.name for r in engine.rules_for_role("MIDDLE")}
         self.assertEqual(middle, {"bottom_glass", "welding"})
-        side = {r.name for r in engine.rules_for_role("NEAR")}
+        side = {r.name for r in engine.rules_for_role("RIGHT")}
         self.assertEqual(side, {"uneven_heights", "window_sinks"})
 
     def test_empty_vision_returns_no_results(self):
@@ -104,7 +104,7 @@ class RuleAttributesTest(unittest.TestCase):
     def test_window_sinks_uses_side_cameras(self):
         rule = WindowSinksRule(self.thresholds)
         self.assertEqual(rule.name, "window_sinks")
-        self.assertTrue(set(rule.ROLES).issubset({"NEAR", "FAR"}))
+        self.assertTrue(set(rule.ROLES).issubset({"RIGHT", "LEFT"}))
 
     def test_bottom_glass_uses_middle(self):
         rule = BottomGlassRule(self.thresholds)
@@ -117,7 +117,7 @@ class RuleAttributesTest(unittest.TestCase):
     def test_uneven_heights_uses_side_cameras(self):
         rule = UnevenHeightsRule(self.thresholds)
         self.assertEqual(rule.name, "uneven_heights")
-        self.assertTrue(set(rule.ROLES).issubset({"NEAR", "FAR"}))
+        self.assertTrue(set(rule.ROLES).issubset({"RIGHT", "LEFT"}))
 
 
 if __name__ == "__main__":

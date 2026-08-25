@@ -45,17 +45,17 @@ PROBE_READ_INTERVAL = 0.03
 PREVIEW_PROBE_ATTEMPTS = 10
 
 ROLE_ORDER = (
-    "NEAR",
+    "RIGHT",
     "MIDDLE",
-    "FAR",
+    "LEFT",
 )
 
 REQUIRED_CAMERA_COUNT = len(ROLE_ORDER)
 
 ROLE_LABELS = {
-    "NEAR": "БЛИЖНЯЯ",
+    "RIGHT": "ПРАВАЯ",
     "MIDDLE": "ЦЕНТРАЛЬНАЯ",
-    "FAR": "ДАЛЬНЯЯ",
+    "LEFT": "ЛЕВАЯ",
 }
 
 

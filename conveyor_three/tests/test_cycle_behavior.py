@@ -65,7 +65,7 @@ class FakeConveyor:
 
 
 class FakeCameras:
-    mapping = {"NEAR": 0, "MIDDLE": 1, "FAR": 2}
+    mapping = {"RIGHT": 0, "MIDDLE": 1, "LEFT": 2}
 
     def __init__(self, log):
         self.log = log
@@ -85,8 +85,8 @@ class FakeCameras:
 
 
 class FakeInspector:
-    INSPECT_ROLES = ("NEAR", "MIDDLE", "FAR")
-    PRESENCE_ROLES = ("NEAR", "FAR")
+    INSPECT_ROLES = ("RIGHT", "MIDDLE", "LEFT")
+    PRESENCE_ROLES = ("RIGHT", "LEFT")
 
     def __init__(self, log, empty=False, fail=False):
         self.log = log
@@ -168,7 +168,7 @@ class FakeJog:
 class FakeMonitor:
     def __init__(self):
         self.updates = 0
-        self.server = type("S", (), {"active_camera_role": "NEAR"})()
+        self.server = type("S", (), {"active_camera_role": "RIGHT"})()
 
     def update(self, **kwargs):
         self.updates += 1
@@ -242,7 +242,7 @@ class CycleBehaviorTest(unittest.TestCase):
         self.assertEqual(cycle.empty_count, 1)
         self.assertEqual(cycle.parts, [])
 
-    def test_spider_then_drop_good(self):
+    def test_sort_then_drop_good(self):
         cycle, log = make_cycle()
         cycle.request_start()
         cycle._run_once()  # create part at step 0 (single INSPECT stage)
@@ -322,7 +322,7 @@ class CycleBehaviorTest(unittest.TestCase):
         before = cycle.part_counter
         cycle._run_once()
         self.assertEqual(cycle.part_counter, before)
-        first_inspect = log.index(("inspect", ("NEAR", "MIDDLE", "FAR"), 1, 0))
+        first_inspect = log.index(("inspect", ("RIGHT", "MIDDLE", "LEFT"), 1, 0))
         self.assertFalse(any(
             item[0] == "inspect" for item in log[first_inspect + 1:]
             if isinstance(item, tuple)
