@@ -3,9 +3,9 @@ import json
 
 CAMERA_MAPPING_FILE = "camera_mapping.json"
 REQUIRED_ROLES = {
-    "NEAR",
+    "RIGHT",
     "MIDDLE",
-    "FAR",
+    "LEFT",
 }
 
 

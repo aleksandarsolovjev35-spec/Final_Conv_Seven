@@ -202,8 +202,8 @@ class LiveMonitorTest(unittest.TestCase):
         self.assertFalse(self.monitor.server.splash_active)
 
     def test_update_delegation(self):
-        self.monitor.update(frames={"TOP": "x"})
-        self.assertEqual(self.monitor.server.frames["TOP"], "x")
+        self.monitor.update(frames={"MIDDLE": "x"})
+        self.assertEqual(self.monitor.server.frames["MIDDLE"], "x")
 
     def test_close_window_without_window(self):
         self.monitor.close_window()  # не должно падать
@@ -244,24 +244,24 @@ class LiveMonitorTest(unittest.TestCase):
         self.assertTrue(self.monitor.server.on_distributor_diagnostic(
             "DIST1_HOME",
         ))
-        self.assertTrue(self.monitor.server.on_active_camera_changed("TOP"))
+        self.assertTrue(self.monitor.server.on_active_camera_changed("MIDDLE"))
         self.assertTrue(self.monitor.server.on_jog_hold_start("+"))
         self.assertTrue(self.monitor.server.on_thresholds_apply(
-            "TOP", {"a": 1}, {},
+            "MIDDLE", {"a": 1}, {},
         ))
         self.assertEqual(events, [
             "start", "stop", "exit",
             ("dist", "DIST1_HOME"),
-            ("camera", "TOP"),
+            ("camera", "MIDDLE"),
             ("jog", "+"),
-            ("thr", "TOP"),
+            ("thr", "MIDDLE"),
         ])
 
     def test_unbound_callbacks_return_false(self):
         self.monitor._bind_server_callbacks()
         self.assertFalse(self.monitor.server.on_start())
         self.assertFalse(self.monitor.server.on_jog_hold_start("+"))
-        self.assertFalse(self.monitor.server.on_thresholds_apply("TOP", {}, {}))
+        self.assertFalse(self.monitor.server.on_thresholds_apply("MIDDLE", {}, {}))
 
     def test_invoke_helpers(self):
         self.assertFalse(self.monitor._invoke(None))
@@ -378,11 +378,11 @@ class FactoryTest(unittest.TestCase):
             jog=mock.Mock(),
         )
         cameras = mock.Mock()
-        cameras.mapping = {"TOP": 0}
+        cameras.mapping = {"MIDDLE": 0}
         cameras.capture_roles.return_value = {}
         inspector = mock.Mock()
         monitor = mock.Mock()
-        monitor.server = SimpleNamespace(active_camera_role="TOP")
+        monitor.server = SimpleNamespace(active_camera_role="MIDDLE")
         cycle = factory.create_cycle(
             hardware=hardware,
             cameras=cameras,
@@ -401,10 +401,10 @@ class FactoryTest(unittest.TestCase):
             jog=mock.Mock(),
         )
         cameras = mock.Mock()
-        cameras.mapping = {"TOP": 0}
+        cameras.mapping = {"MIDDLE": 0}
         inspector = mock.Mock()
         monitor = mock.Mock()
-        monitor.server = SimpleNamespace(active_camera_role="TOP")
+        monitor.server = SimpleNamespace(active_camera_role="MIDDLE")
         with mock.patch(
             "application.factory.ProductionCycle",
         ) as cycle_cls:

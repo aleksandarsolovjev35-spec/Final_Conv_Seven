@@ -35,11 +35,11 @@ def _status_label(rule_name: str, triggered: bool, details: dict):
 
 
 def _presence_summary(details: dict) -> list:
-    """Короткая сводка по правилу присутствия детали (окна NEAR/FAR)."""
+    """Короткая сводка по правилу присутствия детали (окна RIGHT/LEFT)."""
     min_windows = details.get("min_windows_by_role") or {}
     windows = details.get("windows_by_role") or {}
     lines = []
-    for role in ("NEAR", "FAR"):
+    for role in ("RIGHT", "LEFT"):
         if role not in windows and role not in min_windows:
             # Поле отсутствует (срез до одной камеры) — не показываем.
             continue

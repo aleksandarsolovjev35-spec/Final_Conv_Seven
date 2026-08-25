@@ -30,7 +30,7 @@ def drawing(draw_type, **overrides):
     """Универсальный drawing с полным набором полей рендереров."""
     base = {
         "type": draw_type,
-        "role": "TOP",
+        "role": "MIDDLE",
         "bbox": [10, 10, 60, 60],
         "mask": MASK,
         "points": [[10, 10], [60, 10], [60, 60], [10, 60]],
@@ -193,16 +193,16 @@ class DebugOverlayTest(unittest.TestCase):
 
     def test_render_frame_no_drawings(self):
         result = DebugOverlay.render_frame(
-            self.frame, "TOP", [RuleResult("x", False)],
+            self.frame, "MIDDLE", [RuleResult("x", False)],
         )
         self.assertEqual(result.shape, self.frame.shape)
 
     def test_render_frame_filters_by_role(self):
         result = RuleResult("x", True, drawings=[
             drawing("rule_bbox", role="OTHER"),
-            drawing("rule_bbox", role="TOP"),
+            drawing("rule_bbox", role="MIDDLE"),
         ])
-        DebugOverlay.render_frame(self.frame, "TOP", [result])
+        DebugOverlay.render_frame(self.frame, "MIDDLE", [result])
 
     def test_construction_error_dedup_by_message(self):
         result = RuleResult("x", True, drawings=[
@@ -210,26 +210,26 @@ class DebugOverlayTest(unittest.TestCase):
             drawing("construction_error", message="SAME"),
             drawing("construction_error", message="OTHER"),
         ])
-        DebugOverlay.render_frame(self.frame, "TOP", [result])
+        DebugOverlay.render_frame(self.frame, "MIDDLE", [result])
 
     def test_stats_panel_entry_skipped(self):
         result = RuleResult("x", True, drawings=[
             drawing("stats_panel_entry"),
         ])
-        DebugOverlay.render_frame(self.frame, "TOP", [result])
+        DebugOverlay.render_frame(self.frame, "MIDDLE", [result])
 
     def test_platform_overlap_duplicate_skipped(self):
         result = RuleResult("x", True, drawings=[
             drawing("platform_overlap_platform"),
             drawing("top_platform_actual"),
         ])
-        DebugOverlay.render_frame(self.frame, "TOP", [result])
+        DebugOverlay.render_frame(self.frame, "MIDDLE", [result])
 
     def test_all_drawing_types_render(self):
         for draw_type in ALL_DRAWING_TYPES:
             with self.subTest(draw_type=draw_type):
                 result = RuleResult("x", True, drawings=[drawing(draw_type)])
-                img = DebugOverlay.render_frame(self.frame, "TOP", [result])
+                img = DebugOverlay.render_frame(self.frame, "MIDDLE", [result])
                 self.assertEqual(img.shape, self.frame.shape)
 
 

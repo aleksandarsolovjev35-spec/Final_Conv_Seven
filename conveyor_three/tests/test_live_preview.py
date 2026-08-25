@@ -28,10 +28,10 @@ class GateTest(unittest.TestCase):
     def test_pause_resume_roundtrip(self):
         gate = LiveCaptureGate()
         self.assertTrue(gate.pause(timeout=1.0))
-        with gate.live_read("TOP") as allowed:
+        with gate.live_read("MIDDLE") as allowed:
             self.assertFalse(allowed)
         gate.resume()
-        with gate.live_read("TOP") as allowed:
+        with gate.live_read("MIDDLE") as allowed:
             self.assertTrue(allowed)
 
     def test_nested_pause_depth(self):
@@ -40,10 +40,10 @@ class GateTest(unittest.TestCase):
         self.assertTrue(gate.pause())
         gate.resume()
         # Глубина ещё 1: live остаётся на паузе.
-        with gate.live_read("TOP") as allowed:
+        with gate.live_read("MIDDLE") as allowed:
             self.assertFalse(allowed)
         gate.resume()
-        with gate.live_read("TOP") as allowed:
+        with gate.live_read("MIDDLE") as allowed:
             self.assertTrue(allowed)
 
     def test_reset_clears_depth(self):
@@ -51,12 +51,12 @@ class GateTest(unittest.TestCase):
         gate.pause()
         gate.pause()
         gate.reset()
-        with gate.live_read("TOP") as allowed:
+        with gate.live_read("MIDDLE") as allowed:
             self.assertTrue(allowed)
 
     def test_live_read_acquires_slot(self):
         gate = LiveCaptureGate()
-        with gate.live_read("TOP") as allowed:
+        with gate.live_read("MIDDLE") as allowed:
             self.assertTrue(allowed)
             self.assertEqual(gate._active_reads, 1)
         self.assertEqual(gate._active_reads, 0)
@@ -80,10 +80,10 @@ class GateTest(unittest.TestCase):
 
     def test_pause_timeout_returns_false(self):
         gate = LiveCaptureGate()
-        with gate.live_read("TOP"):
+        with gate.live_read("MIDDLE"):
             self.assertFalse(gate.pause(timeout=0.05))
         # После таймаута пауза снята.
-        with gate.live_read("TOP") as allowed:
+        with gate.live_read("MIDDLE") as allowed:
             self.assertTrue(allowed)
 
     def test_pause_waits_for_active_read(self):
@@ -91,7 +91,7 @@ class GateTest(unittest.TestCase):
         release = threading.Event()
 
         def hold_read():
-            with gate.live_read("TOP"):
+            with gate.live_read("MIDDLE"):
                 release.wait(1.0)
 
         thread = threading.Thread(target=hold_read)
@@ -104,7 +104,7 @@ class GateTest(unittest.TestCase):
 
 
 class FakeLiveCameras:
-    def __init__(self, roles=("TOP", "INPUT_LEFT", "INPUT_RIGHT"),
+    def __init__(self, roles=("MIDDLE", "RIGHT", "LEFT"),
                  fail=False):
         self.mapping = {role: index for index, role in enumerate(roles)}
         self.fail = fail
@@ -130,7 +130,7 @@ class BlockingLiveCameras:
     """Камера, чей первый read остаётся внутри системного вызова."""
 
     def __init__(self):
-        self.mapping = {"TOP": 0}
+        self.mapping = {"MIDDLE": 0}
         self.read_started = threading.Event()
         self.release_read = threading.Event()
         self.read_count = 0
@@ -149,7 +149,7 @@ class BlockingLiveCameras:
 class FakeLiveMonitor:
     def __init__(self):
         self.updates = []
-        self.active_camera_role = "TOP"
+        self.active_camera_role = "MIDDLE"
 
     def update(self, **kwargs):
         self.updates.append(kwargs)
@@ -191,7 +191,7 @@ class LivePreviewTest(unittest.TestCase):
         self.assertTrue(preview.start())
         self.assertEqual(
             preview.wait_for_roles(
-                ("TOP", "INPUT_LEFT", "INPUT_RIGHT"), timeout=1.0,
+                ("MIDDLE", "RIGHT", "LEFT"), timeout=1.0,
             ),
             (),
         )
@@ -199,11 +199,11 @@ class LivePreviewTest(unittest.TestCase):
 
     def test_wait_for_roles_reports_role_without_frame(self):
         preview, _, _ = self.make_preview(
-            cameras=FakeLiveCameras(roles=("TOP",)),
+            cameras=FakeLiveCameras(roles=("MIDDLE",)),
         )
         self.assertTrue(preview.start())
         self.assertEqual(
-            preview.wait_for_roles(("TOP", "MISSING"), timeout=0.05),
+            preview.wait_for_roles(("MIDDLE", "MISSING"), timeout=0.05),
             ("MISSING",),
         )
         preview.stop()
@@ -251,7 +251,7 @@ class LivePreviewTest(unittest.TestCase):
         self.assertTrue(preview.pause())
         preview.resume()
         preview.reset_pause()
-        with preview.gate.live_read("TOP") as allowed:
+        with preview.gate.live_read("MIDDLE") as allowed:
             self.assertTrue(allowed)
 
     def test_clear_overlays(self):

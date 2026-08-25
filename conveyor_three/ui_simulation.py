@@ -84,7 +84,7 @@ class LineSimulation:
     CAMERA_STAGE_SECONDS = 0.13
     REVIEW_SECONDS = 2.0
     CATEGORIES = ("GOOD", "BAD", "CLEANUP", "GOOD", "GOOD", "BAD")
-    INSPECT_STAGES = ("NEAR", "MIDDLE", "FAR")
+    INSPECT_STAGES = ("RIGHT", "MIDDLE", "LEFT")
 
     def __init__(self, server: UIServer):
         self.server = server
@@ -520,7 +520,7 @@ class LineSimulation:
             )
 
         if inspect_part is not None:
-            part, role, stage = inspect_part, active_role or "NEAR", "ИНСПЕКЦИЯ +0"
+            part, role, stage = inspect_part, active_role or "RIGHT", "ИНСПЕКЦИЯ +0"
         else:
             return {"available": False}
 

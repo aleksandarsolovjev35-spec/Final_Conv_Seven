@@ -169,18 +169,18 @@ class VisionClusterTest(unittest.TestCase):
     def test_process_all_returns_detections(self):
         cluster = self.make_cluster()
         results = cluster.process_all({
-            "NEAR": self.frame(),
+            "RIGHT": self.frame(),
             "MIDDLE": self.frame(),
         })
-        self.assertEqual(set(results), {"NEAR", "MIDDLE"})
-        # NEAR: 2 модели группы GROUP_NEAR_FAR; MIDDLE: 2 модели GROUP_MIDDLE.
-        self.assertEqual(len(results["NEAR"]), 2)
+        self.assertEqual(set(results), {"RIGHT", "MIDDLE"})
+        # RIGHT: 2 модели группы GROUP_LEFT_RIGHT; MIDDLE: 2 модели GROUP_MIDDLE.
+        self.assertEqual(len(results["RIGHT"]), 2)
         self.assertEqual(len(results["MIDDLE"]), 2)
-        kinds_near = {detection["kind"] for detection in results["NEAR"]}
+        kinds_right = {detection["kind"] for detection in results["RIGHT"]}
         kinds_middle = {detection["kind"] for detection in results["MIDDLE"]}
-        self.assertEqual(kinds_near, {"uneven_heights", "window_sinks"})
+        self.assertEqual(kinds_right, {"uneven_heights", "window_sinks"})
         self.assertEqual(kinds_middle, {"bottom_glass", "welding"})
-        detection = results["NEAR"][0]
+        detection = results["RIGHT"][0]
         self.assertEqual(detection["class"], "windows")
         self.assertAlmostEqual(detection["confidence"], 0.9, places=6)
         self.assertEqual(len(detection["bbox"]), 4)
@@ -189,10 +189,10 @@ class VisionClusterTest(unittest.TestCase):
 
     def test_process_all_health_rows(self):
         cluster = self.make_cluster()
-        cluster.process_all({"NEAR": self.frame()})
+        cluster.process_all({"RIGHT": self.frame()})
         self.assertEqual(len(cluster.last_health), 2)
         self.assertTrue(all(row["ok"] for row in cluster.last_health))
-        self.assertEqual(cluster.last_health[0]["role"], "NEAR")
+        self.assertEqual(cluster.last_health[0]["role"], "RIGHT")
 
     def test_process_all_unknown_role(self):
         cluster = self.make_cluster()
@@ -202,12 +202,12 @@ class VisionClusterTest(unittest.TestCase):
     def test_process_all_small_frame(self):
         cluster = self.make_cluster()
         with self.assertRaisesRegex(ValueError, "Invalid frame"):
-            cluster.process_all({"NEAR": np.zeros((100, 100, 3), dtype=np.uint8)})
+            cluster.process_all({"RIGHT": np.zeros((100, 100, 3), dtype=np.uint8)})
 
     def test_inference_failure_raises_and_health(self):
         cluster = self.make_cluster(yolo_class=FailingYOLO)
         with self.assertRaisesRegex(RuntimeError, "Model inference failed"):
-            cluster.process_all({"NEAR": self.frame()})
+            cluster.process_all({"RIGHT": self.frame()})
         self.assertFalse(cluster.last_health[0]["ok"])
         self.assertIn("RuntimeError", cluster.last_health[0]["error"])
 
@@ -215,8 +215,8 @@ class VisionClusterTest(unittest.TestCase):
         """Трёхкамерник работает с iou=0.0 (без NMS-подавления)."""
         cluster = self.make_cluster()
         cluster.process_all({
-            "NEAR": self.frame(),
-            "FAR": self.frame(),
+            "RIGHT": self.frame(),
+            "LEFT": self.frame(),
             "MIDDLE": self.frame(),
         })
         for model in cluster.models.values():
