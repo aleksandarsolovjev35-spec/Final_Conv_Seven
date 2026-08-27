@@ -311,18 +311,18 @@ class FactoryTest(unittest.TestCase):
 
     def test_create_hardware(self):
         transport = mock.Mock()
+        factory = ProductionSystemFactory()
+        calibration = factory.load_calibration()
 
         def fake_query(command, delay=0.15):
             if command == "I11":
                 return (
-                    "AXIS0 speed=300 accel=100 limMin=0 limMax=340\n"
-                    "AXIS1 speed=300 accel=100 limMin=0 limMax=340"
+                    f"AXIS0 speed=300 accel=100 limMin=0 limMax={calibration['dist1_open_position']}\n"
+                    f"AXIS1 speed=300 accel=100 limMin=0 limMax={calibration['dist2_cleanup_position']}"
                 )
             return "AXIS0 POS=0 TGT=0 MOV=0 EN=1 HOME=0 HOMED=1 LIM=1 ES=0"
 
         transport.query.side_effect = fake_query
-        factory = ProductionSystemFactory()
-        calibration = factory.load_calibration()
         hardware = factory.create_hardware(
             transport, calibration, cancel_check=lambda: False,
         )
