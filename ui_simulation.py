@@ -1,4 +1,4 @@
-"""Standalone, hardware-free simulator for the operator UI.
+"""Standalone, hardware-free simulator for the Conveyor Seven UI.
 
 Run from the repository root:
     python ui_simulation.py --host 0.0.0.0 --port 8000
@@ -468,7 +468,7 @@ class LineSimulation:
         """Замеры текущего кадра для панели «АНАЛИЗ КАДРА».
 
         Как в реальном бэкенде, во время цикла панель следует за камерой,
-        выбранной оператором, и показывает замеры её стадии: ВХОД (корпус
+        выбранной в UI, и показывает замеры её стадии: ВХОД (корпус
         на +0) или КОНТРОЛЬ +4 (корпус на +4). В ручном анализе
         показывается выбранная камера.
         """
@@ -705,7 +705,7 @@ class LineSimulation:
 def configure_simulated_thresholds(server: UIServer) -> None:
     """Expose the real threshold editor without changing its source file.
 
-    The simulator deliberately keeps edits in memory: an operator can verify
+    The simulator deliberately keeps edits in memory: a user can verify
     every control and its lock state without accidentally modifying production
     calibration values in ``thresholds.json``.
     """
@@ -789,7 +789,7 @@ def main() -> None:
     server.update(frames=demo_frames())
     # Имитируем camera_mapping.json: роль -> физический Camera ID. Маппинг
     # отдаётся в /api/cameras как в production (в названиях камер в UI
-    # Camera ID по требованию оператора не показывается).
+    # Camera ID не показывается).
     server.set_camera_roles({
         role: index for index, role in enumerate(CAMERA_ORDER)
     })

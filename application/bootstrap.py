@@ -10,7 +10,7 @@ from application.lifecycle import ProductionApplication
 from application.runtime import RuntimeState
 from application.shutdown import ShutdownManager
 from application.startup import SystemInitializer
-from application.ui import OperatorUI
+from application.ui import DesktopUI
 from vision.camera_calibration_console import launch_camera_calibrator
 from vision.ui import LiveMonitor
 
@@ -43,13 +43,13 @@ def create_application() -> ProductionApplication:
     factory = ProductionSystemFactory()
     exit_coordinator = ExitCoordinator(runtime)
     initializer = SystemInitializer(runtime, factory, exit_coordinator)
-    operator_ui = OperatorUI(monitor)
+    desktop_ui = DesktopUI(monitor)
     shutdown_manager = ShutdownManager(runtime)
     return ProductionApplication(
         runtime=runtime,
         initializer=initializer,
         exit_coordinator=exit_coordinator,
-        operator_ui=operator_ui,
+        desktop_ui=desktop_ui,
         shutdown_manager=shutdown_manager,
     )
 

@@ -130,7 +130,7 @@ class UIServer:
         self.thresholds_revision = 0
         self.on_thresholds_apply: callable | None = None
 
-        # Понятные названия порогов для оператора: ROLE.parameter -> строка.
+        # Понятные названия порогов в интерфейсе: ROLE.parameter -> строка.
         # Не влияют на логику правил, только на отображение в панели.
         self.threshold_labels: dict = {}
 
@@ -383,7 +383,7 @@ class UIServer:
         """Опубликовать роли открытых камер без обязательного чтения кадров.
 
         ``roles`` — словарь ``{роль: Camera ID}`` из camera_mapping.json.
-        Сохраняется и сам маппинг, чтобы UI мог показать оператору, какой
+        Сохраняется и сам маппинг, чтобы UI мог показать, какой
         физический Camera ID соответствует каждой роли.
         """
         mapping = {}
@@ -507,8 +507,8 @@ class UIServer:
         """
         from domain.threshold_loader import describe_role_parameters
 
-        # Сначала синхронизация с файлом: оператор мог поправить
-        # thresholds.json вручную — панель покажет актуальные значения.
+        # Сначала синхронизация с файлом: thresholds.json мог быть
+        # изменён вручную — панель покажет актуальные значения.
         self.reload_thresholds_from_file()
 
         with self.lock:

@@ -54,7 +54,7 @@ class UIServerTest(unittest.TestCase):
         # Регрессия: ProductionCycle дополняет один и тот же dict
         # (_last_vision_results.update(...)) по стадиям шага. Сравнение по
         # identity считало такую публикацию «без изменений», и RAW-разметка
-        # не попадала в кэш JPEG — оператор видел кадр без детекций.
+        # не попадала в кэш JPEG — в UI отображался кадр без детекций.
         frame = make_frame()
         vision = {}
         self.server.update(frames={"TOP": frame}, vision_results=vision)

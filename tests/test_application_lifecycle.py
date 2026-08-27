@@ -10,7 +10,7 @@ from application.lifecycle import ProductionApplication
 from application.runtime import RuntimeState
 from application.shutdown import ShutdownManager
 from application.startup import SystemInitializer
-from application.ui import OperatorUI
+from application.ui import DesktopUI
 
 
 class PassiveThread:
@@ -641,7 +641,7 @@ class ExitAndShutdownTest(unittest.TestCase):
         )
 
 
-class OperatorUITest(unittest.TestCase):
+class DesktopUITest(unittest.TestCase):
     def test_webview_uses_monitor_configuration(self):
         events = []
         window = object()
@@ -664,7 +664,7 @@ class OperatorUITest(unittest.TestCase):
             webview_api=object(),
             _webview_window=None,
         )
-        ui = OperatorUI(monitor, webview_module=Webview)
+        ui = DesktopUI(monitor, webview_module=Webview)
 
         ui.run()
 

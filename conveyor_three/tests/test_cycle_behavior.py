@@ -534,7 +534,7 @@ class CycleBehaviorTest(unittest.TestCase):
     def test_part_visible_on_line_only_after_presence(self):
         # Корпус появляется в «Пути корпусов» только после того, как
         # правило наличия его подтвердило (INSPECT_PRESENT): до этого
-        # инспекционная зона на схеме пуста, и оператор не видит
+        # инспекционная зона на схеме пуста, и на ней не видно
         # «призрака», который ещё может оказаться пустым лотком.
         cycle, log = make_cycle()
         seen = {}

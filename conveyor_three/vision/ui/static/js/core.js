@@ -56,7 +56,7 @@ const UI_READY_CHECK_INT = 100;
 
 const state = {
     cameras:             [],
-    // role -> физический Camera ID (из camera_mapping.json), для показа оператору
+    // role -> физический Camera ID (из camera_mapping.json), для показа в интерфейсе
     cameraIds:           {},
     currentCamera:       null,
     mode:                'RULES',
@@ -355,10 +355,10 @@ function animateUiElement(el, className = 'ui-value-change') {
     el.classList.add(className);
     setTimeout(() => el.classList.remove(className), 260);
 }
-function normalizeOperatorText(value) { return String(value).replace(/#\s*(?=\d)/g, '\u2116\u00a0'); }
+function normalizeDisplayText(value) { return String(value).replace(/#\s*(?=\d)/g, '\u2116\u00a0'); }
 function setIfChanged(el, value, animate = true) {
     if (!el) return;
-    const text = normalizeOperatorText(value);
+    const text = normalizeDisplayText(value);
     if (el.textContent === text) return;
     el.textContent = text;
     if (animate && el.classList.contains('stats-value')) {

@@ -26,7 +26,7 @@ from application.bootstrap import (  # noqa: E402
     run_application,
 )
 from application.factory import ProductionSystemFactory
-from application.ui import OperatorUI
+from application.ui import DesktopUI
 from vision.ui.live_monitor import LiveMonitor, LiveMonitorApi
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -84,12 +84,13 @@ class CreateApplicationTest(unittest.TestCase):
         ), mock.patch(
             "application.bootstrap.SystemInitializer",
         ) as init_cls, mock.patch(
-            "application.bootstrap.OperatorUI",
+            "application.bootstrap.DesktopUI",
         ) as ui_cls, mock.patch(
             "application.bootstrap.ShutdownManager",
         ) as shutdown_cls:
             app = create_application()
         self.assertIsNotNone(app.runtime)
+        self.assertEqual(app.desktop_ui, ui_cls.return_value)
         factory_cls.assert_called_once_with()
         init_cls.assert_called_once()
         ui_cls.assert_called_once()
@@ -119,7 +120,7 @@ class CreateApplicationTest(unittest.TestCase):
         fake_app.run.assert_called_once()
 
 
-class OperatorUITest(unittest.TestCase):
+class DesktopUITest(unittest.TestCase):
     def test_init_without_webview_raises(self):
         monitor = mock.Mock()
         with mock.patch.dict(sys.modules, {"webview": None}):
@@ -128,11 +129,11 @@ class OperatorUITest(unittest.TestCase):
                 side_effect=ImportError("no pywebview"),
             ):
                 with self.assertRaises(ImportError):
-                    OperatorUI(monitor)
+                    DesktopUI(monitor)
 
     def test_init_with_fake_webview(self):
         webview = FakeWebviewModule()
-        ui = OperatorUI(mock.Mock(), webview_module=webview)
+        ui = DesktopUI(mock.Mock(), webview_module=webview)
         self.assertIs(ui._webview, webview)
 
     def test_run_creates_window(self):
@@ -145,17 +146,17 @@ class OperatorUITest(unittest.TestCase):
             webview_api=object(),
         )
         monitor._webview_window = None
-        ui = OperatorUI(monitor, webview_module=webview)
+        ui = DesktopUI(monitor, webview_module=webview)
         ui.run()
         self.assertEqual(webview.started, 1)
         self.assertEqual(webview.created[0]["title"], "HMI")
         self.assertIsNotNone(monitor._webview_window)
 
     def test_print_startup_help(self):
-        OperatorUI.print_startup_help()
+        DesktopUI.print_startup_help()
 
     def test_install_signal_handler(self):
-        ui = OperatorUI(mock.Mock(), webview_module=FakeWebviewModule())
+        ui = DesktopUI(mock.Mock(), webview_module=FakeWebviewModule())
         called = []
         ui.install_signal_handler(lambda: called.append(1))
         import signal

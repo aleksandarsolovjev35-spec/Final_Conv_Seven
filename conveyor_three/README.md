@@ -100,7 +100,7 @@ core/
   cycle/                 ProductionCycle, разложенный по миксинам
     orchestrator.py      пуск/стоп, главный цикл, авария, OFFSET_INSPECT/+3
     step.py              фазы шага и единственная стадия INSPECT
-    diagnostics.py       предстартовые и операторские проверки
+    diagnostics.py       предстартовые и сервисные проверки
     jog.py               ручной ход
     status.py            телеметрия, анализ кадра, публикация в HMI
   rule_report/           golden-совместимые строки отчёта по правилам

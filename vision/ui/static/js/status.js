@@ -282,9 +282,7 @@ function updateProcessPhaseLabel(lineState, process = {}) {
     if (!detailParts.length && hasProcessPhase && (mappedLabel || processLabel)) {
         detailParts.push(mappedLabel || processLabel);
     }
-    const detail = detailParts.join(' · ') || (
-        activeState === 'IDLE' ? 'Ожидание команды оператора' : lineStateLabel(activeState)
-    );
+    const detail = detailParts.join(' · ') || lineStateLabel(activeState);
     const processStep = process.step != null ? process.step : null;
     setIfChanged(phaseEl, label);
     if (els.processPhaseStep && processStep !== null) setIfChanged(els.processPhaseStep, `ШАГ ${processStep}`);

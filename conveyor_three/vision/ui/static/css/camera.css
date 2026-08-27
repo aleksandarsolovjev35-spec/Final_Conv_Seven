@@ -272,7 +272,7 @@
     white-space: nowrap;
 }
 
-/* The standard operator window is 1280×720.  On a shorter window the
+/* The standard UI window is 1280×720.  On a shorter window the
    fixed preview/history strips must not consume the camera's entire row and
    push the process line below the clipped body. */
 @media (max-height: 600px) {
