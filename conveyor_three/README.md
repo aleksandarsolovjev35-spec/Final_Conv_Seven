@@ -86,7 +86,7 @@ CRC и удаляется исходная папка партии. `archive_con
 ```text
 main.py                  тонкая точка входа (run.bat)
 application/             composition root и жизненный цикл
-  bootstrap.py           сборка приложения, CONVEY_MODE, проверка маппинга
+  bootstrap.py           сборка приложения, проверка маппинга
   factory.py             создание камер, vision, инспекции, оборудования, цикла
   startup.py             последовательность инициализации и стартовые кадры
   shutdown.py            детерминированное завершение и освобождение ресурсов
@@ -124,8 +124,6 @@ run.bat
 ```
 
 - `run.bat` — production-режим (HMI в pywebview + реальное железо по COM);
-- `run_work.bat` — режим **РАБОТА** (`CONVEY_MODE=work`): чистый поток без
-  разметки и отладочных пауз;
 - `run_camera_calibration.bat` — консольная калибровка камер
   (`camera_mapping.json`);
 - `camera_check.bat` — консольная диагностика USB-камер без запуска линии;

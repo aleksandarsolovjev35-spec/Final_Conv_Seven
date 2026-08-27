@@ -25,7 +25,7 @@ from domain.part import Part
 from domain.threshold_loader import ThresholdLoader
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-GOLDEN_SHA256 = "34c9bfe160912cf015c8c5c5cf60e83ee0e434b34fd0d69ae3040311c4507320"
+GOLDEN_SHA256 = "925bbc37c5539ab31958c3f488f0f9777ab1171f274bc2a85a5beede30a82b96"
 
 
 def res(name, triggered, details):

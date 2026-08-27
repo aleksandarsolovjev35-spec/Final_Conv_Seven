@@ -259,15 +259,3 @@ html, body {
     grid-column: 2;
     grid-row: 1;
 }
-
-
-
-/* ─── Режим РАБОТА (CONVEY_MODE=work): скрыть отладочные элементы ─── */
-
-body.work-mode #view-mode-toggle,
-body.work-mode #analyze-selected-frame,
-body.work-mode #thresholds-panel,
-body.work-mode #frame-analysis-panel,
-body.work-mode .blade-diagnostic-grid {
-    display: none !important;
-}

@@ -792,13 +792,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Hardware-free Conveyor Three UI simulator")
     parser.add_argument("--host", default="0.0.0.0", help="Bind host (0.0.0.0 for Arena preview)")
     parser.add_argument("--port", default=8000, type=int)
-    parser.add_argument(
-        "--work", action="store_true",
-        help="Режим РАБОТА: чистый поток без разметки и отладочных панелей",
-    )
     args = parser.parse_args()
 
-    server = UIServer(debug_enabled=not args.work)
+    server = UIServer()
     # The real archive implementation writes only into ignored sandbox data.
     # Its settings dialog and validation therefore behave exactly as in the app.
     server.archive = PartArchive(root_folder="archive/ui_simulation")

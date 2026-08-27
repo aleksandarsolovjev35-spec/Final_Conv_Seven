@@ -21,8 +21,7 @@ function thresholdsPanelVisible() {
     // панель скрыта и оператор не может изменить их задним числом.
     const jogMode = !!(state.jogActive || state.jogTogglePending);
     return (
-        state.debugMode
-        && !state.splashActive
+        !state.splashActive
         && !state.offline
         && !state.serverExitRequested
         && jogMode

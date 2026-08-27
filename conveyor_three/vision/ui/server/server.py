@@ -76,11 +76,7 @@ class UIServer:
     PREVIEW_MAX_WIDTH   = 320
     BOOT_STEPS          = BOOT_STEPS
 
-    def __init__(self, debug_enabled: bool = True):
-        # Режим ОТЛАДКА (True) рисует RAW/RULES-разметку поверх кадров.
-        # Режим РАБОТА (False) отдаёт чистый поток без какой-либо отрисовки:
-        # превью, основной кадр и MJPEG-стрим только кодируются в JPEG.
-        self.debug_enabled = bool(debug_enabled)
+    def __init__(self):
         self.frames: dict         = {}
         self.camera_roles: list   = []
         # role -> физический Camera ID (индекс устройства) из camera_mapping.json
@@ -905,10 +901,6 @@ class UIServer:
     def _render(
         self, frame, role, mode, vision_dets, rule_results,
     ):
-        if not self.debug_enabled:
-            # РЕЖИМ РАБОТА: ничего не рисуем, отдаём чистый кадр.
-            return frame.copy()
-
         if mode == "RAW":
             if vision_dets:
                 return RawOverlay.render(frame, vision_dets)
