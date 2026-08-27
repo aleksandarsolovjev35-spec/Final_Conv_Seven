@@ -1,4 +1,4 @@
-"""Привязка UI-callbacks и координация операторского EXIT."""
+"""Привязка UI-callbacks и координация EXIT."""
 
 from __future__ import annotations
 

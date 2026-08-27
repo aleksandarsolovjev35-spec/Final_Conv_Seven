@@ -302,9 +302,9 @@ class SystemInitializer:
 
     def _ensure_active(self) -> None:
         if self.runtime.shutdown_requested.is_set():
-            raise RuntimeError("initialization cancelled by operator")
+            raise RuntimeError("initialization cancelled by user")
 
     @staticmethod
     def _report_failure() -> None:
-        """Оставить startup-ошибку на splash до решения оператора."""
-        print("[INIT] Startup failed; waiting for operator to close the UI")
+        """Оставить startup-ошибку на splash до закрытия окна."""
+        print("[INIT] Startup failed; waiting to close the UI")

@@ -5,7 +5,7 @@ from __future__ import annotations
 import signal
 
 
-class OperatorUI:
+class DesktopUI:
     def __init__(self, monitor, *, webview_module=None):
         if webview_module is None:
             # Проверяем обязательную UI-зависимость до запуска startup-потока:

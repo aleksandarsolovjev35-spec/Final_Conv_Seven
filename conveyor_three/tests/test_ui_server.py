@@ -54,7 +54,7 @@ class UIServerTest(unittest.TestCase):
         # Регрессия: ProductionCycle дополняет один и тот же dict
         # (_last_vision_results.update(...)) по стадиям шага. Сравнение по
         # identity считало такую публикацию «без изменений», и RAW-разметка
-        # не попадала в кэш JPEG — оператор видел кадр без детекций.
+        # не попадала в кэш JPEG — в UI отображался кадр без детекций.
         frame = make_frame()
         vision = {}
         self.server.update(frames={"TOP": frame}, vision_results=vision)
@@ -366,36 +366,6 @@ class UIServerTest(unittest.TestCase):
         self.assertEqual(rendered.shape, (64, 96, 3))
         jpeg = self.server._encode_jpeg(make_frame())
         self.assertEqual(jpeg[:2], b"\xff\xd8")
-
-    def test_work_mode_skips_overlay_rendering(self):
-        server = UIServer(debug_enabled=False)
-        frame = make_frame()
-        detections = [{"class": "contacts", "bbox": [0, 0, 20, 20]}]
-        rule_results = [{"drawings": [{
-            "type": "rule_bbox", "role": "TOP", "bbox": [0, 0, 20, 20],
-        }]}]
-        # Даже при наличии детекций и результатов правил кадр не меняется.
-        raw = server._render(frame, "TOP", "RAW", detections, rule_results)
-        rules = server._render(frame, "TOP", "RULES", None, rule_results)
-        np.testing.assert_array_equal(raw, frame)
-        np.testing.assert_array_equal(rules, frame)
-
-    def test_work_mode_status_reports_debug_false(self):
-        server = UIServer(debug_enabled=False)
-        client = TestClient(server.app)
-        server.update(frames={"TOP": make_frame()},
-                      line_status={"state": "IDLE"})
-        response = client.get("/api/status")
-        self.assertEqual(response.status_code, 200)
-        self.assertFalse(response.json()["debug"])
-
-    def test_debug_mode_status_reports_debug_true(self):
-        server = UIServer(debug_enabled=True)
-        client = TestClient(server.app)
-        server.update(frames={"TOP": make_frame()},
-                      line_status={"state": "IDLE"})
-        response = client.get("/api/status")
-        self.assertTrue(response.json()["debug"])
 
     def test_resize_for_preview(self):
         resized = UIServer._resize_for_preview(np.zeros((720, 1280, 3), dtype=np.uint8))

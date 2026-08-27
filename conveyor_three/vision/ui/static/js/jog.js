@@ -111,11 +111,9 @@ function applyLiveBadge(active) {
         return;
     }
     if (state.displayedFrameKind === 'static') {
-        els.modeBadge.textContent = (!state.debugMode
-            ? 'СТОП-КАДР'
-            : (state.mode === 'RAW'
-                ? 'СТОП-КАДР · МОДЕЛИ'
-                : 'СТОП-КАДР · ПРАВИЛА'));
+        els.modeBadge.textContent = (state.mode === 'RAW'
+            ? 'СТОП-КАДР · МОДЕЛИ'
+            : 'СТОП-КАДР · ПРАВИЛА');
         els.modeBadge.classList.add('mode-static');
         return;
     }

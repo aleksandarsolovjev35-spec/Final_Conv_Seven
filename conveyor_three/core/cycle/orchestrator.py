@@ -32,8 +32,8 @@ from domain.part import CATEGORY_BAD, CATEGORY_UNKNOWN
 RECENT_PARTS_LIMIT = 10
 DRAIN_TIMEOUT = 120.0
 
-# Пауза после обработки кадров нейросетями: оператор успевает отсмотреть
-# результат анализа до начала следующего шага.
+# Пауза после обработки кадров нейросетями: просмотр
+# результата анализа до начала следующего шага.
 REVIEW_SECONDS = 2.0
 
 
@@ -123,7 +123,7 @@ class ProductionCycle(
         self._operation_lock = threading.Lock()
         self._cancel_motion = threading.Event()
 
-        # Снимки inspection остаются операторским стоп-кадром до следующего
+        # Снимки inspection остаются стоп-кадром до следующего
         # движения: live заморожен на весь инспекционный блок.
         self._inspection_display_roles = ()
         self._diagnostics = make_diagnostics()
@@ -185,7 +185,7 @@ class ProductionCycle(
             "part_id": part_id,
             "conveyor": dict(conveyor_status or {}),
             # Роли только что захваченных камер. UI использует это, чтобы
-            # оператор видел, какая стадия Part действительно снималась.
+            # было видно, какая стадия Part действительно снималась.
             "capture_roles": list(capture_roles or []),
             "inspection_roles": list(self._inspection_display_roles),
         }
@@ -295,7 +295,7 @@ class ProductionCycle(
         self._pause_requested.clear()
         # Сначала STOPPING: exit_jog не должен гасить live, пока линия
         # ещё дренирует корпуса. Если сначала выйти из JOG в PAUSED,
-        # is_active=False и оператор теряет видеопоток на всём стопе.
+        # is_active=False и теряется видеопоток на всём стопе.
         accepted = self.sm.request_stop()
         if self._pause_frame_active:
             self._stop_pause_frame_loop()
@@ -606,7 +606,7 @@ class ProductionCycle(
             self._set_process("DRAINING", "Остановка")
         elif new == State.STOPPED:
             # Линия пуста: последние кадры с разметкой остаются на экране,
-            # пока оператор не войдёт в JOG или не запустит цикл заново.
+            # пока не будет включён JOG или не запустится цикл заново.
             self.stages.reset()
             self.live.stop()
             self._set_process("STOPPED", "Линия остановлена и пуста")

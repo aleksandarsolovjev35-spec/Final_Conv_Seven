@@ -336,7 +336,7 @@ def _format_report(
     mapping_ok: bool | None,
     mapping_message: str,
 ) -> str:
-    """Собрать текстовый отчёт для оператора."""
+    """Собрать текстовый отчёт диагностики."""
     lines = []
     lines.append("=" * 64)
     lines.append(" ДИАГНОСТИКА КАМЕР")

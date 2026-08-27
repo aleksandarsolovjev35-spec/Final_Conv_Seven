@@ -23,11 +23,10 @@ sys.modules.setdefault("ultralytics", _FAKE_ULTRALYTICS)
 from application.bootstrap import (  # noqa: E402
     create_application,
     ensure_camera_mapping,
-    resolve_debug_enabled,
     run_application,
 )
 from application.factory import ProductionSystemFactory
-from application.ui import OperatorUI
+from application.ui import DesktopUI
 from vision.ui.live_monitor import LiveMonitor, LiveMonitorApi
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -76,24 +75,6 @@ class EnsureCameraMappingTest(unittest.TestCase):
                 self.assertFalse(ensure_camera_mapping(path))
 
 
-class ResolveDebugEnabledTest(unittest.TestCase):
-    def test_default_is_debug(self):
-        with mock.patch.dict(os.environ, {}, clear=True):
-            self.assertTrue(resolve_debug_enabled())
-
-    def test_work_mode_is_not_debug(self):
-        with mock.patch.dict(os.environ, {"CONVEY_MODE": "work"}, clear=True):
-            self.assertFalse(resolve_debug_enabled())
-
-    def test_debug_mode_explicit(self):
-        with mock.patch.dict(os.environ, {"CONVEY_MODE": "debug"}, clear=True):
-            self.assertTrue(resolve_debug_enabled())
-
-    def test_unknown_mode_falls_back_to_debug(self):
-        with mock.patch.dict(os.environ, {"CONVEY_MODE": "WORK"}, clear=True):
-            self.assertFalse(resolve_debug_enabled())
-
-
 class CreateApplicationTest(unittest.TestCase):
     def test_create_application_wires_parts(self):
         with mock.patch(
@@ -103,13 +84,14 @@ class CreateApplicationTest(unittest.TestCase):
         ), mock.patch(
             "application.bootstrap.SystemInitializer",
         ) as init_cls, mock.patch(
-            "application.bootstrap.OperatorUI",
+            "application.bootstrap.DesktopUI",
         ) as ui_cls, mock.patch(
             "application.bootstrap.ShutdownManager",
         ) as shutdown_cls:
             app = create_application()
         self.assertIsNotNone(app.runtime)
-        factory_cls.assert_called_once_with(debug_enabled=True)
+        self.assertEqual(app.desktop_ui, ui_cls.return_value)
+        factory_cls.assert_called_once_with()
         init_cls.assert_called_once()
         ui_cls.assert_called_once()
         shutdown_cls.assert_called_once()
@@ -138,7 +120,7 @@ class CreateApplicationTest(unittest.TestCase):
         fake_app.run.assert_called_once()
 
 
-class OperatorUITest(unittest.TestCase):
+class DesktopUITest(unittest.TestCase):
     def test_init_without_webview_raises(self):
         monitor = mock.Mock()
         with mock.patch.dict(sys.modules, {"webview": None}):
@@ -147,11 +129,11 @@ class OperatorUITest(unittest.TestCase):
                 side_effect=ImportError("no pywebview"),
             ):
                 with self.assertRaises(ImportError):
-                    OperatorUI(monitor)
+                    DesktopUI(monitor)
 
     def test_init_with_fake_webview(self):
         webview = FakeWebviewModule()
-        ui = OperatorUI(mock.Mock(), webview_module=webview)
+        ui = DesktopUI(mock.Mock(), webview_module=webview)
         self.assertIs(ui._webview, webview)
 
     def test_run_creates_window(self):
@@ -164,17 +146,17 @@ class OperatorUITest(unittest.TestCase):
             webview_api=object(),
         )
         monitor._webview_window = None
-        ui = OperatorUI(monitor, webview_module=webview)
+        ui = DesktopUI(monitor, webview_module=webview)
         ui.run()
         self.assertEqual(webview.started, 1)
         self.assertEqual(webview.created[0]["title"], "HMI")
         self.assertIsNotNone(monitor._webview_window)
 
     def test_print_startup_help(self):
-        OperatorUI.print_startup_help()
+        DesktopUI.print_startup_help()
 
     def test_install_signal_handler(self):
-        ui = OperatorUI(mock.Mock(), webview_module=FakeWebviewModule())
+        ui = DesktopUI(mock.Mock(), webview_module=FakeWebviewModule())
         called = []
         ui.install_signal_handler(lambda: called.append(1))
         import signal
@@ -329,18 +311,18 @@ class FactoryTest(unittest.TestCase):
 
     def test_create_hardware(self):
         transport = mock.Mock()
+        factory = ProductionSystemFactory()
+        calibration = factory.load_calibration()
 
         def fake_query(command, delay=0.15):
             if command == "I11":
                 return (
-                    "AXIS0 speed=300 accel=100 limMin=0 limMax=340\n"
-                    "AXIS1 speed=300 accel=100 limMin=0 limMax=340"
+                    f"AXIS0 speed=300 accel=100 limMin=0 limMax={calibration['dist1_open_position']}\n"
+                    f"AXIS1 speed=300 accel=100 limMin=0 limMax={calibration['dist2_cleanup_position']}"
                 )
             return "AXIS0 POS=0 TGT=0 MOV=0 EN=1 HOME=0 HOMED=1 LIM=1 ES=0"
 
         transport.query.side_effect = fake_query
-        factory = ProductionSystemFactory()
-        calibration = factory.load_calibration()
         hardware = factory.create_hardware(
             transport, calibration, cancel_check=lambda: False,
         )
@@ -393,8 +375,8 @@ class FactoryTest(unittest.TestCase):
         )
         self.assertIsNotNone(cycle)
 
-    def test_create_cycle_work_mode_zeroes_debug_pauses(self):
-        factory = ProductionSystemFactory(debug_enabled=False)
+    def test_create_cycle_uses_calibration_pauses(self):
+        factory = ProductionSystemFactory()
         hardware = SimpleNamespace(
             conveyor=mock.Mock(),
             distributor=mock.Mock(),
@@ -405,6 +387,7 @@ class FactoryTest(unittest.TestCase):
         inspector = mock.Mock()
         monitor = mock.Mock()
         monitor.server = SimpleNamespace(active_camera_role="TOP")
+        calib = factory.load_calibration()
         with mock.patch(
             "application.factory.ProductionCycle",
         ) as cycle_cls:
@@ -414,13 +397,12 @@ class FactoryTest(unittest.TestCase):
                 inspector=inspector,
                 monitor=monitor,
                 archive=mock.Mock(),
-                calibration=factory.load_calibration(),
+                calibration=calib,
             )
         kwargs = cycle_cls.call_args.kwargs
-        self.assertEqual(kwargs["review_seconds"], 0.0)
-        self.assertEqual(kwargs["stage_trace_seconds"], 0.0)
-        # Гашение вибрации — физический параметр, остаётся из calibration.
-        self.assertGreater(kwargs["settle_seconds"], 0.0)
+        self.assertEqual(kwargs["review_seconds"], calib["review_time"])
+        self.assertEqual(kwargs["stage_trace_seconds"], calib["stage_trace_time"])
+        self.assertEqual(kwargs["settle_seconds"], calib["settle_time"])
 
     def test_discover_controller(self):
         factory = ProductionSystemFactory()

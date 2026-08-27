@@ -30,7 +30,7 @@ class CycleStatusMixin:
     def _record_frame_analysis(self, group: str, part_id, result):
         """Сохранить итог стадии в клетку её группы камер.
 
-        Правая панель UI показывает анализ выбранной оператором камеры,
+        Правая панель UI показывает анализ выбранной в UI камеры,
         поэтому результаты хранятся раздельно для ВХОДА и КОНТРОЛЯ +4.
         """
         self._frame_analysis_groups[group] = {
@@ -77,7 +77,7 @@ class CycleStatusMixin:
         selected_report = report.get("kind") == "SELECTED_MODEL"
 
         if state_name in ("RUNNING", "STOPPING"):
-            # Панель следует за камерой, выбранной оператором: анализ
+            # Панель следует за камерой, выбранной в UI: анализ
             # меняется при каждом переключении камеры в рабочем цикле.
             # Показываются только правила и замеры этой камеры, а не
             # всей группы (INPUT / SPIDER / TOP).

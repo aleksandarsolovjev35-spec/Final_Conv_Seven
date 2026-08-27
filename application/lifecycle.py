@@ -13,7 +13,7 @@ class ProductionApplication:
         runtime,
         initializer,
         exit_coordinator,
-        operator_ui,
+        desktop_ui,
         shutdown_manager,
         *,
         thread_factory=threading.Thread,
@@ -21,7 +21,7 @@ class ProductionApplication:
         self.runtime = runtime
         self.initializer = initializer
         self.exit_coordinator = exit_coordinator
-        self.operator_ui = operator_ui
+        self.desktop_ui = desktop_ui
         self.shutdown_manager = shutdown_manager
         self._thread_factory = thread_factory
 
@@ -43,12 +43,12 @@ class ProductionApplication:
             self.runtime.init_thread = init_thread
             init_thread.start()
 
-            self.operator_ui.install_signal_handler(
+            self.desktop_ui.install_signal_handler(
                 self.exit_coordinator.request_exit
             )
-            self.operator_ui.print_startup_help()
+            self.desktop_ui.print_startup_help()
             # pywebview блокирует текущий поток до закрытия окна.
-            self.operator_ui.run()
+            self.desktop_ui.run()
             self.shutdown_manager.after_window_closed()
         finally:
             self.shutdown_manager.shutdown()

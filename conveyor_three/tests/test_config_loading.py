@@ -2,7 +2,7 @@
 
 Проверяются ``config.archive_config``, ``config.calibration_loader`` и
 ``config.camera_mapping``: defaults, нормализация значений, атомарная
-запись и все ошибки валидации, которые видит оператор на старте.
+запись и все ошибки валидации, которые выводятся на старте.
 """
 
 from __future__ import annotations

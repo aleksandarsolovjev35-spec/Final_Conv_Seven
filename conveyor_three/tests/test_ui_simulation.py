@@ -123,7 +123,7 @@ class SimulationApiTest(unittest.TestCase):
 
     def test_jog_allowed_while_paused(self):
         # Пауза — разрешённое состояние для ручного хода, как в production:
-        # оператор корректирует положение ленты до продолжения цикла.
+        # корректируется положение ленты до продолжения цикла.
         self.sim.state = "PAUSED"
         self.assertTrue(self.sim.enter_jog())
         self.assertTrue(self.sim.jog_active)

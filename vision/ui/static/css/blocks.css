@@ -6,7 +6,7 @@
 [data-ui-block="calibration-assignment"] { scrollbar-gutter: stable; }
 [data-ui-block="main-camera"] { contain: layout paint; }
 [data-ui-block="process-line"] { contain: layout paint style; }
-[data-ui-block="operator-footer"] .buttons,[data-ui-block="camera-controls"],[data-ui-block="gallery"] .gallery-header,[data-ui-block="calibration-header"],[data-ui-block="calibration-footer"] { min-width: 0; }
+[data-ui-block="controls-footer"] .buttons,[data-ui-block="camera-controls"],[data-ui-block="gallery"] .gallery-header,[data-ui-block="calibration-header"],[data-ui-block="calibration-footer"] { min-width: 0; }
 
 /* === Анализ кадра === */
 

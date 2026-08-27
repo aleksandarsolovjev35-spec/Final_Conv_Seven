@@ -88,11 +88,7 @@ class UIServer:
     PREVIEW_MAX_WIDTH   = 320
     BOOT_STEPS          = BOOT_STEPS
 
-    def __init__(self, debug_enabled: bool = True):
-        # Режим ОТЛАДКА (True) рисует RAW/RULES-разметку поверх кадров.
-        # Режим РАБОТА (False) отдаёт чистый поток без какой-либо отрисовки:
-        # превью, основной кадр и MJPEG-стрим только кодируются в JPEG.
-        self.debug_enabled = bool(debug_enabled)
+    def __init__(self):
         self.frames: dict         = {}
         self.camera_roles: list   = []
         # role -> физический Camera ID (индекс устройства) из camera_mapping.json
@@ -146,7 +142,7 @@ class UIServer:
         self.thresholds_revision = 0
         self.on_thresholds_apply: callable | None = None
 
-        # Понятные названия порогов для оператора: ROLE.parameter -> строка.
+        # Понятные названия порогов в интерфейсе: ROLE.parameter -> строка.
         # Не влияют на логику правил, только на отображение в панели.
         self.threshold_labels: dict = {}
 
@@ -399,7 +395,7 @@ class UIServer:
         """Опубликовать роли открытых камер без обязательного чтения кадров.
 
         ``roles`` — словарь ``{роль: Camera ID}`` из camera_mapping.json.
-        Сохраняется и сам маппинг, чтобы UI мог показать оператору, какой
+        Сохраняется и сам маппинг, чтобы UI мог показать, какой
         физический Camera ID соответствует каждой роли.
         """
         mapping = {}
@@ -523,8 +519,8 @@ class UIServer:
         """
         from domain.threshold_loader import describe_role_parameters
 
-        # Сначала синхронизация с файлом: оператор мог поправить
-        # thresholds.json вручную — панель покажет актуальные значения.
+        # Сначала синхронизация с файлом: thresholds.json мог быть
+        # изменён вручную — панель покажет актуальные значения.
         self.reload_thresholds_from_file()
 
         with self.lock:
@@ -917,10 +913,6 @@ class UIServer:
     def _render(
         self, frame, role, mode, vision_dets, rule_results,
     ):
-        if not self.debug_enabled:
-            # РЕЖИМ РАБОТА: ничего не рисуем, отдаём чистый кадр.
-            return frame.copy()
-
         if mode == "RAW":
             if vision_dets:
                 return RawOverlay.render(frame, vision_dets)

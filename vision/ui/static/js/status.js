@@ -4,17 +4,6 @@
 // - синхронизация монитор->UI сохранена
 'use strict';
 
-// Режим запуска. В РАБОТЕ (debug=false) скрываем отладочные элементы:
-// переключатель RAW/ПРАВИЛА, анализ кадра, пороги правил и ручные кнопки
-// распределителя. Остаются видеопоток, статистика, ПУСК/СТОП/пауза, JOG
-// и путь корпусов.
-function applyDebugMode(debug) {
-    const enabled = debug !== false;
-    if (state.debugMode === enabled) return;
-    state.debugMode = enabled;
-    document.body.classList.toggle('work-mode', !enabled);
-}
-
 function isInspectionDisplayPhase(phase) {
     const value = String(phase || '').toUpperCase();
     return value.includes('CAMERA')
@@ -33,11 +22,7 @@ function updateOperationalAccordions(lineState) {
     if (els.statsBody) els.statsBody.classList.remove('is-collapsed');
     if (els.statsSummary) els.statsSummary.classList.add('is-open');
     if (els.distributorDiagnostics) {
-        // Блок распределителя всегда выглядит как во время рабочего
-        // процесса: в режиме РАБОТА он компактный в любом состоянии
-        // линии, кнопки диагностики появляются только в отладке и
-        // только на полностью остановленной линии.
-        const compact = !fullyStopped || !state.debugMode;
+        const compact = !fullyStopped;
         els.distributorDiagnostics.classList.toggle('controls-collapsed', compact);
         els.distributorDiagnostics.querySelectorAll('.blade-diagnostic-grid').forEach(grid => {
             grid.classList.toggle('is-collapsed', compact);
@@ -79,7 +64,6 @@ async function fetchStatus() {
 
     state.lastStatusAt = Date.now();
     state.statusReceived = true;
-    applyDebugMode(status.debug);
     if (state.offline) {
         state.offline = false;
         els.main.classList.remove('ui-offline');
@@ -298,9 +282,7 @@ function updateProcessPhaseLabel(lineState, process = {}) {
     if (!detailParts.length && hasProcessPhase && (mappedLabel || processLabel)) {
         detailParts.push(mappedLabel || processLabel);
     }
-    const detail = detailParts.join(' · ') || (
-        activeState === 'IDLE' ? 'Ожидание команды оператора' : lineStateLabel(activeState)
-    );
+    const detail = detailParts.join(' · ') || lineStateLabel(activeState);
     const processStep = process.step != null ? process.step : null;
     setIfChanged(phaseEl, label);
     if (els.processPhaseStep && processStep !== null) setIfChanged(els.processPhaseStep, `ШАГ ${processStep}`);

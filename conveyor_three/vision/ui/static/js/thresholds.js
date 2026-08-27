@@ -18,11 +18,10 @@ let _threshFetchSeq = 0;
 function thresholdsPanelVisible() {
     // Пороги настраиваются только в JOG. Во время анализа выбранного
     // стоп-кадра они уже применены к показанному результату, поэтому
-    // панель скрыта и оператор не может изменить их задним числом.
+    // панель скрыта, чтобы исключить изменение задним числом.
     const jogMode = !!(state.jogActive || state.jogTogglePending);
     return (
-        state.debugMode
-        && !state.splashActive
+        !state.splashActive
         && !state.offline
         && !state.serverExitRequested
         && jogMode

@@ -35,7 +35,6 @@ function viewModeContextVisible() {
 function viewModeAllowed() {
     return (
         viewModeContextVisible()
-        && state.debugMode
         && state.statusReceived
         && Object.keys(state.backendControls || {}).length > 0
         && !state.controlPending
@@ -182,8 +181,8 @@ async function fetchCameras() {
 }
 
 function cameraIdSuffix(role) {
-    // По требованию оператора физический Camera ID («CAM <номер>»)
-    // не показывается в названии камеры ни в превью, ни в главном окне.
+    // Физический Camera ID («CAM <номер>») не показывается в названии
+    // камеры ни в превью, ни в главном окне.
     return '';
 }
 
