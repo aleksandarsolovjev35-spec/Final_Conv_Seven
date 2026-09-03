@@ -42,7 +42,7 @@
 Основные свойства текущей версии:
 
 - 7 камер с фиксированными ролями и разрешением `1280×720`;
-- 12 production-правил и служебное правило наличия детали;
+- 13 production-правил и служебное правило наличия детали;
 - inference выполняется на CPU (`VisionCluster(device="cpu")`);
 - камеры открываются последовательно: одна попытка через стандартный backend OpenCV, успешного `isOpened()` достаточно;
 - официальный захват и drain тоже последовательные: один `cap.read()` в момент времени на всю линию;
@@ -121,7 +121,8 @@ weights/
 │   └── contacts_long_v.1.pt                         # contacts-long
 ├── 3,5/
 │   ├── short_omission_v.1.2.pt                      # omission-short
-│   └── contacts_short.pt                            # flatness_short
+│   ├── contacts_short.pt                            # flatness_short
+│   └── black_spots_omission.pt                      # black-spot
 └── 4/
     ├── contacts.pt                                  # contacts
     ├── platform_old.pt                              # platform
@@ -144,6 +145,7 @@ weights/
 | SPIDER LEFT/RIGHT | `long_omission` | граница длинной omission-полосы |
 | SPIDER IN/OUT | `contacts_short` | пара коротких контактов |
 | SPIDER IN/OUT | `short_omission` | граница короткой omission-полосы |
+| SPIDER IN/OUT | `black_spots_omission` | чёрные пятна, пересекающие область short omission — маршрут `BAD` |
 | TOP | `top_contacts` | раскладка контактов `5L + 5R + 2T + 2B` |
 | TOP | `top_platform` | вписывание эталона в mask платформы |
 | TOP | `platform_contacts_overlap` | выход платформы за область, построенную по контактам |
@@ -154,6 +156,8 @@ weights/
 Если обе INPUT-камеры не подтверждают наличие детали, лоток считается пустым: `Part` не создаётся, остальные входные правила не выполняются, увеличивается счётчик пустых лотков.
 
 Все обычные дефекты ведут в `BAD`. В `CLEANUP` идёт деталь, у которой **все** обнаруженные дефекты входят в набор `CLEANUP_DEFECTS` из `domain/part.py` — это `glass` (его эмитит правило `TopGlassRule`). Деталь без дефектов получает `GOOD` только после завершения обеих стадий инспекции.
+
+Правило `black_spots_omission` (модель `black-spot` на внутренней и внешней камерах `SPIDER_IN`/`SPIDER_OUT`) работает по принципу подтверждения областью, как у стекла: **сначала** проверяется наличие области short omission (по `omission-short` той же камеры), и только при её наличии пятна ищутся внутри неё. Пятно, пересекающее область short omission, — брак `BAD`; пятно вне области — ложное срабатывание модели и браком не считается; если области или пятен нет вообще — деталь годная.
 
 Пороговые значения находятся в `thresholds.json`, сгруппированы по ролям камер. Поля проверяются при загрузке. Пороги можно менять в HMI в состояниях `IDLE` / `STOPPED`; изменения сохраняются в файл и пересоздают `DecisionEngine`. Список `disabled_rules` отключает правила по имени, но запуск блокируется, если активных правил не осталось.
 
@@ -731,9 +735,10 @@ python -m pyflakes core
   контракт `thresholds.json` (пороги, метаданные, roundtrip записи);
 - `test_geometry.py` — геометрические хелперы: пересечения bbox, центроиды,
   подбор ряда, вписывание эталонного прямоугольника;
-- `test_defect_rules_*.py` — все 12 production-правил на синтетических
+- `test_defect_rules_*.py` — все 13 production-правил на синтетических
   масках: fail-closed при отсутствии детекций, годные сцены и каждый класс
-  дефекта (контакты, полосы пропуска, стекло, раковины, заплыв платформы);
+  дефекта (контакты, полосы пропуска, стекло, раковины, заплыв платформы,
+  чёрные пятна на полосе пропуска);
 - `test_hardware.py` — SerialTransport, Axis, Conveyor, Distributor,
   JogController и поиск COM-порта на фейковом serial;
 - `test_inspection.py` — Inspector, DebugRecorder, PartArchive (кадры,

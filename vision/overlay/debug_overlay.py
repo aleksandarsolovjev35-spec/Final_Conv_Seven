@@ -11,6 +11,7 @@ from vision.overlay.renderers.top_platform     import TopPlatformRenderer
 from vision.overlay.renderers.top_sinks        import TopSinksRenderer
 from vision.overlay.renderers.top_glass        import TopGlassRenderer
 from vision.overlay.renderers.platform_overlap import PlatformOverlapRenderer
+from vision.overlay.renderers.black_spots_omission import BlackSpotsOmissionRenderer
 
 
 class DebugOverlay:
@@ -216,6 +217,12 @@ class DebugOverlay:
                 TopGlassRenderer.draw_contact_overlap(img, d)
             elif draw_type == "top_glass_bad_glass":
                 TopGlassRenderer.draw_bad_glass(img, d)
+
+            # --- Black spots on short omission (-> BAD) ---
+            elif draw_type == "black_spots_omission_region":
+                BlackSpotsOmissionRenderer.draw_region(img, d)
+            elif draw_type == "black_spots_omission_hit":
+                DrawPrimitives.draw_rule_bbox(img, d)
 
             # --- Platform overlap rule: outer overflow boundary ---
             elif draw_type == "platform_overlap_platform":

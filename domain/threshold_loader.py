@@ -17,6 +17,7 @@ RULE_GROUPS = (
     ("spider_long_omission", "ПОЛОСА ПРОПУСКА · ДЛИННАЯ", ("spider_long_omission_",)),
     ("spider_contacts_short", "КОНТАКТЫ · КОРОТКИЕ", ("spider_contacts_short_",)),
     ("spider_short_omission", "ПОЛОСА ПРОПУСКА · КОРОТКАЯ", ("spider_short_omission_",)),
+    ("black_spots_omission", "ПЯТНА НА ПОЛОСЕ ПРОПУСКА", ("black_spots_omission_",)),
     ("top_contacts", "КОНТАКТЫ СВЕРХУ", ("top_contacts_",)),
     ("top_platform_overlap", "ЗАПЛЫВ ПЛАТФОРМЫ", ("top_platform_overlap_",)),
     ("top_platform", "ПЛАТФОРМА СВЕРХУ", ("top_platform_",)),
@@ -62,6 +63,7 @@ PARAM_LABELS = {
     "spider_short_omission_excess_component_min_px": "Мин. размер компоненты избытка, px",
     "spider_short_omission_top_line_max_residual_px": "Макс. остаточное отклонение верхней линии, px",
     "spider_short_omission_top_line_min_inlier_ratio": "Мин. доля точек верхней линии в допуске",
+    "black_spots_omission_min_confidence": "Мин. уверенность пятен black-spot",
     "top_contacts_min_confidence": "Мин. уверенность контактов сверху",
     "top_contacts_expected_count": "Фиксированное число контактов сверху, шт.",
     "top_contacts_platform_min_confidence": "Мин. уверенность платформы для контактов",
@@ -122,7 +124,7 @@ class ThresholdLoader:
         for name in PARAM_LABELS
         if (role.startswith("INPUT_") and name.startswith("input_"))
         or (role in ("SPIDER_LEFT", "SPIDER_RIGHT") and name.startswith(("spider_contacts_long", "spider_long_omission")))
-        or (role in ("SPIDER_IN", "SPIDER_OUT") and name.startswith(("spider_contacts_short", "spider_short_omission")))
+        or (role in ("SPIDER_IN", "SPIDER_OUT") and name.startswith(("spider_contacts_short", "spider_short_omission", "black_spots_omission")))
         or (role == "TOP" and name.startswith("top_"))
     )
 

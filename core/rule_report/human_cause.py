@@ -13,6 +13,8 @@ ROLE_REASON_TEXT = {
     "missing_pin_mask": "нет маски штифта",
     "empty_case_ring": "пустое кольцо корпуса",
     "case_central_not_inside_case": "смещён центр корпуса",
+    "no_omission_region": "область short omission не построена",
+    "black_spot_in_omission_region": "пятно в области short omission",
     "inner_platform_reference_not_fitted": "не построен эталон платформы",
     "contact_boundary_not_built": "область по контактам не построена",
 }
@@ -44,6 +46,7 @@ HUMAN_CAUSE_MAP = {
     ("contacts_short", True): "НАКЛОН / СМЕЩЕНИЕ КОРОТКИХ КОНТАКТОВ",
     ("long_omission", True): "ИЗБЫТОЧНАЯ ТОЛЩИНА ДЛИННОЙ ПОЛОСЫ ПРОПУСКА",
     ("short_omission", True): "ИЗБЫТОЧНАЯ ТОЛЩИНА КОРОТКОЙ ПОЛОСЫ ПРОПУСКА",
+    ("black_spots_omission", True): "ЧЁРНОЕ ПЯТНО НА КОРОТКОЙ ПОЛОСЕ ПРОПУСКА",
     # TOP
     ("top_contacts", True): "СМЕЩЕНИЕ КОНТАКТОВ НА ПЛАТФОРМЕ",
     ("top_platform", True): "ПЛАТФОРМА НЕ ВПИСАЛАСЬ",

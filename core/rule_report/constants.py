@@ -129,6 +129,13 @@ METRIC_PARAM_LABELS = {
         "Стекло #1: union, px",
     ("glass", "glass_2_union_px"):
         "Стекло #2: union, px",
+    # black_spots_omission
+    ("black_spots_omission", "found"):
+        "Пятен black-spot, шт",
+    ("black_spots_omission", "confirmed_hits"):
+        "Подтверждено пересечением с полосой, шт",
+    ("black_spots_omission", "false_positives"):
+        "Ложных срабатываний (вне полосы), шт",
     # glass_on_contacts
     ("glass_on_contacts", "glass_count"):
         "Стекол, шт",
@@ -227,6 +234,7 @@ RULE_CAMERA_ROLES = {
     "long_omission": ("SPIDER_LEFT", "SPIDER_RIGHT"),
     "contacts_short": ("SPIDER_IN", "SPIDER_OUT"),
     "short_omission": ("SPIDER_IN", "SPIDER_OUT"),
+    "black_spots_omission": ("SPIDER_IN", "SPIDER_OUT"),
     "top_contacts": ("TOP",),
     "top_platform": ("TOP",),
     "platform_contacts_overlap": ("TOP",),
