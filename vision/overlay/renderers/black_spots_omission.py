@@ -41,13 +41,13 @@ class BlackSpotsOmissionRenderer:
                 img, [contour], True, COLOR_REGION, THICK,
                 lineType=cv2.LINE_AA,
             )
-        ys, xs = np.nonzero(filled)
-        if len(ys) == 0:
+
+        mask = filled > 0
+        if not int(np.count_nonzero(mask)):
             return
-        overlay = img.copy()
-        color = np.asarray(COLOR_REGION, dtype=np.float32)
-        overlay[ys, xs] = cv2.addWeighted(
-            img[ys, xs].astype(np.float32), 1 - MASK_ALPHA,
-            color, MASK_ALPHA, 0,
-        ).astype(np.uint8)
-        img[ys, xs] = overlay[ys, xs]
+        color = np.asarray(COLOR_REGION, dtype=np.float64)
+        blended = (
+            img.astype(np.float64) * (1.0 - MASK_ALPHA)
+            + color.reshape(1, 1, 3) * MASK_ALPHA
+        )
+        img[mask] = blended[mask].round().astype(np.uint8)

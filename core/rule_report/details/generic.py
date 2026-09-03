@@ -179,14 +179,6 @@ def _glass_on_contacts_failures(reason, role_details: dict) -> list:
     return []
 
 
-_GENERIC_RULE_BUILDERS = {
-    "window_sinks": _window_sinks_failures,
-    "sinks": _sinks_failures,
-    "glass": _glass_failures,
-    "glass_on_contacts": _glass_on_contacts_failures,
-}
-
-
 def black_spots_omission_metrics(role_details: dict) -> list:
     """Метрики правила ``black_spots_omission`` (пятна на полосе пропуска)."""
     from core.rule_report.metrics import metric
@@ -218,8 +210,13 @@ def _black_spots_failures(reason, role_details: dict) -> list:
     return []
 
 
-# Правило добавляется в реестр после определения сборщика причин.
-_GENERIC_RULE_BUILDERS["black_spots_omission"] = _black_spots_failures
+_GENERIC_RULE_BUILDERS = {
+    "window_sinks": _window_sinks_failures,
+    "sinks": _sinks_failures,
+    "glass": _glass_failures,
+    "glass_on_contacts": _glass_on_contacts_failures,
+    "black_spots_omission": _black_spots_failures,
+}
 
 
 def _generic_failure_rows(rule_name: str, per_role: dict) -> list:
