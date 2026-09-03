@@ -36,6 +36,11 @@ MODEL_GROUPS = {
             "conf": 0.1,
             "classes": ("flatness_short",),
         },
+        {
+            "path": "weights/3,5/black_spots_omission.pt",
+            "conf": 0.3,
+            "classes": ("black-spot",),
+        },
     ],
 
     "GROUP_4": [

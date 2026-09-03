@@ -120,7 +120,8 @@ class DecisionEngineTest(unittest.TestCase):
         thresholds["disabled_rules"] = [
             "window_geometry", "window_sinks",
             "contacts_long", "long_omission", "contacts_short",
-            "short_omission", "top_contacts", "top_platform", "sinks",
+            "short_omission", "black_spots_omission",
+            "top_contacts", "top_platform", "sinks",
             "glass", "glass_on_contacts",
             "platform_contacts_overlap",
         ]

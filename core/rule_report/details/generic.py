@@ -179,11 +179,43 @@ def _glass_on_contacts_failures(reason, role_details: dict) -> list:
     return []
 
 
+def black_spots_omission_metrics(role_details: dict) -> list:
+    """Метрики правила ``black_spots_omission`` (пятна на полосе пропуска)."""
+    from core.rule_report.metrics import metric
+
+    return [
+        item for item in (
+            metric("Пятен black-spot, шт", role_details.get("found"),
+                   key="found"),
+            metric("Подтверждено пересечением, шт",
+                   role_details.get("confirmed_hits"),
+                   key="confirmed_hits"),
+            metric("Ложных срабатываний (вне полосы), шт",
+                   role_details.get("false_positives"),
+                   key="false_positives"),
+        ) if item is not None
+    ]
+
+
+def _black_spots_failures(reason, role_details: dict) -> list:
+    """Причины срабатывания правила ``black_spots_omission``."""
+    if reason and str(reason).startswith("no_omission_region"):
+        return ["область short omission не построена — пятна не подтверждены"]
+    if not reason:
+        return [
+            f"пятно #{hit.get('spot_index')}: "
+            f"пересечение с полосой {hit.get('overlap_px')} px -> БРАК"
+            for hit in role_details.get("hits") or []
+        ]
+    return []
+
+
 _GENERIC_RULE_BUILDERS = {
     "window_sinks": _window_sinks_failures,
     "sinks": _sinks_failures,
     "glass": _glass_failures,
     "glass_on_contacts": _glass_on_contacts_failures,
+    "black_spots_omission": _black_spots_failures,
 }
 
 

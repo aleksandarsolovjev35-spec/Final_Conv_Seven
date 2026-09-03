@@ -7,6 +7,7 @@ from domain.defect_rules.rule_spider_contacts_long  import SpiderContactsLongRul
 from domain.defect_rules.rule_spider_long_omission  import SpiderLongOmissionRule
 from domain.defect_rules.rule_spider_contacts_short import SpiderContactsShortRule
 from domain.defect_rules.rule_spider_short_omission import SpiderShortOmissionRule
+from domain.defect_rules.rule_black_spots_omission import SpiderBlackSpotsOmissionRule
 from domain.defect_rules.rule_top_contacts          import TopContactsRule
 from domain.defect_rules.rule_top_platform          import TopPlatformRule
 from domain.defect_rules.rule_top_sinks             import TopSinksRule
@@ -24,6 +25,7 @@ __all__ = [
     "SpiderLongOmissionRule",
     "SpiderContactsShortRule",
     "SpiderShortOmissionRule",
+    "SpiderBlackSpotsOmissionRule",
     "TopContactsRule",
     "TopPlatformRule",
     "TopSinksRule",

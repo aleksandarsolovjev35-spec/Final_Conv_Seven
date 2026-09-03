@@ -11,6 +11,7 @@ from vision.overlay.renderers.top_platform     import TopPlatformRenderer
 from vision.overlay.renderers.top_sinks        import TopSinksRenderer
 from vision.overlay.renderers.top_glass        import TopGlassRenderer
 from vision.overlay.renderers.platform_overlap import PlatformOverlapRenderer
+from vision.overlay.renderers.black_spots_omission import BlackSpotsOmissionRenderer
 
 __all__ = [
     "DrawPrimitives",
@@ -26,4 +27,5 @@ __all__ = [
     "TopSinksRenderer",
     "TopGlassRenderer",
     "PlatformOverlapRenderer",
+    "BlackSpotsOmissionRenderer",
 ]

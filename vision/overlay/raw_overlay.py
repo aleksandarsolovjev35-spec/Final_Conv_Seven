@@ -21,6 +21,7 @@ CLASS_COLORS = {
     "output_glass":     (100, 0,   0),
     "omission-long":    (0,   255, 255),
     "omission-short":   (255, 255, 0),
+    "black-spot":       (200,   0, 200),
     "shells":           (255, 255, 0),
     "objects":          (0,   100, 255),
     "pin":              (80,   100, 255),

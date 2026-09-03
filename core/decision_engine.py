@@ -7,6 +7,7 @@ from domain.defect_rules import (
     SpiderLongOmissionRule,
     SpiderContactsShortRule,
     SpiderShortOmissionRule,
+    SpiderBlackSpotsOmissionRule,
     TopContactsRule,
     TopPlatformRule,
     TopSinksRule,
@@ -39,6 +40,7 @@ class DecisionEngine:
 
             SpiderContactsShortRule(thresholds),
             SpiderShortOmissionRule(thresholds),
+            SpiderBlackSpotsOmissionRule(thresholds),
 
             TopContactsRule(thresholds),
             TopPlatformRule(thresholds),

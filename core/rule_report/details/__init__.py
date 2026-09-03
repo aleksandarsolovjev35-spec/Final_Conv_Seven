@@ -30,6 +30,7 @@ from core.rule_report.details.window_geometry import (
     window_geometry_metrics,
 )
 from core.rule_report.details.window_sinks import window_sinks_metrics
+from core.rule_report.details.generic import black_spots_omission_metrics
 
 
 _DETAIL_FORMATTERS = {
@@ -56,4 +57,5 @@ ROLE_METRIC_BUILDERS = {
     "sinks": sinks_metrics,
     "glass": glass_metrics,
     "glass_on_contacts": glass_on_contacts_metrics,
+    "black_spots_omission": black_spots_omission_metrics,
 }

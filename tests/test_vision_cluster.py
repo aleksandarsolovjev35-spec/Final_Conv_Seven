@@ -96,6 +96,7 @@ NAMES_BY_PATH = {
     "weights/2,7/contacts_long_v.1.pt": {0: "contacts-long"},
     "weights/3,5/short_omission_v.1.2.pt": {0: "omission-short"},
     "weights/3,5/contacts_short.pt": {0: "flatness_short"},
+    "weights/3,5/black_spots_omission.pt": {0: "black-spot"},
     "weights/4/contacts.pt": {0: "contacts"},
     "weights/4/platform_old.pt": {0: "platform"},
     "weights/4/sinks_v.1_m.pt": {0: "shells"},
@@ -146,7 +147,7 @@ class VisionClusterTest(unittest.TestCase):
 
     def test_loads_all_models_once(self):
         cluster = self.make_cluster()
-        self.assertEqual(len(cluster.models), 12)
+        self.assertEqual(len(cluster.models), 13)
         self.assertIn("weights/1,6/uneven_heights_and_unfilled_windows_new1.pt",
                       cluster.models)
 

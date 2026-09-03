@@ -72,6 +72,7 @@ RULE_THRESHOLD_GROUPS = {
     "contacts_short": "spider_contacts_short",
     "long_omission": "spider_long_omission",
     "short_omission": "spider_short_omission",
+    "black_spots_omission": "black_spots_omission",
     "top_contacts": "top_contacts",
     "top_platform": "top_platform",
     "platform_contacts_overlap": "top_platform_overlap",
