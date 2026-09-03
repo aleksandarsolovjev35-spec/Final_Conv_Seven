@@ -27,7 +27,7 @@ MODEL_GROUPS = {
 
     "GROUP_3_5": [
         {
-            "path": "weights/3,5/short_omission_v.1.2.pt",
+            "path": "weights/3,5/short_omission_v.1.3.pt",
             "conf": 0.4,
             "classes": ("omission-short",),
         },
