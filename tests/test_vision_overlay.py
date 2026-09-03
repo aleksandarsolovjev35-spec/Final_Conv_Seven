@@ -157,6 +157,7 @@ ALL_DRAWING_TYPES = [
     "top_glass_cleanup_references", "top_glass_cleanup_region",
     "top_glass_bad_references", "top_glass_contact_overlap",
     "top_glass_bad_glass",
+    "black_spots_omission_region", "black_spots_omission_hit",
     "platform_overlap_platform", "platform_overlap_boundary",
     "platform_overlap_region",
 ]
@@ -231,6 +232,37 @@ class DebugOverlayTest(unittest.TestCase):
                 result = RuleResult("x", True, drawings=[drawing(draw_type)])
                 img = DebugOverlay.render_frame(self.frame, "TOP", [result])
                 self.assertEqual(img.shape, self.frame.shape)
+
+    def test_black_spots_region_offset_fill(self):
+        # Область со смещённым origin: рендер не падает и заливает маску.
+        raster = np.zeros((24, 32), dtype=np.uint8)
+        raster[8:16, 8:20] = 255
+        result = RuleResult("x", True, drawings=[drawing(
+            "black_spots_omission_region",
+            region_mask=raster,
+            region_origin=[30, 20],
+        )])
+        img = DebugOverlay.render_frame(self.frame, "TOP", [result])
+        self.assertEqual(img.shape, self.frame.shape)
+        # Центр области (origin 30,20 + raster (12,14)) попадает в кадр и
+        # заливается отличным от фона цветом.
+        self.assertTrue(img[20 + 12, 30 + 14].any())
+
+    def test_black_spots_region_missing_raster_noop(self):
+        result = RuleResult("x", True, drawings=[drawing(
+            "black_spots_omission_region",
+            region_mask=None,
+            region_origin=[0, 0],
+        )])
+        img = DebugOverlay.render_frame(self.frame, "TOP", [result])
+        self.assertTrue(np.array_equal(img, self.frame))
+
+    def test_black_spots_hit_drawn(self):
+        result = RuleResult("x", True, drawings=[drawing(
+            "black_spots_omission_hit", mask=MASK,
+        )])
+        img = DebugOverlay.render_frame(self.frame, "TOP", [result])
+        self.assertTrue(img.any())
 
 
 class DrawPrimitivesTest(unittest.TestCase):
