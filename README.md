@@ -121,7 +121,7 @@ weights/
 │   ├── long_omission_v.1.2.pt                       # omission-long
 │   └── contacts_long_v.1.pt                         # contacts-long
 ├── 3,5/
-│   ├── short_omission_v.1.2.pt                      # omission-short
+│   ├── short_omission_v.1.3.pt                      # omission-short
 │   ├── contacts_short.pt                            # flatness_short
 │   └── black_spots_omission.pt                      # black-spot
 └── 4/
