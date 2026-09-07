@@ -94,7 +94,7 @@ NAMES_BY_PATH = {
     "weights/1,6/window_sinks.pt": {0: "objects"},
     "weights/2,7/long_omission_v.1.2.pt": {0: "omission-long"},
     "weights/2,7/contacts_long_v.1.pt": {0: "contacts-long"},
-    "weights/3,5/short_omission_v.1.2.pt": {0: "omission-short"},
+    "weights/3,5/short_omission_v.1.3.pt": {0: "omission-short"},
     "weights/3,5/contacts_short.pt": {0: "flatness_short"},
     "weights/3,5/black_spots_omission.pt": {0: "black-spot"},
     "weights/4/contacts.pt": {0: "contacts"},
