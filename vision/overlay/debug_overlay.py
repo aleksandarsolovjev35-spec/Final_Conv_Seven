@@ -222,7 +222,7 @@ class DebugOverlay:
             elif draw_type == "black_spots_omission_region":
                 BlackSpotsOmissionRenderer.draw_region(img, d)
             elif draw_type == "black_spots_omission_hit":
-                DrawPrimitives.draw_rule_bbox(img, d)
+                BlackSpotsOmissionRenderer.draw_hit(img, d)
 
             # --- Platform overlap rule: outer overflow boundary ---
             elif draw_type == "platform_overlap_platform":

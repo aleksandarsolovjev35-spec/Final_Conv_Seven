@@ -6,7 +6,6 @@ from vision.overlay.renderers.primitives import (
     COLOR_PASS,
     COLOR_SKIP,
     DrawPrimitives,
-    LINE_FAIL,
     LINE_THIN,
 )
 
@@ -26,20 +25,19 @@ class ContactsLongRenderer:
             [points],
             True,
             COLOR_FAIL if triggered else COLOR_PASS,
-            LINE_FAIL if triggered else LINE_THIN,
+            LINE_THIN,
             lineType=cv2.LINE_AA,
         )
 
     @staticmethod
     def draw_count_item(img, drawing):
         points = ContactsLongRenderer._points(drawing)
-        cv2.polylines(img, [points], True, COLOR_FAIL, LINE_FAIL, lineType=cv2.LINE_AA)
+        cv2.polylines(img, [points], True, COLOR_FAIL, LINE_THIN, lineType=cv2.LINE_AA)
 
     @staticmethod
     def draw_invalid_mask(img, drawing):
         points = ContactsLongRenderer._points(drawing)
-        cv2.polylines(img, [points], True, COLOR_FAIL, LINE_FAIL, lineType=cv2.LINE_AA)
-        ContactsLongRenderer._draw_cross(img, points)
+        cv2.polylines(img, [points], True, COLOR_FAIL, LINE_THIN, lineType=cv2.LINE_AA)
 
     @staticmethod
     def draw_ignored(img, drawing):
@@ -79,7 +77,7 @@ class ContactsLongRenderer:
             start,
             end,
             color,
-            LINE_FAIL if drawing.get("triggered") else LINE_THIN,
+            LINE_THIN,
         )
         tolerance = int(drawing.get("tolerance") or 0)
         if tolerance > 0:
@@ -116,7 +114,7 @@ class ContactsLongRenderer:
             int(drawing.get("x_end", 0)),
             int(drawing.get("y_end", 0)),
         )
-        cv2.line(img, start, end, color, LINE_FAIL)
+        cv2.line(img, start, end, color, LINE_THIN)
 
     @staticmethod
     def draw_omission_distance(img, drawing):
@@ -141,8 +139,11 @@ class ContactsLongRenderer:
             int,
             drawing.get("bbox") or [0, 0, 0, 0],
         )
-        cv2.line(img, (x1, y1), (x2, y2), COLOR_FAIL, LINE_FAIL)
-        cv2.line(img, (x1, y2), (x2, y1), COLOR_FAIL, LINE_FAIL)
+        # «Призрак» ожидаемого пропуска: красный пунктирный контур
+        DrawPrimitives.draw_dashed_line(img, (x1, y1), (x2, y1), COLOR_FAIL, LINE_THIN)
+        DrawPrimitives.draw_dashed_line(img, (x2, y1), (x2, y2), COLOR_FAIL, LINE_THIN)
+        DrawPrimitives.draw_dashed_line(img, (x2, y2), (x1, y2), COLOR_FAIL, LINE_THIN)
+        DrawPrimitives.draw_dashed_line(img, (x1, y2), (x1, y1), COLOR_FAIL, LINE_THIN)
 
     @staticmethod
     def draw_inscribed_rect(img, drawing):
@@ -155,7 +156,7 @@ class ContactsLongRenderer:
             [np.asarray(points, dtype=np.int32)],
             True,
             COLOR_REFERENCE_RECT if fits else COLOR_FAIL,
-            LINE_THIN if fits else LINE_FAIL,
+            LINE_THIN,
             lineType=cv2.LINE_AA,
         )
 
@@ -174,13 +175,3 @@ class ContactsLongRenderer:
             [[x1, y1], [x2, y1], [x2, y2], [x1, y2]],
             dtype=np.int32,
         ).reshape(-1, 1, 2)
-
-    @staticmethod
-    def _draw_cross(img, points):
-        flat = points.reshape(-1, 2)
-        x1 = int(flat[:, 0].min())
-        x2 = int(flat[:, 0].max())
-        y1 = int(flat[:, 1].min())
-        y2 = int(flat[:, 1].max())
-        cv2.line(img, (x1, y1), (x2, y2), COLOR_FAIL, LINE_FAIL)
-        cv2.line(img, (x1, y2), (x2, y1), COLOR_FAIL, LINE_FAIL)

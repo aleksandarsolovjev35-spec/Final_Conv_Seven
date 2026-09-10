@@ -6,7 +6,6 @@ from vision.overlay.renderers.primitives import (
     COLOR_PASS,
     COLOR_SKIP,
     DrawPrimitives,
-    LINE_FAIL,
     LINE_THIN,
 )
 
@@ -23,22 +22,22 @@ class WindowGeometryRenderer:
         valid = bool(drawing.get("valid"))
         triggered = bool(drawing.get("triggered"))
         points = WindowGeometryRenderer._points(drawing)
-        contour_color = COLOR_FAIL if triggered or not valid else COLOR_PASS
-        contour_width = LINE_FAIL if triggered or not valid else LINE_THIN
-        cv2.polylines(img, [points], True, contour_color, contour_width, lineType=cv2.LINE_AA)
-
-        if not valid:
-            WindowGeometryRenderer._draw_cross(img, points)
-            return
-
         mask_top = int(round(drawing.get("mask_top", 0)))
         mask_bottom = int(round(drawing.get("mask_bottom", 0)))
         boundary = int(round(drawing.get("boundary_y", 0)))
+        degenerate = (
+            mask_bottom <= mask_top or boundary < mask_top or boundary > mask_bottom
+        )
+        contour_color = (
+            COLOR_FAIL if triggered or not valid or degenerate else COLOR_PASS
+        )
+        cv2.polylines(img, [points], True, contour_color, LINE_THIN, lineType=cv2.LINE_AA)
+
+        if not valid or degenerate:
+            return
+
         x_start = int(drawing.get("x_line_start", 0))
         x_end = int(drawing.get("x_line_end", 0))
-        if mask_bottom <= mask_top or boundary < mask_top or boundary > mask_bottom:
-            WindowGeometryRenderer._draw_cross(img, points)
-            return
 
         if x_end > x_start:
             cv2.line(
@@ -77,7 +76,7 @@ class WindowGeometryRenderer:
     @staticmethod
     def draw_count_item(img, drawing):
         points = WindowGeometryRenderer._points(drawing)
-        cv2.polylines(img, [points], True, COLOR_FAIL, LINE_FAIL, lineType=cv2.LINE_AA)
+        cv2.polylines(img, [points], True, COLOR_FAIL, LINE_THIN, lineType=cv2.LINE_AA)
 
     @staticmethod
     def draw_ignored(img, drawing):
@@ -98,21 +97,11 @@ class WindowGeometryRenderer:
     def _draw_measure_segment(img, *, x, y_start, y_end, color, failed):
         y_start = int(y_start)
         y_end = int(y_end)
-        width = LINE_FAIL if failed else LINE_THIN
+        width = LINE_THIN
         cv2.line(img, (x, y_start), (x, y_end), color, width)
         tick = 4
         cv2.line(img, (x - tick, y_start), (x + tick, y_start), color, width)
         cv2.line(img, (x - tick, y_end), (x + tick, y_end), color, width)
-
-    @staticmethod
-    def _draw_cross(img, points):
-        flat = points.reshape(-1, 2)
-        x1 = int(flat[:, 0].min())
-        x2 = int(flat[:, 0].max())
-        y1 = int(flat[:, 1].min())
-        y2 = int(flat[:, 1].max())
-        cv2.line(img, (x1, y1), (x2, y2), COLOR_FAIL, LINE_FAIL)
-        cv2.line(img, (x1, y2), (x2, y1), COLOR_FAIL, LINE_FAIL)
 
     @staticmethod
     def _points(drawing):

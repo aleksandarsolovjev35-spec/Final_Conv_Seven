@@ -1,20 +1,23 @@
 import cv2
 import numpy as np
 
-# Цвета отрисовки debug-оверлея
-COLOR_PASS     = (0, 200, 0)
-COLOR_FAIL     = (0, 0, 255)
-COLOR_SKIP     = (128, 128, 128)
-COLOR_GLASS    = (200, 100, 0)
-COLOR_PLATFORM = (255, 0, 255)
+# Цвета отрисовки debug-оверлея — из общего каталога ``palette``:
+# статусные (PASS/FAIL/SKIP) и объектные (те же, что у детекций в
+# режиме «МОДЕЛИ»). Объектные цвета рендереры берут из ``palette``
+# напрямую.
+from vision.overlay.palette import (
+    COLOR_FAIL,
+    COLOR_GLASS,
+    COLOR_PASS,
+    COLOR_PLATFORM,
+    COLOR_SKIP,
+    LINE_THIN,
+    MASK_ALPHA,
+)
 
 FONT   = cv2.FONT_HERSHEY_SIMPLEX
 FONT_S = 0.4
 THICK  = 1
-
-LINE_THIN  = 1
-LINE_FAIL  = 2
-MASK_ALPHA = 0.15
 
 
 class DrawPrimitives:
@@ -37,7 +40,7 @@ class DrawPrimitives:
         x1, y1, x2, y2 = map(int, d["bbox"])
         mask = d.get("mask")
         has_mask = mask and len(mask) >= 3
-        thickness = LINE_FAIL if d.get("triggered") else LINE_THIN
+        thickness = LINE_THIN
 
         if has_mask:
             pts = np.array(mask, dtype=np.int32)

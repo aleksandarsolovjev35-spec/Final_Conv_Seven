@@ -7,7 +7,7 @@
 import cv2
 
 from vision.overlay.renderers.primitives import (
-    COLOR_PASS, COLOR_FAIL, DrawPrimitives,
+    COLOR_PASS, COLOR_FAIL, DrawPrimitives, LINE_THIN,
 )
 
 COLOR_MEASURE = (255, 0, 0)  # синяя линия замера (как в трёхкамернике)
@@ -26,7 +26,7 @@ class WindowHeightRenderer:
         line_color = COLOR_FAIL if triggered else COLOR_MEASURE
         cv2.line(
             img, (x, y_top), (x, y_bottom),
-            line_color, 2 if triggered else 1, cv2.LINE_AA,
+            line_color, LINE_THIN, cv2.LINE_AA,
         )
 
         if height is not None:

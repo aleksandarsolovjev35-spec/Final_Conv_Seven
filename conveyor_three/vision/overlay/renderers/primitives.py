@@ -1,30 +1,35 @@
 import cv2
 import numpy as np
 
-# Цвета отрисовки debug-оверлея
-COLOR_PASS     = (0, 200, 0)
-COLOR_FAIL     = (0, 0, 255)
-COLOR_SKIP     = (128, 128, 128)
-COLOR_GLASS    = (200, 100, 0)
-COLOR_PLATFORM = (255, 0, 255)
+# Цвета отрисовки debug-оверлея — из общего каталога ``palette``:
+# статусные (PASS/FAIL/SKIP) и объектные (те же, что у детекций в
+# режиме «МОДЕЛИ»).
+from vision.overlay.palette import (
+    COLOR_FAIL,
+    COLOR_GLASS,
+    COLOR_PASS,
+    COLOR_PLATFORM,
+    COLOR_SKIP,
+    LINE_THIN,
+    MASK_ALPHA,
+)
 
 FONT   = cv2.FONT_HERSHEY_SIMPLEX
 FONT_S = 0.4
 THICK  = 1
 
-LINE_THIN  = 1
-LINE_FAIL  = 2
-MASK_ALPHA = 0.15
-
 
 class DrawPrimitives:
     @staticmethod
     def pick_color(d):
-        if d.get("triggered"):
-            return COLOR_FAIL
         color_hint = d.get("color_hint")
         if color_hint == "glass":
+            # Стекло сохраняет объектный цвет даже при сработавшем
+            # правиле — как на семикамерной линии (top_glass_bad_glass):
+            # объект остаётся «стеклом», статус выражает толщина/заливка.
             return COLOR_GLASS
+        if d.get("triggered"):
+            return COLOR_FAIL
         if color_hint == "platform":
             return COLOR_PLATFORM
         if color_hint == "skip":
@@ -37,12 +42,17 @@ class DrawPrimitives:
         x1, y1, x2, y2 = map(int, d["bbox"])
         mask = d.get("mask")
         has_mask = mask and len(mask) >= 3
-        thickness = LINE_FAIL if d.get("triggered") else LINE_THIN
+        thickness = LINE_THIN
 
         if has_mask:
             pts = np.array(mask, dtype=np.int32)
             overlay = img.copy()
-            fill_color = COLOR_FAIL if d.get("triggered") else (60, 60, 60)
+            if d.get("color_hint") == "glass":
+                # Заливка маски стекла — объектный цвет, как в сыром
+                # оверлее режима «МОДЕЛИ».
+                fill_color = COLOR_GLASS
+            else:
+                fill_color = COLOR_FAIL if d.get("triggered") else (60, 60, 60)
             cv2.fillPoly(overlay, [pts], fill_color)
             cv2.addWeighted(overlay, MASK_ALPHA, img, 1 - MASK_ALPHA, 0, img)
             cv2.polylines(img, [pts], True, color, thickness, lineType=cv2.LINE_AA)

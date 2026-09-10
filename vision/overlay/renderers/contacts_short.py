@@ -9,7 +9,6 @@ from vision.overlay.renderers.primitives import (
     COLOR_FAIL,
     COLOR_SKIP,
     DrawPrimitives,
-    LINE_FAIL,
     LINE_THIN,
 )
 
@@ -46,7 +45,7 @@ class ContactsShortRenderer:
         failed = bool(drawing.get("triggered"))
         if failed:
             color = COLOR_FAIL
-        width = LINE_FAIL if failed else LINE_THIN
+        width = LINE_THIN
         cv2.line(img, (x_a, y_a), (x_b, y_b), color, width)
         DrawPrimitives.draw_dashed_line(
             img, (x_start, y_a), (x_a, y_a), color, LINE_THIN, dash_len=4,
@@ -77,7 +76,7 @@ class ContactsShortRenderer:
         y_bottom = int(drawing.get("y_bottom", 0))
         failed = bool(drawing.get("triggered"))
         color = COLOR_FAIL if failed else COLOR_HEIGHT_MEASURE
-        width = LINE_FAIL if failed else LINE_THIN
+        width = LINE_THIN
         cv2.line(img, (x, y_top), (x, y_bottom), color, width)
         tick = 4
         cv2.line(img, (x-tick, y_top), (x+tick, y_top), color, width)

@@ -128,6 +128,21 @@ class SpiderBlackSpotsOmissionRule(BaseRule):
                 "spot_index": index,
                 "overlap_px": overlap_px,
             })
+            # Показываем только пересечение пятна с областью: часть пятна
+            # за пределами области пропуска в режиме «ПРАВИЛА» не рисуем.
+            contours, _hierarchy = cv2.findContours(
+                overlap,
+                cv2.RETR_EXTERNAL,
+                cv2.CHAIN_APPROX_SIMPLE,
+            )
+            overlap_contours = [
+                (
+                    contour.reshape(-1, 2).astype(np.int32)
+                    + np.array([offset_x, offset_y], dtype=np.int32)
+                ).tolist()
+                for contour in contours
+                if len(contour) >= 1
+            ]
             bbox = spot.get("bbox") or [0, 0, 0, 0]
             hit_drawings.append({
                 "type": "black_spots_omission_hit",
@@ -135,13 +150,15 @@ class SpiderBlackSpotsOmissionRule(BaseRule):
                 "triggered": True,
                 "bbox": [float(v) for v in bbox],
                 "mask": points.tolist(),
+                "overlap_contours": overlap_contours,
                 "overlap_px": overlap_px,
             })
 
         region_drawing = {
             "type": "black_spots_omission_region",
             "role": role,
-            "triggered": False,
+            # Зона загорается красным, только если пятно подтверждено.
+            "triggered": bool(confirmed),
             "bbox": [
                 float(offset_x), float(offset_y),
                 float(offset_x + width - 1), float(offset_y + height - 1),
