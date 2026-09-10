@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import unittest
 
+import cv2
 import numpy as np
 
 from vision.overlay.debug_overlay import DebugOverlay
@@ -301,6 +302,234 @@ class DrawPrimitivesTest(unittest.TestCase):
         DrawPrimitives.draw_dashed_line(
             self.frame, (0, 0), (0, 0), COLOR_PASS, 1,
         )
+
+
+class PaletteConsistencyTest(unittest.TestCase):
+    """Один и тот же объект — один цвет в режимах «МОДЕЛИ» и «ПРАВИЛА».
+
+    Общий каталог ``vision/overlay/palette.py`` — единственный источник
+    объектных цветов; статус правила (OK/FAIL) при этом сохраняется.
+
+    Проверка цвета устойчива к сглаживанию ``LINE_AA``: на чёрном фоне
+    альфа просто масштабирует все каналы пикселя, поэтому сравнивается
+    нормированное соотношение каналов, а не абсолютные значения.
+    """
+
+    def setUp(self):
+        self.frame = np.zeros((120, 160, 3), dtype=np.uint8)
+
+    @staticmethod
+    def _has_color_tint(img, color, min_intensity=60, atol=0.05):
+        target = np.asarray(color, dtype=np.float64)
+        target_max = target.max()
+        if target_max <= 0:
+            return False
+        target_norm = target / target_max
+        px = img.reshape(-1, 3).astype(np.float64)
+        px_max = px.max(axis=1)
+        mask = px_max >= min_intensity
+        if not mask.any():
+            return False
+        px_norm = px[mask] / px_max[mask, None]
+        close = (np.abs(px_norm - target_norm[None, :]) <= atol).all(axis=1)
+        return bool(close.any())
+
+    @staticmethod
+    def _offscreen_line():
+        # Ссылочные линии за пределами кадра: не мешают проверке цвета маски.
+        return {"x_start": 500, "y_start": 500, "x_end": 501, "y_start": 500}
+
+    def test_raw_overlay_uses_shared_catalog(self):
+        import vision.overlay.raw_overlay as raw_overlay_mod
+        from vision.overlay import palette
+        self.assertIs(raw_overlay_mod.CLASS_COLORS, palette.CLASS_COLORS)
+        self.assertIs(raw_overlay_mod.DEFAULT_COLOR, palette.DEFAULT_COLOR)
+
+    def test_platform_color_same_in_both_modes(self):
+        from vision.overlay import palette
+        from vision.overlay.raw_overlay import RawOverlay
+        # Режим «МОДЕЛИ»: детекция класса platform.
+        img = RawOverlay.render(self.frame, [
+            {"class": "platform", "bbox": [10, 10, 60, 60]},
+        ])
+        self.assertTrue(self._has_color_tint(img, palette.COLOR_PLATFORM))
+        # Режим «ПРАВИЛА»: целая платформа (top_platform_actual) — тот же цвет.
+        result = RuleResult("x", True, drawings=[
+            drawing("top_platform_actual", triggered=False, valid=True),
+        ])
+        img = DebugOverlay.render_frame(self.frame, "TOP", [result])
+        self.assertTrue(self._has_color_tint(img, palette.COLOR_PLATFORM))
+        # Статус сохраняется: повреждённая платформа — красная, не объектная.
+        result = RuleResult("x", True, drawings=[
+            drawing("top_platform_actual", triggered=False, valid=False),
+        ])
+        img = DebugOverlay.render_frame(self.frame, "TOP", [result])
+        self.assertTrue(self._has_color_tint(img, COLOR_FAIL))
+        self.assertFalse(self._has_color_tint(img, palette.COLOR_PLATFORM))
+
+    def test_omission_colors_match_model_classes(self):
+        from vision.overlay import palette
+        long_img = DebugOverlay.render_frame(self.frame, "SPIDER_LEFT", [
+            RuleResult("x", True, drawings=[
+                drawing("long_omission_item", role="SPIDER_LEFT",
+                        top_line=self._offscreen_line(),
+                        limit_line=self._offscreen_line(),
+                        excess_mask=None, excess_contours=[]),
+            ]),
+        ])
+        self.assertTrue(self._has_color_tint(long_img, palette.COLOR_OMISSION_LONG))
+        short_img = DebugOverlay.render_frame(self.frame, "SPIDER_IN", [
+            RuleResult("x", True, drawings=[
+                drawing("short_omission_item", role="SPIDER_IN",
+                        top_line=self._offscreen_line(),
+                        limit_line=self._offscreen_line(),
+                        excess_mask=None, excess_contours=[]),
+            ]),
+        ])
+        self.assertTrue(self._has_color_tint(short_img, palette.COLOR_OMISSION_SHORT))
+
+    def test_references_take_model_class_colors(self):
+        from vision.overlay import palette
+        # Окно — зона нарушения: красная заливка/контур (не цвет класса);
+        # раковина — каталожный цвет objects из режима «МОДЕЛИ».
+        img = DebugOverlay.render_frame(self.frame, "INPUT_LEFT", [
+            RuleResult("x", True, drawings=[
+                drawing("window_sink_overlap", role="INPUT_LEFT",
+                        window_mask=None, window_bbox=[10, 10, 60, 40],
+                        sink_mask=[[20, 15], [50, 15], [50, 35], [20, 35]],
+                        sink_bbox=[20, 15, 50, 35]),
+            ]),
+        ])
+        self.assertTrue(self._has_color_tint(img, palette.COLOR_FAIL))
+        self.assertTrue(self._has_color_tint(img, palette.COLOR_OBJECTS))
+        self.assertFalse(self._has_color_tint(img, palette.COLOR_FLATNESS))
+        # Ссылки на платформу/корпус/централь/пины в стекле — цвета классов;
+        # контуры не перекрывают друг друга, чтобы цвета не смешивались.
+        refs = drawing("top_glass_cleanup_references",
+                       platform_mask=None, platform_bbox=[10, 10, 40, 25],
+                       case_mask=None, case_bbox=[50, 10, 80, 25],
+                       central_mask=None, central_bbox=[10, 40, 40, 55],
+                       pin_masks=[None], pin_bboxes=[[50, 40, 70, 55]])
+        img = DebugOverlay.render_frame(self.frame, "TOP", [
+            RuleResult("x", True, drawings=[refs]),
+        ])
+        for color in (
+            palette.COLOR_PLATFORM,
+            palette.COLOR_CASE,
+            palette.COLOR_CASE_CENTRAL,
+            palette.COLOR_PIN,
+        ):
+            self.assertTrue(self._has_color_tint(img, color))
+
+    def test_window_sinks_zone_red_sink_catalog(self):
+        # Конвенция «красная зона»: окно загорается красным, раковина —
+        # в каталожном цвете objects (как в «МОДЕЛИ»).
+        from vision.overlay import palette
+        img = DebugOverlay.render_frame(self.frame, "INPUT_LEFT", [
+            RuleResult("x", True, drawings=[
+                drawing("window_sink_overlap", role="INPUT_LEFT",
+                        window_mask=[[10, 10], [60, 10], [60, 40], [10, 40]],
+                        window_bbox=[10, 10, 60, 40],
+                        sink_mask=[[20, 15], [50, 15], [50, 35], [20, 35]],
+                        sink_bbox=[20, 15, 50, 35]),
+            ]),
+        ])
+        self.assertTrue(self._has_color_tint(img, palette.COLOR_FAIL))
+        self.assertTrue(self._has_color_tint(img, palette.COLOR_OBJECTS))
+        self.assertFalse(self._has_color_tint(img, palette.COLOR_FLATNESS))
+
+    def test_black_spots_region_red_when_triggered(self):
+        # Область с подтверждённым пятном — красная зона; пятно —
+        # каталожный цвет black-spot (как в «МОДЕЛИ»).
+        from vision.overlay import palette
+        raster = np.zeros((20, 20), dtype=np.uint8)
+        raster[5:15, 5:15] = 255
+        spot_local = np.asarray(
+            [[17, 17], [23, 17], [23, 23], [17, 23]], dtype=np.int32,
+        ) - np.array([10, 10])
+        spot_canvas = np.zeros((20, 20), dtype=np.uint8)
+        cv2.fillPoly(spot_canvas, [spot_local], 255)
+        overlap = cv2.bitwise_and(spot_canvas, raster)
+        contours, _ = cv2.findContours(
+            overlap, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE,
+        )
+        frame_contours = [
+            (c.reshape(-1, 2) + np.array([10, 10])).tolist() for c in contours
+        ]
+        img = DebugOverlay.render_frame(self.frame, "SPIDER_IN", [
+            RuleResult("x", True, drawings=[
+                drawing("black_spots_omission_region", role="SPIDER_IN",
+                        triggered=True,
+                        region_mask=raster, region_origin=[10, 10]),
+                drawing("black_spots_omission_hit", role="SPIDER_IN",
+                        triggered=True,
+                        mask=[[17, 17], [23, 17], [23, 23], [17, 23]],
+                        bbox=[17, 17, 23, 23],
+                        overlap_contours=frame_contours),
+            ]),
+        ])
+        self.assertTrue(self._has_color_tint(img, palette.COLOR_FAIL))
+        self.assertTrue(
+            self._has_color_tint(img, palette.COLOR_BLACK_SPOT, atol=0.1),
+        )
+        self.assertFalse(self._has_color_tint(img, palette.COLOR_OMISSION_SHORT))
+
+    def test_black_spots_hit_only_intersection(self):
+        # Рисуется только пересечение пятна с областью: часть пятна
+        # за пределами области пропуска не рисуется.
+        from vision.overlay import palette
+        raster = np.zeros((20, 20), dtype=np.uint8)
+        raster[5:15, 5:15] = 255
+        # Пятно в кадре x 10..30, y 10..25; область x 15..24, y 15..24.
+        # Пересечение считаем как в правиле: в локальных координатах
+        # области (origin [10, 10]), затем сдвиг в кадр.
+        spot_mask = [[10, 10], [30, 10], [30, 25], [10, 25]]
+        spot_local = (
+            np.asarray(spot_mask, dtype=np.int32) - np.array([10, 10])
+        )
+        spot_canvas = np.zeros((20, 20), dtype=np.uint8)
+        cv2.fillPoly(spot_canvas, [spot_local], 255)
+        overlap = cv2.bitwise_and(spot_canvas, raster)
+        contours, _ = cv2.findContours(
+            overlap, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE,
+        )
+        frame_contours = [
+            (c.reshape(-1, 2) + np.array([10, 10])).tolist() for c in contours
+        ]
+        img = DebugOverlay.render_frame(self.frame, "SPIDER_IN", [
+            RuleResult("x", True, drawings=[
+                drawing("black_spots_omission_region", role="SPIDER_IN",
+                        triggered=True,
+                        region_mask=raster, region_origin=[10, 10]),
+                drawing("black_spots_omission_hit", role="SPIDER_IN",
+                        triggered=True,
+                        mask=spot_mask, bbox=[10, 10, 30, 25],
+                        overlap_contours=frame_contours),
+            ]),
+        ])
+        # Пересечение залито цветом пятна (atol шире: фиолетовая
+        # линия ложится на красную заливку зоны, AA смешивает каналы).
+        self.assertTrue(
+            self._has_color_tint(img, palette.COLOR_BLACK_SPOT, atol=0.1),
+        )
+        # Угол пятна вне области не залит (чёрный кадр).
+        self.assertEqual(int(img[11:14, 11:14].max()), 0)
+
+    def test_black_spots_region_catalog_color_when_ok(self):
+        # Без подтверждённого пятна область — просто объект omission-short
+        # в каталожном цвете (как в «МОДЕЛИ»), красного нет.
+        from vision.overlay import palette
+        raster = np.zeros((20, 20), dtype=np.uint8)
+        raster[5:15, 5:15] = 255
+        img = DebugOverlay.render_frame(self.frame, "SPIDER_IN", [
+            RuleResult("x", False, drawings=[
+                drawing("black_spots_omission_region", role="SPIDER_IN",
+                        triggered=False,
+                        region_mask=raster, region_origin=[10, 10]),
+            ]),
+        ])
+        self.assertTrue(self._has_color_tint(img, palette.COLOR_OMISSION_SHORT))
+        self.assertFalse(self._has_color_tint(img, palette.COLOR_FAIL))
 
 
 if __name__ == "__main__":

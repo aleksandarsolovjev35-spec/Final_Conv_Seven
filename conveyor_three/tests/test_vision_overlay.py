@@ -271,5 +271,90 @@ class DrawPrimitivesTest(unittest.TestCase):
         )
 
 
+class PaletteConsistencyTest(unittest.TestCase):
+    """Один и тот же объект — один цвет в режимах «МОДЕЛИ» и «ПРАВИЛА».
+
+    Общий каталог ``vision/overlay/palette.py`` — единственный источник
+    объектных цветов; статус правила (OK/FAIL) при этом сохраняется.
+
+    Проверка цвета устойчива к сглаживанию ``LINE_AA``: на чёрном фоне
+    альфа просто масштабирует все каналы пикселя, поэтому сравнивается
+    нормированное соотношение каналов, а не абсолютные значения.
+    """
+
+    def setUp(self):
+        self.frame = np.zeros((120, 160, 3), dtype=np.uint8)
+
+    @staticmethod
+    def _has_color_tint(img, color, min_intensity=60, atol=0.05):
+        target = np.asarray(color, dtype=np.float64)
+        target_max = target.max()
+        if target_max <= 0:
+            return False
+        target_norm = target / target_max
+        px = img.reshape(-1, 3).astype(np.float64)
+        px_max = px.max(axis=1)
+        mask = px_max >= min_intensity
+        if not mask.any():
+            return False
+        px_norm = px[mask] / px_max[mask, None]
+        close = (np.abs(px_norm - target_norm[None, :]) <= atol).all(axis=1)
+        return bool(close.any())
+
+    def test_raw_overlay_uses_shared_catalog(self):
+        import vision.overlay.raw_overlay as raw_overlay_mod
+        from vision.overlay import palette
+        self.assertIs(raw_overlay_mod.CLASS_COLORS, palette.CLASS_COLORS)
+        self.assertIs(raw_overlay_mod.DEFAULT_COLOR, palette.DEFAULT_COLOR)
+
+    def test_glass_color_same_in_both_modes(self):
+        from vision.overlay import palette
+        from vision.overlay.raw_overlay import RawOverlay
+        # Режим «МОДЕЛИ»: детекция класса bottom_glass.
+        img = RawOverlay.render(self.frame, [
+            {"class": "bottom_glass", "bbox": [10, 10, 60, 60]},
+        ])
+        self.assertTrue(self._has_color_tint(img, palette.COLOR_BOTTOM_GLASS))
+        self.assertEqual(palette.COLOR_BOTTOM_GLASS, palette.COLOR_GLASS)
+        # Режим «ПРАВИЛА»: сработавшее правило стекла сохраняет объектный
+        # цвет (как top_glass на семикамерной линии) — контур не краснеет.
+        result = RuleResult("bottom_glass", True, drawings=[
+            drawing("rule_bbox", role="MIDDLE", triggered=True,
+                    color_hint="glass"),
+        ])
+        img = DebugOverlay.render_frame(self.frame, "MIDDLE", [result])
+        self.assertTrue(self._has_color_tint(img, palette.COLOR_GLASS))
+        self.assertFalse(self._has_color_tint(img, COLOR_FAIL))
+
+    def test_rule_status_colors_preserved(self):
+        from vision.overlay import palette
+        from vision.overlay.raw_overlay import RawOverlay
+        # Сработавшее правило без объектной подсказки (welding) — красное.
+        result = RuleResult("welding", True, drawings=[
+            drawing("rule_bbox", role="MIDDLE", triggered=True),
+        ])
+        img = DebugOverlay.render_frame(self.frame, "MIDDLE", [result])
+        self.assertTrue(self._has_color_tint(img, COLOR_FAIL))
+        # Несработавшее правило (ячейка окна) — зелёное; в режиме
+        # «МОДЕЛИ» тот же класс рисуется своим каталожным цветом.
+        result = RuleResult("uneven_heights", False, drawings=[
+            drawing("rule_bbox", role="LEFT", triggered=False),
+        ])
+        img = DebugOverlay.render_frame(self.frame, "LEFT", [result])
+        self.assertTrue(self._has_color_tint(img, COLOR_PASS))
+        img = RawOverlay.render(self.frame, [
+            {"class": "windows", "bbox": [10, 10, 60, 60]},
+        ])
+        self.assertTrue(self._has_color_tint(img, palette.COLOR_WINDOW))
+
+    def test_uneven_height_measure_renders(self):
+        result = RuleResult("uneven_heights", True, drawings=[
+            drawing("uneven_height_measure", role="LEFT",
+                    x=30, y_top=20, y_bottom=60, height=40.0),
+        ])
+        img = DebugOverlay.render_frame(self.frame, "LEFT", [result])
+        self.assertEqual(img.shape, self.frame.shape)
+
+
 if __name__ == "__main__":
     unittest.main()

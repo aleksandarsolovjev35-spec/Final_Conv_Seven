@@ -1,14 +1,14 @@
 import cv2
 import numpy as np
 
+from vision.overlay.palette import COLOR_PLATFORM
 from vision.overlay.renderers.primitives import (
     COLOR_FAIL,
     DrawPrimitives,
-    LINE_FAIL,
     LINE_THIN,
+    MASK_ALPHA,
 )
 
-COLOR_PLATFORM_CONTOUR = (180, 180, 180)
 # Чистая опорная граница по контактам: тонкий зелёный пунктир.
 COLOR_BOUNDARY = (0, 255, 0)
 LINE_BOUNDARY = LINE_THIN
@@ -27,12 +27,10 @@ class PlatformOverlapRenderer:
             img,
             [points],
             True,
-            COLOR_PLATFORM_CONTOUR if valid else COLOR_FAIL,
-            LINE_THIN if valid else LINE_FAIL,
+            COLOR_PLATFORM if valid else COLOR_FAIL,
+            LINE_THIN,
             lineType=cv2.LINE_AA,
         )
-        if not valid:
-            PlatformOverlapRenderer._draw_cross(img, points)
 
     @staticmethod
     def draw_boundary(img, drawing):
@@ -67,12 +65,12 @@ class PlatformOverlapRenderer:
         overlay = img.copy()
         region = overlay[:height, :width]
         region[active] = COLOR_FAIL
-        cv2.addWeighted(overlay, 0.55, img, 0.45, 0, img)
+        cv2.addWeighted(overlay, MASK_ALPHA, img, 1 - MASK_ALPHA, 0, img)
         for raw_contour in drawing.get("contours") or []:
             if not raw_contour:
                 continue
             contour = np.asarray(raw_contour, dtype=np.int32).reshape(-1, 1, 2)
-            cv2.drawContours(img, [contour], -1, COLOR_FAIL, LINE_FAIL, lineType=cv2.LINE_AA)
+            cv2.drawContours(img, [contour], -1, COLOR_FAIL, LINE_THIN, lineType=cv2.LINE_AA)
 
     @staticmethod
     def _points(mask, bbox):
@@ -86,13 +84,3 @@ class PlatformOverlapRenderer:
             [[x1, y1], [x2, y1], [x2, y2], [x1, y2]],
             dtype=np.int32,
         ).reshape(-1, 1, 2)
-
-    @staticmethod
-    def _draw_cross(img, points):
-        flat = points.reshape(-1, 2)
-        x1 = int(flat[:, 0].min())
-        x2 = int(flat[:, 0].max())
-        y1 = int(flat[:, 1].min())
-        y2 = int(flat[:, 1].max())
-        cv2.line(img, (x1, y1), (x2, y2), COLOR_FAIL, LINE_FAIL)
-        cv2.line(img, (x1, y2), (x2, y1), COLOR_FAIL, LINE_FAIL)

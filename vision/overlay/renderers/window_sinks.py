@@ -1,18 +1,21 @@
 import cv2
 import numpy as np
 
+from vision.overlay.palette import COLOR_OBJECTS
 from vision.overlay.renderers.primitives import (
     COLOR_FAIL,
-    COLOR_SKIP,
-    LINE_FAIL,
     LINE_THIN,
+    MASK_ALPHA,
 )
 
 
 class WindowSinksRenderer:
     @staticmethod
     def draw_overlap(img, drawing):
-        # Окно — нейтральная reference geometry, sink — красный defect contour.
+        # Конвенция «красная зона»: окно, где найдена раковина, загорается
+        # красным (заливка α=MASK_ALPHA всегда, контур — когда окно не
+        # рисуется правилом window_geometry). Раковина — объектный
+        # каталожный цвет, как в режиме «МОДЕЛИ».
         window_points = WindowSinksRenderer._points(
             drawing.get("window_mask"),
             drawing.get("window_bbox"),
@@ -21,30 +24,14 @@ class WindowSinksRenderer:
             drawing.get("sink_mask"),
             drawing.get("sink_bbox"),
         )
+        WindowSinksRenderer._fill(img, window_points, COLOR_FAIL)
         if drawing.get("draw_window_reference", True):
             cv2.polylines(
-                img, [window_points], True, COLOR_SKIP, LINE_THIN,
+                img, [window_points], True, COLOR_FAIL, LINE_THIN,
                 lineType=cv2.LINE_AA,
             )
-        cv2.polylines(img, [sink_points], True, COLOR_FAIL, LINE_FAIL, lineType=cv2.LINE_AA)
-
-        raster = drawing.get("overlap_raster")
-        if raster is not None:
-            raster = np.asarray(raster)
-            if raster.ndim == 2:
-                height = min(img.shape[0], raster.shape[0])
-                width = min(img.shape[1], raster.shape[1])
-                active = raster[:height, :width] > 0
-                if np.any(active):
-                    overlay = img.copy()
-                    overlay[:height, :width][active] = COLOR_FAIL
-                    cv2.addWeighted(overlay, 0.60, img, 0.40, 0, img)
-
-        for raw_contour in drawing.get("overlap_contours") or []:
-            if not raw_contour:
-                continue
-            contour = np.asarray(raw_contour, dtype=np.int32).reshape(-1, 1, 2)
-            cv2.drawContours(img, [contour], -1, COLOR_FAIL, LINE_FAIL, lineType=cv2.LINE_AA)
+        WindowSinksRenderer._fill(img, sink_points, COLOR_OBJECTS)
+        cv2.polylines(img, [sink_points], True, COLOR_OBJECTS, LINE_THIN, lineType=cv2.LINE_AA)
 
     @staticmethod
     def draw_invalid_reference(img, drawing):
@@ -52,14 +39,7 @@ class WindowSinksRenderer:
             drawing.get("mask"),
             drawing.get("bbox"),
         )
-        cv2.polylines(img, [points], True, COLOR_FAIL, LINE_FAIL, lineType=cv2.LINE_AA)
-        flat = points.reshape(-1, 2)
-        x1 = int(flat[:, 0].min())
-        x2 = int(flat[:, 0].max())
-        y1 = int(flat[:, 1].min())
-        y2 = int(flat[:, 1].max())
-        cv2.line(img, (x1, y1), (x2, y2), COLOR_FAIL, LINE_FAIL)
-        cv2.line(img, (x1, y2), (x2, y1), COLOR_FAIL, LINE_FAIL)
+        cv2.polylines(img, [points], True, COLOR_FAIL, LINE_THIN, lineType=cv2.LINE_AA)
 
     @staticmethod
     def draw_reference_count_item(img, drawing):
@@ -67,7 +47,13 @@ class WindowSinksRenderer:
             drawing.get("mask"),
             drawing.get("bbox"),
         )
-        cv2.polylines(img, [points], True, COLOR_FAIL, LINE_FAIL, lineType=cv2.LINE_AA)
+        cv2.polylines(img, [points], True, COLOR_FAIL, LINE_THIN, lineType=cv2.LINE_AA)
+
+    @staticmethod
+    def _fill(img, points, color):
+        overlay = img.copy()
+        cv2.fillPoly(overlay, [points], color)
+        cv2.addWeighted(overlay, MASK_ALPHA, img, 1 - MASK_ALPHA, 0, img)
 
     @staticmethod
     def _points(mask, bbox):

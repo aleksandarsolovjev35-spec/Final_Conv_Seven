@@ -1,16 +1,19 @@
 import cv2
 import numpy as np
 
+from vision.overlay.palette import (
+    COLOR_CASE,
+    COLOR_CASE_CENTRAL,
+    COLOR_CONTACTS,
+    COLOR_PIN,
+    COLOR_PLATFORM,
+)
 from vision.overlay.renderers.primitives import (
     COLOR_FAIL,
     COLOR_GLASS,
-    COLOR_SKIP,
-    LINE_FAIL,
     LINE_THIN,
+    MASK_ALPHA,
 )
-
-COLOR_CASE = (255, 255, 0)
-COLOR_CENTRAL = (120, 120, 120)
 
 
 class TopGlassRenderer:
@@ -19,7 +22,7 @@ class TopGlassRenderer:
         if drawing.get("draw_platform_reference", True):
             cv2.polylines(img, [_points(
                 drawing.get("platform_mask"), drawing.get("platform_bbox"),
-            )], True, COLOR_SKIP, LINE_THIN,
+            )], True, COLOR_PLATFORM, LINE_THIN,
             lineType=cv2.LINE_AA,)
         cv2.polylines(img, [_points(
             drawing.get("case_mask"), drawing.get("case_bbox"),
@@ -28,7 +31,7 @@ class TopGlassRenderer:
         if drawing.get("draw_central_reference", True):
             cv2.polylines(img, [_points(
                 drawing.get("central_mask"), drawing.get("central_bbox"),
-            )], True, COLOR_CENTRAL, LINE_THIN,
+            )], True, COLOR_CASE_CENTRAL, LINE_THIN,
             lineType=cv2.LINE_AA,)
         for mask, bbox in zip(
             drawing.get("pin_masks") or [],
@@ -36,7 +39,7 @@ class TopGlassRenderer:
             strict=False,
         ):
             cv2.polylines(
-                img, [_points(mask, bbox)], True, COLOR_SKIP, LINE_THIN,
+                img, [_points(mask, bbox)], True, COLOR_PIN, LINE_THIN,
                 lineType=cv2.LINE_AA,
             )
 
@@ -47,7 +50,7 @@ class TopGlassRenderer:
         )
         cv2.polylines(img, [glass], True, COLOR_GLASS, LINE_THIN, lineType=cv2.LINE_AA)
         _draw_raster_region(
-            img, drawing.get("cleanup_raster"), COLOR_GLASS, alpha=0.55,
+            img, drawing.get("cleanup_raster"), COLOR_GLASS, alpha=MASK_ALPHA,
         )
         _draw_contours(
             img, drawing.get("cleanup_contours") or [], COLOR_GLASS,
@@ -61,7 +64,7 @@ class TopGlassRenderer:
             strict=False,
         ):
             cv2.polylines(
-                img, [_points(mask, bbox)], True, COLOR_SKIP, LINE_THIN,
+                img, [_points(mask, bbox)], True, COLOR_CONTACTS, LINE_THIN,
                 lineType=cv2.LINE_AA,
             )
 
@@ -74,9 +77,9 @@ class TopGlassRenderer:
             drawing.get("contact_mask"), drawing.get("contact_bbox"),
         )
         cv2.polylines(img, [glass], True, COLOR_GLASS, LINE_THIN, lineType=cv2.LINE_AA)
-        cv2.polylines(img, [contact], True, COLOR_SKIP, LINE_THIN, lineType=cv2.LINE_AA)
+        cv2.polylines(img, [contact], True, COLOR_CONTACTS, LINE_THIN, lineType=cv2.LINE_AA)
         _draw_raster_region(
-            img, drawing.get("overlap_raster"), COLOR_FAIL, alpha=0.60,
+            img, drawing.get("overlap_raster"), COLOR_FAIL, alpha=MASK_ALPHA,
         )
         _draw_contours(
             img, drawing.get("overlap_contours") or [], COLOR_FAIL,
@@ -91,11 +94,9 @@ class TopGlassRenderer:
             [points],
             True,
             COLOR_GLASS if valid else COLOR_FAIL,
-            LINE_THIN if valid else LINE_FAIL,
+            LINE_THIN,
             lineType=cv2.LINE_AA,
         )
-        if not valid:
-            _draw_cross(img, points)
 
 
 def _draw_raster_region(img, raster, color, alpha):
@@ -120,7 +121,7 @@ def _draw_contours(img, raw_contours, color):
         if not raw_contour:
             continue
         contour = np.asarray(raw_contour, dtype=np.int32).reshape(-1, 1, 2)
-        cv2.drawContours(img, [contour], -1, color, LINE_FAIL, lineType=cv2.LINE_AA)
+        cv2.drawContours(img, [contour], -1, color, LINE_THIN, lineType=cv2.LINE_AA)
 
 
 def _points(mask, bbox):
@@ -134,13 +135,3 @@ def _points(mask, bbox):
         [[x1, y1], [x2, y1], [x2, y2], [x1, y2]],
         dtype=np.int32,
     ).reshape(-1, 1, 2)
-
-
-def _draw_cross(img, points):
-    flat = points.reshape(-1, 2)
-    x1 = int(flat[:, 0].min())
-    x2 = int(flat[:, 0].max())
-    y1 = int(flat[:, 1].min())
-    y2 = int(flat[:, 1].max())
-    cv2.line(img, (x1, y1), (x2, y2), COLOR_FAIL, LINE_FAIL)
-    cv2.line(img, (x1, y2), (x2, y1), COLOR_FAIL, LINE_FAIL)

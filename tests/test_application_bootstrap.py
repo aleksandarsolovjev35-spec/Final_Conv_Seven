@@ -424,8 +424,23 @@ class FactoryTest(unittest.TestCase):
             factory.create_cameras()
             cm.assert_called_once_with()
         with mock.patch("application.factory.VisionCluster") as vc:
-            factory.create_vision()
-            vc.assert_called_once_with(device="cpu")
+            env = {
+                k: v for k, v in os.environ.items() if k != "VISION_DEVICE"
+            }
+            with mock.patch.dict(os.environ, env, clear=True):
+                factory.create_vision()
+                vc.assert_called_once_with(device="auto")
+
+    def test_create_vision_device_from_env(self):
+        factory = ProductionSystemFactory()
+        with mock.patch("application.factory.VisionCluster") as vc:
+            with mock.patch.dict(os.environ, {"VISION_DEVICE": "cuda:1"}):
+                factory.create_vision()
+                vc.assert_called_once_with(device="cuda:1")
+            vc.reset_mock()
+            with mock.patch.dict(os.environ, {"VISION_DEVICE": "cpu"}):
+                factory.create_vision()
+                vc.assert_called_once_with(device="cpu")
 
 
 class MainEntryTest(unittest.TestCase):

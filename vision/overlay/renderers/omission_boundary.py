@@ -3,25 +3,24 @@ import numpy as np
 
 from vision.overlay.renderers.primitives import (
     COLOR_FAIL,
-    LINE_FAIL,
     LINE_THIN,
+    MASK_ALPHA,
 )
 
 
-COLOR_MASK = (180, 180, 180)
 COLOR_TOP = (255, 255, 0)
 COLOR_LIMIT = (0, 200, 0)
 
 
-def draw_omission_item(img, drawing):
+def draw_omission_item(img, drawing, mask_color):
     mask = drawing.get("mask") or []
     bbox = drawing.get("bbox") or [0, 0, 0, 0]
     if len(mask) >= 3:
         points = np.asarray(mask, dtype=np.int32)
-        cv2.polylines(img, [points], True, COLOR_MASK, LINE_THIN, lineType=cv2.LINE_AA)
+        cv2.polylines(img, [points], True, mask_color, LINE_THIN, lineType=cv2.LINE_AA)
     else:
         x1, y1, x2, y2 = map(int, bbox)
-        cv2.rectangle(img, (x1, y1), (x2, y2), COLOR_FAIL, LINE_FAIL, lineType=cv2.LINE_AA)
+        cv2.rectangle(img, (x1, y1), (x2, y2), COLOR_FAIL, LINE_THIN, lineType=cv2.LINE_AA)
 
     _draw_reference_line(img, drawing.get("top_line") or {}, COLOR_TOP)
     _draw_reference_line(img, drawing.get("limit_line") or {}, COLOR_LIMIT)
@@ -35,7 +34,7 @@ def draw_omission_item(img, drawing):
         if not raw_contour:
             continue
         contour = np.asarray(raw_contour, dtype=np.int32).reshape(-1, 1, 2)
-        cv2.drawContours(img, [contour], -1, COLOR_FAIL, LINE_FAIL, lineType=cv2.LINE_AA)
+        cv2.drawContours(img, [contour], -1, COLOR_FAIL, LINE_THIN, lineType=cv2.LINE_AA)
 
 
 def _draw_reference_line(img, line, color):
@@ -66,4 +65,4 @@ def _draw_excess_mask(img, raster, origin):
     overlay = img.copy()
     region = overlay[dst_y0:dst_y0 + height, dst_x0:dst_x0 + width]
     region[active] = COLOR_FAIL
-    cv2.addWeighted(overlay, 0.55, img, 0.45, 0, img)
+    cv2.addWeighted(overlay, MASK_ALPHA, img, 1 - MASK_ALPHA, 0, img)

@@ -14,14 +14,68 @@ DEFAULT_IOU    = 0.45
 AGGRESSIVE_IOU = 0.10
 
 
+def _cuda_available() -> bool:
+    """True, если torch видит доступное CUDA-устройство."""
+    try:
+        import torch
+    except ImportError:
+        return False
+    try:
+        return bool(torch.cuda.is_available())
+    except Exception:
+        return False
+
+
+def resolve_device(requested: str | None) -> str:
+    """Нормализация вычислительного устройства для inference.
+
+    ``auto`` (по умолчанию) — GPU ``"0"`` при доступном CUDA, иначе ``"cpu"``;
+    ``gpu``/``cuda`` — алиасы для ``"0"``; ``cuda:N`` и ``"N"`` — явный индекс
+    GPU; ``cpu`` — без GPU. Явный выбор (не ``auto``) доверяется как есть:
+    при недоступности устройства прогрев упадёт и вернёт систему на ``cpu``.
+    """
+    value = str(requested or "auto").strip().lower()
+    if value == "auto":
+        return "0" if _cuda_available() else "cpu"
+    if value in ("gpu", "cuda"):
+        return "0"
+    if value.startswith("cuda:"):
+        index = value.split(":", 1)[1]
+        if not index.isdigit():
+            raise ValueError(f"Invalid CUDA device index: {requested!r}")
+        return index
+    if value == "cpu":
+        return "cpu"
+    if value.isdigit():
+        return value
+    raise ValueError(
+        f"Invalid device {requested!r}; expected auto, cpu, gpu, cuda[:N] or index"
+    )
+
+
 class VisionCluster:
 
-    def __init__(self, device: str = "cpu", verbose: bool = True):
-        self.device = device
+    def __init__(self, device: str = "auto", verbose: bool = True):
+        self.requested_device = str(device)
+        self.device = resolve_device(device)
         self.verbose = verbose
         self.models = {}
         self.last_health = []
         self._load_all_models()
+        if self.verbose:
+            self._log_device()
+
+    def _log_device(self):
+        if self.device != "cpu":
+            try:
+                import torch
+                name = torch.cuda.get_device_name(int(self.device))
+                cuda = torch.version.cuda or "?"
+                print(f"[VISION] Device: {self.device} ({name}, CUDA {cuda})")
+                return
+            except Exception:
+                pass
+        print(f"[VISION] Device: {self.device}")
 
     def _load_all_models(self):
         for model_list in MODEL_GROUPS.values():
@@ -61,8 +115,28 @@ class VisionCluster:
             )
 
     def warmup(self):
-        dummy = np.zeros((720, 1280, 3), dtype=np.uint8)
+        # Прогрев на выбранном устройстве; если GPU не выдержал (драйвер,
+        # OOM и т.п.) — автоматический повтор на cpu с предупреждением.
         errors = []
+        if self._warmup_once(errors):
+            if self.verbose:
+                print("[VISION] Warmup done")
+            return
+        if self.device != "cpu":
+            print(
+                f"[VISION WARN] Warmup failed on device {self.device!r}; "
+                "falling back to cpu"
+            )
+            self.device = "cpu"
+            if self._warmup_once(errors):
+                if self.verbose:
+                    print("[VISION] Warmup done (cpu fallback)")
+                return
+        raise RuntimeError("Model warmup failed: " + "; ".join(errors))
+
+    def _warmup_once(self, errors: list) -> bool:
+        dummy = np.zeros((720, 1280, 3), dtype=np.uint8)
+        errors.clear()
         for path, model in self.models.items():
             try:
                 model.predict(
@@ -74,10 +148,7 @@ class VisionCluster:
                 )
             except Exception as e:
                 errors.append(f"{path}: {type(e).__name__}: {e}")
-        if errors:
-            raise RuntimeError("Model warmup failed: " + "; ".join(errors))
-        if self.verbose:
-            print("[VISION] Warmup done")
+        return not errors
 
     def process_all(self, frames: dict) -> dict:
         results = {}

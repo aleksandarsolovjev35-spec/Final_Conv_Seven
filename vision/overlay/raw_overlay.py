@@ -7,38 +7,19 @@
 import cv2
 import numpy as np
 
-
-# Палитра — разные классы разными цветами
-CLASS_COLORS = {
-    "mechanics":        (0,   0,   255),
-    "sinks":            (0,   100, 255),
-    "contacts":         (0,   255, 0),
-    "contacts-long":    (0,   200, 100),
-    "flatness_short":   (255, 200, 0),
-    "flatness":         (255, 150, 0),
-    "platform":         (255, 0,   255),
-    "glass":            (200, 100, 0),
-    "output_glass":     (100, 0,   0),
-    "omission-long":    (0,   255, 255),
-    "omission-short":   (255, 255, 0),
-    "black-spot":       (200,   0, 200),
-    "shells":           (255, 255, 0),
-    "objects":          (0,   100, 255),
-    "pin":              (80,   100, 255),
-    "case":             (100,   100, 255),
-    "case_central":     (200,   100, 255),
-}
-
-DEFAULT_COLOR = (180, 180, 180)
-
-LINE_THIN  = 1
-MASK_ALPHA = 0.15
+from vision.overlay.palette import (
+    CLASS_COLORS,
+    DEFAULT_COLOR,
+    LINE_THIN,
+    MASK_ALPHA,
+)
 
 
 class RawOverlay:
     """
     Рисует ВСЕ сырые детекции на кадре.
-    Каждый класс — своим цветом.
+    Каждый класс — своим цветом из общего каталога ``palette``
+    (тот же цвет, что и у объекта в режиме «ПРАВИЛА»).
     Тонкие линии, без подписей.
     """
 
