@@ -127,14 +127,14 @@ class VisionClusterTest(unittest.TestCase):
         self.addCleanup(restore_modules, self.saved_modules)
         self.weights = self.tmp.name
 
-    def make_cluster(self, yolo_class=None, verbose=False):
+    def make_cluster(self, yolo_class=None, verbose=False, device="cpu"):
         with mock.patch.object(
             vision_cluster, "YOLO", yolo_class or FakeYOLO,
         ), mock.patch.object(
             vision_cluster.os.path, "isfile", return_value=True,
         ):
             return vision_cluster.VisionCluster(
-                device="cpu", verbose=verbose,
+                device=device, verbose=verbose,
             )
 
     def frame(self):
@@ -254,6 +254,80 @@ class VisionClusterTest(unittest.TestCase):
         self.assertFalse(vision_cluster.VisionCluster._is_valid(
             {"class": "a", "confidence": 0.5, "bbox": [1, 2]},
         ))
+
+    def test_device_auto_resolves_without_cuda(self):
+        with mock.patch.object(
+            vision_cluster, "_cuda_available", return_value=False,
+        ):
+            cluster = self.make_cluster(device="auto")
+        self.assertEqual(cluster.device, "cpu")
+
+    def test_device_auto_uses_gpu_when_available(self):
+        with mock.patch.object(
+            vision_cluster, "_cuda_available", return_value=True,
+        ):
+            cluster = self.make_cluster(device="auto")
+        self.assertEqual(cluster.device, "0")
+
+    def test_warmup_falls_back_to_cpu_on_gpu_error(self):
+        class GpuOnlyFailingYOLO(FakeYOLO):
+            def predict(self, frame, **kwargs):
+                if kwargs.get("device") != "cpu":
+                    raise RuntimeError("cuda unavailable")
+                super().predict(frame, **kwargs)
+
+        with mock.patch.object(
+            vision_cluster, "_cuda_available", return_value=True,
+        ):
+            cluster = self.make_cluster(
+                device="auto", yolo_class=GpuOnlyFailingYOLO,
+            )
+        self.assertEqual(cluster.device, "0")
+        cluster.warmup()
+        self.assertEqual(cluster.device, "cpu")
+
+    def test_warmup_fallback_cpu_only_keeps_cpu(self):
+        # Явный cpu: без фолбэка (он не нужен), ошибка поднимается.
+        cluster = self.make_cluster(yolo_class=FailingYOLO, device="cpu")
+        with self.assertRaisesRegex(RuntimeError, "warmup failed"):
+            cluster.warmup()
+        self.assertEqual(cluster.device, "cpu")
+
+
+class DeviceResolutionTest(unittest.TestCase):
+    def test_auto_without_cuda(self):
+        with mock.patch.object(
+            vision_cluster, "_cuda_available", return_value=False,
+        ):
+            self.assertEqual(vision_cluster.resolve_device("auto"), "cpu")
+            self.assertEqual(vision_cluster.resolve_device(None), "cpu")
+            self.assertEqual(vision_cluster.resolve_device(""), "cpu")
+
+    def test_auto_with_cuda(self):
+        with mock.patch.object(
+            vision_cluster, "_cuda_available", return_value=True,
+        ):
+            self.assertEqual(vision_cluster.resolve_device("auto"), "0")
+
+    def test_explicit_values_trusted_as_is(self):
+        # Явный выбор не проверяет доступность устройства: при сбое
+        # прогрева система сама вернётся на cpu.
+        with mock.patch.object(
+            vision_cluster, "_cuda_available", return_value=False,
+        ):
+            self.assertEqual(vision_cluster.resolve_device("cpu"), "cpu")
+            self.assertEqual(vision_cluster.resolve_device("CPU"), "cpu")
+            self.assertEqual(vision_cluster.resolve_device("0"), "0")
+            self.assertEqual(vision_cluster.resolve_device("1"), "1")
+            self.assertEqual(vision_cluster.resolve_device("gpu"), "0")
+            self.assertEqual(vision_cluster.resolve_device("cuda"), "0")
+            self.assertEqual(vision_cluster.resolve_device("cuda:1"), "1")
+            self.assertEqual(vision_cluster.resolve_device("Cuda:2"), "2")
+
+    def test_invalid_device_raises(self):
+        for bad in ("banana", "cuda:", "cuda:x", "cuda:-1", "cuda 1"):
+            with self.assertRaises(ValueError, msg=bad):
+                vision_cluster.resolve_device(bad)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ Startup управляет только порядком и отображени
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -25,6 +26,15 @@ from inspection.inspector import Inspector
 from inspection.part_archive import PartArchive
 from vision.camera_manager import CameraManager
 from vision.vision_cluster import VisionCluster
+
+
+def vision_device_from_env() -> str:
+    """Устройство inference для vision из окружения.
+
+    ``VISION_DEVICE``: ``auto`` (по умолчанию, GPU при доступном CUDA),
+    ``cpu``, ``gpu``/``cuda``, ``cuda:N`` или индекс GPU.
+    """
+    return os.environ.get("VISION_DEVICE", "auto")
 
 
 @dataclass(frozen=True)
@@ -53,7 +63,9 @@ class ProductionSystemFactory:
         return CameraManager()
 
     def create_vision(self):
-        return VisionCluster(device="cpu")
+        # Устройство inference задаётся переменной окружения VISION_DEVICE
+        # (auto | cpu | gpu | cuda[:N] | 0 | 1 ...); по умолчанию auto.
+        return VisionCluster(device=vision_device_from_env())
 
     def create_inspection(self, vision) -> InspectionServices:
         threshold_loader = ThresholdLoader()

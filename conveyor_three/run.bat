@@ -4,8 +4,8 @@ cd /d "%~dp0"
 
 if not exist ".venv\Scripts\python.exe" (
   echo Python environment not found: .venv
-  echo Create it with: py -3.11 -m venv .venv
-  echo Then install: .venv\Scripts\python.exe -m pip install -r requirements.txt
+  echo Run setup.bat first: it creates .venv and installs all dependencies
+  echo (including CUDA PyTorch when an NVIDIA driver is present).
   exit /b 1
 )
 
