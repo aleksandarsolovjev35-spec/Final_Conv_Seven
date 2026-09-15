@@ -133,7 +133,8 @@ run.bat
 ### GPU (CUDA)
 
 `setup.bat` при обнаружении драйвера NVIDIA дополнительно ставит CUDA-сборку
-PyTorch (индекс — `TORCH_CUDA_INDEX`, по умолчанию `cu121`). Устройство
+PyTorch (индекс — `TORCH_CUDA_INDEX`, по умолчанию `cu128`; RTX 50xx /
+Blackwell поддерживается только сборками `cu128` и новее). Устройство
 inference задаётся переменной `VISION_DEVICE`: `auto` (по умолчанию, GPU при
 доступном CUDA), `cpu`, `gpu`/`cuda`, `cuda:N` или индекс `0`, `1`, ...
 При сбое прогрева на GPU система автоматически переходит на CPU
