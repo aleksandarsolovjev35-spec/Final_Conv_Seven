@@ -1,0 +1,7 @@
+# Windows-скрипты обязаны иметь CRLF: cmd.exe некорректно разбирает
+# bat-файлы с LF-переносами (метки goto и блоки if).
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Остальной текст нормализуется в LF в репозитории.
+* text=auto
