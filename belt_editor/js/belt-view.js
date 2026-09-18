@@ -1,77 +1,79 @@
 /* belt-view.js — вьюпорт ленты: зум колесом и панорамирование мышью.
  *
- * Колесо мыши над блоком сборки = увеличение/уменьшение (курсор — точка
- * масштабирования). Зажатая ЛКМ на пустом фоне и движение = перемещение
- * по блоку. Если цепь не влезает — ряд автоматически отдаляется до
- * размера, вмещающего всю цепь (пока пользователь не крутанул колесо;
- * двойной клик по фону — вернуть автоподгонку).
- * Координаты дропа не трогаем: builder читает getBoundingClientRect,
- * который уже учитывает трансформацию.
+ * Ряд ленты — max-content-полотно, отцентровано flex'ом зоны;
+ * transform = translate(экранные px) + scale(центр). Композионный
+ * слой (will-change) не поднимается сознательно: браузер перерастеризует
+ * текст под текущий масштаб — на увеличении остаётся чётким.
+ *
+ * Автоматический режим: если цепь длиннее окна — ряд отдаляется до
+ * вмещающего размера, смещений нет. Колесо или ЛКМ-драг по фону переводят
+ * в ручное полотно: свободный зум к курсору и пан с границей
+ * «не менее MIN_VIS цепи в окне». Двойной клик по фону — снова авто.
+ *
+ * Дроп не затронут: builder считает индексы по getBoundingClientRect,
+ * который учитывает трансформацию.
  */
 (function () {
 'use strict';
 
 var Z_MIN = 0.1;
 var Z_MAX = 2.2;
-var PAD = 16;                      /* padding зоны, учтён в доступе */
-var MIN_VIS = 120;                 /* цепь нельзя утащить целиком за край */
+var PAD = 16;                      /* padding зоны */
+var MIN_VIS = 120;                 /* цепи видно минимум столько */
 
 var zone = null;
 var row = null;
 var z = 1;
 var panX = 0;
 var panY = 0;
-var userZoomed = false;            /* колесо отключает автоподгонку */
+var userZoomed = false;
 
 function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+function round(v) { return Math.round(v * 100) / 100; }
 
 function availW() { return zone.clientWidth - PAD * 2; }
 function availH() { return zone.clientHeight - PAD * 2; }
-
-function apply() {
-    if (!row) { return; }
-    var aw = availW();
-    var ah = availH();
-    var cw = row.scrollWidth * z;
-    var ch = (row.scrollHeight || 96) * z;
-    if (aw <= 0 || ah <= 0) {              /* нет макета (jsdom) — только запись */
-        write();
-        return;
-    }
-    if (!userZoomed) {
-        /* автоподгонка: цепь отдалена до вмещающей и по центру */
-        panX = (aw - cw) / 2;
-        panY = (ah - ch) / 2;
-    } else {
-        /* ручное полотно: двигаем свободно, но ≥ MIN_VIS цепи в окне */
-        panX = clamp(panX, MIN_VIS - cw, aw - MIN_VIS);
-        panY = clamp(panY, MIN_VIS - ch, ah - MIN_VIS);
-    }
-    write();
-}
+/* layout-размеры ряда: не зависят от transform */
+function chainW() { return row.offsetWidth || 0; }
+function chainH() { return row.offsetHeight || 104; }
 
 function write() {
     row.style.transform = 'translate(' + round(panX) + 'px, '
         + round(panY) + 'px) scale(' + round(z) + ')';
 }
 
-function round(v) { return Math.round(v * 100) / 100; }
+function apply() {
+    if (!row) { return; }
+    var aw = availW();
+    var ah = availH();
+    if (aw <= 0 || ah <= 0) { write(); return; }   /* нет макета (jsdom) */
+    if (!userZoomed) {
+        panX = 0;                                  /* flex центрирует сам */
+        panY = 0;
+    } else {
+        var limX = Math.max(0, (aw + chainW() * z) / 2 - MIN_VIS);
+        var limY = Math.max(0, (ah + chainH() * z) / 2 - MIN_VIS);
+        panX = clamp(panX, -limX, limX);
+        panY = clamp(panY, -limY, limY);
+    }
+    write();
+}
 
 function zoomAt(clientX, clientY, factor) {
     var nz = clamp(z * factor, Z_MIN, Z_MAX);
     if (nz === z) { return; }
     var r = row.getBoundingClientRect();
-    panX += (z - nz) * ((clientX - r.left) / z);
-    panY += (z - nz) * ((clientY - r.top) / z);
+    panX += (z - nz) * (clientX - (r.left + r.width / 2)) / z;
+    panY += (z - nz) * (clientY - (r.top + r.height / 2)) / z;
     z = nz;
     apply();
 }
 
 function autoFit() {
     var aw = availW();
-    var cw = row.scrollWidth;
-    if (aw <= 0 || cw <= 0) { return; }
-    z = clamp(Math.min(1, (aw - 8) / cw), Z_MIN, 1);
+    var w = chainW();
+    if (aw <= 0 || w <= 0) { return; }
+    z = clamp(Math.min(1, (aw - 8) / w), Z_MIN, 1);
     apply();
 }
 
@@ -81,9 +83,9 @@ function wireWheel() {
     zone.addEventListener('wheel', function (ev) {
         ev.preventDefault();
         var unit = ev.deltaMode === 1 ? 16 : (ev.deltaMode === 2 ? 360 : 1);
-        var factor = Math.exp(-ev.deltaY * unit * 0.0015);
         userZoomed = true;
-        zoomAt(ev.clientX, ev.clientY, factor);
+        zoomAt(ev.clientX, ev.clientY,
+            Math.exp(-ev.deltaY * unit * 0.0015));
     }, { passive: false });
 }
 
@@ -96,8 +98,7 @@ function isBackground(target) {
 function wirePan() {
     zone.addEventListener('mousedown', function (ev) {
         if (ev.button !== 0 || !isBackground(ev.target)) { return; }
-        /* пан = пользователь взял полотно в руки: автоподгонка
-         * до двойного клика не перехватывает позицию */
+        /* пан = пользователь взял полотно: автоподгонка до dblclick спит */
         userZoomed = true;
         var startX = ev.clientX - panX;
         var startY = ev.clientY - panY;
@@ -120,7 +121,7 @@ function wirePan() {
     });
 }
 
-/* двойной клик по фону — вернуть автоподгонку к размеру цепи */
+/* двойной клик по фону — вернуть автоподгонку (зум-вместилище, центр) */
 function wireReset() {
     zone.addEventListener('dblclick', function (ev) {
         if (!isBackground(ev.target)) { return; }

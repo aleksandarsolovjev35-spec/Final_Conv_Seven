@@ -272,6 +272,7 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    align-items: center;
     justify-content: center;
     min-height: 0;
     transition: border-color 150ms ease, background 150ms ease;
@@ -291,15 +292,16 @@ body {
         var(--bg-1);
 }
 
-/* ряд — трансформируемое полотно (зум/пан в belt-view.js), скролла нет */
+/* ряд — полотно по размеру цепи; центрирует flex зоны; без will-change,
+ * чтобы текст перерастеризовался на зуме (нет мыла) */
 .belt-row {
     display: flex;
     align-items: center;
     gap: 4px;
-    width: 100%;
+    width: max-content;
+    max-width: none;
     padding: 2px 0 10px;
-    transform-origin: 0 0;
-    will-change: transform;
+    transform-origin: 50% 50%;
 }
 
 
