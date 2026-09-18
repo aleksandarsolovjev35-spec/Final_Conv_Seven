@@ -88,6 +88,12 @@ function insertPosition(gap) {
         return;
     }
     const wasEmpty = belt.positions.length === 0;
+    const resetIdx = findIndex(function (p) { return p.reset; });
+    if (resetIdx >= 0 && gap > resetIdx) {
+        toast('После точки сброса позиции не ставятся — она всегда'
+            + ' последняя. Сначала снимите сброс.', 'err');
+        return;
+    }
     belt.positions.splice(gap, 0, {
         label: '', inspection: null, reset: false,
     });
@@ -103,6 +109,14 @@ function insertPosition(gap) {
 function movePosition(from, gap) {
     const to = gap > from ? gap - 1 : gap;
     if (to === from) { return; }
+    const r = findIndex(function (p) { return p.reset; });
+    if (r >= 0) {
+        const after = from === r ? to : (r > from ? r - 1 : r);
+        if (after !== belt.positions.length - 1) {
+            toast('Перенос нарушил бы «сброс — последняя».', 'err');
+            return;
+        }
+    }
     const pos = belt.positions.splice(from, 1)[0];
     belt.positions.splice(to, 0, pos);
     applyInvariants();
@@ -140,11 +154,15 @@ function toggleReset(i) {
         pos.reset = false;
         toast('П' + i + ': точка сброса снята.');
     } else {
-        const prev = findIndex(function (p) { return p.reset; });
+        const last = belt.positions.length - 1;
+        if (i !== last) {
+            toast('Точка сброса — только на последней позиции (П'
+                + last + ').', 'err');
+            return;
+        }
         belt.positions.forEach(function (p) { p.reset = false; });
         pos.reset = true;
-        toast(prev >= 0 ? 'сброс: П' + prev + ' → П' + i
-            : 'П' + i + ' — точка сброса');
+        toast('П' + i + ' — точка сброса');
     }
     applyInvariants();
     render();
