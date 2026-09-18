@@ -591,17 +591,15 @@ body {
 
 /* ─── Карточка позиции ─────────────────────────────────────────────── */
 
-/* позиция — изометрический куб (вид сбоку): фронт — грань с
- * содержимым; верхняя и боковая грани — pseudo-параллелограммы,
- * глубина 16px под 45° */
+/* позиция — изометрический лоток: у куба отсечена верхняя часть —
+ * борта с торцевой кромкой (rim), нутро (in) и боковая стенка */
 .pos-card {
     position: relative;
     flex: 0 0 auto;
     width: 120px;
-    height: 120px;
+    height: 78px;
     margin: 16px 16px 0 0;
-    padding: 6px 8px 4px;
-    /* свет сверху-слева, тень к низу; тень «посадки» под куб */
+    padding: 4px 6px 3px 8px;
     background-color: var(--panel-raised);
     background-image: linear-gradient(148deg,
         rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0) 46%,
@@ -609,24 +607,24 @@ body {
     --cube-line: var(--border-strong);
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.07),
-        0 6px 10px -6px rgba(0, 0, 0, 0.65),
-        0 14px 22px -14px rgba(0, 0, 0, 0.5);
+        0 5px 8px -4px rgba(0, 0, 0, 0.65),
+        0 12px 18px -12px rgba(0, 0, 0, 0.5);
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
     transition: box-shadow 140ms ease, transform 140ms ease;
 }
 
-/* каркас куба: единые вершины трёх граней — рёбра непрерывны */
+/* каркас лотка: единые вершины граней — рёбра непрерывны */
 .pos-card .cube {
     position: absolute;
     left: 0;
     top: -16px;
     width: 136px;
-    height: 136px;
+    height: 94px;
     pointer-events: none;
 }
 
@@ -636,12 +634,16 @@ body {
     height: 100%;
 }
 
-.pos-card .cube-top {
-    fill: #1d2730;
+.pos-card .cube-rim {
+    fill: #263240;
 }
 
 .pos-card .cube-side {
-    fill: #0e1317;
+    fill: #10161b;
+}
+
+.pos-card .cube-in {
+    fill: #0a0e12;
 }
 
 .pos-card .cube-edge > * {
@@ -651,18 +653,15 @@ body {
     stroke-linejoin: miter;
 }
 
-/* горизонтальный рез: по фронту — середина (y=60), по боковине —
- * вверх к дальнему ребру */
-.pos-card .cube-cut {
-    stroke: var(--border-accent, var(--cube-line));
-    stroke-width: 1.2;
-}
-
 .pos-card .pos-top,
 .pos-card .pos-label,
 .pos-card .pos-badges,
 .pos-card .cam-chips {
     position: relative;
+}
+
+.pos-card .pos-label {
+    font-size: 11px;
 }
 
 .pos-card:active { cursor: grabbing; }

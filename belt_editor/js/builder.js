@@ -601,14 +601,15 @@ function renderCard(pos, i) {
     card.dataset.index = String(i);
 
     const cube = el('div', 'cube');
-    cube.innerHTML = '<svg viewBox="0 0 136 136" aria-hidden="true">'
-        + '<polygon class="cube-top" points="0,16 16,0 136,0 120,16"/>'
-        + '<polygon class="cube-side" points="120,16 136,0 136,120 120,136"/>'
+    cube.innerHTML = '<svg viewBox="0 0 136 94" aria-hidden="true">'
+        + '<polygon class="cube-rim" points="0,16 120,16 136,0 16,0"/>'
+        + '<polygon class="cube-side" points="120,16 136,0 136,78 120,94"/>'
+        + '<polygon class="cube-in" points="6,16 114,16 130,0 22,0"/>'
         + '<g class="cube-edge">'
-        + '<polygon points="0,16 16,0 136,0 120,16"/>'
-        + '<polygon points="120,16 136,0 136,120 120,136"/>'
-        + '<rect x="0.5" y="16.5" width="119" height="119"/>'
-        + '<path class="cube-cut" d="M0.5 76H120L136 60"/>'
+        + '<polygon points="0,16 120,16 136,0 16,0"/>'
+        + '<polygon points="120,16 136,0 136,78 120,94"/>'
+        + '<polygon points="6,16 114,16 130,0 22,0"/>'
+        + '<rect x="0.5" y="16.5" width="119" height="77"/>'
         + '</g></svg>';
     card.appendChild(cube);
 
