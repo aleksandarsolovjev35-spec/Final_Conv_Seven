@@ -70,6 +70,9 @@ function applyInvariants() {
         } else if (pos.inspection) {
             pos.inspection.primary = false;
         }
+        /* инспекция и сброс на одной позиции невозможны; вход
+         * неснимаем, поэтому при конфликте всегда проигрывает сброс */
+        if (pos.reset && pos.inspection) { pos.reset = false; }
     });
 }
 
@@ -125,7 +128,15 @@ function movePosition(from, gap) {
 
 function removePosition(i) {
     belt.positions.splice(i, 1);
+    const hadReset = belt.positions.some(function (p) {
+        return p.reset;
+    });
     applyInvariants();
+    if (hadReset && !belt.positions.some(function (p) { return p.reset; })
+        && belt.positions.length > 0) {
+        toast('Сброс снят: позиция стала входом — инспекция'
+            + ' обязательна.', 'err');
+    }
     render();
 }
 
@@ -140,6 +151,11 @@ function toggleInspection(i) {
         pos.inspection = null;
         toast('П' + i + ': инспекция снята.');
     } else {
+        if (pos.reset) {
+            toast('П' + i + ' — точка сброса: инспекция и сброс'
+                + ' на одной позиции невозможны.', 'err');
+            return;
+        }
         pos.inspection = { cameras: [], primary: false };
         toast('П' + i + ' — место инспекции.');
     }
@@ -158,6 +174,11 @@ function toggleReset(i) {
         if (i !== last) {
             toast('Точка сброса — только на последней позиции (П'
                 + last + ').', 'err');
+            return;
+        }
+        if (pos.inspection) {
+            toast('П' + i + ' — место инспекции: инспекция и сброс'
+                + ' на одной позиции невозможны.', 'err');
             return;
         }
         belt.positions.forEach(function (p) { p.reset = false; });
@@ -446,6 +467,11 @@ function acceptsAt(kind, idx) {
     const pos = belt.positions[idx];
     if (!pos) { return false; }
     if (kind === 'camera') { return !!pos.inspection; }
+    if (kind === 'inspect') { return !pos.reset || !!pos.inspection; }
+    if (kind === 'reset') {
+        return pos.reset
+            || (idx === belt.positions.length - 1 && !pos.inspection);
+    }
     return true;
 }
 
