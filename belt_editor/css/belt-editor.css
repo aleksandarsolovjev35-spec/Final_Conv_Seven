@@ -277,6 +277,13 @@ body {
     transition: border-color 150ms ease, background 150ms ease;
 }
 
+.belt-zone { cursor: grab; }
+
+.belt-zone.panning { cursor: grabbing; user-select: none; }
+
+.belt-zone .pos-card,
+.belt-zone .lane-arrow { cursor: default; }
+
 .belt-zone.drop-ready {
     border-color: var(--border-accent);
     background:
@@ -284,16 +291,15 @@ body {
         var(--bg-1);
 }
 
-/* горизонтальный скролл — только у ряда; вертикального нет намеренно */
+/* ряд — трансформируемое полотно (зум/пан в belt-view.js), скролла нет */
 .belt-row {
     display: flex;
     align-items: center;
     gap: 4px;
     width: 100%;
     padding: 2px 0 10px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: thin;
+    transform-origin: 0 0;
+    will-change: transform;
 }
 
 

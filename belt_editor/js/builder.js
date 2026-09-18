@@ -279,6 +279,8 @@ function render() {
     if (window.Cameras) {
         window.Cameras.sync(cameraViews());
     }
+    const zn = $('belt-zone');
+    if (zn) { zn.dispatchEvent(new CustomEvent('belt:render')); }
 }
 
 /* Обнаруженные камеры: роли мест инспекции по порядку ленты;
