@@ -564,9 +564,6 @@ function renderCard(pos, i) {
     const badges = el('div', 'pos-badges');
     if (pos.inspection) {
         badges.appendChild(el('span', 'badge badge-insp', 'инспекция'));
-        if (pos.inspection.primary) {
-            badges.appendChild(el('span', 'badge badge-primary', 'основное'));
-        }
         const n = pos.inspection.cameras.length;
         badges.appendChild(el('span', 'badge badge-cam',
             n ? 'камер: ' + n : 'без камер'));

@@ -517,7 +517,6 @@ body {
 }
 
 .badge-insp { color: var(--accent); border-color: rgba(120, 153, 165, 0.5); }
-.badge-primary { color: var(--warn); border-color: rgba(193, 166, 106, 0.55); background: var(--warn-bg); }
 .badge-cam { color: var(--text-dim); }
 .badge-reset { color: var(--bad); border-color: rgba(201, 118, 118, 0.5); background: var(--bad-bg); }
 
