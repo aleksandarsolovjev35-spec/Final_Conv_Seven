@@ -581,7 +581,7 @@ body {
 .belt-row {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 4px;
     width: max-content;
     max-width: none;
     padding: 2px 0 10px;
@@ -591,111 +591,35 @@ body {
 
 /* ─── Карточка позиции ─────────────────────────────────────────────── */
 
-/* позиция — изометрический лоток: у куба отсечена верхняя часть —
- * борта с торцевой кромкой (rim), нутро (in) и боковая стенка */
 .pos-card {
     position: relative;
-    flex: 0 0 auto;
-    width: 120px;
-    height: 78px;
-    margin: 16px 16px 0 0;
-    padding: 4px 6px 3px 8px;
-    background-color: var(--panel-raised);
-    background-image: linear-gradient(148deg,
-        rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0) 46%,
-        rgba(0, 0, 0, 0.16));
-    --cube-line: var(--border-strong);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.07),
-        0 5px 8px -4px rgba(0, 0, 0, 0.65),
-        0 12px 18px -12px rgba(0, 0, 0, 0.5);
+    flex: 0 0 150px;
+    min-height: 96px;
+    padding: 8px 10px;
+    background: var(--panel-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 6px;
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
-    transition: box-shadow 140ms ease, transform 140ms ease;
-}
-
-/* каркас лотка: единые вершины граней — рёбра непрерывны */
-.pos-card .cube {
-    position: absolute;
-    left: 0;
-    top: -16px;
-    width: 136px;
-    height: 94px;
-    pointer-events: none;
-}
-
-.pos-card .cube svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-}
-
-.pos-card .cube-rim {
-    fill: #263240;
-}
-
-.pos-card .cube-side {
-    fill: #10161b;
-}
-
-.pos-card .cube-in {
-    fill: #0a0e12;
-}
-
-.pos-card .cube-edge > * {
-    fill: none;
-    stroke: var(--cube-line, var(--border-strong));
-    stroke-width: 1;
-    stroke-linejoin: miter;
-}
-
-.pos-card .pos-top,
-.pos-card .pos-label,
-.pos-card .pos-badges,
-.pos-card .cam-chips {
-    position: relative;
-}
-
-.pos-card .pos-label {
-    font-size: 11px;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .pos-card:active { cursor: grabbing; }
+.pos-card:hover { border-color: var(--border-accent); }
 
-.pos-card:hover {
-    --cube-line: var(--border-accent);
-    transform: translateY(-2px);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.09),
-        0 10px 14px -6px rgba(0, 0, 0, 0.6),
-        0 20px 28px -14px rgba(0, 0, 0, 0.45);
-}
-
-.pos-card.inspect { --cube-line: rgba(79, 163, 209, 0.75); }
-.pos-card.reset-pt { --cube-line: rgba(199, 92, 80, 0.75); }
-
-.pos-card .cam-chips .chip { max-width: 100%; min-width: 0; }
-.pos-card .chip-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-}
+.pos-card.inspect { border-left: 3px solid var(--accent); }
+.pos-card.reset-pt { border-right: 3px solid var(--bad); }
 
 .pos-card.dragging-src { opacity: 0.45; }
 
 .pos-card.drop-target {
-    --cube-line: var(--warn);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.09),
-        0 0 0 1px var(--warn),
-        0 10px 16px -6px rgba(0, 0, 0, 0.6),
-        0 0 18px rgba(193, 166, 106, 0.25);
-    transform: translateY(-3px);
+    border-color: var(--warn);
+    box-shadow: 0 0 0 1px var(--warn), 0 0 18px rgba(193, 166, 106, 0.25);
+    transform: translateY(-2px);
 }
 
 .pos-top { display: flex; align-items: center; }
