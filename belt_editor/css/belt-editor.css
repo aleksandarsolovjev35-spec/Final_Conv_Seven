@@ -99,7 +99,55 @@ body {
 .cam-tag-br { bottom: 8px; right: 8px; color: var(--text-muted); }
 .cam-tag-br.live { color: var(--ok); }
 
+.assets-zone {
+    flex: 0 0 auto;
+    border-top: 1px solid var(--border);
+    padding: 6px 10px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.assets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.asset {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 2px 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--panel-raised);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    cursor: grab;
+    user-select: none;
+}
+
+.asset b { font-weight: 600; }
+
+.asset .asset-use { color: var(--text-dim); }
+
+.asset.asset-used {
+    border-color: rgba(114, 163, 126, 0.6);
+    background: rgba(114, 163, 126, 0.07);
+}
+
+.asset.dragging { opacity: 0.45; }
+
+.chip.drop-target { outline: 1px solid var(--accent, #4fa3d1); }
+
+.chip-assets {
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+}
+
 .cam-wall {
+    flex: 1 1 auto;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 8px;

@@ -24,11 +24,28 @@ const CAM_NAME_MAX = 24;
 /* Симуляция обнаружения: список устройств, который сообщает слой
  * захвата (video0..video7). id — стабильный ключ привязки, name —
  * роль-метка (переименовывается), dev — путь устройства. */
+/* Симулированные каталоги (имена — из vision/model_config.py и
+ * thresholds.json, укорочены). Присоединяются перетаскиванием
+ * плитки на фишку камеры; повторное — снимает. Привязка к прибору. */
+const MODELS = [
+    { id: 'm0', name: 'uneven-heights' },
+    { id: 'm1', name: 'window-sinks' },
+    { id: 'm2', name: 'omission-long' },
+    { id: 'm3', name: 'contacts-long' },
+];
+const RULES = [
+    { id: 'r0', name: 'presence-fp≤2' },
+    { id: 'r1', name: 'geom-conf≥0.40' },
+    { id: 'r2', name: 'sinks-conf≥0.15' },
+    { id: 'r3', name: 'overlap≥5px' },
+];
+
 const inventory = [];
 (function discover() {
     for (let i = 0; i < 8; i += 1) {
         inventory.push({
             id: 'cam' + i, name: 'CAM_' + (i + 1), dev: 'video' + i,
+            models: [], rules: [],
         });
     }
 })();
@@ -54,6 +71,7 @@ let marker = null;      // индикатор вставки позиции
 let dragKind = null;    // что сейчас тащим
 let dragFrom = -1;      // индекс карточки при переносе
 let dragCamId = null;   // id камеры при переносе из стены
+let dragAsset = null;   // id модели/правила при переносе из каталога
 
 /* ─── Инварианты ─────────────────────────────────────────────────── */
 
@@ -318,8 +336,74 @@ function render() {
     if (window.Cameras) {
         window.Cameras.sync(cameraViews());
     }
+    renderAssets();
     const zn = $('belt-zone');
     if (zn) { zn.dispatchEvent(new CustomEvent('belt:render')); }
+}
+
+function toggleAsset(kind, camId, assetId) {
+    const dev = inventory.find(function (d) { return d.id === camId; });
+    const cat = kind === 'model' ? MODELS : RULES;
+    const a = cat.find(function (x) { return x.id === assetId; });
+    if (!dev || !a) { return; }
+    const key = kind === 'model' ? 'models' : 'rules';
+    const at = dev[key].indexOf(a.id);
+    if (at >= 0) {
+        dev[key].splice(at, 1);
+        toast(dev.name + ': «' + a.name + '» снято.');
+    } else {
+        dev[key].push(a.id);
+        toast(dev.name + ': «' + a.name + '» подключено.');
+    }
+    render();
+}
+
+function renderAssets() {
+    [['model', MODELS, 'asset-models', 'model-count'],
+     ['rule', RULES, 'asset-rules', 'rule-count']].forEach(
+    function (spec) {
+        const kind = spec[0];
+        const cat = spec[1];
+        const key = kind === 'model' ? 'models' : 'rules';
+        const box = $(spec[2]);
+        if (!box) { return; }
+        box.textContent = '';
+        let used = 0;
+        cat.forEach(function (a) {
+            const cams = inventory.filter(function (d) {
+                return d[key].indexOf(a.id) !== -1;
+            });
+            if (cams.length) { used += 1; }
+            const tile = el('div', 'asset' + (cams.length ? ' asset-used' : ''));
+            tile.draggable = true;
+            tile.dataset.assetId = a.id;
+            tile.appendChild(el('b', '', a.name));
+            if (cams.length) {
+                tile.appendChild(el('span', 'asset-use', 'кам: ' + cams.length));
+            }
+            tile.addEventListener('dragstart', function (ev) {
+                dragKind = kind;
+                dragAsset = a.id;
+                ev.dataTransfer.setData('text/plain', kind + ':' + a.id);
+                ev.dataTransfer.effectAllowed = 'copy';
+                tile.classList.add('dragging');
+                const zn = $('belt-zone');
+                if (zn && belt.positions.some(function (p) {
+                    return p.inspection && p.inspection.cameras.length;
+                })) {
+                    zn.classList.add('drop-ready');
+                }
+            });
+            tile.addEventListener('dragend', function () {
+                dragKind = null;
+                dragAsset = null;
+                cleanVisuals();
+            });
+            box.appendChild(tile);
+        });
+        const cnt = $(spec[3]);
+        if (cnt) { cnt.textContent = 'подключено: ' + used + ' / ' + cat.length; }
+    });
 }
 
 /* Обнаруженные камеры: роли мест инспекции по порядку ленты;
@@ -381,6 +465,11 @@ function renderCard(pos, i) {
             const chip = el('span', 'chip');
             chip.draggable = false;
             chip.appendChild(el('span', 'chip-name', camName(id)));
+            const dev = inventory.find(function (d) { return d.id === id; });
+            if (dev && (dev.models.length || dev.rules.length)) {
+                chip.appendChild(el('span', 'chip-assets',
+                    'м:' + dev.models.length + ' п:' + dev.rules.length));
+            }
             const chipX = el('button', 'chip-x', '×');
             chipX.type = 'button';
             chipX.draggable = false;
@@ -441,7 +530,7 @@ window.BeltBridge = {
 
 function cleanVisuals() {
     if (marker && marker.parentNode) { marker.remove(); }
-    document.querySelectorAll('.pos-card.drop-target')
+    document.querySelectorAll('.drop-target')
         .forEach(function (n) { n.classList.remove('drop-target'); });
     $('belt-zone').classList.remove('drop-ready');
     document.querySelectorAll('.tool.dragging, .pos-card.dragging-src')
@@ -545,6 +634,13 @@ function wireBelt() {
             showMarkerAt(gapFromX(ev.clientX));
             document.querySelectorAll('.pos-card.drop-target').forEach(
                 function (n) { n.classList.remove('drop-target'); });
+        } else if (dragKind === 'model' || dragKind === 'rule') {
+            if (marker && marker.parentNode) { marker.remove(); }
+            document.querySelectorAll('.drop-target').forEach(
+                function (n) { n.classList.remove('drop-target'); });
+            const chipEl = ev.target && ev.target.closest
+                ? ev.target.closest('.chip') : null;
+            if (chipEl) { chipEl.classList.add('drop-target'); }
         } else {
             if (marker && marker.parentNode) { marker.remove(); }
             const idx = cardFromEvent(ev);
@@ -590,7 +686,29 @@ function wireBelt() {
             return;
         }
         if (cardIdx < 0) {
-            toast('Не на позицию.', 'err');
+            toast(kind === 'model' || kind === 'rule'
+                ? 'Опустите на фишку камеры.' : 'Не на позицию.', 'err');
+            return;
+        }
+        if (kind === 'model' || kind === 'rule') {
+            const chipEl = ev.target && ev.target.closest
+                ? ev.target.closest('.chip') : null;
+            const chips = chipEl && chipEl.parentNode
+                ? chipEl.parentNode.querySelectorAll('.chip') : [];
+            let j = -1;
+            for (let k = 0; k < chips.length; k += 1) {
+                if (chips[k] === chipEl) { j = k; }
+            }
+            const pos = belt.positions[cardIdx];
+            if (j < 0 || !chipEl.closest('.pos-card')
+                || Number(chipEl.closest('.pos-card').dataset.index) !== cardIdx
+                || !pos || !pos.inspection) {
+                toast('Опустите на фишку камеры.', 'err');
+                dragAsset = null;
+                return;
+            }
+            toggleAsset(kind, pos.inspection.cameras[j], dragAsset);
+            dragAsset = null;
             return;
         }
         if (kind === 'inspect') { toggleInspection(cardIdx); }
