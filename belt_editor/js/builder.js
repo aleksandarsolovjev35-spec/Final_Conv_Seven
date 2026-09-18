@@ -153,6 +153,11 @@ function toggleReset(i) {
 function bindCamera(i, camId) {
     const pos = belt.positions[i];
     if (!pos || !camId) { return; }
+    if (!pos.inspection) {
+        toast('П' + i + ' — не место инспекции: камеры ставятся только'
+            + ' на места инспекции («Место инспекции» из палитры).');
+        return;
+    }
     const owner = findIndex(function (p) {
         return p.inspection && p.inspection.cameras.indexOf(camId) !== -1;
     });
@@ -170,11 +175,7 @@ function bindCamera(i, camId) {
     } else {
         toast(camName(camId) + ' → П' + i);
     }
-    if (!pos.inspection) {
-        pos.inspection = { cameras: [camId], primary: false };
-    } else {
-        pos.inspection.cameras.push(camId);
-    }
+    pos.inspection.cameras.push(camId);
     applyInvariants();
     render();
 }
