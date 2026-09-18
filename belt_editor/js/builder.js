@@ -405,7 +405,12 @@ window.BeltBridge = {
             dt.setData('text/plain', 'camera:' + id);
             dt.effectAllowed = 'copy';
         }
-        $('belt-zone').classList.add('drop-ready');
+        const zn = $('belt-zone');
+        if (zn && belt.positions.some(function (p) {
+            return p.inspection;
+        })) {
+            zn.classList.add('drop-ready');
+        }
     },
     camDragEnd: function () {
         dragKind = null;
@@ -434,6 +439,16 @@ function ensureMarker() {
 
 /* индекс щели (0..n), куда встанет позиция по X курсора; карточки и
  * стрелки лежат в ряду по очереди, поэтому шаг 2 */
+/* куда данный перетаскиваемый элемент реально «сядет» — подсветка
+ * показывается только на принимающих целях (камера: только место
+ * инспекции; не-позиционный сброс и т.п. отказа не подсвечиваем) */
+function acceptsAt(kind, idx) {
+    const pos = belt.positions[idx];
+    if (!pos) { return false; }
+    if (kind === 'camera') { return !!pos.inspection; }
+    return true;
+}
+
 function gapFromX(clientX) {
     const cards = $('belt-row').querySelectorAll('.pos-card');
     for (let i = 0; i < cards.length; i += 1) {
@@ -506,7 +521,7 @@ function wireBelt() {
             const idx = cardFromEvent(ev);
             document.querySelectorAll('.pos-card.drop-target').forEach(
                 function (n) { n.classList.remove('drop-target'); });
-            if (idx >= 0) {
+            if (idx >= 0 && acceptsAt(dragKind, idx)) {
                 const card = zone.querySelector(
                     '.pos-card[data-index="' + idx + '"]');
                 if (card) { card.classList.add('drop-target'); }
