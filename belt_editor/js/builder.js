@@ -479,7 +479,11 @@ function gapFromX(clientX) {
     const cards = $('belt-row').querySelectorAll('.pos-card');
     for (let i = 0; i < cards.length; i += 1) {
         const r = cards[i].getBoundingClientRect();
-        if (clientX < r.left + r.width / 2) { return i; }
+        if (clientX < r.left + r.width / 2) {
+            /* раньше входной позиции слота нет: левее П0 — вставка сразу
+             * после входа (маркер и drop считают один и тот же зажим) */
+            return i === 0 ? 1 : i;
+        }
     }
     return cards.length;
 }
