@@ -970,6 +970,32 @@ function wireBelt() {
 
 /* ─── Старт ───────────────────────────────────────────────────────── */
 
+/** листание списка ровно на плашку: шаг = высота первой строки + gap;
+ * при перетаскивании ползунка список докликовывает scroll-snap */
+function wireSteppedScroll(list) {
+    if (!list) { return; }
+    function step() {
+        const row = list.firstElementChild;
+        const h = row ? row.offsetHeight : 0;
+        return h > 0 ? h + 6 : 40;
+    }
+    list.addEventListener('wheel', function (e) {
+        if (list.scrollHeight <= list.clientHeight) { return; }
+        e.preventDefault();
+        const d = (e.deltaY > 0 ? 1 : -1) * step();
+        if (list.scrollTo) {
+            list.scrollTo({ top: list.scrollTop + d, behavior: 'smooth' });
+        } else {
+            list.scrollTop += d;
+        }
+    }, { passive: false });
+}
+
+function wireScrollSnap() {
+    wireSteppedScroll($('asset-models'));
+    wireSteppedScroll($('asset-rules'));
+}
+
 function wireSearch() {
     [['rule-search', function (v) { ruleQuery = v; }],
      ['model-search', function (v) { modelQuery = v; }]]
@@ -987,6 +1013,7 @@ document.addEventListener('DOMContentLoaded', function () {
     wirePalette();
     wireBelt();
     wireSearch();
+    wireScrollSnap();
     render();
 });
 
