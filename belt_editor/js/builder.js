@@ -419,17 +419,17 @@ function renderAssets() {
                 + (rule.models.length ? '' : ' rule-empty'));
             tile.draggable = rule.models.length > 0;
             tile.dataset.ruleId = rule.id;
-            const top = el('div', 'rule-top');
-            top.appendChild(el('b', '', rule.name));
+            const cap = el('div', 'rule-cap');
+            cap.appendChild(el('b', '', rule.name));
             if (rule.models.length) {
-                top.appendChild(el('span', 'rule-parts-count',
+                cap.appendChild(el('span', 'rule-parts-count',
                     rule.models.length + 'м'));
             }
             if (cams.length) {
-                top.appendChild(el('span', 'asset-use',
+                cap.appendChild(el('span', 'asset-use',
                     'кам: ' + cams.length));
             }
-            tile.appendChild(top);
+            tile.appendChild(cap);
             if (openRule === rule.id) {
                 tile.classList.add('open');
             }
@@ -455,7 +455,7 @@ function renderAssets() {
             });
             /* плашки состава: заполненные — модель + ×; новую пустую
              * плашку создаёт «плюс» (заглушек в ряд не рисуем) */
-            const cells = el('div', 'rule-cells');
+            const cells = el('div', 'rule-cells rule-body');
             rule.models.forEach(function (mid) {
                 const mod = MODELS.find(function (m) { return m.id === mid; });
                 const cell = el('span', 'rule-cell filled');

@@ -140,42 +140,55 @@ body {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 6px;
+    gap: 4px;
     width: 100%;
-    min-height: 40px;
-    padding: 8px 12px 9px;
-    border: 1px solid var(--border-strong);
-    border-radius: 6px;
-    background: var(--panel-raised);
     font-family: var(--font-mono);
     font-size: 12px;
     cursor: grab;
     user-select: none;
 }
 
-.rule-tile .rule-top {
+/* имя — строкой над рамкой; ячейки с «плюсом» — в рамке, на месте
+ * имени */
+.rule-cap {
     display: flex;
     align-items: center;
     gap: 9px;
+    padding: 0 2px;
 }
 
-.rule-tile b { font-weight: 600; }
+.rule-cap b { font-weight: 600; }
+
+.rule-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    min-height: 40px;
+    padding: 6px 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--panel-raised);
+}
 
 .rule-tile .asset-use { color: var(--text-dim); margin-left: auto; }
 
 .rule-tile.rule-empty { opacity: 0.55; cursor: not-allowed; }
 
-.rule-tile.asset-used {
+.rule-tile.asset-used .rule-body {
     border-color: rgba(114, 163, 126, 0.6);
     background: rgba(114, 163, 126, 0.07);
 }
 
 .rule-tile.dragging { opacity: 0.45; }
 
-.rule-tile.drop-target { outline: 1px solid var(--accent, #4fa3d1); }
+.rule-tile.drop-target .rule-body {
+    outline: 1px solid var(--accent, #4fa3d1);
+}
 
-.rule-tile.open {
+.rule-tile.open .rule-body {
     border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent) inset;
 }
 
 .rule-cells {
