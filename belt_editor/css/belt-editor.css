@@ -266,8 +266,8 @@ body {
 }
 
 .rule-drawer-empty {
-    min-height: 8px;
-    padding: 2px 9px;
+    min-height: 15px;
+    padding: 4px 9px;
     border-style: dashed;
 }
 
