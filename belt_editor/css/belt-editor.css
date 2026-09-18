@@ -48,15 +48,17 @@ body {
     overflow: hidden;
 }
 
-/* Экран пополам по горизонтали: сверху видеостена, снизу сборка.
+/* Экран: видеостена тянется на всё свободное, нижняя зона (элементы
+ * + сборка ленты) — половина прежней высоты (25%). Ряд ленты авто-впи-
+ * сывается и по высоте, палитра при тесноте получает свой тонкий скролл.
  * Адаптивного отката нет намеренно. */
 .cameras {
     display: grid;
     grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
     gap: 14px;
     padding: 14px 14px 7px;
-    flex: 1 1 50%;
-    min-height: 200px;
+    flex: 1 1 auto;
+    min-height: 150px;
 }
 
 .cam-main-wrap,
@@ -324,8 +326,8 @@ body {
     grid-template-columns: minmax(208px, 256px) minmax(0, 1fr);
     gap: 14px;
     padding: 7px 14px 14px;
-    flex: 1 1 50%;
-    min-height: 300px;
+    flex: 0 1 25%;
+    min-height: 196px;
 }
 
 .zone-head {
@@ -357,6 +359,10 @@ body {
     padding-bottom: 12px;
     display: flex;
     flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    overscroll-behavior: contain;
     overflow-y: auto;
 }
 

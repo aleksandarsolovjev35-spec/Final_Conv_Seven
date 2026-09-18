@@ -71,9 +71,13 @@ function zoomAt(clientX, clientY, factor) {
 
 function autoFit() {
     var aw = availW();
+    var ah = availH();
     var w = chainW();
+    var h = chainH();
     if (aw <= 0 || w <= 0) { return; }
-    z = clamp(Math.min(1, (aw - 8) / w), Z_MIN, 1);
+    var k = (aw - 8) / w;
+    if (ah > 0 && h > 0) { k = Math.min(k, (ah - 8) / h); }
+    z = clamp(Math.min(1, k), Z_MIN, 1);
     apply();
 }
 
@@ -144,6 +148,9 @@ function boot() {
     wirePan();
     wireReset();
     wireRender();
+    window.addEventListener('resize', function () {
+        if (!userZoomed) { autoFit(); } else { apply(); }
+    });
     autoFit();
 }
 
