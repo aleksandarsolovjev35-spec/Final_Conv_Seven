@@ -116,8 +116,24 @@ body {
     border: 1px solid var(--border-strong);
     border-radius: 3px;
     overflow: hidden;
-    cursor: pointer;
+    cursor: grab;
     background: #0d1115;
+}
+
+.thumb.dragging-src { opacity: 0.45; }
+
+.thumb.bound { border-color: rgba(114, 163, 126, 0.6); }
+
+.thumb-pos {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    font-size: 9.5px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: #10161a;
+    background: var(--ok);
+    font-weight: 600;
 }
 
 .thumb canvas {

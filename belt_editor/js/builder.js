@@ -6,6 +6,10 @@
  *     (part_presence), поэтому это место неснимаемо;
  *   - место инспекции навешивается и на другие позиции; повторный бросок
  *     снимает его (кроме входа);
+ *   - камеры приходят из блока «Обнаруженные камеры» (js/cameras.js):
+ *     плита тянется на позицию и привязывается к её месту инспекции;
+ *     один прибор — в одном месте, перенос = ребинд, повторный бросок
+ *     на ту же позицию отвязывает;
  *   - точка сброса одна: бросок на новую позицию переносит её, повторный
  *     бросок на занятую позицию снимает;
  *   - максимум 64 позиции.
@@ -17,6 +21,30 @@
 const MAX_POSITIONS = 64;
 const CAM_NAME_MAX = 24;
 
+/* Симуляция обнаружения: список устройств, который сообщает слой
+ * захвата (video0..video7). id — стабильный ключ привязки, name —
+ * роль-метка (переименовывается), dev — путь устройства. */
+const inventory = [];
+(function discover() {
+    for (let i = 0; i < 8; i += 1) {
+        inventory.push({
+            id: 'cam' + i, name: 'CAM_' + (i + 1), dev: 'video' + i,
+        });
+    }
+})();
+
+function invCam(id) {
+    for (let i = 0; i < inventory.length; i += 1) {
+        if (inventory[i].id === id) { return inventory[i]; }
+    }
+    return null;
+}
+
+function camName(id) {
+    const cam = invCam(id);
+    return cam ? cam.name : id;
+}
+
 /* positions: [{label, inspection: null|{cameras:[], primary:bool}, reset}]
  * — форма совпадает с belt.path.v1, чтобы лента позже ушла в runtime
  * без переработки модели. */
@@ -25,6 +53,7 @@ const belt = { positions: [] };
 let marker = null;      // индикатор вставки позиции
 let dragKind = null;    // что сейчас тащим
 let dragFrom = -1;      // индекс карточки при переносе
+let dragCamId = null;   // id камеры при переносе из стены
 
 /* ─── Инварианты ─────────────────────────────────────────────────── */
 
@@ -121,31 +150,40 @@ function toggleReset(i) {
     render();
 }
 
-function addCamera(i) {
+function bindCamera(i, camId) {
     const pos = belt.positions[i];
-    if (!pos) { return; }
-    if (!pos.inspection) {
-        pos.inspection = { cameras: [], primary: false };
-        applyInvariants();
-        toast('П' + i + ' — место инспекции');
-    }
-    const used = Object.create(null);
-    belt.positions.forEach(function (other) {
-        if (other.inspection) {
-            other.inspection.cameras.forEach(function (c) { used[c] = true; });
-        }
+    if (!pos || !camId) { return; }
+    const owner = findIndex(function (p) {
+        return p.inspection && p.inspection.cameras.indexOf(camId) !== -1;
     });
-    let k = 1;
-    while (used['CAM_' + k]) { k += 1; }
-    pos.inspection.cameras.push('CAM_' + k);
+    if (owner === i) {
+        pos.inspection.cameras.splice(
+            pos.inspection.cameras.indexOf(camId), 1);
+        toast(camName(camId) + ' — снята с П' + i + '.');
+        render();
+        return;
+    }
+    if (owner >= 0) {
+        belt.positions[owner].inspection.cameras.splice(
+            belt.positions[owner].inspection.cameras.indexOf(camId), 1);
+        toast(camName(camId) + ': П' + owner + ' → П' + i);
+    } else {
+        toast(camName(camId) + ' → П' + i);
+    }
+    if (!pos.inspection) {
+        pos.inspection = { cameras: [camId], primary: false };
+    } else {
+        pos.inspection.cameras.push(camId);
+    }
+    applyInvariants();
     render();
 }
 
 function removeCamera(i, j) {
     const pos = belt.positions[i];
     if (!pos || !pos.inspection) { return; }
-    const name = pos.inspection.cameras.splice(j, 1)[0];
-    toast('Камера ' + name + ' убрана с П' + i + '.');
+    const id = pos.inspection.cameras.splice(j, 1)[0];
+    toast(camName(id) + ' — снята с П' + i + '.');
     render();
 }
 
@@ -153,17 +191,26 @@ function renameCamera(i, j) {
     const card = $('belt-row').querySelector('.pos-card[data-index="' + i + '"]');
     const chip = card ? card.querySelectorAll('.chip')[j] : null;
     if (!chip) { return; }
+    const pos = belt.positions[i];
+    if (!pos || !pos.inspection) { return; }
+    const cam = invCam(pos.inspection.cameras[j]);
+    if (!cam) { return; }
     startInlineEdit(chip, function (text) {
-        const pos = belt.positions[i];
-        if (!pos || !pos.inspection) { return; }
         const name = String(text).trim().toUpperCase()
             .replace(/[^A-Z0-9_]/g, '').slice(0, CAM_NAME_MAX);
         if (!/^[A-Z][A-Z0-9_]{1,23}$/.test(name)) {
-            toast('Роль «' + name + '» некорректна: буквы/цифры/_ , 2–24, с буквы.',
-                'err');
+            toast('Роль некорректна: буквы/цифры/_ , 2–24, с буквы.', 'err');
             return;
         }
-        pos.inspection.cameras[j] = name;
+        const taken = inventory.some(function (other) {
+            return other !== cam && other.name === name;
+        });
+        if (taken) {
+            toast('Роль «' + name + '» уже занята.', 'err');
+            return;
+        }
+        cam.name = name;
+        render();
     });
 }
 
@@ -236,18 +283,23 @@ function render() {
 /* Обнаруженные камеры: роли мест инспекции по порядку ленты;
  * основная — входное (П0) место. */
 function cameraViews() {
-    const views = [];
+    const bound = Object.create(null);
     belt.positions.forEach(function (pos, i) {
         if (!pos.inspection) { return; }
-        pos.inspection.cameras.forEach(function (role) {
-            views.push({
-                role: role,
-                position: i,
-                primary: !!pos.inspection.primary,
-            });
+        pos.inspection.cameras.forEach(function (id) {
+            bound[id] = { position: i, primary: !!pos.inspection.primary };
         });
     });
-    return views;
+    return inventory.map(function (cam) {
+        const b = bound[cam.id];
+        return {
+            id: cam.id,
+            name: cam.name,
+            dev: cam.dev,
+            position: b ? b.position : -1,
+            primary: b ? b.primary : false,
+        };
+    });
 }
 
 function renderCard(pos, i) {
@@ -284,10 +336,10 @@ function renderCard(pos, i) {
 
     if (pos.inspection && pos.inspection.cameras.length) {
         const cams = el('div', 'cam-chips');
-        pos.inspection.cameras.forEach(function (name, j) {
+        pos.inspection.cameras.forEach(function (id, j) {
             const chip = el('span', 'chip');
             chip.draggable = false;
-            chip.appendChild(el('span', 'chip-name', name));
+            chip.appendChild(el('span', 'chip-name', camName(id)));
             const chipX = el('button', 'chip-x', '×');
             chipX.type = 'button';
             chipX.draggable = false;
@@ -321,6 +373,25 @@ function toast(text, kind) {
 }
 
 /* ─── Drag & drop ─────────────────────────────────────────────────── */
+
+/* Мост для стены камер: dragstart/dragend плиты ленты-редактор
+ * обрабатывает как обычный drop-объект. */
+window.BeltBridge = {
+    camDragStart: function (id, dt) {
+        dragKind = 'camera';
+        dragCamId = id;
+        if (dt) {
+            dt.setData('text/plain', 'camera:' + id);
+            dt.effectAllowed = 'copy';
+        }
+        $('belt-zone').classList.add('drop-ready');
+    },
+    camDragEnd: function () {
+        dragKind = null;
+        dragCamId = null;
+        cleanVisuals();
+    },
+};
 
 function cleanVisuals() {
     if (marker && marker.parentNode) { marker.remove(); }
@@ -459,7 +530,10 @@ function wireBelt() {
         }
         if (kind === 'inspect') { toggleInspection(cardIdx); }
         else if (kind === 'reset') { toggleReset(cardIdx); }
-        else if (kind === 'camera') { addCamera(cardIdx); }
+        else if (kind === 'camera') {
+            bindCamera(cardIdx, dragCamId);
+            dragCamId = null;
+        }
     });
 
     /* клик по карточке: делёжка и значки */

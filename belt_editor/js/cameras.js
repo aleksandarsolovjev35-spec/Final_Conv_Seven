@@ -1,10 +1,11 @@
-/* belt_editor/js/cameras.js — видеостена.
+/* belt_editor/js/cameras.js — видеостена и источник камер.
  *
- * Слева сверху — основная камера крупным планом: это камера входного
- * (основного) места инспекции, по ней считается наличие детали. Справа —
- * стена всех обнаруженных камер ленты; клик по плитке переключает
- * крупный план. Кадры симулированы (корпус едет по ленте, датчик шумит):
- * реальный бэкенд позже подключится заменой drawFeed на /stream/*.
+ * Справа сверху — все обнаруженные устройства: их перетаскивают на
+ * позиции ленты (мост window.BeltBridge -> builder.js). Плита связана
+ * с позицией подсвечена и несёт метку «Пn». Слева сверху — основной
+ * крупный план: первая камера входного (основного) места; клик по
+ * плите тоже выводит её на крупный план. Кадры симулированы, реальный
+ * бэкенд подключится заменой drawFeed на /stream/*.
  */
 'use strict';
 
@@ -13,40 +14,44 @@
 const PAINT_INTERVAL = 90;
 
 let cameras = [];
-let mainRole = null;
+let mainId = null;
+let tileDragging = false;
 let rafId = 0;
 let lastPaint = 0;
 
 function $id(id) { return document.getElementById(id); }
 
-function findCam(list, role) {
+function findCam(list, id) {
     for (let i = 0; i < list.length; i += 1) {
-        if (list[i].role === role) { return list[i]; }
+        if (list[i].id === id) { return list[i]; }
     }
     return null;
 }
 
-/* Основная — первая камера входного места; если входа нет — первая из
- * обнаруженных. */
-function entryRole(list) {
+/* Основная — первая камера входного места; если входа нет — первая
+ * привязанная; если и таких нет — первая обнаруженная. */
+function entryId(list) {
     for (let i = 0; i < list.length; i += 1) {
-        if (list[i].primary) { return list[i].role; }
+        if (list[i].primary && list[i].position >= 0) { return list[i].id; }
     }
-    return list.length ? list[0].role : null;
+    for (let i = 0; i < list.length; i += 1) {
+        if (list[i].position >= 0) { return list[i].id; }
+    }
+    return list.length ? list[0].id : null;
 }
 
 /* ─── Синхронизация с лентой ──────────────────────────────────────── */
 
 function sync(list) {
     cameras = list || [];
-    if (!findCam(cameras, mainRole)) { mainRole = entryRole(cameras); }
+    if (!findCam(cameras, mainId)) { mainId = entryId(cameras); }
     buildMain();
     buildWall();
     schedule();
 }
 
-function pick(role) {
-    mainRole = role;
+function pick(id) {
+    mainId = id;
     buildMain();
     buildWall();
     schedule();
@@ -55,10 +60,10 @@ function pick(role) {
 /* ─── Панели ──────────────────────────────────────────────────────── */
 
 function buildMain() {
-    const cam = findCam(cameras, mainRole);
-    $id('cam-main-role').textContent = cam
-        ? cam.role + ' · П' + cam.position + (cam.primary ? ' · вход' : '')
-        : 'камер нет';
+    const cam = findCam(cameras, mainId);
+    $id('cam-main-role').textContent = cam && cam.position >= 0
+        ? cam.name + ' · П' + cam.position + (cam.primary ? ' · вход' : '')
+        : cam ? cam.name + ' · свободна' : 'камер нет';
 }
 
 function buildWall() {
@@ -66,18 +71,42 @@ function buildWall() {
     wall.textContent = '';
     cameras.forEach(function (cam) {
         const tile = document.createElement('div');
-        tile.className = 'thumb' + (cam.role === mainRole ? ' main' : '');
+        let cls = 'thumb';
+        if (cam.id === mainId) { cls += ' main'; }
+        if (cam.position >= 0) { cls += ' bound'; }
+        tile.className = cls;
+        tile.draggable = true;
         const canvas = document.createElement('canvas');
-        canvas.dataset.role = cam.role;
+        canvas.dataset.cam = cam.id;
         const name = document.createElement('span');
         name.className = 'thumb-role';
-        name.textContent = cam.role;
+        name.textContent = cam.name;
         const det = document.createElement('span');
         det.className = 'thumb-det';
         tile.appendChild(canvas);
         tile.appendChild(name);
         tile.appendChild(det);
-        tile.addEventListener('click', function () { pick(cam.role); });
+        if (cam.position >= 0) {
+            const tag = document.createElement('span');
+            tag.className = 'thumb-pos';
+            tag.textContent = 'П' + cam.position;
+            tile.appendChild(tag);
+        }
+        tile.addEventListener('dragstart', function (ev) {
+            tileDragging = true;
+            tile.classList.add('dragging-src');
+            if (window.BeltBridge) {
+                window.BeltBridge.camDragStart(cam.id, ev.dataTransfer);
+            }
+        });
+        tile.addEventListener('dragend', function () {
+            tileDragging = false;
+            tile.classList.remove('dragging-src');
+            if (window.BeltBridge) { window.BeltBridge.camDragEnd(); }
+        });
+        tile.addEventListener('click', function () {
+            if (!tileDragging) { pick(cam.id); }
+        });
         wall.appendChild(tile);
     });
     $id('cam-count').textContent = 'камер: ' + cameras.length;
@@ -223,8 +252,8 @@ function paint() {
         const status = $id('cam-main-status');
         if (ctx) {
             const seen = drawFeed(ctx, main.width, main.height,
-                hash('M|' + (mainRole || '-')), t, true);
-            if (mainRole) {
+                hash('M|' + (mainId || '-')), t, true);
+            if (mainId) {
                 status.textContent = seen ? 'деталь' : 'пусто';
                 status.className = 'cam-tag cam-tag-br' + (seen ? ' live' : '');
             } else {
@@ -234,7 +263,7 @@ function paint() {
             $id('cam-main-time').textContent =
                 new Date().toLocaleTimeString('ru-RU');
         } else if (status) {
-            status.textContent = mainRole ? 'кадр' : 'нет камер';
+            status.textContent = mainId ? 'кадр' : 'нет камер';
         }
     }
 
@@ -248,11 +277,10 @@ function paint() {
             const ready = fitThumb(cv);
             const ctx = ready ? ctx2d(cv) : null;
             if (!ctx) { continue; }
-            const role = cv.dataset.role;
+            const id = cv.dataset.cam;
             const seen = drawFeed(ctx, cv.width, cv.height,
-                hash(role), t, false);
-            det.classList.toggle('found',
-                Boolean(seen && findCam(cameras, role)));
+                hash(id), t, false);
+            det.classList.toggle('found', Boolean(seen && findCam(cameras, id)));
         }
     }
 }
