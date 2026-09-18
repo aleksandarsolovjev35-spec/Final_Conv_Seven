@@ -48,16 +48,15 @@ body {
     overflow: hidden;
 }
 
-/* Экран: сверху видеостена занимает три четверти, снизу — компактная
- * сборка (четверть); при нехватке места сжимается нижняя, верхняя — тянется. */
+/* Экран пополам по горизонтали: сверху видеостена, снизу сборка.
  * Адаптивного отката нет намеренно. */
 .cameras {
     display: grid;
     grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
     gap: 14px;
-    padding: 12px 14px 6px;
-    flex: 1 1 75%;
-    min-height: 260px;
+    padding: 14px 14px 7px;
+    flex: 1 1 50%;
+    min-height: 200px;
 }
 
 .cam-main-wrap,
@@ -322,11 +321,11 @@ body {
 
 .app {
     display: grid;
-    grid-template-columns: minmax(190px, 224px) minmax(0, 1fr);
-    gap: 12px;
-    padding: 4px 14px 10px;
-    flex: 0 1 25%;
-    min-height: 208px;
+    grid-template-columns: minmax(208px, 256px) minmax(0, 1fr);
+    gap: 14px;
+    padding: 7px 14px 14px;
+    flex: 1 1 50%;
+    min-height: 300px;
 }
 
 .zone-head {
