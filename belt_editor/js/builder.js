@@ -35,6 +35,14 @@ const MODELS = [
     { id: 'm1', name: 'window-sinks' },
     { id: 'm2', name: 'omission-long' },
     { id: 'm3', name: 'contacts-long' },
+    { id: 'm4', name: 'bracket-90' },
+    { id: 'm5', name: 'flange-low' },
+    { id: 'm6', name: 'gear-set' },
+    { id: 'm7', name: 'hinge-side' },
+    { id: 'm8', name: 'plate-thin' },
+    { id: 'm9', name: 'roller-mid' },
+    { id: 'm10', name: 'shaft-long' },
+    { id: 'm11', name: 'yoke-drop' },
 ];
 const RULES = [
     { id: 'r0', name: 'геометрия', color: '#d9a441', models: [] },
