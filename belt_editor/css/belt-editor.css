@@ -112,9 +112,7 @@ body {
     gap: 5px;
 }
 
-/* один общий ряд: плитки правил и моделей в одной линии;
- * контейнеры-обёртки не создают дополнительных коробок */
-.assets-line {
+.assets {
     display: flex;
     flex-wrap: wrap;
     align-content: start;
@@ -128,12 +126,7 @@ body {
     scrollbar-color: var(--border-strong) transparent;
 }
 
-.assets {
-    display: contents;
-}
-
 .asset {
-    cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 7px;
@@ -198,13 +191,8 @@ body {
 
 .rule-tile.drop-target { outline: 1px solid var(--accent, #4fa3d1); }
 
-.rule-tile {
-    cursor: pointer;
-}
-
-.rule-tile.rule-sel {
+.rule-tile.open {
     border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent) inset;
 }
 
 .rule-parts-count {
@@ -212,13 +200,59 @@ body {
     border-bottom: 1px dashed var(--border-accent);
 }
 
+.rule-pop {
+    position: absolute;
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    max-width: calc(100% - 14px);
+    padding: 5px 7px;
+    background: var(--panel-raised);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+}
+
+.rule-pop-name {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-right: 2px;
+}
+
+.part {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0 2px 0 5px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg-1);
+    font-size: 8.5px;
+}
+
+.part i { font-style: normal; }
+
+.part-x {
+    border: 0;
+    background: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 10px;
+    line-height: 1;
+    padding: 0 2px;
+}
+
+.part-x:hover { color: var(--bad); }
+
 .chip-assets {
     color: var(--text-dim);
     letter-spacing: 0.02em;
 }
 
 .cam-wall {
-    /* блок по высоте: камеры 2/3, общий каталог 1/3 */
+    /* блок по высоте: камеры 2/3, правила и модели по 1/6 */
     flex: 4 1 0;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

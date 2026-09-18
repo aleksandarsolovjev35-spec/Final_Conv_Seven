@@ -72,7 +72,7 @@ let dragKind = null;    // что сейчас тащим
 let dragFrom = -1;      // индекс карточки при переносе
 let dragCamId = null;   // id камеры при переносе из стены
 let dragAsset = null;   // id модели/правила при переносе из каталога
-let selectedRule = null; // активное правило: клик по модели кладёт/снимает состав
+let openRule = null;    // раскрытая (с составом) плитка правила
 
 /* ─── Инварианты ─────────────────────────────────────────────────── */
 
@@ -366,7 +366,7 @@ function togglePart(ruleId, modelId) {
         toast('«' + mod.name + '» убрана из «' + rule.name + '».');
     } else {
         rule.models.push(modelId);
-        selectedRule = rule.id;   /* держать активным для тычков */
+        openRule = rule.id;   /* показать, что вошло */
         toast('«' + rule.name + '» ← ' + mod.name + '.');
     }
     render();
@@ -422,10 +422,6 @@ function renderAssets() {
                 tile.appendChild(el('span', 'asset-use',
                     'правил: ' + byRules.length));
             }
-            tile.addEventListener('click', function () {
-                if (!selectedRule) { return; }
-                togglePart(selectedRule, mod.id);
-            });
             tile.addEventListener('dragstart', function (ev) {
                 dragKind = 'model-part';
                 dragAsset = mod.id;
@@ -465,19 +461,23 @@ function renderAssets() {
                 top.appendChild(el('span', 'rule-parts-count',
                     rule.models.length + 'м'));
             }
-            if (cams.length) {
-                top.appendChild(el('span', 'asset-use',
-                    'кам: ' + cams.length));
-            }
+            top.appendChild(el('span', 'asset-use',
+                rule.models.length ? 'кам: ' + cams.length : 'нет моделей'));
             tile.appendChild(top);
-            if (selectedRule === rule.id) {
-                tile.classList.add('rule-sel');
+            if (openRule === rule.id && rule.models.length) {
+                tile.classList.add('open');
+            } else if (openRule === rule.id) {
+                openRule = null;
             }
-            tile.addEventListener('click', function () {
-                selectedRule = selectedRule === rule.id ? null : rule.id;
-                document.querySelectorAll('.rule-tile.rule-sel').forEach(
-                    function (n) { n.classList.remove('rule-sel'); });
-                if (selectedRule) { tile.classList.add('rule-sel'); }
+            tile.addEventListener('click', function (ev) {
+                if (ev.target.closest('.part-x') || !rule.models.length) {
+                    return;
+                }
+                openRule = openRule === rule.id ? null : rule.id;
+                document.querySelectorAll('.rule-tile.open').forEach(
+                    function (n) { n.classList.remove('open'); });
+                if (openRule) { tile.classList.add('open'); }
+                updateRulePop();
             });
             tile.addEventListener('dragover', function (ev) {
                 if (dragKind !== 'model-part') { return; }
@@ -496,7 +496,6 @@ function renderAssets() {
                 dragKind = null;
                 dragAsset = null;
                 cleanVisuals();
-                selectedRule = rule.id;
                 togglePart(rule.id, mid);
             });
             tile.addEventListener('dragstart', function (ev) {
@@ -524,8 +523,70 @@ function renderAssets() {
         if (rcnt) {
             rcnt.textContent = 'на камерах: ' + rUsed + ' / ' + RULES.length;
         }
+        updateRulePop();
     }
 }
+
+/* Состав раскрытого правила — плавающий блок под плиткой: ряд
+ * каталога не разъезжается, соседние правила остаются на месте. */
+function updateRulePop() {
+    const zone = document.querySelector('.assets-zone');
+    if (!zone) { return; }
+    let pop = zone.querySelector('.rule-pop');
+    if (openRule) {
+        const r = RULES.find(function (x) { return x.id === openRule; });
+        if (!r || !r.models.length) { openRule = null; }
+    }
+    if (!openRule) {
+        if (pop) { pop.remove(); }
+        return;
+    }
+    const rule = RULES.find(function (x) { return x.id === openRule; });
+    const tile = document.querySelector(
+        '.rule-tile[data-rule-id="' + openRule + '"]');
+    if (!rule || !tile) {
+        if (pop) { pop.remove(); }
+        return;
+    }
+    if (!pop) {
+        pop = el('div', 'rule-pop');
+        zone.appendChild(pop);
+    }
+    pop.textContent = '';
+    pop.appendChild(el('b', 'rule-pop-name', rule.name + ':'));
+    rule.models.forEach(function (mid) {
+        const mod = MODELS.find(function (m) { return m.id === mid; });
+        const part = el('span', 'part');
+        part.appendChild(el('i', '', mod ? mod.name : mid));
+        const px = el('button', 'part-x', '×');
+        px.type = 'button';
+        px.draggable = false;
+        px.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            togglePart(rule.id, mid);
+        });
+        part.appendChild(px);
+        pop.appendChild(part);
+    });
+    const zr = zone.getBoundingClientRect();
+    const tr = tile.getBoundingClientRect();
+    const fit = zr.width ? (zr.width - pop.offsetWidth - 8) : 0;
+    const left = Math.max(4, Math.min(tr.left - zr.left, fit));
+    pop.style.left = left + 'px';
+    pop.style.top = Math.max(4, tr.bottom - zr.top + 6) + 'px';
+}
+
+document.addEventListener('click', function (ev) {
+    if (!openRule) { return; }
+    const t = ev.target;
+    if (t.closest && (t.closest('.rule-pop') || t.closest('.rule-tile'))) {
+        return;
+    }
+    openRule = null;
+    document.querySelectorAll('.rule-tile.open').forEach(
+        function (n) { n.classList.remove('open'); });
+    updateRulePop();
+});
 
 /* Обнаруженные камеры: роли мест инспекции по порядку ленты;
  * основная — входное (П0) место. */
