@@ -3,110 +3,82 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Сборщик ленты — путь корпуса</title>
+<title>Сборка ленты</title>
 <link rel="stylesheet" href="css/belt-editor.css">
 </head>
 <body>
 
-<header class="topbar">
-    <div class="brand">
-        <span class="brand-mark">⛓</span>
-        <div>
-            <h1>СБОРЩИК ЛЕНТЫ</h1>
-            <p class="brand-sub">Ручная сборка пути корпуса · belt.path.v1</p>
-        </div>
-    </div>
-    <div class="topbar-fields">
-        <label class="field">
-            <span>Название конфигурации</span>
-            <input id="belt-name" type="text" maxlength="64"
-                   placeholder="Например: 7-камерная линия">
-        </label>
-        <div class="field">
-            <span>Тип пути</span>
-            <div class="segmented" id="path-type" role="radiogroup" aria-label="Тип пути">
-                <button type="button" data-type="linear" class="seg-btn" role="radio"
-                        aria-checked="true">Линейный</button>
-                <button type="button" data-type="loop" class="seg-btn" role="radio"
-                        aria-checked="false">По кругу</button>
-            </div>
-        </div>
-        <label class="field">
-            <span>Заготовка</span>
-            <select id="preset-select">
-                <option value="">— выбрать —</option>
-            </select>
-        </label>
-    </div>
-    <div class="topbar-actions">
-        <button type="button" id="btn-walk" class="btn btn-accent">▶ Пройти путь</button>
-        <button type="button" id="btn-save" class="btn btn-primary">Сохранить на сервер</button>
-        <button type="button" id="btn-load" class="btn">Загрузить</button>
-        <input id="file-input" type="file" accept=".json,application/json" hidden>
-    </div>
-</header>
+<div class="app">
 
-<main class="layout">
-    <section class="col-belt">
-        <div class="panel belt-panel">
-            <div class="panel-head">
-                <h2>ЛЕНТА</h2>
-                <span class="hint" id="positions-count"></span>
-                <div class="panel-tools">
-                    <button type="button" id="btn-add-position"
-                            class="btn btn-sm">＋ Позиция</button>
-                </div>
-            </div>
-            <div class="belt-stage" id="belt-stage">
-                <div class="belt-cap belt-cap-in" id="cap-in">ВХОД ▶</div>
-                <div class="belt-strip" id="belt-strip"></div>
-                <div class="belt-cap belt-cap-out" id="cap-out">▶ СБРОС</div>
-            </div>
-            <div class="path-caption" id="path-caption"></div>
-            <div class="walk-log" id="walk-log"></div>
-        </div>
-        <div class="panel issues-panel">
-            <div class="panel-head">
-                <h2>ПРОВЕРКА КОНФИГУРАЦИИ</h2>
-                <span id="issues-badge" class="issues-badge ok"></span>
-            </div>
-            <ul id="issues-list" class="issues-list"></ul>
-        </div>
-    </section>
+    <!-- Область 1: палитра элементов -->
+    <aside class="palette" id="palette">
+        <div class="zone-head">ЭЛЕМЕНТЫ</div>
 
-    <aside class="col-side">
-        <div class="panel">
-            <div class="panel-head">
-                <h2>ИНСПЕКТОР ПОЗИЦИИ</h2>
-                <span class="hint">кликните позицию на ленте</span>
+        <div class="tool" draggable="true" data-kind="position"
+             title="Потяните на ленту — вставка по месту">
+            <span class="tool-glyph">▭</span>
+            <div class="tool-text">
+                <b>Позиция</b>
+                <span>Слот ленты. Тянуть на область сборки</span>
             </div>
-            <div id="inspector-body"></div>
         </div>
-        <div class="panel json-panel">
-            <div class="panel-head">
-                <h2>JSON ПУТИ · belt.path.v1</h2>
-                <div class="panel-tools">
-                    <button type="button" id="btn-copy-json" class="btn btn-sm">Копировать</button>
-                    <button type="button" id="btn-apply-json" class="btn btn-sm">Применить</button>
-                    <button type="button" id="btn-download-json" class="btn btn-sm">Скачать</button>
-                </div>
+
+        <div class="tool" draggable="true" data-kind="inspect"
+             title="Потяните на позицию — она станет местом инспекции">
+            <span class="tool-glyph">◎</span>
+            <div class="tool-text">
+                <b>Место инспекции</b>
+                <span>Тянуть НА позицию. Одно — автоматически основное</span>
             </div>
-            <textarea id="json-area" class="json-area" spellcheck="false"></textarea>
         </div>
+
+        <div class="tool" draggable="true" data-kind="camera"
+             title="Потяните на позицию — добавит камеру в её место инспекции">
+            <span class="tool-glyph">🎥</span>
+            <div class="tool-text">
+                <b>Камера</b>
+                <span>Тянуть на инспекционную позицию</span>
+            </div>
+        </div>
+
+        <div class="tool" draggable="true" data-kind="reset"
+             title="Потяните на позицию — корпус покинет ленту там">
+            <span class="tool-glyph">⏏</span>
+            <div class="tool-text">
+                <b>Точка сброса</b>
+                <span>Выгрузка корпуса. Точка на ленте одна</span>
+            </div>
+        </div>
+
+        <ul class="rules">
+            <li>Единственное место инспекции — <b>основное</b>: определяет наличие детали.</li>
+            <li>Если мест два и больше — основное выбирается кликом по значку «инспекция» на карточке.</li>
+            <li>Повторно брошенный элемент — <b>снимает</b> метку (инспекцию, сброс).</li>
+            <li>Двойной клик по названию позиции — переименовать. На фишке камеры: × — убрать, двойной клик — новая роль.</li>
+            <li>Карточку позиции можно таскать по ленте — менять порядок. ✕ — удалить.</li>
+        </ul>
     </aside>
-</main>
 
-<footer class="statusbar">
-    <span id="save-status">локальный черновик</span>
-    <span class="status-sep">·</span>
-    <span id="draft-status"></span>
-    <span class="status-sep">·</span>
-    <button type="button" id="btn-reset-to-default" class="btn btn-sm">Сбросить к текущей линии</button>
-</footer>
+    <!-- Область 2: сборка ленты -->
+    <main class="build">
+        <div class="zone-head">СБОРКА ЛЕНТЫ
+            <span class="hint" id="belt-meta"></span>
+        </div>
+
+        <div class="belt-zone" id="belt-zone">
+            <div class="belt-row" id="belt-row"></div>
+            <div class="belt-drop-hint" id="belt-drop-hint">
+                Перетащите «Позиция» сюда — начните собирать ленту
+            </div>
+        </div>
+
+        <div class="belt-status" id="belt-status"></div>
+    </main>
+
+</div>
 
 <div id="toasts" class="toasts"></div>
 
-<script src="js/model.js"></script>
-<script src="js/editor.js"></script>
+<script src="js/builder.js"></script>
 </body>
 </html>

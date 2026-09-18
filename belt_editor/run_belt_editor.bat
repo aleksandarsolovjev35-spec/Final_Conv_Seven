@@ -4,9 +4,11 @@ setlocal
 cd /d "%~dp0"
 where python >nul 2>&1
 if errorlevel 1 goto :nopython
-python serve.py --host 127.0.0.1 --port 8020 --open
-if errorlevel 1 pause
-exit /b %errorlevel%
+start "belt-editor" /min python -m http.server 8020 --bind 127.0.0.1
+timeout /t 1 /nobreak >nul
+start "" http://127.0.0.1:8020/
+echo Открыт http://127.0.0.1:8020/ . Закройте это окно, чтобы остановить.
+exit /b 0
 
 :nopython
 echo Python not found. Install Python 3.11+ and add it to PATH.
