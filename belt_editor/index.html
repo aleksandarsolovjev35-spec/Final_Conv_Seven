@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-<link rel="stylesheet" href="css/belt-editor.css?v=37">
+<link rel="stylesheet" href="css/belt-editor.css?v=38">
 </head>
 <body>
 
@@ -27,10 +27,34 @@
         </div>
         <div class="cam-wall" id="cam-wall"></div>
         <div class="assets-zone">
-            <div class="zone-head">ПРАВИЛА <span class="hint" id="rule-count"></span></div>
-            <div class="assets" id="asset-rules"></div>
-            <div class="zone-head">МОДЕЛИ <span class="hint" id="model-count"></span></div>
-            <div class="assets" id="asset-models"></div>
+            <div class="assets-col">
+                <div class="zone-head">ПРАВИЛА
+                    <span class="hint" id="rule-count"></span>
+                </div>
+                <label class="search">
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <circle cx="6.5" cy="6.5" r="4.4"/>
+                        <path d="M9.9 9.9 14 14"/>
+                    </svg>
+                    <input id="rule-search" type="text" placeholder="поиск"
+                        autocomplete="off">
+                </label>
+                <div class="assets" id="asset-rules"></div>
+            </div>
+            <div class="assets-col">
+                <div class="zone-head">МОДЕЛИ
+                    <span class="hint" id="model-count"></span>
+                </div>
+                <label class="search">
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <circle cx="6.5" cy="6.5" r="4.4"/>
+                        <path d="M9.9 9.9 14 14"/>
+                    </svg>
+                    <input id="model-search" type="text" placeholder="поиск"
+                        autocomplete="off">
+                </label>
+                <div class="assets" id="asset-models"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -41,7 +65,7 @@
     <main class="build">
         <div class="zone-head">СБОРКА ЛЕНТЫ
             <span class="hint" id="belt-meta"></span>
-            <span class="hint">сб. 37</span>
+            <span class="hint">сб. 38</span>
         </div>
         <div class="belt-zone" id="belt-zone">
             <div class="tools">
@@ -74,8 +98,8 @@
 
 <div id="toasts" class="toasts"></div>
 
-<script src="js/builder.js?v=37"></script>
-<script src="js/belt-view.js?v=37"></script>
-<script src="js/cameras.js?v=37"></script>
+<script src="js/builder.js?v=38"></script>
+<script src="js/belt-view.js?v=38"></script>
+<script src="js/cameras.js?v=38"></script>
 </body>
 </html>

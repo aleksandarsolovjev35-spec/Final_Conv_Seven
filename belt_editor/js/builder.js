@@ -27,6 +27,9 @@ const CAM_NAME_MAX = 24;
 /* Симулированные каталоги (имена — из vision/model_config.py и
  * thresholds.json, укорочены). Присоединяются перетаскиванием
  * плитки на фишку камеры; повторное — снимает. Привязка к прибору. */
+let ruleQuery = '';
+let modelQuery = '';
+
 const MODELS = [
     { id: 'm0', name: 'uneven-heights' },
     { id: 'm1', name: 'window-sinks' },
@@ -407,12 +410,18 @@ function renderAssets() {
     const mbox = $('asset-models');
     if (mbox) {
         mbox.textContent = '';
-        let mUsed = 0;
-        MODELS.forEach(function (mod) {
+        const mUsed = MODELS.filter(function (mod) {
+            return RULES.some(function (r) {
+                return r.models.indexOf(mod.id) !== -1;
+            });
+        }).length;
+        const mlist = modelQuery ? MODELS.filter(function (mod) {
+            return mod.name.toLowerCase().indexOf(modelQuery) !== -1;
+        }) : MODELS;
+        mlist.forEach(function (mod) {
             const byRules = RULES.filter(function (r) {
                 return r.models.indexOf(mod.id) !== -1;
             });
-            if (byRules.length) { mUsed += 1; }
             const tile = el('div', 'asset'
                 + (byRules.length ? ' asset-used' : ''));
             tile.draggable = true;
@@ -448,10 +457,14 @@ function renderAssets() {
     const rbox = $('asset-rules');
     if (rbox) {
         rbox.textContent = '';
-        let rUsed = 0;
-        RULES.forEach(function (rule) {
+        const rUsed = RULES.filter(function (r) {
+            return ruleOnCameras(r).length > 0;
+        }).length;
+        const rlist = ruleQuery ? RULES.filter(function (r) {
+            return r.name.toLowerCase().indexOf(ruleQuery) !== -1;
+        }) : RULES;
+        rlist.forEach(function (rule) {
             const cams = ruleOnCameras(rule);
-            if (cams.length) { rUsed += 1; }
             const tile = el('div', 'rule-tile'
                 + (cams.length ? ' asset-used' : '')
                 + (rule.models.length ? '' : ' rule-empty'));
@@ -920,9 +933,23 @@ function wireBelt() {
 
 /* ─── Старт ───────────────────────────────────────────────────────── */
 
+function wireSearch() {
+    [['rule-search', function (v) { ruleQuery = v; }],
+     ['model-search', function (v) { modelQuery = v; }]]
+        .forEach(function (pair) {
+            const inp = $(pair[0]);
+            if (!inp) { return; }
+            inp.addEventListener('input', function () {
+                pair[1](inp.value.trim().toLowerCase());
+                render();
+            });
+        });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     wirePalette();
     wireBelt();
+    wireSearch();
     render();
 });
 
