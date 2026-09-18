@@ -651,6 +651,20 @@ body {
     stroke-linejoin: miter;
 }
 
+/* горизонтальный рез: по фронту — середина (y=60), по боковине —
+ * вверх к дальнему ребру */
+.pos-card .cube-cut {
+    stroke: var(--border-accent, var(--cube-line));
+    stroke-width: 1.2;
+}
+
+.pos-card .pos-top,
+.pos-card .pos-label,
+.pos-card .pos-badges,
+.pos-card .cam-chips {
+    position: relative;
+}
+
 .pos-card:active { cursor: grabbing; }
 
 .pos-card:hover {

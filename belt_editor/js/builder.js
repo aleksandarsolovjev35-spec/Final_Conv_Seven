@@ -608,6 +608,7 @@ function renderCard(pos, i) {
         + '<polygon points="0,16 16,0 136,0 120,16"/>'
         + '<polygon points="120,16 136,0 136,120 120,136"/>'
         + '<rect x="0.5" y="16.5" width="119" height="119"/>'
+        + '<path class="cube-cut" d="M0.5 76H120L136 60"/>'
         + '</g></svg>';
     card.appendChild(cube);
 
