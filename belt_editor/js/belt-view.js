@@ -14,6 +14,7 @@
 var Z_MIN = 0.1;
 var Z_MAX = 2.2;
 var PAD = 16;                      /* padding зоны, учтён в доступе */
+var MIN_VIS = 120;                 /* цепь нельзя утащить целиком за край */
 
 var zone = null;
 var row = null;
@@ -34,12 +35,22 @@ function apply() {
     var cw = row.scrollWidth * z;
     var ch = (row.scrollHeight || 96) * z;
     if (aw <= 0 || ah <= 0) {              /* нет макета (jsdom) — только запись */
-        row.style.transform = 'translate(' + round(panX) + 'px, '
-            + round(panY) + 'px) scale(' + round(z) + ')';
+        write();
         return;
     }
-    panX = (cw <= aw) ? (aw - cw) / 2 : clamp(panX, aw - cw, 0);
-    panY = (ch <= ah) ? (ah - ch) / 2 : clamp(panY, ah - ch, 0);
+    if (!userZoomed) {
+        /* автоподгонка: цепь отдалена до вмещающей и по центру */
+        panX = (aw - cw) / 2;
+        panY = (ah - ch) / 2;
+    } else {
+        /* ручное полотно: двигаем свободно, но ≥ MIN_VIS цепи в окне */
+        panX = clamp(panX, MIN_VIS - cw, aw - MIN_VIS);
+        panY = clamp(panY, MIN_VIS - ch, ah - MIN_VIS);
+    }
+    write();
+}
+
+function write() {
     row.style.transform = 'translate(' + round(panX) + 'px, '
         + round(panY) + 'px) scale(' + round(z) + ')';
 }
@@ -85,20 +96,24 @@ function isBackground(target) {
 function wirePan() {
     zone.addEventListener('mousedown', function (ev) {
         if (ev.button !== 0 || !isBackground(ev.target)) { return; }
+        /* пан = пользователь взял полотно в руки: автоподгонка
+         * до двойного клика не перехватывает позицию */
+        userZoomed = true;
         var startX = ev.clientX - panX;
         var startY = ev.clientY - panY;
         zone.classList.add('panning');
         ev.preventDefault();
 
-        function move(mv) {
-            panX = mv.clientX - startX;
-            panY = mv.clientY - startY;
-            apply();
-        }
         function up() {
             zone.classList.remove('panning');
             window.removeEventListener('mousemove', move);
             window.removeEventListener('mouseup', up);
+        }
+        function move(mv) {
+            if (mv.buttons === 0) { up(); return; } /* кнопка потеряна */
+            panX = mv.clientX - startX;
+            panY = mv.clientY - startY;
+            apply();
         }
         window.addEventListener('mousemove', move);
         window.addEventListener('mouseup', up);
