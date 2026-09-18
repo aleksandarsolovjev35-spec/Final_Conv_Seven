@@ -54,7 +54,7 @@ body {
  * Адаптивного отката нет намеренно. */
 .cameras {
     display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     gap: 14px;
     padding: 14px 14px 7px;
     flex: 1 1 auto;
