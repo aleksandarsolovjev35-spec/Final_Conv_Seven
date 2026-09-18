@@ -227,6 +227,27 @@ function render() {
 
     $('belt-meta').textContent = 'позиций: ' + belt.positions.length +
         ' / ' + MAX_POSITIONS;
+
+    if (window.Cameras) {
+        window.Cameras.sync(cameraViews());
+    }
+}
+
+/* Обнаруженные камеры: роли мест инспекции по порядку ленты;
+ * основная — входное (П0) место. */
+function cameraViews() {
+    const views = [];
+    belt.positions.forEach(function (pos, i) {
+        if (!pos.inspection) { return; }
+        pos.inspection.cameras.forEach(function (role) {
+            views.push({
+                role: role,
+                position: i,
+                primary: !!pos.inspection.primary,
+            });
+        });
+    });
+    return views;
 }
 
 function renderCard(pos, i) {

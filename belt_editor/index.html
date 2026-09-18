@@ -4,15 +4,36 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-<link rel="stylesheet" href="css/belt-editor.css?v=6">
+<link rel="stylesheet" href="css/belt-editor.css?v=7">
 </head>
 <body>
+
+<!-- Верх: видеостена. Слева — основная (входная) камера крупно,
+     справа — все обнаруженные камеры ленты. -->
+<div class="cameras">
+    <div class="cam-main-wrap">
+        <div class="zone-head">ОСНОВНАЯ КАМЕРА
+            <span class="hint" id="cam-main-role"></span>
+        </div>
+        <div class="cam-main-box" id="cam-main-box">
+            <canvas id="cam-main"></canvas>
+            <span class="cam-tag cam-tag-tr" id="cam-main-time"></span>
+            <span class="cam-tag cam-tag-br" id="cam-main-status"></span>
+        </div>
+    </div>
+    <div class="cam-wall-wrap">
+        <div class="zone-head">ОБНАРУЖЕННЫЕ КАМЕРЫ
+            <span class="hint" id="cam-count"></span>
+        </div>
+        <div class="cam-wall" id="cam-wall"></div>
+    </div>
+</div>
 
 <div class="app">
 
     <!-- Область 1: палитра элементов -->
     <aside class="palette" id="palette">
-        <div class="zone-head">ЭЛЕМЕНТЫ <span class="hint">сб. 6</span></div>
+        <div class="zone-head">ЭЛЕМЕНТЫ <span class="hint">сб. 7</span></div>
 
         <div class="tool" draggable="true" data-kind="position">
             <b>Позиция</b>
@@ -42,6 +63,7 @@
 
 <div id="toasts" class="toasts"></div>
 
-<script src="js/builder.js?v=6"></script>
+<script src="js/builder.js?v=7"></script>
+<script src="js/cameras.js?v=7"></script>
 </body>
 </html>
