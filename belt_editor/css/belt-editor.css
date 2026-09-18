@@ -581,10 +581,10 @@ body {
 .belt-row {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 13px;
     width: max-content;
     max-width: none;
-    padding: 2px 0 10px;
+    padding: 5px 1px 10px;
     transform-origin: 50% 50%;
 }
 
@@ -611,6 +611,21 @@ body {
     user-select: none;
     -webkit-user-select: none;
     transition: border-color 120ms ease;
+}
+
+/* выступающие бортики: левый, правый, верхний — внешняя рамка-кромка,
+ * у дна она обрывается (дно — толстая стенка лотка) */
+.pos-card::before {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    top: -3px;
+    left: -5px;
+    right: -5px;
+    bottom: 4px;
+    border: 1px solid var(--border-strong);
+    border-bottom: none;
+    border-radius: 5px 5px 0 0;
 }
 
 .pos-card:active { cursor: grabbing; }
