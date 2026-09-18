@@ -117,27 +117,7 @@ body {
 
 .tool.dragging { opacity: 0.45; }
 
-.tool-glyph {
-    width: 30px;
-    height: 30px;
-    flex: 0 0 30px;
-    display: grid;
-    place-items: center;
-    font-size: 15px;
-    color: var(--accent);
-    background: var(--bg-1);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
-}
-
-.tool[data-kind="inspect"] .tool-glyph { color: var(--accent); }
-.tool[data-kind="camera"] .tool-glyph { font-size: 15px; }
-.tool[data-kind="reset"] .tool-glyph {
-    color: var(--bad);
-    border-color: rgba(201, 118, 118, 0.45);
-}
-
-.tool b { font-size: 13px; }
+.tool b { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
 
 
 
@@ -269,8 +249,7 @@ body {
     white-space: nowrap;
 }
 
-.badge-insp { cursor: pointer; color: var(--accent); border-color: rgba(120, 153, 165, 0.5); }
-.badge-insp:hover { background: var(--accent); color: #10161a; }
+.badge-insp { color: var(--accent); border-color: rgba(120, 153, 165, 0.5); }
 .badge-primary { color: var(--warn); border-color: rgba(193, 166, 106, 0.55); background: var(--warn-bg); }
 .badge-cam { color: var(--text-dim); }
 .badge-reset { color: var(--bad); border-color: rgba(201, 118, 118, 0.5); background: var(--bad-bg); }

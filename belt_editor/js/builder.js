@@ -1,11 +1,13 @@
 /* belt_editor/js/builder.js — сборка ленты перетаскиванием элементов.
  *
  * Две области: палитра элементов (data-kind) и лента. Правила домена:
- *   - место инспекции навешивается на позицию и делает её инспекционной;
- *   - единственное место инспекции автоматически основное (наличие детали);
+ *   - первая позиция ленты — вход: она СРАЗУ становится местом инспекции
+ *     и основным: по входному наличию детали считается движение
+ *     (part_presence), поэтому это место неснимаемо;
+ *   - место инспекции навешивается и на другие позиции; повторный бросок
+ *     снимает его (кроме входа);
  *   - точка сброса одна: бросок на новую позицию переносит её, повторный
  *     бросок на занятую позицию снимает;
- *   - повторный бросок «места инспекции» снимает инспекцию с позиции;
  *   - максимум 64 позиции.
  */
 'use strict';
@@ -27,29 +29,19 @@ let dragFrom = -1;      // индекс карточки при переносе
 /* ─── Инварианты ─────────────────────────────────────────────────── */
 
 function applyInvariants() {
-    const points = [];
     let resetKept = false;
     belt.positions.forEach(function (pos, i) {
         if (pos.reset) {
             if (resetKept) { pos.reset = false; }
             resetKept = true;
         }
-        if (pos.inspection) { points.push(pos); }
+        if (i === 0) {
+            if (!pos.inspection) { pos.inspection = { cameras: [], primary: true }; }
+            else { pos.inspection.primary = true; }
+        } else if (pos.inspection) {
+            pos.inspection.primary = false;
+        }
     });
-    if (points.length === 1) {
-        points[0].inspection.primary = true;
-    } else if (points.length > 1) {
-        let used = false;
-        points.forEach(function (pos) {
-            if (pos.inspection.primary && !used) { used = true; }
-            else { pos.inspection.primary = false; }
-        });
-        if (!used) { points[0].inspection.primary = true; }
-    }
-}
-
-function inspectionCount() {
-    return belt.positions.filter(function (p) { return !!p.inspection; }).length;
 }
 
 function findIndex(pred) {
@@ -66,11 +58,17 @@ function insertPosition(gap) {
         toast('Максимум ' + MAX_POSITIONS + ' позиций на ленте.', 'err');
         return;
     }
+    const wasEmpty = belt.positions.length === 0;
     belt.positions.splice(gap, 0, {
         label: '', inspection: null, reset: false,
     });
     applyInvariants();
     render();
+    if (gap === 0) {
+        toast('П0 — вход: место инспекции, определяет наличие детали.');
+    } else if (wasEmpty) {
+        toast('Позиция добавлена.');
+    }
 }
 
 function movePosition(from, gap) {
@@ -91,15 +89,16 @@ function removePosition(i) {
 function toggleInspection(i) {
     const pos = belt.positions[i];
     if (!pos) { return; }
+    if (i === 0) {
+        toast('П0 — входное место инспекции, оно не снимается.');
+        return;
+    }
     if (pos.inspection) {
-        const n = pos.inspection.cameras.length;
         pos.inspection = null;
-        toast('П' + i + ': инспекция снята' +
-            (n ? ' · камеры: ' + n : ''));
+        toast('П' + i + ': инспекция снята.');
     } else {
         pos.inspection = { cameras: [], primary: false };
-        toast('П' + i + ' — место инспекции' +
-            (inspectionCount() === 1 ? ' · основное' : ''));
+        toast('П' + i + ' — место инспекции.');
     }
     applyInvariants();
     render();
@@ -208,16 +207,6 @@ function startInlineEdit(node, onCommit) {
     node.addEventListener('blur', function () { finish(true); }, { once: true });
 }
 
-function makePrimary(i) {
-    const pos = belt.positions[i];
-    if (!pos || !pos.inspection || pos.inspection.primary) { return; }
-    belt.positions.forEach(function (p) {
-        if (p.inspection) { p.inspection.primary = p === pos; }
-    });
-    toast('Основное место инспекции — П' + i + ' (наличие детали).');
-    render();
-}
-
 /* ─── Рендер ─────────────────────────────────────────────────────── */
 
 function el(tag, cls, text) {
@@ -232,7 +221,7 @@ function render() {
     row.textContent = '';
 
     belt.positions.forEach(function (pos, i) {
-        if (i > 0) { row.appendChild(el('span', 'lane-arrow', '▶')); }
+        if (i > 0) { row.appendChild(el('span', 'lane-arrow', '→')); }
         row.appendChild(renderCard(pos, i));
     });
 
@@ -248,7 +237,7 @@ function renderCard(pos, i) {
 
     const top = el('div', 'pos-top');
     top.appendChild(el('span', 'pos-index', 'П' + i));
-    const del = el('button', 'pos-del', '✕');
+    const del = el('button', 'pos-del', '×');
     del.type = 'button';
     del.draggable = false;
     top.appendChild(del);
@@ -259,16 +248,16 @@ function renderCard(pos, i) {
     const badges = el('div', 'pos-badges');
     if (pos.inspection) {
         if (pos.inspection.primary) {
-            badges.appendChild(el('span', 'badge badge-primary', '★ основное'));
+            badges.appendChild(el('span', 'badge badge-primary', 'основное'));
         } else {
             badges.appendChild(el('span', 'badge badge-insp', 'инспекция'));
         }
         const n = pos.inspection.cameras.length;
         badges.appendChild(el('span', 'badge badge-cam',
-            n ? '🎥 ' + n : 'без камер'));
+            n ? 'камер: ' + n : 'без камер'));
     }
     if (pos.reset) {
-        badges.appendChild(el('span', 'badge badge-reset', '⏏ сброс'));
+        badges.appendChild(el('span', 'badge badge-reset', 'сброс'));
     }
     card.appendChild(badges);
 
@@ -462,11 +451,6 @@ function wireBelt() {
                 removePosition(i);
                 toast('Позиция П' + i + ' удалена.');
             }
-            return;
-        }
-        const badge = ev.target.closest('.badge-insp');
-        if (badge) {
-            makePrimary(cardFromEvent(ev));
             return;
         }
     });
