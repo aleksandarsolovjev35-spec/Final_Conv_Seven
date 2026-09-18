@@ -465,6 +465,7 @@ function renderAssets() {
         }) : RULES;
         rlist.forEach(function (rule) {
             const cams = ruleOnCameras(rule);
+            const entry = el('div', 'rule-entry');
             const tile = el('div', 'rule-tile'
                 + (cams.length ? ' asset-used' : '')
                 + (rule.models.length ? '' : ' rule-empty'));
@@ -475,6 +476,12 @@ function renderAssets() {
                 tile.appendChild(el('span', 'rule-parts-count',
                     rule.models.length + 'м'));
             }
+            if (cams.length) {
+                tile.appendChild(el('span', 'asset-use',
+                    'кам: ' + cams.length));
+            }
+            const drawer = el('div', 'rule-drawer'
+                + (rule.models.length ? '' : ' rule-drawer-empty'));
             rule.models.forEach(function (mid) {
                 const mod = MODELS.find(function (m) {
                     return m.id === mid;
@@ -485,22 +492,20 @@ function renderAssets() {
                     ev.stopPropagation();
                     togglePart(rule.id, mid);
                 });
-                tile.appendChild(chip);
+                drawer.appendChild(chip);
             });
-            if (cams.length) {
-                tile.appendChild(el('span', 'asset-use',
-                    'кам: ' + cams.length));
-            }
-            tile.addEventListener('dragover', function (ev) {
+            entry.appendChild(tile);
+            entry.appendChild(drawer);
+            entry.addEventListener('dragover', function (ev) {
                 if (dragKind !== 'model-part') { return; }
                 ev.preventDefault();
                 ev.stopPropagation();
-                tile.classList.add('drop-target');
+                entry.classList.add('drop-target');
             });
-            tile.addEventListener('dragleave', function () {
-                tile.classList.remove('drop-target');
+            entry.addEventListener('dragleave', function () {
+                entry.classList.remove('drop-target');
             });
-            tile.addEventListener('drop', function (ev) {
+            entry.addEventListener('drop', function (ev) {
                 if (dragKind !== 'model-part') { return; }
                 ev.preventDefault();
                 ev.stopPropagation();
@@ -517,7 +522,7 @@ function renderAssets() {
                 ev.dataTransfer.setData('text/plain',
                     'rule:' + rule.id);
                 ev.dataTransfer.effectAllowed = 'copy';
-                tile.classList.add('dragging');
+                entry.classList.add('dragging');
                 const zn = $('belt-zone');
                 if (zn && belt.positions.some(function (p) {
                     return p.inspection && p.inspection.cameras.length;
@@ -530,7 +535,7 @@ function renderAssets() {
                 dragAsset = null;
                 cleanVisuals();
             });
-            rbox.appendChild(tile);
+            rbox.appendChild(entry);
         });
         const rcnt = $('rule-count');
         if (rcnt) {
@@ -678,7 +683,7 @@ function cleanVisuals() {
         .forEach(function (n) { n.classList.remove('drop-target'); });
     $('belt-zone').classList.remove('drop-ready');
     document.querySelectorAll('.tool.dragging, .pos-card.dragging-src,'
-        + '.rule-tile.dragging, .rule-tile.drop-target')
+        + '.rule-entry.dragging, .rule-entry.drop-target')
         .forEach(function (n) {
             n.classList.remove('dragging', 'dragging-src', 'drop-target');
         });

@@ -184,13 +184,13 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 9px;
-    min-height: 30px;
-    padding: 4px 11px;
+    min-height: 34px;
+    padding: 5px 9px;
     border: 1px solid var(--border-strong);
-    border-radius: 5px;
+    border-radius: 6px;
     background: var(--panel-raised);
     font-family: var(--font-mono);
-    font-size: 11.5px;
+    font-size: 12px;
     cursor: grab;
     user-select: none;
 }
@@ -206,7 +206,22 @@ body {
 
 .asset.dragging { opacity: 0.45; }
 
-/* строка правила: имя + счётчики + чипы состава (клик — снять) */
+/* плашка правила — тот же размер, что плитка модели; под ней —
+ * выдвижной ящик прикреплённых моделей; пустой ящик — щель,
+ * слегка выглядывающая из-под плашки */
+.rule-entry {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    border-radius: 6px;
+}
+
+.rule-entry.dragging { opacity: 0.45; }
+
+.rule-entry.drop-target {
+    box-shadow: 0 0 0 1px var(--accent, #4fa3d1);
+}
+
 .rule-tile {
     display: flex;
     align-items: center;
@@ -216,7 +231,8 @@ body {
     min-height: 34px;
     padding: 5px 9px;
     border: 1px solid var(--border-strong);
-    border-radius: 6px;
+    border-bottom: 0;
+    border-radius: 6px 6px 0 0;
     background: var(--panel-raised);
     font-family: var(--font-mono);
     font-size: 12px;
@@ -228,16 +244,36 @@ body {
 
 .rule-tile .asset-use { color: var(--text-dim); margin-left: auto; }
 
-.rule-tile.rule-empty { opacity: 0.55; cursor: not-allowed; }
+.rule-tile.rule-empty { cursor: not-allowed; }
 
 .rule-tile.asset-used {
     border-color: rgba(114, 163, 126, 0.6);
     background: rgba(114, 163, 126, 0.07);
 }
 
-.rule-tile.dragging { opacity: 0.45; }
+.rule-drawer {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    min-height: 26px;
+    padding: 4px 9px;
+    border: 1px solid var(--border-strong);
+    border-radius: 0 0 6px 6px;
+    background: var(--bg-1);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+}
 
-.rule-tile.drop-target { outline: 1px solid var(--accent, #4fa3d1); }
+.rule-drawer-empty {
+    min-height: 8px;
+    padding: 2px 9px;
+    border-style: dashed;
+}
+
+.rule-tile.asset-used + .rule-drawer {
+    border-color: rgba(114, 163, 126, 0.6);
+}
 
 .rule-parts-count {
     color: var(--accent);
