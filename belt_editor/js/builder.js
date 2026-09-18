@@ -600,6 +600,18 @@ function renderCard(pos, i) {
     if (pos.reset) { card.classList.add('reset-pt'); }
     card.dataset.index = String(i);
 
+    /* особые формы: инспекция — линза над краем пластины,
+     * сброс — жёлоб, раскрывающийся вправо (за хвостом ленты) */
+    if (pos.inspection) {
+        card.appendChild(el('span', 'lens'));
+    }
+    if (pos.reset) {
+        const chute = el('span', 'chute');
+        chute.innerHTML = '<svg viewBox="0 0 22 40" aria-hidden="true">'
+            + '<path d="M2 12 21 2 21 38 2 28 Z"/></svg>';
+        card.appendChild(chute);
+    }
+
     const top = el('div', 'pos-top');
     top.appendChild(el('span', 'pos-index', 'П' + i));
     const del = el('button', 'pos-del', '×');
@@ -714,8 +726,9 @@ function cleanVisuals() {
     document.querySelectorAll('.drop-target')
         .forEach(function (n) { n.classList.remove('drop-target'); });
     $('belt-zone').classList.remove('drop-ready');
-    document.querySelectorAll('.tool.dragging, .pos-card.dragging-src,'
-        + '.rule-entry.dragging, .rule-entry.drop-target')
+    document.querySelectorAll('.tool.dragging, .asset.dragging,'
+        + '.pos-card.dragging-src,.rule-entry.dragging,'
+        + '.rule-entry.drop-target')
         .forEach(function (n) {
             n.classList.remove('dragging', 'dragging-src', 'drop-target');
         });
