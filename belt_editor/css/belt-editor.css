@@ -102,7 +102,8 @@ body {
 .cam-tag-br.live { color: var(--ok); }
 
 .assets-zone {
-    flex: 0 0 auto;
+    flex: 2 1 0;
+    min-height: 0;
     border-top: 1px solid var(--border);
     padding: 6px 10px 10px;
     display: flex;
@@ -113,7 +114,15 @@ body {
 .assets {
     display: flex;
     flex-wrap: wrap;
+    align-content: start;
     gap: 6px;
+    flex: 1 1 0;
+    min-height: 36px;
+    margin-right: -4px;
+    padding-right: 4px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
 }
 
 .asset {
@@ -227,7 +236,8 @@ body {
 }
 
 .cam-wall {
-    flex: 1 1 auto;
+    /* блок по высоте: камеры 2/3, правила и модели по 1/6 */
+    flex: 4 1 0;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 8px;
