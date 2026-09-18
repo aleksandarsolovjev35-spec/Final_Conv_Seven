@@ -121,7 +121,7 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin: 0 2px 6px;
+    margin: 0 0 6px;
     padding: 3px 8px;
     border: 1px solid var(--border-strong);
     border-radius: 5px;
@@ -154,6 +154,8 @@ body {
 .search:focus-within { border-color: var(--accent); }
 .search:focus-within svg { stroke: var(--accent); }
 
+/* список (плашки + ползунок) — строго под строкой поиска и ровно её
+ * ширины: без компенсационных полей, скролл прижат к правому краю */
 .assets {
     display: flex;
     flex-wrap: wrap;
@@ -161,8 +163,8 @@ body {
     gap: 6px;
     flex: 1 1 0;
     min-height: 36px;
-    margin-right: -4px;
-    padding-right: 4px;
+    margin: 0;
+    padding: 0 2px 0 0;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--border-strong) transparent;
@@ -177,6 +179,7 @@ body {
     flex-wrap: nowrap;
     align-items: stretch;
     gap: 6px;
+    padding-right: 2px;
 }
 
 /* drag-источник моделей */
