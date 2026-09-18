@@ -404,44 +404,6 @@ function loadedModels(dev) {
 }
 
 function renderAssets() {
-    /* МОДЕЛИ — компоненты: используются правилами */
-    const mbox = $('asset-models');
-    if (mbox) {
-        mbox.textContent = '';
-        let mUsed = 0;
-        MODELS.forEach(function (mod) {
-            const byRules = RULES.filter(function (r) {
-                return r.models.indexOf(mod.id) !== -1;
-            });
-            if (byRules.length) { mUsed += 1; }
-            const tile = el('div', 'asset'
-                + (byRules.length ? ' asset-used' : ''));
-            tile.draggable = true;
-            tile.appendChild(el('b', '', mod.name));
-            if (byRules.length) {
-                tile.appendChild(el('span', 'asset-use',
-                    'правил: ' + byRules.length));
-            }
-            tile.addEventListener('dragstart', function (ev) {
-                dragKind = 'model-part';
-                dragAsset = mod.id;
-                ev.dataTransfer.setData('text/plain', 'model:' + mod.id);
-                ev.dataTransfer.effectAllowed = 'copy';
-                tile.classList.add('dragging');
-            });
-            tile.addEventListener('dragend', function () {
-                dragKind = null;
-                dragAsset = null;
-                cleanVisuals();
-            });
-            mbox.appendChild(tile);
-        });
-        const mcnt = $('model-count');
-        if (mcnt) {
-            mcnt.textContent = 'в правилах: ' + mUsed + ' / ' + MODELS.length;
-        }
-    }
-
     /* ПРАВИЛА — конструкторы: состав моделей + привязка к камерам */
     const rbox = $('asset-rules');
     if (rbox) {
@@ -514,25 +476,6 @@ function renderAssets() {
                 cells.appendChild(cell);
             });
             tile.appendChild(cells);
-            tile.addEventListener('dragover', function (ev) {
-                if (dragKind !== 'model-part') { return; }
-                ev.preventDefault();
-                ev.stopPropagation();
-                tile.classList.add('drop-target');
-            });
-            tile.addEventListener('dragleave', function () {
-                tile.classList.remove('drop-target');
-            });
-            tile.addEventListener('drop', function (ev) {
-                if (dragKind !== 'model-part') { return; }
-                ev.preventDefault();
-                ev.stopPropagation();
-                const mid = dragAsset;
-                dragKind = null;
-                dragAsset = null;
-                cleanVisuals();
-                togglePart(rule.id, mid);
-            });
             tile.addEventListener('dragstart', function (ev) {
                 if (!rule.models.length) { return; }
                 dragKind = 'rule';
@@ -911,11 +854,6 @@ function wireBelt() {
         }
         if (emptyZone) {
             toast('Нет ни одной позиции.', 'err');
-            return;
-        }
-        if (kind === 'model-part') {
-            toast('Модель ставится на плитку правила в каталоге.', 'err');
-            dragAsset = null;
             return;
         }
         if (cardIdx < 0) {
