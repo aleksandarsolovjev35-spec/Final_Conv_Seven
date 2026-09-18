@@ -72,7 +72,8 @@ let dragKind = null;    // что сейчас тащим
 let dragFrom = -1;      // индекс карточки при переносе
 let dragCamId = null;   // id камеры при переносе из стены
 let dragAsset = null;   // id модели/правила при переносе из каталога
-let openRule = null;    // раскрытая (с составом) плитка правила
+let openRule = null;    // плитка правила с открытым списком моделей
+let pendingAdd = null;  // правило, где «+» создал пустую плашку под модель
 
 /* ─── Инварианты ─────────────────────────────────────────────────── */
 
@@ -404,6 +405,7 @@ function loadedModels(dev) {
 }
 
 function renderAssets() {
+    if (pendingAdd && pendingAdd !== openRule) { pendingAdd = null; }
     /* ПРАВИЛА — конструкторы: состав моделей + привязка к камерам */
     const rbox = $('asset-rules');
     if (rbox) {
@@ -445,36 +447,54 @@ function renderAssets() {
                 }
                 if (openRule === rule.id) {
                     openRule = null;
-                    tile.classList.remove('open');
-                    updateRulePop();
+                    pendingAdd = null;
+                    render();
                 } else {
                     openPicker();
                 }
             });
-            /* ячейки состава: заполненные — модель + ×, пустые — «+» */
+            /* плашки состава: заполненные — модель + ×; новую пустую
+             * плашку создаёт «плюс» (заглушек в ряд не рисуем) */
             const cells = el('div', 'rule-cells');
-            MODELS.forEach(function (mod, i) {
-                const mid = rule.models[i];
-                const cell = el('span', 'rule-cell' + (mid ? ' filled' : ''));
-                if (mid) {
-                    cell.appendChild(el('i', '', mod.name));
-                    const px = el('button', 'part-x', '×');
-                    px.type = 'button';
-                    px.draggable = false;
-                    px.addEventListener('click', function (ev) {
-                        ev.stopPropagation();
-                        togglePart(rule.id, mid);
-                    });
-                    cell.appendChild(px);
-                } else {
-                    cell.textContent = '+';
-                }
+            rule.models.forEach(function (mid) {
+                const mod = MODELS.find(function (m) { return m.id === mid; });
+                const cell = el('span', 'rule-cell filled');
+                cell.appendChild(el('i', '', mod ? mod.name : mid));
+                const px = el('button', 'part-x', '×');
+                px.type = 'button';
+                px.draggable = false;
+                px.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    togglePart(rule.id, mid);
+                });
+                cell.appendChild(px);
                 cell.addEventListener('click', function (ev) {
                     ev.stopPropagation();
                     openPicker();
                 });
                 cells.appendChild(cell);
             });
+            if (pendingAdd === rule.id) {
+                const pend = el('span', 'rule-cell pending', 'выбор');
+                pend.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    openPicker();
+                });
+                cells.appendChild(pend);
+            }
+            if (rule.models.length + (pendingAdd === rule.id ? 1 : 0)
+                < MODELS.length) {
+                const plus = el('span', 'rule-cell plus', '+');
+                plus.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    /* новая пустая плашка появляется сразу — нужен
+                     * полный перерендер ряда ячеек */
+                    pendingAdd = rule.id;
+                    openRule = rule.id;
+                    render();
+                });
+                cells.appendChild(plus);
+            }
             tile.appendChild(cells);
             tile.addEventListener('dragstart', function (ev) {
                 if (!rule.models.length) { return; }
@@ -538,6 +558,7 @@ function updateRulePop() {
         it.draggable = false;
         it.addEventListener('click', function (ev) {
             ev.stopPropagation();
+            if (!on && pendingAdd === rule.id) { pendingAdd = null; }
             togglePart(rule.id, mod.id);
         });
         pop.appendChild(it);
@@ -557,9 +578,8 @@ document.addEventListener('click', function (ev) {
         return;
     }
     openRule = null;
-    document.querySelectorAll('.rule-tile.open').forEach(
-        function (n) { n.classList.remove('open'); });
-    updateRulePop();
+    pendingAdd = null;
+    render();
 });
 
 /* Обнаруженные камеры: роли мест инспекции по порядку ленты;

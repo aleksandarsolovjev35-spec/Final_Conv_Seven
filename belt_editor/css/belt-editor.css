@@ -204,6 +204,21 @@ body {
     background: var(--panel-raised);
 }
 
+.rule-cell.pending {
+    border-style: solid;
+    border-color: var(--accent);
+    color: var(--text-dim);
+}
+
+.rule-cell.plus {
+    justify-content: center;
+    min-width: 34px;
+    font-size: 14px;
+    color: var(--text-dim);
+}
+
+.rule-cell.plus:hover { color: var(--accent); }
+
 .rule-cell i { font-style: normal; }
 
 .rule-parts-count {
