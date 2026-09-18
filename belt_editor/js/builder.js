@@ -700,7 +700,7 @@ function cleanVisuals() {
         .forEach(function (n) { n.classList.remove('drop-target'); });
     $('belt-zone').classList.remove('drop-ready');
     document.querySelectorAll('.tool.dragging, .pos-card.dragging-src,'
-        + '.asset.dragging, .rule-tile.dragging, .rule-tile.drop-target')
+        + '.rule-tile.dragging, .rule-tile.drop-target')
         .forEach(function (n) {
             n.classList.remove('dragging', 'dragging-src', 'drop-target');
         });
