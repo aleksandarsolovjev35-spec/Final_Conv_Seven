@@ -180,10 +180,18 @@ body {
 .rule-tile.drop-target { outline: 1px solid var(--accent, #4fa3d1); }
 
 .rule-parts {
-    display: flex;
+    display: none;
     flex-wrap: wrap;
     gap: 3px;
-    min-height: 12px;
+}
+
+.rule-tile.open .rule-parts {
+    display: flex;
+}
+
+.rule-parts-count {
+    color: var(--accent);
+    border-bottom: 1px dashed var(--border-accent);
 }
 
 .part {

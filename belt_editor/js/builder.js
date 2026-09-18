@@ -72,6 +72,7 @@ let dragKind = null;    // что сейчас тащим
 let dragFrom = -1;      // индекс карточки при переносе
 let dragCamId = null;   // id камеры при переносе из стены
 let dragAsset = null;   // id модели/правила при переносе из каталога
+let openRule = null;    // раскрытая (с составом) плитка правила
 
 /* ─── Инварианты ─────────────────────────────────────────────────── */
 
@@ -365,6 +366,7 @@ function togglePart(ruleId, modelId) {
         toast('«' + mod.name + '» убрана из «' + rule.name + '».');
     } else {
         rule.models.push(modelId);
+        openRule = rule.id;   /* показать, что вошло */
         toast('«' + rule.name + '» ← ' + mod.name + '.');
     }
     render();
@@ -455,9 +457,27 @@ function renderAssets() {
             tile.dataset.ruleId = rule.id;
             const top = el('div', 'rule-top');
             top.appendChild(el('b', '', rule.name));
+            if (rule.models.length) {
+                top.appendChild(el('span', 'rule-parts-count',
+                    rule.models.length + 'м'));
+            }
             top.appendChild(el('span', 'asset-use',
                 rule.models.length ? 'кам: ' + cams.length : 'нет моделей'));
             tile.appendChild(top);
+            if (openRule === rule.id && rule.models.length) {
+                tile.classList.add('open');
+            } else if (openRule === rule.id) {
+                openRule = null;
+            }
+            tile.addEventListener('click', function (ev) {
+                if (ev.target.closest('.part-x') || !rule.models.length) {
+                    return;
+                }
+                openRule = tile.classList.contains('open') ? null : rule.id;
+                document.querySelectorAll('.rule-tile.open').forEach(
+                    function (n) { n.classList.remove('open'); });
+                if (openRule) { tile.classList.add('open'); }
+            });
             const parts = el('div', 'rule-parts');
             rule.models.forEach(function (mid) {
                 const mod = MODELS.find(function (m) { return m.id === mid; });
