@@ -240,6 +240,20 @@ body {
 
 .thumb.dragging-src { opacity: 0.45; }
 
+.thumb.drop-target { outline: 1px solid var(--accent, #4fa3d1); }
+
+.thumb-use {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    color: var(--text-dim);
+    background: rgba(15, 19, 23, 0.65);
+    padding: 0 4px;
+    border-radius: 3px;
+}
+
 .thumb.bound { border-color: rgba(114, 163, 126, 0.6); }
 
 .thumb-pos {

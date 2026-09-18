@@ -86,6 +86,12 @@ function buildWall() {
         tile.appendChild(canvas);
         tile.appendChild(name);
         tile.appendChild(det);
+        if (cam.rules) {
+            const use = document.createElement('span');
+            use.className = 'thumb-use';
+            use.textContent = 'п:' + cam.rules + ' · м:' + cam.mods;
+            tile.appendChild(use);
+        }
         if (cam.position >= 0) {
             const tag = document.createElement('span');
             tag.className = 'thumb-pos';
@@ -106,6 +112,24 @@ function buildWall() {
         });
         tile.addEventListener('click', function () {
             if (!tileDragging) { pick(cam.id); }
+        });
+        tile.addEventListener('dragover', function (ev) {
+            const br = window.BeltBridge;
+            if (!(br && br.ruleActive && br.ruleActive())) { return; }
+            ev.preventDefault();
+            ev.stopPropagation();
+            tile.classList.add('drop-target');
+        });
+        tile.addEventListener('dragleave', function () {
+            tile.classList.remove('drop-target');
+        });
+        tile.addEventListener('drop', function (ev) {
+            const br = window.BeltBridge;
+            if (!(br && br.ruleActive && br.ruleActive())) { return; }
+            ev.preventDefault();
+            ev.stopPropagation();
+            tile.classList.remove('drop-target');
+            br.ruleDrop(cam.id);
         });
         wall.appendChild(tile);
     });

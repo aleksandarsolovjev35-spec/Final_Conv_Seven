@@ -538,6 +538,8 @@ function cameraViews() {
             dev: cam.dev,
             position: b ? b.position : -1,
             primary: b ? b.primary : false,
+            rules: cam.rules.length,
+            mods: loadedModels(cam).length,
         };
     });
 }
@@ -640,6 +642,16 @@ window.BeltBridge = {
         dragKind = null;
         dragCamId = null;
         cleanVisuals();
+    },
+    /* правило можно бросить и на плитку камеры в стене (настроить
+     * прибор, даже не стоящий на ленте) — тот же тумбл, что и на фишке */
+    ruleActive: function () { return dragKind === 'rule'; },
+    ruleDrop: function (camId) {
+        const rid = dragAsset;
+        dragKind = null;
+        dragAsset = null;
+        cleanVisuals();
+        toggleRuleOnCam(camId, rid);
     },
 };
 
