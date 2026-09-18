@@ -530,18 +530,26 @@ function renderAssets() {
 function updateRulePop() {
     const zone = document.querySelector('.assets-zone');
     if (!zone) { return; }
-    /* один список: убрать все, построить под активной плашкой */
-    zone.querySelectorAll('.rule-pop').forEach(
-        function (n) { n.remove(); });
+    let pop = zone.querySelector('.rule-pop');
     if (openRule && !RULES.some(function (x) { return x.id === openRule; })) {
         openRule = null;
     }
-    if (!openRule) { return; }
+    if (!openRule) {
+        if (pop) { pop.remove(); }
+        return;
+    }
     const rule = RULES.find(function (x) { return x.id === openRule; });
-    const tile = zone.querySelector(
+    const tile = document.querySelector(
         '.rule-tile[data-rule-id="' + openRule + '"]');
-    if (!rule || !tile) { return; }
-    const pop = el('div', 'rule-pop');
+    if (!rule || !tile) {
+        if (pop) { pop.remove(); }
+        return;
+    }
+    if (!pop) {
+        pop = el('div', 'rule-pop');
+        zone.appendChild(pop);
+    }
+    pop.textContent = '';
     pop.appendChild(el('b', 'rule-pop-name', 'модели:'));
     MODELS.forEach(function (mod) {
         const on = rule.models.indexOf(mod.id) !== -1;
@@ -555,7 +563,12 @@ function updateRulePop() {
         });
         pop.appendChild(it);
     });
-    tile.appendChild(pop);
+    const zr = zone.getBoundingClientRect();
+    const tr = tile.getBoundingClientRect();
+    const fit = zr.width ? (zr.width - pop.offsetWidth - 8) : 0;
+    const left = Math.max(4, Math.min(tr.left - zr.left, fit));
+    pop.style.left = left + 'px';
+    pop.style.top = Math.max(4, tr.bottom - zr.top + 6) + 'px';
 }
 
 document.addEventListener('click', function (ev) {
