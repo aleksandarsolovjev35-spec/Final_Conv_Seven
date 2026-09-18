@@ -42,19 +42,31 @@ html, body {
     font-size: 14px;
 }
 
-.app {
-    display: grid;
-    grid-template-columns: 280px minmax(0, 1fr);
-    gap: 14px;
-    padding: 14px;
-    height: 100vh;
-    min-height: 480px;
+body {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
-@media (max-width: 900px) {
+/* Нижняя половина экрана: обе области, сверху — свободно. */
+.app {
+    display: grid;
+    grid-template-columns: 256px minmax(0, 1fr);
+    gap: 14px;
+    padding: 0 14px 14px;
+    margin-top: auto;
+    height: 50vh;
+    min-height: 330px;
+}
+
+@media (max-width: 900px), (max-height: 560px) {
+    body { overflow: auto; }
     .app {
         grid-template-columns: 1fr;
         height: auto;
+        min-height: 0;
+        margin-top: 14px;
+        padding: 14px;
     }
 }
 
@@ -94,8 +106,8 @@ html, body {
     display: flex;
     gap: 10px;
     align-items: center;
-    margin: 10px 12px 0;
-    padding: 10px 12px;
+    margin: 8px 10px 0;
+    padding: 8px 10px;
     background: var(--panel-raised);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -115,12 +127,12 @@ html, body {
 .tool.dragging { opacity: 0.45; }
 
 .tool-glyph {
-    width: 34px;
-    height: 34px;
-    flex: 0 0 34px;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
     display: grid;
     place-items: center;
-    font-size: 17px;
+    font-size: 15px;
     color: var(--accent);
     background: var(--bg-1);
     border: 1px solid var(--border-strong);
@@ -139,14 +151,14 @@ html, body {
 .tool-text span { font-size: 11px; color: var(--text-muted); line-height: 1.35; }
 
 .rules {
-    margin: 14px 12px 0;
-    padding: 10px 12px 10px 26px;
+    margin: 10px 10px 0;
+    padding: 8px 10px 8px 24px;
+    font-size: 10.5px;
     background: var(--bg-1);
     border: 1px dashed var(--border-strong);
     border-radius: var(--radius);
-    font-size: 11px;
     color: var(--text-dim);
-    line-height: 1.55;
+    line-height: 1.45;
 }
 
 .rules li { margin: 3px 0; }
@@ -166,22 +178,20 @@ html, body {
 
 .belt-zone {
     flex: 1;
-    margin: 14px;
-    padding: 22px 16px;
+    margin: 12px;
+    padding: 16px;
     border: 2px dashed var(--border-strong);
     border-radius: var(--radius);
     background:
         linear-gradient(rgba(120, 153, 165, 0.03), rgba(120, 153, 165, 0.03)),
         var(--bg-1);
-    overflow-x: auto;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    min-height: 230px;
+    min-height: 0;
     transition: border-color 150ms ease, background 150ms ease;
 }
-
-.belt-zone.has-cards { justify-content: flex-start; align-items: stretch; }
 
 .belt-zone.drop-ready {
     border-color: var(--border-accent);
@@ -190,12 +200,16 @@ html, body {
         var(--bg-1);
 }
 
+/* горизонтальный скролл — только у ряда; вертикального нет намеренно */
 .belt-row {
     display: flex;
-    align-items: stretch;
+    align-items: center;
     gap: 4px;
-    padding: 2px 2px 14px;
-    min-height: 100%;
+    width: 100%;
+    padding: 2px 0 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
 }
 
 .belt-drop-hint {
@@ -211,7 +225,8 @@ html, body {
 .pos-card {
     position: relative;
     flex: 0 0 150px;
-    padding: 9px 10px;
+    min-height: 96px;
+    padding: 8px 10px;
     background: var(--panel-raised);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
@@ -357,16 +372,15 @@ html, body {
 /* ─── Статус и тосты ───────────────────────────────────────────────── */
 
 .belt-status {
-    margin: 0 14px 14px;
-    padding: 9px 12px;
+    margin: 0 12px 12px;
+    padding: 7px 12px;
     background: var(--bg-1);
     border: 1px solid var(--border);
     border-left: 3px solid var(--accent);
     border-radius: var(--radius);
     font-size: 12px;
     color: var(--text-dim);
-    line-height: 1.6;
-    min-height: 44px;
+    line-height: 1.55;
 }
 
 .belt-status b { color: var(--text); font-weight: 600; }

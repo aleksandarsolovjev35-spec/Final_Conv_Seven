@@ -448,11 +448,21 @@ function wirePalette() {
 function wireBelt() {
     const zone = $('belt-zone');
 
+    /* Firefox: пока не снят default у dragenter, до dragover/drop дело
+     * может не дойти */
+    zone.addEventListener('dragenter', function (ev) {
+        if (dragKind) { ev.preventDefault(); }
+    });
+
     zone.addEventListener('dragover', function (ev) {
         if (!dragKind) { return; }
         ev.preventDefault();
         const wantsSlot = dragKind === 'position' || dragKind === 'move';
-        ev.dataTransfer.dropEffect = wantsSlot ? 'move' : 'copy';
+        if (dragKind === 'move') {
+            ev.dataTransfer.dropEffect = 'move';
+        } else {
+            ev.dataTransfer.dropEffect = 'copy';
+        }
         if (wantsSlot) {
             showMarkerAt(gapFromX(ev.clientX));
             document.querySelectorAll('.pos-card.drop-target').forEach(
@@ -549,6 +559,7 @@ function wireBelt() {
         dragFrom = Number(card.dataset.index);
         ev.dataTransfer.setData('text/plain', 'move:' + dragFrom);
         ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer.dropEffect = 'move';
         card.classList.add('dragging-src');
         $('belt-zone').classList.add('drop-ready');
     });
