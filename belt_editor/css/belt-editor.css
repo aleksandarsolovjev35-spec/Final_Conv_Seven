@@ -292,8 +292,43 @@ body {
 }
 
 .rule-chip:hover {
-    border-color: var(--bad);
-    color: var(--bad);
+    border-color: var(--bad) !important;
+    color: var(--bad) !important;
+}
+
+.rule-swatch {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+}
+
+/* закладки назначенных правил на камере */
+.rule-tabs {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 3px;
+    margin-left: 5px;
+}
+
+.rule-tabs i {
+    width: 12px;
+    height: 6px;
+    border-radius: 0 0 2px 2px;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+.thumb .rule-tabs {
+    position: absolute;
+    top: 0;
+    left: 5px;
+    z-index: 2;
+    margin: 0;
+}
+
+.thumb .rule-tabs i {
+    width: 13px;
+    height: 7px;
 }
 
 .chip-assets {

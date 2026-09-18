@@ -37,11 +37,16 @@ const MODELS = [
     { id: 'm3', name: 'contacts-long' },
 ];
 const RULES = [
-    { id: 'r0', name: 'геометрия', models: [] },
-    { id: 'r1', name: 'наличие', models: [] },
-    { id: 'r2', name: 'пропуск', models: [] },
-    { id: 'r3', name: 'контакты', models: [] },
+    { id: 'r0', name: 'геометрия', color: '#d9a441', models: [] },
+    { id: 'r1', name: 'наличие', color: '#58b79a', models: [] },
+    { id: 'r2', name: 'пропуск', color: '#cf7aa6', models: [] },
+    { id: 'r3', name: 'контакты', color: '#a58ad9', models: [] },
 ];
+
+function ruleColor(id) {
+    const r = RULES.find(function (x) { return x.id === id; });
+    return r ? r.color : 'var(--text-dim)';
+}
 
 const inventory = [];
 (function discover() {
@@ -471,7 +476,12 @@ function renderAssets() {
                 + (rule.models.length ? '' : ' rule-empty'));
             tile.draggable = rule.models.length > 0;
             tile.dataset.ruleId = rule.id;
-            tile.appendChild(el('b', '', rule.name));
+            const sw = el('span', 'rule-swatch');
+            sw.style.background = rule.color;
+            tile.appendChild(sw);
+            const nm = el('b', '', rule.name);
+            nm.style.color = rule.color;
+            tile.appendChild(nm);
             if (rule.models.length) {
                 tile.appendChild(el('span', 'rule-parts-count',
                     rule.models.length + 'м'));
@@ -482,12 +492,18 @@ function renderAssets() {
             }
             const drawer = el('div', 'rule-drawer'
                 + (rule.models.length ? '' : ' rule-drawer-empty'));
+            if (!rule.models.length) {
+                drawer.style.borderColor = rule.color + '66';
+            }
             rule.models.forEach(function (mid) {
                 const mod = MODELS.find(function (m) {
                     return m.id === mid;
                 });
                 const chip = el('span', 'rule-chip',
                     mod ? mod.name : mid);
+                chip.style.color = rule.color;
+                chip.style.borderColor = rule.color + '66';
+                chip.style.background = rule.color + '1f';
                 chip.addEventListener('click', function (ev) {
                     ev.stopPropagation();
                     togglePart(rule.id, mid);
@@ -564,6 +580,7 @@ function cameraViews() {
             position: b ? b.position : -1,
             primary: b ? b.primary : false,
             rules: cam.rules.length,
+            ruleColors: cam.rules.map(ruleColor),
             mods: loadedModels(cam).length,
         };
     });
@@ -608,6 +625,13 @@ function renderCard(pos, i) {
                 chip.appendChild(el('span', 'chip-assets',
                     'п:' + dev.rules.length
                     + ' · м:' + loadedModels(dev).length));
+                const tabs = el('span', 'rule-tabs');
+                dev.rules.forEach(function (rid) {
+                    const t = el('i');
+                    t.style.background = ruleColor(rid);
+                    tabs.appendChild(t);
+                });
+                chip.appendChild(tabs);
             }
             const chipX = el('button', 'chip-x', '×');
             chipX.type = 'button';

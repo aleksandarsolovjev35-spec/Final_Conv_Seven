@@ -91,6 +91,16 @@ function buildWall() {
             use.className = 'thumb-use';
             use.textContent = 'п:' + cam.rules + ' · м:' + cam.mods;
             tile.appendChild(use);
+            if (cam.ruleColors && cam.ruleColors.length) {
+                const tabs = document.createElement('span');
+                tabs.className = 'rule-tabs';
+                cam.ruleColors.forEach(function (c) {
+                    const t = document.createElement('i');
+                    t.style.background = c;
+                    tabs.appendChild(t);
+                });
+                tile.appendChild(tabs);
+            }
         }
         if (cam.position >= 0) {
             const tag = document.createElement('span');
