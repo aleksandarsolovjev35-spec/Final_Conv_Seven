@@ -48,26 +48,17 @@ body {
     overflow: hidden;
 }
 
-/* Нижняя половина экрана: обе области, сверху — свободно. */
+/* Нижняя половина экрана: обе области, сверху — свободно.
+ * Адаптивного отката нет намеренно: в узком/низком окне предпросмотра
+ * он возвращал полноэкранный вид и «изменения не было видно». */
 .app {
     display: grid;
-    grid-template-columns: 256px minmax(0, 1fr);
+    grid-template-columns: minmax(208px, 256px) minmax(0, 1fr);
     gap: 14px;
     padding: 0 14px 14px;
     margin-top: auto;
     height: 50vh;
-    min-height: 330px;
-}
-
-@media (max-width: 900px), (max-height: 560px) {
-    body { overflow: auto; }
-    .app {
-        grid-template-columns: 1fr;
-        height: auto;
-        min-height: 0;
-        margin-top: 14px;
-        padding: 14px;
-    }
+    min-height: 300px;
 }
 
 .zone-head {
