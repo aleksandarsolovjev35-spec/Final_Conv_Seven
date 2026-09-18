@@ -72,8 +72,7 @@ let dragKind = null;    // что сейчас тащим
 let dragFrom = -1;      // индекс карточки при переносе
 let dragCamId = null;   // id камеры при переносе из стены
 let dragAsset = null;   // id модели/правила при переносе из каталога
-let openRule = null;    // плитка правила с открытым списком моделей
-let pendingAdd = null;  // правило, где «+» создал пустую плашку под модель
+
 
 /* ─── Инварианты ─────────────────────────────────────────────────── */
 
@@ -367,7 +366,6 @@ function togglePart(ruleId, modelId) {
         toast('«' + mod.name + '» убрана из «' + rule.name + '».');
     } else {
         rule.models.push(modelId);
-        openRule = rule.id;   /* показать, что вошло */
         toast('«' + rule.name + '» ← ' + mod.name + '.');
     }
     render();
@@ -405,8 +403,48 @@ function loadedModels(dev) {
 }
 
 function renderAssets() {
-    if (pendingAdd && pendingAdd !== openRule) { pendingAdd = null; }
-    /* ПРАВИЛА — конструкторы: состав моделей + привязка к камерам */
+    /* МОДЕЛИ — drag-источник: бросок на плашку правила назначает */
+    const mbox = $('asset-models');
+    if (mbox) {
+        mbox.textContent = '';
+        let mUsed = 0;
+        MODELS.forEach(function (mod) {
+            const byRules = RULES.filter(function (r) {
+                return r.models.indexOf(mod.id) !== -1;
+            });
+            if (byRules.length) { mUsed += 1; }
+            const tile = el('div', 'asset'
+                + (byRules.length ? ' asset-used' : ''));
+            tile.draggable = true;
+            tile.appendChild(el('b', '', mod.name));
+            if (byRules.length) {
+                tile.appendChild(el('span', 'asset-use',
+                    'правил: ' + byRules.length));
+            }
+            tile.addEventListener('dragstart', function (ev) {
+                dragKind = 'model-part';
+                dragAsset = mod.id;
+                ev.dataTransfer.setData('text/plain',
+                    'model:' + mod.id);
+                ev.dataTransfer.effectAllowed = 'copy';
+                tile.classList.add('dragging');
+            });
+            tile.addEventListener('dragend', function () {
+                dragKind = null;
+                dragAsset = null;
+                cleanVisuals();
+            });
+            mbox.appendChild(tile);
+        });
+        const mcnt = $('model-count');
+        if (mcnt) {
+            mcnt.textContent = 'в правилах: ' + mUsed + ' / '
+                + MODELS.length;
+        }
+    }
+
+    /* ПРАВИЛА — одна строка: имя, счётчики, чипы состава.
+     * Бросок модели добавляет, клик по чипу снимает. */
     const rbox = $('asset-rules');
     if (rbox) {
         rbox.textContent = '';
@@ -419,89 +457,52 @@ function renderAssets() {
                 + (rule.models.length ? '' : ' rule-empty'));
             tile.draggable = rule.models.length > 0;
             tile.dataset.ruleId = rule.id;
-            const cap = el('div', 'rule-cap');
-            cap.appendChild(el('b', '', rule.name));
+            tile.appendChild(el('b', '', rule.name));
             if (rule.models.length) {
-                cap.appendChild(el('span', 'rule-parts-count',
+                tile.appendChild(el('span', 'rule-parts-count',
                     rule.models.length + 'м'));
             }
-            if (cams.length) {
-                cap.appendChild(el('span', 'asset-use',
-                    'кам: ' + cams.length));
-            }
-
-            if (openRule === rule.id) {
-                tile.classList.add('open');
-            }
-            const openPicker = function () {
-                openRule = rule.id;
-                document.querySelectorAll('.rule-tile.open').forEach(
-                    function (n) { n.classList.remove('open'); });
-                tile.classList.add('open');
-                updateRulePop();
-            };
-            tile.addEventListener('click', function (ev) {
-                if (ev.target.closest('.part-x')
-                    || ev.target.closest('.rule-cell')) {
-                    return;
-                }
-                if (openRule === rule.id) {
-                    openRule = null;
-                    pendingAdd = null;
-                    render();
-                } else {
-                    openPicker();
-                }
-            });
-            /* плашки состава: заполненные — модель + ×; новую пустую
-             * плашку создаёт «плюс» (заглушек в ряд не рисуем) */
-            const cells = el('div', 'rule-cells rule-body');
-            cells.appendChild(cap);
             rule.models.forEach(function (mid) {
-                const mod = MODELS.find(function (m) { return m.id === mid; });
-                const cell = el('span', 'rule-cell filled');
-                cell.appendChild(el('i', '', mod ? mod.name : mid));
-                const px = el('button', 'part-x', '×');
-                px.type = 'button';
-                px.draggable = false;
-                px.addEventListener('click', function (ev) {
+                const mod = MODELS.find(function (m) {
+                    return m.id === mid;
+                });
+                const chip = el('span', 'rule-chip',
+                    mod ? mod.name : mid);
+                chip.addEventListener('click', function (ev) {
                     ev.stopPropagation();
                     togglePart(rule.id, mid);
                 });
-                cell.appendChild(px);
-                cell.addEventListener('click', function (ev) {
-                    ev.stopPropagation();
-                    openPicker();
-                });
-                cells.appendChild(cell);
+                tile.appendChild(chip);
             });
-            if (pendingAdd === rule.id) {
-                const pend = el('span', 'rule-cell pending', 'выбор');
-                pend.addEventListener('click', function (ev) {
-                    ev.stopPropagation();
-                    openPicker();
-                });
-                cells.appendChild(pend);
+            if (cams.length) {
+                tile.appendChild(el('span', 'asset-use',
+                    'кам: ' + cams.length));
             }
-            if (rule.models.length + (pendingAdd === rule.id ? 1 : 0)
-                < MODELS.length) {
-                const plus = el('span', 'rule-cell plus', '+');
-                plus.addEventListener('click', function (ev) {
-                    ev.stopPropagation();
-                    /* новая пустая плашка появляется сразу — нужен
-                     * полный перерендер ряда ячеек */
-                    pendingAdd = rule.id;
-                    openRule = rule.id;
-                    render();
-                });
-                cells.appendChild(plus);
-            }
-            tile.appendChild(cells);
+            tile.addEventListener('dragover', function (ev) {
+                if (dragKind !== 'model-part') { return; }
+                ev.preventDefault();
+                ev.stopPropagation();
+                tile.classList.add('drop-target');
+            });
+            tile.addEventListener('dragleave', function () {
+                tile.classList.remove('drop-target');
+            });
+            tile.addEventListener('drop', function (ev) {
+                if (dragKind !== 'model-part') { return; }
+                ev.preventDefault();
+                ev.stopPropagation();
+                const mid = dragAsset;
+                dragKind = null;
+                dragAsset = null;
+                cleanVisuals();
+                togglePart(rule.id, mid);
+            });
             tile.addEventListener('dragstart', function (ev) {
                 if (!rule.models.length) { return; }
                 dragKind = 'rule';
                 dragAsset = rule.id;
-                ev.dataTransfer.setData('text/plain', 'rule:' + rule.id);
+                ev.dataTransfer.setData('text/plain',
+                    'rule:' + rule.id);
                 ev.dataTransfer.effectAllowed = 'copy';
                 tile.classList.add('dragging');
                 const zn = $('belt-zone');
@@ -520,68 +521,11 @@ function renderAssets() {
         });
         const rcnt = $('rule-count');
         if (rcnt) {
-            rcnt.textContent = 'на камерах: ' + rUsed + ' / ' + RULES.length;
+            rcnt.textContent = 'на камерах: ' + rUsed + ' / '
+                + RULES.length;
         }
-        updateRulePop();
     }
 }
-
-/* Состав раскрытого правила — плавающий блок под плиткой: ряд
- * каталога не разъезжается, соседние правила остаются на месте. */
-function updateRulePop() {
-    const zone = document.querySelector('.assets-zone');
-    if (!zone) { return; }
-    let pop = zone.querySelector('.rule-pop');
-    if (openRule && !RULES.some(function (x) { return x.id === openRule; })) {
-        openRule = null;
-    }
-    if (!openRule) {
-        if (pop) { pop.remove(); }
-        return;
-    }
-    const rule = RULES.find(function (x) { return x.id === openRule; });
-    const tile = document.querySelector(
-        '.rule-tile[data-rule-id="' + openRule + '"]');
-    if (!rule || !tile) {
-        if (pop) { pop.remove(); }
-        return;
-    }
-    if (!pop) {
-        pop = el('div', 'rule-pop');
-        zone.appendChild(pop);
-    }
-    pop.textContent = '';
-    pop.appendChild(el('b', 'rule-pop-name', 'модели:'));
-    MODELS.forEach(function (mod) {
-        const on = rule.models.indexOf(mod.id) !== -1;
-        const it = el('button', 'pick' + (on ? ' on' : ''), mod.name);
-        it.type = 'button';
-        it.draggable = false;
-        it.addEventListener('click', function (ev) {
-            ev.stopPropagation();
-            if (!on && pendingAdd === rule.id) { pendingAdd = null; }
-            togglePart(rule.id, mod.id);
-        });
-        pop.appendChild(it);
-    });
-    const zr = zone.getBoundingClientRect();
-    const tr = tile.getBoundingClientRect();
-    const fit = zr.width ? (zr.width - pop.offsetWidth - 8) : 0;
-    const left = Math.max(4, Math.min(tr.left - zr.left, fit));
-    pop.style.left = left + 'px';
-    pop.style.top = Math.max(4, tr.bottom - zr.top + 6) + 'px';
-}
-
-document.addEventListener('click', function (ev) {
-    if (!openRule) { return; }
-    const t = ev.target;
-    if (t.closest && (t.closest('.rule-pop') || t.closest('.rule-tile'))) {
-        return;
-    }
-    openRule = null;
-    pendingAdd = null;
-    render();
-});
 
 /* Обнаруженные камеры: роли мест инспекции по порядку ленты;
  * основная — входное (П0) место. */
@@ -875,6 +819,11 @@ function wireBelt() {
         }
         if (emptyZone) {
             toast('Нет ни одной позиции.', 'err');
+            return;
+        }
+        if (kind === 'model-part') {
+            toast('Модель ставится на плитку правила в каталоге.', 'err');
+            dragAsset = null;
             return;
         }
         if (cardIdx < 0) {

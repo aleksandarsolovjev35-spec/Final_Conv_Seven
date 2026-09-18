@@ -136,163 +136,86 @@ body {
     gap: 8px;
 }
 
+/* drag-источник моделей */
+.asset {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 30px;
+    padding: 4px 11px;
+    border: 1px solid var(--border-strong);
+    border-radius: 5px;
+    background: var(--panel-raised);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    cursor: grab;
+    user-select: none;
+}
+
+.asset b { font-weight: 600; }
+
+.asset .asset-use { color: var(--text-dim); }
+
+.asset.asset-used {
+    border-color: rgba(114, 163, 126, 0.6);
+    background: rgba(114, 163, 126, 0.07);
+}
+
+.asset.dragging { opacity: 0.45; }
+
+/* строка правила: имя + счётчики + чипы состава (клик — снять) */
 .rule-tile {
     display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 4px;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
     width: 100%;
+    min-height: 34px;
+    padding: 5px 9px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--panel-raised);
     font-family: var(--font-mono);
     font-size: 12px;
     cursor: grab;
     user-select: none;
 }
 
-/* имя — первая плашка внутри рамки, в одном ряду с ячейками и «плюсом» */
-.rule-cap {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 3px 7px;
-    border-radius: 4px;
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-}
-
-.rule-cap b { font-weight: 600; }
-
-.rule-body {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 5px;
-    min-height: 40px;
-    padding: 6px 8px;
-    border: 1px solid var(--border-strong);
-    border-radius: 6px;
-    background: var(--panel-raised);
-}
+.rule-tile b { font-weight: 600; }
 
 .rule-tile .asset-use { color: var(--text-dim); margin-left: auto; }
 
 .rule-tile.rule-empty { opacity: 0.55; cursor: not-allowed; }
 
-.rule-tile.asset-used .rule-body {
+.rule-tile.asset-used {
     border-color: rgba(114, 163, 126, 0.6);
     background: rgba(114, 163, 126, 0.07);
 }
 
 .rule-tile.dragging { opacity: 0.45; }
 
-.rule-tile.drop-target .rule-body {
-    outline: 1px solid var(--accent, #4fa3d1);
-}
-
-.rule-tile.open .rule-body {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent) inset;
-}
-
-.rule-cells {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-}
-
-.rule-cell {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    min-width: 74px;
-    padding: 3px 8px;
-    border: 1px dashed var(--border-strong);
-    border-radius: 4px;
-    background: var(--bg-1);
-    color: var(--text-muted);
-    font-size: 10.5px;
-    cursor: pointer;
-}
-
-.rule-cell.filled {
-    border-style: solid;
-    color: var(--text);
-    background: var(--panel-raised);
-}
-
-.rule-cell.pending {
-    border-style: solid;
-    border-color: var(--accent);
-    color: var(--text-dim);
-}
-
-.rule-cell.plus {
-    justify-content: center;
-    min-width: 34px;
-    font-size: 14px;
-    color: var(--text-dim);
-}
-
-.rule-cell.plus:hover { color: var(--accent); }
-
-.rule-cell i { font-style: normal; }
+.rule-tile.drop-target { outline: 1px solid var(--accent, #4fa3d1); }
 
 .rule-parts-count {
     color: var(--accent);
     border-bottom: 1px dashed var(--border-accent);
 }
 
-.rule-pop {
-    position: absolute;
-    z-index: 20;
-    display: flex;
-    flex-wrap: wrap;
+.rule-chip {
+    display: inline-flex;
     align-items: center;
-    gap: 4px;
-    max-width: calc(100% - 14px);
-    padding: 5px 7px;
-    background: var(--panel-raised);
-    border: 1px solid var(--accent);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-md);
-}
-
-.rule-pop-name {
-    font-size: 11px;
-    color: var(--text-dim);
-    margin-right: 2px;
-}
-
-
-.part-x {
-    border: 0;
-    background: none;
-    color: var(--text-dim);
-    cursor: pointer;
-    font-size: 10px;
-    line-height: 1;
-    padding: 0 2px;
-}
-
-.pick {
-    padding: 4px 10px;
-    border: 1px solid var(--border-strong);
-    border-radius: 4px;
-    background: var(--panel-raised);
-    color: var(--text);
-    font-family: var(--font-mono);
-    font-size: 11px;
+    padding: 1px 8px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg-1);
+    font-size: 10.5px;
     cursor: pointer;
 }
 
-.pick.on {
-    border-color: var(--accent);
-    background: rgba(79, 163, 209, 0.14);
+.rule-chip:hover {
+    border-color: var(--bad);
+    color: var(--bad);
 }
-
-.rule-cell:hover,
-.pick:hover { border-color: var(--accent); }
-
-.part-x:hover { color: var(--bad); }
 
 .chip-assets {
     color: var(--text-dim);
