@@ -104,6 +104,7 @@ body {
 .assets-zone {
     flex: 2 1 0;
     min-height: 0;
+    position: relative;
     border-top: 1px solid var(--border);
     padding: 6px 10px 10px;
     display: flex;
@@ -190,19 +191,34 @@ body {
 
 .rule-tile.drop-target { outline: 1px solid var(--accent, #4fa3d1); }
 
-.rule-parts {
-    display: none;
-    flex-wrap: wrap;
-    gap: 3px;
-}
-
-.rule-tile.open .rule-parts {
-    display: flex;
+.rule-tile.open {
+    border-color: var(--accent);
 }
 
 .rule-parts-count {
     color: var(--accent);
     border-bottom: 1px dashed var(--border-accent);
+}
+
+.rule-pop {
+    position: absolute;
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    max-width: calc(100% - 14px);
+    padding: 5px 7px;
+    background: var(--panel-raised);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+}
+
+.rule-pop-name {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-right: 2px;
 }
 
 .part {

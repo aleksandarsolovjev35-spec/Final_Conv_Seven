@@ -473,27 +473,12 @@ function renderAssets() {
                 if (ev.target.closest('.part-x') || !rule.models.length) {
                     return;
                 }
-                openRule = tile.classList.contains('open') ? null : rule.id;
+                openRule = openRule === rule.id ? null : rule.id;
                 document.querySelectorAll('.rule-tile.open').forEach(
                     function (n) { n.classList.remove('open'); });
                 if (openRule) { tile.classList.add('open'); }
+                updateRulePop();
             });
-            const parts = el('div', 'rule-parts');
-            rule.models.forEach(function (mid) {
-                const mod = MODELS.find(function (m) { return m.id === mid; });
-                const part = el('span', 'part');
-                part.appendChild(el('i', '', mod ? mod.name : mid));
-                const px = el('button', 'part-x', '×');
-                px.type = 'button';
-                px.draggable = false;
-                px.addEventListener('click', function (ev) {
-                    ev.stopPropagation();
-                    togglePart(rule.id, mid);
-                });
-                part.appendChild(px);
-                parts.appendChild(part);
-            });
-            tile.appendChild(parts);
             tile.addEventListener('dragover', function (ev) {
                 if (dragKind !== 'model-part') { return; }
                 ev.preventDefault();
@@ -538,8 +523,70 @@ function renderAssets() {
         if (rcnt) {
             rcnt.textContent = 'на камерах: ' + rUsed + ' / ' + RULES.length;
         }
+        updateRulePop();
     }
 }
+
+/* Состав раскрытого правила — плавающий блок под плиткой: ряд
+ * каталога не разъезжается, соседние правила остаются на месте. */
+function updateRulePop() {
+    const zone = document.querySelector('.assets-zone');
+    if (!zone) { return; }
+    let pop = zone.querySelector('.rule-pop');
+    if (openRule) {
+        const r = RULES.find(function (x) { return x.id === openRule; });
+        if (!r || !r.models.length) { openRule = null; }
+    }
+    if (!openRule) {
+        if (pop) { pop.remove(); }
+        return;
+    }
+    const rule = RULES.find(function (x) { return x.id === openRule; });
+    const tile = document.querySelector(
+        '.rule-tile[data-rule-id="' + openRule + '"]');
+    if (!rule || !tile) {
+        if (pop) { pop.remove(); }
+        return;
+    }
+    if (!pop) {
+        pop = el('div', 'rule-pop');
+        zone.appendChild(pop);
+    }
+    pop.textContent = '';
+    pop.appendChild(el('b', 'rule-pop-name', rule.name + ':'));
+    rule.models.forEach(function (mid) {
+        const mod = MODELS.find(function (m) { return m.id === mid; });
+        const part = el('span', 'part');
+        part.appendChild(el('i', '', mod ? mod.name : mid));
+        const px = el('button', 'part-x', '×');
+        px.type = 'button';
+        px.draggable = false;
+        px.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            togglePart(rule.id, mid);
+        });
+        part.appendChild(px);
+        pop.appendChild(part);
+    });
+    const zr = zone.getBoundingClientRect();
+    const tr = tile.getBoundingClientRect();
+    const fit = zr.width ? (zr.width - pop.offsetWidth - 8) : 0;
+    const left = Math.max(4, Math.min(tr.left - zr.left, fit));
+    pop.style.left = left + 'px';
+    pop.style.top = Math.max(4, tr.bottom - zr.top + 6) + 'px';
+}
+
+document.addEventListener('click', function (ev) {
+    if (!openRule) { return; }
+    const t = ev.target;
+    if (t.closest && (t.closest('.rule-pop') || t.closest('.rule-tile'))) {
+        return;
+    }
+    openRule = null;
+    document.querySelectorAll('.rule-tile.open').forEach(
+        function (n) { n.classList.remove('open'); });
+    updateRulePop();
+});
 
 /* Обнаруженные камеры: роли мест инспекции по порядку ленты;
  * основная — входное (П0) место. */
