@@ -132,7 +132,8 @@ function movePosition(from, gap) {
     if (to === from) { return; }
     const r = findIndex(function (p) { return p.reset; });
     if (r >= 0) {
-        const after = from === r ? to : (r > from ? r - 1 : r);
+        const r1 = from < r ? r - 1 : r;
+        const after = from === r ? to : (to <= r1 ? r1 + 1 : r1);
         if (after !== belt.positions.length - 1) {
             toast('Перенос нарушил бы «сброс — последняя».', 'err');
             return;
@@ -693,15 +694,19 @@ function acceptsAt(kind, idx) {
 
 function gapFromX(clientX) {
     const cards = $('belt-row').querySelectorAll('.pos-card');
+    let gap = cards.length;
     for (let i = 0; i < cards.length; i += 1) {
         const r = cards[i].getBoundingClientRect();
-        if (clientX < r.left + r.width / 2) {
-            /* раньше входной позиции слота нет: левее П0 — вставка сразу
-             * после входа (маркер и drop считают один и тот же зажим) */
-            return i === 0 ? 1 : i;
-        }
+        if (clientX < r.left + r.width / 2) { gap = i; break; }
     }
-    return cards.length;
+    /* раньше входной позиции слота нет: левее П0 — вставка сразу
+     * после входа (маркер и drop считают один и тот же зажим) */
+    if (cards.length > 0 && gap === 0) { gap = 1; }
+    /* и слота за точкой сброса нет: дальше сброса цепь не растёт —
+     * встанет перед ним */
+    const rr = findIndex(function (p) { return p.reset; });
+    if (rr >= 0 && gap > rr) { gap = rr; }
+    return gap;
 }
 
 function showMarkerAt(gap) {
@@ -878,6 +883,12 @@ function wireBelt() {
     $('belt-row').addEventListener('dragstart', function (ev) {
         const card = ev.target.closest('.pos-card');
         if (!card || ev.target.closest('.chip, .pos-del, .editing')) {
+            ev.preventDefault();
+            return;
+        }
+        /* сброс — хвост: его карточка не переносится */
+        const moving = belt.positions[Number(card.dataset.index)];
+        if (moving && moving.reset) {
             ev.preventDefault();
             return;
         }
