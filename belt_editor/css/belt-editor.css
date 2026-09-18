@@ -133,7 +133,7 @@ body {
     flex-direction: column;
     flex-wrap: nowrap;
     align-items: stretch;
-    gap: 8px;
+    gap: 14px;
 }
 
 .rule-tile {
@@ -227,18 +227,14 @@ body {
 }
 
 .rule-pop {
-    position: absolute;
-    z-index: 20;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px;
-    max-width: calc(100% - 14px);
+    gap: 5px;
     padding: 5px 7px;
-    background: var(--panel-raised);
+    background: var(--bg-1);
     border: 1px solid var(--accent);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-md);
+    border-radius: 5px;
 }
 
 .rule-pop-name {
