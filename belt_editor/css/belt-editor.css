@@ -599,7 +599,7 @@ body {
     flex: 0 0 auto;
     width: 120px;
     height: 120px;
-    margin: 17px 17px 0 0;
+    margin: 16px 16px 0 0;
     padding: 6px 8px 4px;
     /* свет сверху-слева, тень к низу; тень «посадки» под куб */
     background-color: var(--panel-raised);
@@ -607,8 +607,6 @@ body {
         rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0) 46%,
         rgba(0, 0, 0, 0.16));
     --cube-line: var(--border-strong);
-    border: 1px solid var(--cube-line);
-    border-radius: 2px;
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.07),
         0 6px 10px -6px rgba(0, 0, 0, 0.65),
@@ -622,36 +620,35 @@ body {
     transition: box-shadow 140ms ease, transform 140ms ease;
 }
 
-.pos-card::before,
-.pos-card::after {
-    content: '';
+/* каркас куба: единые вершины трёх граней — рёбра непрерывны */
+.pos-card .cube {
     position: absolute;
-    z-index: -1;
-    pointer-events: none;
-    background-color: var(--panel-raised);
-    border: 1px solid var(--cube-line, var(--border-strong));
-}
-
-.pos-card::before {
-    /* верхняя грань: светлая, к дальнему ребру тускнеет */
     left: 0;
-    top: -17px;
+    top: -16px;
     width: 136px;
-    height: 16px;
-    background-image: linear-gradient(104deg,
-        rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
-    clip-path: polygon(0 100%, 16px 0, 100% 0, calc(100% - 16px) 100%);
+    height: 136px;
+    pointer-events: none;
 }
 
-.pos-card::after {
-    /* боковая грань: в тени, темнее к заднему ребру */
-    left: calc(100% - 1px);
-    top: -17px;
-    width: 17px;
-    height: 136px;
-    background-image: linear-gradient(300deg,
-        rgba(0, 0, 0, 0.30), rgba(0, 0, 0, 0.58));
-    clip-path: polygon(0 16px, 16px 0, 16px 120px, 0 136px);
+.pos-card .cube svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.pos-card .cube-top {
+    fill: #1d2730;
+}
+
+.pos-card .cube-side {
+    fill: #0e1317;
+}
+
+.pos-card .cube-edge > * {
+    fill: none;
+    stroke: var(--cube-line, var(--border-strong));
+    stroke-width: 1;
+    stroke-linejoin: miter;
 }
 
 .pos-card:active { cursor: grabbing; }

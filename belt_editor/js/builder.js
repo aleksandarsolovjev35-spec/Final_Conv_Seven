@@ -600,6 +600,17 @@ function renderCard(pos, i) {
     if (pos.reset) { card.classList.add('reset-pt'); }
     card.dataset.index = String(i);
 
+    const cube = el('div', 'cube');
+    cube.innerHTML = '<svg viewBox="0 0 136 136" aria-hidden="true">'
+        + '<polygon class="cube-top" points="0,16 16,0 136,0 120,16"/>'
+        + '<polygon class="cube-side" points="120,16 136,0 136,120 120,136"/>'
+        + '<g class="cube-edge">'
+        + '<polygon points="0,16 16,0 136,0 120,16"/>'
+        + '<polygon points="120,16 136,0 136,120 120,136"/>'
+        + '<rect x="0.5" y="16.5" width="119" height="119"/>'
+        + '</g></svg>';
+    card.appendChild(cube);
+
     const top = el('div', 'pos-top');
     top.appendChild(el('span', 'pos-index', 'П' + i));
     const del = el('button', 'pos-del', '×');
