@@ -94,14 +94,12 @@ function toggleInspection(i) {
     if (pos.inspection) {
         const n = pos.inspection.cameras.length;
         pos.inspection = null;
-        toast('П' + i + ': место инспекции снято' +
-            (n ? ' (камер было: ' + n + ')' : '') + '.');
+        toast('П' + i + ': инспекция снята' +
+            (n ? ' · камеры: ' + n : ''));
     } else {
         pos.inspection = { cameras: [], primary: false };
-        toast('П' + i + ' — место инспекции. ' +
-            (inspectionCount() === 1
-                ? 'Единственное — стало основным: определяет наличие детали.'
-                : 'Основное выбрано автоматически — самое раннее.'));
+        toast('П' + i + ' — место инспекции' +
+            (inspectionCount() === 1 ? ' · основное' : ''));
     }
     applyInvariants();
     render();
@@ -117,11 +115,8 @@ function toggleReset(i) {
         const prev = findIndex(function (p) { return p.reset; });
         belt.positions.forEach(function (p) { p.reset = false; });
         pos.reset = true;
-        if (prev >= 0) {
-            toast('Точка сброса перенесена: П' + prev + ' → П' + i + '.');
-        } else {
-            toast('П' + i + ' — точка сброса: корпус покидает ленту здесь.');
-        }
+        toast(prev >= 0 ? 'сброс: П' + prev + ' → П' + i
+            : 'П' + i + ' — точка сброса');
     }
     applyInvariants();
     render();
@@ -133,7 +128,7 @@ function addCamera(i) {
     if (!pos.inspection) {
         pos.inspection = { cameras: [], primary: false };
         applyInvariants();
-        toast('П' + i + ' стала инспекционной — на неё брошена камера.');
+        toast('П' + i + ' — место инспекции');
     }
     const used = Object.create(null);
     belt.positions.forEach(function (other) {
@@ -234,8 +229,6 @@ function el(tag, cls, text) {
 
 function render() {
     const row = $('belt-row');
-    const zone = $('belt-zone');
-    const hint = $('belt-drop-hint');
     row.textContent = '';
 
     belt.positions.forEach(function (pos, i) {
@@ -243,12 +236,8 @@ function render() {
         row.appendChild(renderCard(pos, i));
     });
 
-    hint.style.display = belt.positions.length ? 'none' : '';
-    zone.classList.toggle('has-cards', belt.positions.length > 0);
-
     $('belt-meta').textContent = 'позиций: ' + belt.positions.length +
         ' / ' + MAX_POSITIONS;
-    renderStatus();
 }
 
 function renderCard(pos, i) {
@@ -262,26 +251,17 @@ function renderCard(pos, i) {
     const del = el('button', 'pos-del', '✕');
     del.type = 'button';
     del.draggable = false;
-    del.title = 'Удалить позицию';
     top.appendChild(del);
     card.appendChild(top);
 
-    const label = el('div', 'pos-label', pos.label || 'Позиция ' + i);
-    label.title = 'Двойной клик — переименовать';
-    card.appendChild(label);
+    card.appendChild(el('div', 'pos-label', pos.label || 'Позиция ' + i));
 
     const badges = el('div', 'pos-badges');
     if (pos.inspection) {
         if (pos.inspection.primary) {
-            const b = el('span', 'badge badge-primary', '★ основное');
-            b.title = inspectionCount() === 1
-                ? 'Единственное место инспекции — основное автоматически'
-                : 'Основное: определяет наличие детали';
-            badges.appendChild(b);
+            badges.appendChild(el('span', 'badge badge-primary', '★ основное'));
         } else {
-            const b = el('span', 'badge badge-insp', 'инспекция');
-            b.title = 'Клик — сделать основным местом';
-            badges.appendChild(b);
+            badges.appendChild(el('span', 'badge badge-insp', 'инспекция'));
         }
         const n = pos.inspection.cameras.length;
         badges.appendChild(el('span', 'badge badge-cam',
@@ -297,12 +277,10 @@ function renderCard(pos, i) {
         pos.inspection.cameras.forEach(function (name, j) {
             const chip = el('span', 'chip');
             chip.draggable = false;
-            chip.title = 'Двойной клик — переименовать роль';
             chip.appendChild(el('span', 'chip-name', name));
             const chipX = el('button', 'chip-x', '×');
             chipX.type = 'button';
             chipX.draggable = false;
-            chipX.title = 'Убрать камеру';
             chipX.addEventListener('click', function (ev) {
                 ev.stopPropagation();
                 removeCamera(i, j);
@@ -317,52 +295,6 @@ function renderCard(pos, i) {
         card.appendChild(cams);
     }
     return card;
-}
-
-function renderStatus() {
-    const status = $('belt-status');
-    status.textContent = '';
-    const n = belt.positions.length;
-    if (n === 0) {
-        status.appendChild(el('span', 'todo',
-            'Лента пуста. Элементы слева: тяните «Позицию» на полосу.'));
-        return;
-    }
-    const inspCount = inspectionCount();
-    const primary = findIndex(function (p) {
-        return p.inspection && p.inspection.primary;
-    });
-    const reset = findIndex(function (p) { return p.reset; });
-    const parts = [];
-    parts.push('инспекционных мест: ' + inspCount);
-    if (inspCount === 0) {
-        parts.push('нет ни одного — тяните «Место инспекции» на позицию');
-    } else if (inspCount === 1) {
-        parts.push('единственное — «П' + primary + '» автоматически основное ' +
-            '(наличие детали)');
-    } else {
-        parts.push('основное — «П' + primary + '» (наличие детали), ' +
-            'переключается кликом по значку «инспекция»');
-    }
-    parts.push(reset >= 0
-        ? 'сброс корпуса — «П' + reset + '»'
-        : 'точка сброса не задана — тяните «Точку сброса» на позицию');
-    const line = el('span', 'pathline');
-    line.appendChild(el('b', null, 'Путь корпуса: '));
-    const stop = reset >= 0 ? reset : n - 1;
-    const seq = [];
-    for (let i = 0; i <= stop; i += 1) {
-        const pos = belt.positions[i];
-        seq.push('П' + i +
-            (pos.inspection && pos.inspection.primary ? '★' : '') +
-            (pos.inspection && !pos.inspection.primary ? '◎' : '') +
-            (pos.reset ? '⏏' : ''));
-    }
-    line.appendChild(document.createTextNode(
-        'вход → ' + seq.join(' → ') + (reset >= 0 ? ' → выход' : ' → …')));
-    status.appendChild(el('span', null, parts.join(' · ') + '.'));
-    status.appendChild(el('br'));
-    status.appendChild(line);
 }
 
 function $(id) { return document.getElementById(id); }
@@ -508,12 +440,11 @@ function wireBelt() {
             return;
         }
         if (emptyZone) {
-            toast('Сначала появится хотя бы одна позиция — ' +
-                'тяните «Позицию».', 'err');
+            toast('Нет ни одной позиции.', 'err');
             return;
         }
         if (cardIdx < 0) {
-            toast('Бросайте «' + labelOf(kind) + '» точно на позицию.', 'err');
+            toast('Не на позицию.', 'err');
             return;
         }
         if (kind === 'inspect') { toggleInspection(cardIdx); }
@@ -576,11 +507,6 @@ function wireBelt() {
             .forEach(function (n) { n.draggable = true; });
     });
     observer.observe($('belt-row'), { childList: true, subtree: true });
-}
-
-function labelOf(kind) {
-    return { inspect: 'Место инспекции', reset: 'Точку сброса',
-        camera: 'Камеру' }[kind] || 'элемент';
 }
 
 /* ─── Старт ───────────────────────────────────────────────────────── */
