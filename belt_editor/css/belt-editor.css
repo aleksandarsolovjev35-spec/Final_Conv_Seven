@@ -584,7 +584,7 @@ body {
     gap: 4px;
     width: max-content;
     max-width: none;
-    padding: 16px 0 10px;
+    padding: 2px 0 10px;
     transform-origin: 50% 50%;
 }
 
@@ -613,58 +613,6 @@ body {
 
 .pos-card.inspect { border-left: 3px solid var(--accent); }
 .pos-card.reset-pt { border-right: 3px solid var(--bad); }
-
-/* линза инспекции: полукруглый выступ по центру верхнего края */
-.pos-card .lens {
-    position: absolute;
-    left: 50%;
-    top: -13px;
-    width: 26px;
-    height: 26px;
-    margin-left: -13px;
-    border-radius: 50%;
-    background: var(--panel-raised);
-    border: 1px solid var(--accent);
-    box-shadow: inset 0 0 0 5px rgba(79, 163, 209, 0.14);
-    pointer-events: none;
-}
-
-.pos-card .lens::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 7px;
-    height: 7px;
-    margin: -3px;
-    border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 7px rgba(79, 163, 209, 0.75);
-}
-
-/* жёлоб сброса: трапеция, расходящаяся к правому краю пластины */
-.pos-card .chute {
-    position: absolute;
-    right: -20px;
-    top: 50%;
-    width: 22px;
-    height: 40px;
-    margin-top: -20px;
-    pointer-events: none;
-}
-
-.pos-card .chute svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-}
-
-.pos-card .chute path {
-    fill: var(--panel-raised);
-    stroke: var(--bad);
-    stroke-width: 1.5;
-    stroke-linejoin: round;
-}
 
 .pos-card.dragging-src { opacity: 0.45; }
 
