@@ -179,7 +179,10 @@ body {
     flex-wrap: nowrap;
     align-items: stretch;
     gap: 6px;
-    padding-right: 2px;
+    padding: 6px 8px 6px 6px;
+    background: var(--bg-0);
+    border: 1px solid var(--border);
+    border-radius: 6px;
 }
 
 /* drag-источник моделей */
