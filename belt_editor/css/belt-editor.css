@@ -148,13 +148,15 @@ body {
     user-select: none;
 }
 
-/* имя — строкой над рамкой; ячейки с «плюсом» — в рамке, на месте
- * имени */
+/* имя — первая плашка внутри рамки, в одном ряду с ячейками и «плюсом» */
 .rule-cap {
     display: flex;
     align-items: center;
     gap: 9px;
-    padding: 0 2px;
+    padding: 3px 7px;
+    border-radius: 4px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
 }
 
 .rule-cap b { font-weight: 600; }

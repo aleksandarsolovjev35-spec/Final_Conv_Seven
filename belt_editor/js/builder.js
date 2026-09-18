@@ -429,7 +429,7 @@ function renderAssets() {
                 cap.appendChild(el('span', 'asset-use',
                     'кам: ' + cams.length));
             }
-            tile.appendChild(cap);
+
             if (openRule === rule.id) {
                 tile.classList.add('open');
             }
@@ -456,6 +456,7 @@ function renderAssets() {
             /* плашки состава: заполненные — модель + ×; новую пустую
              * плашку создаёт «плюс» (заглушек в ряд не рисуем) */
             const cells = el('div', 'rule-cells rule-body');
+            cells.appendChild(cap);
             rule.models.forEach(function (mid) {
                 const mod = MODELS.find(function (m) { return m.id === mid; });
                 const cell = el('span', 'rule-cell filled');
