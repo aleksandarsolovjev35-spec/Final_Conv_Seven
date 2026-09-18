@@ -372,9 +372,6 @@ body {
     background: var(--panel-raised);
     border: 1px solid var(--border-strong);
     border-radius: 5px;
-    font-family: var(--font-mono);
-    font-size: 13px;
-    font-weight: 600;
     color: var(--text-dim);
     cursor: grab;
     user-select: none;
@@ -382,8 +379,21 @@ body {
     transition: border-color 120ms ease, transform 120ms ease;
 }
 
+/* векторные знаки инструментов: наследуют color */
+.tool svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 .tool:hover {
     border-color: var(--border-accent);
+    color: var(--accent);
     transform: translateX(2px);
 }
 
@@ -391,7 +401,7 @@ body {
 
 .tool.dragging { opacity: 0.45; }
 
-.tool b { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
+
 
 
 
