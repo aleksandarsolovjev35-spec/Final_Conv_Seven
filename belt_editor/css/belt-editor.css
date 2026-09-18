@@ -601,16 +601,25 @@ body {
     height: 120px;
     margin: 17px 17px 0 0;
     padding: 6px 8px 4px;
-    background: var(--panel-raised);
-    border: 1px solid var(--border-strong);
+    /* свет сверху-слева, тень к низу; тень «посадки» под куб */
+    background-color: var(--panel-raised);
+    background-image: linear-gradient(148deg,
+        rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0) 46%,
+        rgba(0, 0, 0, 0.16));
+    --cube-line: var(--border-strong);
+    border: 1px solid var(--cube-line);
     border-radius: 2px;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.07),
+        0 6px 10px -6px rgba(0, 0, 0, 0.65),
+        0 14px 22px -14px rgba(0, 0, 0, 0.5);
     display: flex;
     flex-direction: column;
     gap: 4px;
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
-    transition: border-color 120ms ease;
+    transition: box-shadow 140ms ease, transform 140ms ease;
 }
 
 .pos-card::before,
@@ -620,36 +629,44 @@ body {
     z-index: -1;
     pointer-events: none;
     background-color: var(--panel-raised);
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--cube-line, var(--border-strong));
 }
 
 .pos-card::before {
-    /* верхняя грань */
+    /* верхняя грань: светлая, к дальнему ребру тускнеет */
     left: 0;
     top: -17px;
     width: 136px;
     height: 16px;
-    background-image: linear-gradient(rgba(255, 255, 255, 0.09),
-        rgba(255, 255, 255, 0.09));
+    background-image: linear-gradient(104deg,
+        rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
     clip-path: polygon(0 100%, 16px 0, 100% 0, calc(100% - 16px) 100%);
 }
 
 .pos-card::after {
-    /* боковая грань */
+    /* боковая грань: в тени, темнее к заднему ребру */
     left: calc(100% - 1px);
     top: -17px;
     width: 17px;
     height: 136px;
-    background-image: linear-gradient(rgba(0, 0, 0, 0.42),
-        rgba(0, 0, 0, 0.42));
+    background-image: linear-gradient(300deg,
+        rgba(0, 0, 0, 0.30), rgba(0, 0, 0, 0.58));
     clip-path: polygon(0 16px, 16px 0, 16px 120px, 0 136px);
 }
 
 .pos-card:active { cursor: grabbing; }
-.pos-card:hover { border-color: var(--border-accent); }
 
-.pos-card.inspect { border-color: var(--accent); }
-.pos-card.reset-pt { border-color: var(--bad); }
+.pos-card:hover {
+    --cube-line: var(--border-accent);
+    transform: translateY(-2px);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.09),
+        0 10px 14px -6px rgba(0, 0, 0, 0.6),
+        0 20px 28px -14px rgba(0, 0, 0, 0.45);
+}
+
+.pos-card.inspect { --cube-line: rgba(79, 163, 209, 0.75); }
+.pos-card.reset-pt { --cube-line: rgba(199, 92, 80, 0.75); }
 
 .pos-card .cam-chips .chip { max-width: 100%; min-width: 0; }
 .pos-card .chip-name {
@@ -662,9 +679,13 @@ body {
 .pos-card.dragging-src { opacity: 0.45; }
 
 .pos-card.drop-target {
-    border-color: var(--warn);
-    box-shadow: 0 0 0 1px var(--warn), 0 0 18px rgba(193, 166, 106, 0.25);
-    transform: translateY(-2px);
+    --cube-line: var(--warn);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.09),
+        0 0 0 1px var(--warn),
+        0 10px 16px -6px rgba(0, 0, 0, 0.6),
+        0 0 18px rgba(193, 166, 106, 0.25);
+    transform: translateY(-3px);
 }
 
 .pos-top { display: flex; align-items: center; }
