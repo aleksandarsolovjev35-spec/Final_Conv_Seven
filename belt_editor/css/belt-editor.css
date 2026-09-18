@@ -155,12 +155,19 @@ body {
 .chip.drop-target { outline: 1px solid var(--accent, #4fa3d1); }
 
 /* плитки-конструкторы правил */
+#asset-rules {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 8px;
+}
+
 .rule-tile {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 4px;
-    min-width: 196px;
+    gap: 6px;
+    width: 100%;
     min-height: 40px;
     padding: 8px 12px 9px;
     border: 1px solid var(--border-strong);
@@ -197,6 +204,34 @@ body {
     border-color: var(--accent);
 }
 
+.rule-cells {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.rule-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 74px;
+    padding: 3px 8px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 4px;
+    background: var(--bg-1);
+    color: var(--text-muted);
+    font-size: 10.5px;
+    cursor: pointer;
+}
+
+.rule-cell.filled {
+    border-style: solid;
+    color: var(--text);
+    background: var(--panel-raised);
+}
+
+.rule-cell i { font-style: normal; }
+
 .rule-parts-count {
     color: var(--accent);
     border-bottom: 1px dashed var(--border-accent);
@@ -223,18 +258,6 @@ body {
     margin-right: 2px;
 }
 
-.part {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 0 2px 0 5px;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    background: var(--bg-1);
-    font-size: 8.5px;
-}
-
-.part i { font-style: normal; }
 
 .part-x {
     border: 0;
@@ -245,6 +268,25 @@ body {
     line-height: 1;
     padding: 0 2px;
 }
+
+.pick {
+    padding: 4px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--panel-raised);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.pick.on {
+    border-color: var(--accent);
+    background: rgba(79, 163, 209, 0.14);
+}
+
+.rule-cell:hover,
+.pick:hover { border-color: var(--accent); }
 
 .part-x:hover { color: var(--bad); }
 
@@ -257,7 +299,7 @@ body {
     /* блок по высоте: камеры 2/3, правила и модели по 1/6 */
     flex: 4 1 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     padding: 10px;
     overflow-y: auto;

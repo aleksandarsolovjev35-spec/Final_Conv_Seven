@@ -461,24 +461,59 @@ function renderAssets() {
                 top.appendChild(el('span', 'rule-parts-count',
                     rule.models.length + 'м'));
             }
-            top.appendChild(el('span', 'asset-use',
-                rule.models.length ? 'кам: ' + cams.length : 'нет моделей'));
-            tile.appendChild(top);
-            if (openRule === rule.id && rule.models.length) {
-                tile.classList.add('open');
-            } else if (openRule === rule.id) {
-                openRule = null;
+            if (cams.length) {
+                top.appendChild(el('span', 'asset-use',
+                    'кам: ' + cams.length));
             }
-            tile.addEventListener('click', function (ev) {
-                if (ev.target.closest('.part-x') || !rule.models.length) {
-                    return;
-                }
-                openRule = openRule === rule.id ? null : rule.id;
+            tile.appendChild(top);
+            if (openRule === rule.id) {
+                tile.classList.add('open');
+            }
+            const openPicker = function () {
+                openRule = rule.id;
                 document.querySelectorAll('.rule-tile.open').forEach(
                     function (n) { n.classList.remove('open'); });
-                if (openRule) { tile.classList.add('open'); }
+                tile.classList.add('open');
                 updateRulePop();
+            };
+            tile.addEventListener('click', function (ev) {
+                if (ev.target.closest('.part-x')
+                    || ev.target.closest('.rule-cell')) {
+                    return;
+                }
+                if (openRule === rule.id) {
+                    openRule = null;
+                    tile.classList.remove('open');
+                    updateRulePop();
+                } else {
+                    openPicker();
+                }
             });
+            /* ячейки состава: заполненные — модель + ×, пустые — «+» */
+            const cells = el('div', 'rule-cells');
+            MODELS.forEach(function (mod, i) {
+                const mid = rule.models[i];
+                const cell = el('span', 'rule-cell' + (mid ? ' filled' : ''));
+                if (mid) {
+                    cell.appendChild(el('i', '', mod.name));
+                    const px = el('button', 'part-x', '×');
+                    px.type = 'button';
+                    px.draggable = false;
+                    px.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        togglePart(rule.id, mid);
+                    });
+                    cell.appendChild(px);
+                } else {
+                    cell.textContent = '+';
+                }
+                cell.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    openPicker();
+                });
+                cells.appendChild(cell);
+            });
+            tile.appendChild(cells);
             tile.addEventListener('dragover', function (ev) {
                 if (dragKind !== 'model-part') { return; }
                 ev.preventDefault();
@@ -533,9 +568,8 @@ function updateRulePop() {
     const zone = document.querySelector('.assets-zone');
     if (!zone) { return; }
     let pop = zone.querySelector('.rule-pop');
-    if (openRule) {
-        const r = RULES.find(function (x) { return x.id === openRule; });
-        if (!r || !r.models.length) { openRule = null; }
+    if (openRule && !RULES.some(function (x) { return x.id === openRule; })) {
+        openRule = null;
     }
     if (!openRule) {
         if (pop) { pop.remove(); }
@@ -553,20 +587,17 @@ function updateRulePop() {
         zone.appendChild(pop);
     }
     pop.textContent = '';
-    pop.appendChild(el('b', 'rule-pop-name', rule.name + ':'));
-    rule.models.forEach(function (mid) {
-        const mod = MODELS.find(function (m) { return m.id === mid; });
-        const part = el('span', 'part');
-        part.appendChild(el('i', '', mod ? mod.name : mid));
-        const px = el('button', 'part-x', '×');
-        px.type = 'button';
-        px.draggable = false;
-        px.addEventListener('click', function (ev) {
+    pop.appendChild(el('b', 'rule-pop-name', 'модели:'));
+    MODELS.forEach(function (mod) {
+        const on = rule.models.indexOf(mod.id) !== -1;
+        const it = el('button', 'pick' + (on ? ' on' : ''), mod.name);
+        it.type = 'button';
+        it.draggable = false;
+        it.addEventListener('click', function (ev) {
             ev.stopPropagation();
-            togglePart(rule.id, mid);
+            togglePart(rule.id, mod.id);
         });
-        part.appendChild(px);
-        pop.appendChild(part);
+        pop.appendChild(it);
     });
     const zr = zone.getBoundingClientRect();
     const tr = tile.getBoundingClientRect();
