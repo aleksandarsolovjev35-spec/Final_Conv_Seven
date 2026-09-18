@@ -34,10 +34,10 @@ const MODELS = [
     { id: 'm3', name: 'contacts-long' },
 ];
 const RULES = [
-    { id: 'r0', name: 'presence-fp≤2' },
-    { id: 'r1', name: 'geom-conf≥0.40' },
-    { id: 'r2', name: 'sinks-conf≥0.15' },
-    { id: 'r3', name: 'overlap≥5px' },
+    { id: 'r0', name: 'геометрия', models: [] },
+    { id: 'r1', name: 'наличие', models: [] },
+    { id: 'r2', name: 'пропуск', models: [] },
+    { id: 'r3', name: 'контакты', models: [] },
 ];
 
 const inventory = [];
@@ -45,7 +45,7 @@ const inventory = [];
     for (let i = 0; i < 8; i += 1) {
         inventory.push({
             id: 'cam' + i, name: 'CAM_' + (i + 1), dev: 'video' + i,
-            models: [], rules: [],
+            rules: [],
         });
     }
 })();
@@ -341,50 +341,162 @@ function render() {
     if (zn) { zn.dispatchEvent(new CustomEvent('belt:render')); }
 }
 
-function toggleAsset(kind, camId, assetId) {
-    const dev = inventory.find(function (d) { return d.id === camId; });
-    const cat = kind === 'model' ? MODELS : RULES;
-    const a = cat.find(function (x) { return x.id === assetId; });
-    if (!dev || !a) { return; }
-    const key = kind === 'model' ? 'models' : 'rules';
-    const at = dev[key].indexOf(a.id);
+function ruleOnCameras(rule) {
+    return inventory.filter(function (d) {
+        return d.rules.indexOf(rule.id) !== -1;
+    });
+}
+
+/* модель — компонент правила: бросок на плитку правила, повторный — снять;
+ * у правила «на камерах» последняя модель не снимается */
+function togglePart(ruleId, modelId) {
+    const rule = RULES.find(function (r) { return r.id === ruleId; });
+    const mod = MODELS.find(function (m) { return m.id === modelId; });
+    if (!rule || !mod) { return; }
+    const at = rule.models.indexOf(modelId);
     if (at >= 0) {
-        dev[key].splice(at, 1);
-        toast(dev.name + ': «' + a.name + '» снято.');
+        if (rule.models.length === 1 && ruleOnCameras(rule).length > 0) {
+            toast('Правило «' + rule.name + '» стоит на камерах —'
+                + ' последнюю модель не снять.', 'err');
+            return;
+        }
+        rule.models.splice(at, 1);
+        toast('«' + mod.name + '» убрана из «' + rule.name + '».');
     } else {
-        dev[key].push(a.id);
-        toast(dev.name + ': «' + a.name + '» подключено.');
+        rule.models.push(modelId);
+        toast('«' + rule.name + '» ← ' + mod.name + '.');
     }
     render();
 }
 
+/* правило — на камеру; модели подгружаются составом правила */
+function toggleRuleOnCam(camId, ruleId) {
+    const dev = inventory.find(function (d) { return d.id === camId; });
+    const rule = RULES.find(function (r) { return r.id === ruleId; });
+    if (!dev || !rule) { return; }
+    const at = dev.rules.indexOf(ruleId);
+    if (at >= 0) {
+        dev.rules.splice(at, 1);
+        toast(dev.name + ': «' + rule.name + '» снято.');
+    } else {
+        if (!rule.models.length) {
+            toast('Правило «' + rule.name + '» без моделей — не ставится.', 'err');
+            return;
+        }
+        dev.rules.push(ruleId);
+        toast(dev.name + ': «' + rule.name + '» подключено, модели подгружены.');
+    }
+    render();
+}
+
+function loadedModels(dev) {
+    const set = Object.create(null);
+    dev.rules.forEach(function (id) {
+        const rule = RULES.find(function (r) { return r.id === id; });
+        if (rule) {
+            rule.models.forEach(function (m) { set[m] = true; });
+        }
+    });
+    return Object.keys(set);
+}
+
 function renderAssets() {
-    [['model', MODELS, 'asset-models', 'model-count'],
-     ['rule', RULES, 'asset-rules', 'rule-count']].forEach(
-    function (spec) {
-        const kind = spec[0];
-        const cat = spec[1];
-        const key = kind === 'model' ? 'models' : 'rules';
-        const box = $(spec[2]);
-        if (!box) { return; }
-        box.textContent = '';
-        let used = 0;
-        cat.forEach(function (a) {
-            const cams = inventory.filter(function (d) {
-                return d[key].indexOf(a.id) !== -1;
+    /* МОДЕЛИ — компоненты: используются правилами */
+    const mbox = $('asset-models');
+    if (mbox) {
+        mbox.textContent = '';
+        let mUsed = 0;
+        MODELS.forEach(function (mod) {
+            const byRules = RULES.filter(function (r) {
+                return r.models.indexOf(mod.id) !== -1;
             });
-            if (cams.length) { used += 1; }
-            const tile = el('div', 'asset' + (cams.length ? ' asset-used' : ''));
+            if (byRules.length) { mUsed += 1; }
+            const tile = el('div', 'asset'
+                + (byRules.length ? ' asset-used' : ''));
             tile.draggable = true;
-            tile.dataset.assetId = a.id;
-            tile.appendChild(el('b', '', a.name));
-            if (cams.length) {
-                tile.appendChild(el('span', 'asset-use', 'кам: ' + cams.length));
+            tile.appendChild(el('b', '', mod.name));
+            if (byRules.length) {
+                tile.appendChild(el('span', 'asset-use',
+                    'правил: ' + byRules.length));
             }
             tile.addEventListener('dragstart', function (ev) {
-                dragKind = kind;
-                dragAsset = a.id;
-                ev.dataTransfer.setData('text/plain', kind + ':' + a.id);
+                dragKind = 'model-part';
+                dragAsset = mod.id;
+                ev.dataTransfer.setData('text/plain', 'model:' + mod.id);
+                ev.dataTransfer.effectAllowed = 'copy';
+                tile.classList.add('dragging');
+            });
+            tile.addEventListener('dragend', function () {
+                dragKind = null;
+                dragAsset = null;
+                cleanVisuals();
+            });
+            mbox.appendChild(tile);
+        });
+        const mcnt = $('model-count');
+        if (mcnt) {
+            mcnt.textContent = 'в правилах: ' + mUsed + ' / ' + MODELS.length;
+        }
+    }
+
+    /* ПРАВИЛА — конструкторы: состав моделей + привязка к камерам */
+    const rbox = $('asset-rules');
+    if (rbox) {
+        rbox.textContent = '';
+        let rUsed = 0;
+        RULES.forEach(function (rule) {
+            const cams = ruleOnCameras(rule);
+            if (cams.length) { rUsed += 1; }
+            const tile = el('div', 'rule-tile'
+                + (cams.length ? ' asset-used' : '')
+                + (rule.models.length ? '' : ' rule-empty'));
+            tile.draggable = rule.models.length > 0;
+            tile.dataset.ruleId = rule.id;
+            const top = el('div', 'rule-top');
+            top.appendChild(el('b', '', rule.name));
+            top.appendChild(el('span', 'asset-use',
+                rule.models.length ? 'кам: ' + cams.length : 'нет моделей'));
+            tile.appendChild(top);
+            const parts = el('div', 'rule-parts');
+            rule.models.forEach(function (mid) {
+                const mod = MODELS.find(function (m) { return m.id === mid; });
+                const part = el('span', 'part');
+                part.appendChild(el('i', '', mod ? mod.name : mid));
+                const px = el('button', 'part-x', '×');
+                px.type = 'button';
+                px.draggable = false;
+                px.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    togglePart(rule.id, mid);
+                });
+                part.appendChild(px);
+                parts.appendChild(part);
+            });
+            tile.appendChild(parts);
+            tile.addEventListener('dragover', function (ev) {
+                if (dragKind !== 'model-part') { return; }
+                ev.preventDefault();
+                ev.stopPropagation();
+                tile.classList.add('drop-target');
+            });
+            tile.addEventListener('dragleave', function () {
+                tile.classList.remove('drop-target');
+            });
+            tile.addEventListener('drop', function (ev) {
+                if (dragKind !== 'model-part') { return; }
+                ev.preventDefault();
+                ev.stopPropagation();
+                const mid = dragAsset;
+                dragKind = null;
+                dragAsset = null;
+                cleanVisuals();
+                togglePart(rule.id, mid);
+            });
+            tile.addEventListener('dragstart', function (ev) {
+                if (!rule.models.length) { return; }
+                dragKind = 'rule';
+                dragAsset = rule.id;
+                ev.dataTransfer.setData('text/plain', 'rule:' + rule.id);
                 ev.dataTransfer.effectAllowed = 'copy';
                 tile.classList.add('dragging');
                 const zn = $('belt-zone');
@@ -399,11 +511,13 @@ function renderAssets() {
                 dragAsset = null;
                 cleanVisuals();
             });
-            box.appendChild(tile);
+            rbox.appendChild(tile);
         });
-        const cnt = $(spec[3]);
-        if (cnt) { cnt.textContent = 'подключено: ' + used + ' / ' + cat.length; }
-    });
+        const rcnt = $('rule-count');
+        if (rcnt) {
+            rcnt.textContent = 'на камерах: ' + rUsed + ' / ' + RULES.length;
+        }
+    }
 }
 
 /* Обнаруженные камеры: роли мест инспекции по порядку ленты;
@@ -466,9 +580,10 @@ function renderCard(pos, i) {
             chip.draggable = false;
             chip.appendChild(el('span', 'chip-name', camName(id)));
             const dev = inventory.find(function (d) { return d.id === id; });
-            if (dev && (dev.models.length || dev.rules.length)) {
+            if (dev && dev.rules.length) {
                 chip.appendChild(el('span', 'chip-assets',
-                    'м:' + dev.models.length + ' п:' + dev.rules.length));
+                    'п:' + dev.rules.length
+                    + ' · м:' + loadedModels(dev).length));
             }
             const chipX = el('button', 'chip-x', '×');
             chipX.type = 'button';
@@ -533,9 +648,10 @@ function cleanVisuals() {
     document.querySelectorAll('.drop-target')
         .forEach(function (n) { n.classList.remove('drop-target'); });
     $('belt-zone').classList.remove('drop-ready');
-    document.querySelectorAll('.tool.dragging, .pos-card.dragging-src')
+    document.querySelectorAll('.tool.dragging, .pos-card.dragging-src,'
+        + '.asset.dragging, .rule-tile.dragging, .rule-tile.drop-target')
         .forEach(function (n) {
-            n.classList.remove('dragging', 'dragging-src');
+            n.classList.remove('dragging', 'dragging-src', 'drop-target');
         });
 }
 
@@ -634,7 +750,7 @@ function wireBelt() {
             showMarkerAt(gapFromX(ev.clientX));
             document.querySelectorAll('.pos-card.drop-target').forEach(
                 function (n) { n.classList.remove('drop-target'); });
-        } else if (dragKind === 'model' || dragKind === 'rule') {
+        } else if (dragKind === 'rule') {
             if (marker && marker.parentNode) { marker.remove(); }
             document.querySelectorAll('.drop-target').forEach(
                 function (n) { n.classList.remove('drop-target'); });
@@ -685,12 +801,17 @@ function wireBelt() {
             toast('Нет ни одной позиции.', 'err');
             return;
         }
+        if (kind === 'model-part') {
+            toast('Модель ставится на плитку правила в каталоге.', 'err');
+            dragAsset = null;
+            return;
+        }
         if (cardIdx < 0) {
-            toast(kind === 'model' || kind === 'rule'
+            toast(kind === 'rule'
                 ? 'Опустите на фишку камеры.' : 'Не на позицию.', 'err');
             return;
         }
-        if (kind === 'model' || kind === 'rule') {
+        if (kind === 'rule') {
             const chipEl = ev.target && ev.target.closest
                 ? ev.target.closest('.chip') : null;
             const chips = chipEl && chipEl.parentNode
@@ -707,7 +828,7 @@ function wireBelt() {
                 dragAsset = null;
                 return;
             }
-            toggleAsset(kind, pos.inspection.cameras[j], dragAsset);
+            toggleRuleOnCam(pos.inspection.cameras[j], dragAsset);
             dragAsset = null;
             return;
         }
