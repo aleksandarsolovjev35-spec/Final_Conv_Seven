@@ -536,6 +536,18 @@ check('кнопка переключения: клик сворачивает/р
         const h2 = parseInt(doc.documentElement.style.getPropertyValue('--app-height'), 10);
         return h1 === 200 && h2 === 400;
     })());
+check('минимальный размер сборки зафиксирован на исходном (нельзя сжать ниже 25%)',
+    (function () {
+        const splitter = doc.getElementById('app-splitter');
+        splitter.dispatchEvent(new window.MouseEvent('mousedown',
+            { bubbles: true, cancelable: true, button: 0, clientY: 500 }));
+        window.dispatchEvent(new window.MouseEvent('mousemove',
+            { bubbles: true, clientY: 900 }));
+        window.dispatchEvent(new window.MouseEvent('mouseup',
+            { bubbles: true, clientY: 900 }));
+        const hVal = parseInt(doc.documentElement.style.getPropertyValue('--app-height'), 10);
+        return hVal === 200;
+    })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 

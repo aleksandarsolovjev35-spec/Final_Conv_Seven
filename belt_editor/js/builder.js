@@ -1462,28 +1462,32 @@ function wireAppSplitter() {
     if (!splitter || !app) { return; }
 
     const KEY = 'belt_app_height';
-    const MIN_H = 196;
+    const MIN_H_FLOOR = 196;
+
+    /* Исходный размер сборки ленты — 25% высоты экрана (не менее 196px).
+     * Он же зафиксирован как МИНИМАЛЬНЫЙ размер: сборку можно только
+     * расширять вверх до 50% экрана; сжать ниже исходного нельзя. */
+    function minH() {
+        return Math.max(MIN_H_FLOOR, Math.floor((window.innerHeight || 800) * 0.25));
+    }
 
     function maxH() {
-        return Math.max(MIN_H, Math.floor((window.innerHeight || 800) * 0.5));
+        return Math.max(minH(), Math.floor((window.innerHeight || 800) * 0.5));
     }
 
-    function defaultH() {
-        return Math.max(MIN_H, Math.floor((window.innerHeight || 800) * 0.25));
-    }
-
-    let currentH = defaultH();
+    let currentH = minH();
 
     function setHeight(px, save) {
+        const mn = minH();
         const mx = maxH();
-        const clamped = clampN(Math.round(px), MIN_H, mx);
+        const clamped = clampN(Math.round(px), mn, mx);
         currentH = clamped;
         document.documentElement.style.setProperty('--app-height', clamped + 'px');
         const isNear50 = clamped >= mx - 10;
         app.classList.toggle('expanded-50', isNear50);
         if (btnExpand) {
             btnExpand.title = isNear50
-                ? 'Свернуть сборку ленты (до 25%)'
+                ? 'Вернуть исходный размер сборки ленты'
                 : 'Развернуть сборку ленты (до 50%)';
         }
         if (save) {
@@ -1494,9 +1498,10 @@ function wireAppSplitter() {
     }
 
     function toggle50() {
+        const mn = minH();
         const mx = maxH();
         if (currentH >= mx - 20) {
-            setHeight(defaultH(), true);
+            setHeight(mn, true);
         } else {
             setHeight(mx, true);
         }
@@ -1508,7 +1513,8 @@ function wireAppSplitter() {
             setHeight(maxH(), false);
         } else if (saved) {
             const num = Number(saved);
-            if (num >= MIN_H) { setHeight(num, false); }
+            if (num >= minH()) { setHeight(num, false); }
+            else { setHeight(minH(), false); }
         }
     } catch (e) {}
 
@@ -1550,9 +1556,12 @@ function wireAppSplitter() {
     });
 
     window.addEventListener('resize', function () {
+        const mn = minH();
         const mx = maxH();
         if (currentH > mx) {
             setHeight(mx, false);
+        } else if (currentH < mn) {
+            setHeight(mn, false);
         }
     });
 }

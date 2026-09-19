@@ -617,7 +617,7 @@ body.resizing-app * {
     padding: 7px 14px 14px;
     flex: 0 0 var(--app-height, 25%);
     height: var(--app-height, 25%);
-    min-height: 196px;
+    min-height: max(196px, 25vh);
     max-height: 50vh;
 }
 
