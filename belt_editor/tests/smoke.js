@@ -553,6 +553,13 @@ check('выбор папки: загрузка файлов из папки до
 
         return mAfter === mBefore + 1 && rAfter === rBefore + 1;
     })());
+check('синхронизация связей: сворачивание/раскрытие панели обновляет провода в процессе перехода',
+    (function () {
+        const js = fs.readFileSync(ROOT + '/js/builder.js', 'utf8');
+        return js.includes('syncWiresDuringTransition')
+            && js.includes('transitionstart')
+            && js.includes('transitionend');
+    })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 

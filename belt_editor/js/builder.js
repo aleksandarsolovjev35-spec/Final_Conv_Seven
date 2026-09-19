@@ -1149,6 +1149,14 @@ function wireLinkEngine() {
         ['wheel', 'mousemove', 'dblclick', 'belt:view'].forEach(function (t) {
             z.addEventListener(t, scheduleWires);
         });
+        if (typeof ResizeObserver !== 'undefined') {
+            try {
+                const ro = new ResizeObserver(function () {
+                    scheduleWires();
+                });
+                ro.observe(z);
+            } catch (e) {}
+        }
     }
 }
 
@@ -1475,6 +1483,30 @@ function wireSearch() {
 
 /* ─── Правая боковая стенка в стиле Photoshop (меню правил и моделей) ── */
 
+let transitionAnimId = null;
+
+function syncWiresDuringTransition(durationMs) {
+    if (transitionAnimId) {
+        (window.cancelAnimationFrame || clearTimeout)(transitionAnimId);
+        transitionAnimId = null;
+    }
+    const duration = durationMs || 260;
+    const start = (window.performance && performance.now) ? performance.now() : Date.now();
+
+    function step() {
+        renderWires();
+        const now = (window.performance && performance.now) ? performance.now() : Date.now();
+        if (now - start < duration) {
+            transitionAnimId = (window.requestAnimationFrame || function (cb) { return setTimeout(cb, 16); })(step);
+        } else {
+            transitionAnimId = null;
+            renderWires();
+            window.dispatchEvent(new Event('resize'));
+        }
+    }
+    step();
+}
+
 function wireSideDock() {
     const dock = $('side-dock');
     const btnCollapse = $('btn-side-collapse');
@@ -1489,8 +1521,7 @@ function wireSideDock() {
         if (save) {
             try { localStorage.setItem(KEY, col ? '1' : '0'); } catch (e) {}
         }
-        scheduleWires();
-        window.dispatchEvent(new Event('resize'));
+        syncWiresDuringTransition(260);
     }
 
     try {
@@ -1498,6 +1529,27 @@ function wireSideDock() {
             setCollapsed(true, false);
         }
     } catch (e) {}
+
+    ['transitionstart', 'transitionrun'].forEach(function (evtName) {
+        dock.addEventListener(evtName, function (ev) {
+            if (ev.target === dock && (ev.propertyName === 'width' || ev.propertyName === 'flex-basis')) {
+                syncWiresDuringTransition(260);
+            }
+        });
+    });
+
+    ['transitionend', 'transitioncancel'].forEach(function (evtName) {
+        dock.addEventListener(evtName, function (ev) {
+            if (ev.target === dock && (ev.propertyName === 'width' || ev.propertyName === 'flex-basis')) {
+                if (transitionAnimId) {
+                    (window.cancelAnimationFrame || clearTimeout)(transitionAnimId);
+                    transitionAnimId = null;
+                }
+                renderWires();
+                window.dispatchEvent(new Event('resize'));
+            }
+        });
+    });
 
     if (btnCollapse) {
         btnCollapse.addEventListener('click', function (ev) {

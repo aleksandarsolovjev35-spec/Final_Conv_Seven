@@ -160,6 +160,14 @@ function boot() {
     window.addEventListener('resize', function () {
         if (!userZoomed) { autoFit(); } else { apply(); }
     });
+    if (typeof ResizeObserver !== 'undefined') {
+        try {
+            var ro = new ResizeObserver(function () {
+                if (!userZoomed) { autoFit(); } else { apply(); }
+            });
+            ro.observe(zone);
+        } catch (e) {}
+    }
     autoFit();
 }
 
