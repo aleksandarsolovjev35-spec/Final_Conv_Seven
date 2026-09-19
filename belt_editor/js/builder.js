@@ -969,8 +969,13 @@ function sockXY(node) {
     if (!node) { return null; }
     const r = node.getBoundingClientRect();
     if (!r.width) { return null; }
+    const zn = $('belt-zone');
+    const zr = zn ? zn.getBoundingClientRect() : { left: 0, top: 0 };
     const out = node.classList.contains('sock-out');
-    return [r.left + (out ? r.width + 4 : -4), r.top + r.height / 2];
+    return [
+        r.left - zr.left + (out ? r.width + 4 : -4),
+        r.top - zr.top + r.height / 2
+    ];
 }
 
 function bez(a, b) {
@@ -1081,16 +1086,20 @@ function wireLinkEngine() {
         if (!LINK_WANT[parts[0]]) { return; }
         ev.preventDefault();
         ev.stopPropagation();
+        const zn = $('belt-zone');
+        const zr = zn ? zn.getBoundingClientRect() : { left: 0, top: 0 };
         linkDrag = { from: sock, kind: parts[0], id: parts[1],
-            x: ev.clientX, y: ev.clientY, hot: null };
+            x: ev.clientX - zr.left, y: ev.clientY - zr.top, hot: null };
         document.body.classList.add('linking');
         markTargets(true);
         renderWires();
     });
     window.addEventListener('mousemove', function (ev) {
         if (!linkDrag) { return; }
-        linkDrag.x = ev.clientX;
-        linkDrag.y = ev.clientY;
+        const zn = $('belt-zone');
+        const zr = zn ? zn.getBoundingClientRect() : { left: 0, top: 0 };
+        linkDrag.x = ev.clientX - zr.left;
+        linkDrag.y = ev.clientY - zr.top;
         const under = document.elementFromPoint
             ? document.elementFromPoint(ev.clientX, ev.clientY) : null;
         const t = under && under.closest ? under.closest('[data-drop]') : null;
@@ -1128,7 +1137,7 @@ function wireLinkEngine() {
     document.addEventListener('scroll', scheduleWires, true);
     const z = $('belt-zone');
     if (z) {
-        ['wheel', 'mousemove', 'dblclick'].forEach(function (t) {
+        ['wheel', 'mousemove', 'dblclick', 'belt:view'].forEach(function (t) {
             z.addEventListener(t, scheduleWires);
         });
     }
@@ -1541,6 +1550,7 @@ function wireAppSplitter() {
         function onMove(me) {
             const delta = startY - me.clientY;  /* движение мыши вверх увеличивает высоту */
             setHeight(startH + delta, false);
+            renderWires();
         }
 
         function onUp(ue) {

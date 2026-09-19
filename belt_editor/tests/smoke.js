@@ -548,6 +548,8 @@ check('минимальный размер сборки зафиксирован
         const hVal = parseInt(doc.documentElement.style.getPropertyValue('--app-height'), 10);
         return hVal === 200;
     })());
+check('svg wires: строго внутри #belt-zone (провода не выходят за пределы поля на камеры)',
+    doc.getElementById('belt-zone').contains(doc.getElementById('wires')));
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 

@@ -40,6 +40,9 @@ function chainH() { return Math.max(row ? (row.offsetHeight || 0) : 0, 3000); }
 function write() {
     row.style.transform = 'translate(' + round(panX) + 'px, '
         + round(panY) + 'px) scale(' + round(z) + ')';
+    if (zone) {
+        zone.dispatchEvent(new CustomEvent('belt:view'));
+    }
 }
 
 function apply() {
