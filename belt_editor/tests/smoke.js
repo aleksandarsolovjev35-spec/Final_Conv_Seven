@@ -553,12 +553,13 @@ check('выбор папки: загрузка файлов из папки до
 
         return mAfter === mBefore + 1 && rAfter === rBefore + 1;
     })());
-check('синхронизация связей: сворачивание/раскрытие панели обновляет провода в процессе перехода',
+check('синхронизация связей: мгновенное обновление проводов при переключении дока без задержки и рассинхрона',
     (function () {
         const js = fs.readFileSync(ROOT + '/js/builder.js', 'utf8');
-        return js.includes('syncWiresDuringTransition')
-            && js.includes('transitionstart')
-            && js.includes('transitionend');
+        const css = fs.readFileSync(ROOT + '/css/belt-editor.css', 'utf8');
+        const hasDirectWiresUpdate = js.includes('renderWires()') && js.includes('window.dispatchEvent(new Event(\'resize\'))');
+        const noWidthTransition = !/\.side-dock\s*\{[^}]*transition:[^}]*width/.test(css);
+        return hasDirectWiresUpdate && noWidthTransition;
     })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);

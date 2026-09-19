@@ -1144,6 +1144,7 @@ function wireLinkEngine() {
     });
     window.addEventListener('resize', scheduleWires);
     document.addEventListener('scroll', scheduleWires, true);
+    document.addEventListener('transitionend', scheduleWires, true);
     const z = $('belt-zone');
     if (z) {
         ['wheel', 'mousemove', 'dblclick', 'belt:view'].forEach(function (t) {
@@ -1483,30 +1484,6 @@ function wireSearch() {
 
 /* ─── Правая боковая стенка в стиле Photoshop (меню правил и моделей) ── */
 
-let transitionAnimId = null;
-
-function syncWiresDuringTransition(durationMs) {
-    if (transitionAnimId) {
-        (window.cancelAnimationFrame || clearTimeout)(transitionAnimId);
-        transitionAnimId = null;
-    }
-    const duration = durationMs || 260;
-    const start = (window.performance && performance.now) ? performance.now() : Date.now();
-
-    function step() {
-        renderWires();
-        const now = (window.performance && performance.now) ? performance.now() : Date.now();
-        if (now - start < duration) {
-            transitionAnimId = (window.requestAnimationFrame || function (cb) { return setTimeout(cb, 16); })(step);
-        } else {
-            transitionAnimId = null;
-            renderWires();
-            window.dispatchEvent(new Event('resize'));
-        }
-    }
-    step();
-}
-
 function wireSideDock() {
     const dock = $('side-dock');
     const btnCollapse = $('btn-side-collapse');
@@ -1521,7 +1498,12 @@ function wireSideDock() {
         if (save) {
             try { localStorage.setItem(KEY, col ? '1' : '0'); } catch (e) {}
         }
-        syncWiresDuringTransition(260);
+        window.dispatchEvent(new Event('resize'));
+        renderWires();
+        (window.requestAnimationFrame || function (f) { f(); })(function () {
+            renderWires();
+            setTimeout(renderWires, 40);
+        });
     }
 
     try {
@@ -1530,24 +1512,10 @@ function wireSideDock() {
         }
     } catch (e) {}
 
-    ['transitionstart', 'transitionrun'].forEach(function (evtName) {
-        dock.addEventListener(evtName, function (ev) {
-            if (ev.target === dock && (ev.propertyName === 'width' || ev.propertyName === 'flex-basis')) {
-                syncWiresDuringTransition(260);
-            }
-        });
-    });
-
     ['transitionend', 'transitioncancel'].forEach(function (evtName) {
-        dock.addEventListener(evtName, function (ev) {
-            if (ev.target === dock && (ev.propertyName === 'width' || ev.propertyName === 'flex-basis')) {
-                if (transitionAnimId) {
-                    (window.cancelAnimationFrame || clearTimeout)(transitionAnimId);
-                    transitionAnimId = null;
-                }
-                renderWires();
-                window.dispatchEvent(new Event('resize'));
-            }
+        dock.addEventListener(evtName, function () {
+            renderWires();
+            window.dispatchEvent(new Event('resize'));
         });
     });
 
