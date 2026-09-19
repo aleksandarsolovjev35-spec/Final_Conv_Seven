@@ -88,6 +88,8 @@ let dragKind = null;    // что сейчас тащим
 let dragFrom = -1;      // индекс карточки при переносе
 let dragCamId = null;   // id камеры при переносе из стены
 let dragAsset = null;   // id модели/правила при переносе из каталога
+let openThrCam = null;  // id камеры, у которой открыт поповер порогов
+const THR_DEFAULT = 0.5;
 
 
 /* ─── Инварианты ─────────────────────────────────────────────────── */
@@ -395,6 +397,7 @@ function toggleRuleOnCam(camId, ruleId) {
     const at = dev.rules.indexOf(ruleId);
     if (at >= 0) {
         dev.rules.splice(at, 1);
+        if (dev.thr) { delete dev.thr[ruleId]; }
         toast(dev.name + ': «' + rule.name + '» снято.');
     } else {
         if (!rule.models.length) {
@@ -402,7 +405,10 @@ function toggleRuleOnCam(camId, ruleId) {
             return;
         }
         dev.rules.push(ruleId);
-        toast(dev.name + ': «' + rule.name + '» подключено, модели подгружены.');
+        if (!dev.thr) { dev.thr = Object.create(null); }
+        dev.thr[ruleId] = THR_DEFAULT;
+        toast(dev.name + ': «' + rule.name + '» подключено, порог '
+            + THR_DEFAULT.toFixed(2) + '.');
     }
     render();
 }
@@ -653,11 +659,63 @@ function renderCard(pos, i) {
                 ev.stopPropagation();
                 renameCamera(i, j);
             });
+            if (dev && dev.rules.length) {
+                if (openThrCam === id) { chip.classList.add('chip-open'); }
+                chip.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    openThrCam = openThrCam === id ? null : id;
+                    render();
+                });
+            }
             cams.appendChild(chip);
         });
         card.appendChild(cams);
+        if (openThrCam !== null
+            && pos.inspection.cameras.indexOf(openThrCam) !== -1) {
+            const d0 = inventory.find(function (d) {
+                return d.id === openThrCam;
+            });
+            if (d0 && d0.rules.length) { card.appendChild(renderThrPop(d0)); }
+        }
     }
     return card;
+}
+
+function fmtThr(v) {
+    const n = typeof v === 'number' && isFinite(v) ? v : THR_DEFAULT;
+    return Math.max(0, Math.min(1, n)).toFixed(2);
+}
+
+/* Blender-подобный поповер: список правил камеры с порогами */
+function renderThrPop(dev) {
+    const pop = el('div', 'thr-pop');
+    pop.addEventListener('click', function (ev) { ev.stopPropagation(); });
+    dev.rules.forEach(function (rid) {
+        const rule = RULES.find(function (r) { return r.id === rid; });
+        if (!rule) { return; }
+        const row = el('div', 'thr-row');
+        const sw = el('span', 'rule-swatch');
+        sw.style.background = rule.color;
+        row.appendChild(sw);
+        row.appendChild(el('b', '', rule.name));
+        row.appendChild(el('span', 'thr-gt', '≥'));
+        const inp = el('input', 'thr-input');
+        inp.type = 'text';
+        inp.value = fmtThr(dev.thr && dev.thr[rid]);
+        inp.addEventListener('input', function () {
+            const v = parseFloat(inp.value.replace(',', '.'));
+            if (!isFinite(v)) { return; }
+            if (!dev.thr) { dev.thr = Object.create(null); }
+            dev.thr[rid] = Math.max(0, Math.min(1, v));
+        });
+        inp.addEventListener('change', function () {
+            inp.value = fmtThr(dev.thr && dev.thr[rid]);
+            render();
+        });
+        row.appendChild(inp);
+        pop.appendChild(row);
+    });
+    return pop;
 }
 
 function $(id) { return document.getElementById(id); }
@@ -997,6 +1055,18 @@ function wireScrollSnap() {
     wireSteppedScroll($('asset-rules'));
 }
 
+function wireThrClose() {
+    document.addEventListener('click', function () {
+        if (openThrCam !== null) { openThrCam = null; render(); }
+    });
+    document.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape' && openThrCam !== null) {
+            openThrCam = null;
+            render();
+        }
+    });
+}
+
 function wireSearch() {
     [['rule-search', function (v) { ruleQuery = v; }],
      ['model-search', function (v) { modelQuery = v; }]]
@@ -1014,6 +1084,7 @@ document.addEventListener('DOMContentLoaded', function () {
     wirePalette();
     wireBelt();
     wireSearch();
+    wireThrClose();
     wireScrollSnap();
     render();
 });

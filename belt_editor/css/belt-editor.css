@@ -178,6 +178,54 @@ body {
 
 .chip.drop-target { outline: 1px solid var(--accent, #4fa3d1); }
 
+/* поповер порогов: правила камеры с числами, открывается над
+ * карточкой (над ней больше воздуха, чем под ней) */
+.thr-pop {
+    position: absolute;
+    z-index: 8;
+    left: 4px;
+    right: 4px;
+    bottom: calc(100% + 6px);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 8px;
+    background: var(--panel-raised);
+    border: 1px solid var(--border-accent);
+    border-radius: 4px;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.5);
+    cursor: default;
+}
+
+.thr-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+}
+
+.thr-row b { font-weight: 600; }
+
+.thr-gt { color: var(--text-dim); }
+
+.thr-input {
+    width: 46px;
+    padding: 1px 4px;
+    background: var(--bg-0, #0d1115);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text);
+    font: 11px monospace;
+    text-align: right;
+}
+
+.thr-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.chip.chip-open { border-color: var(--accent); }
+
 /* плитки-конструкторы правил */
 #asset-rules,
 #asset-models {
