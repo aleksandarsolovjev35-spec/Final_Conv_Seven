@@ -734,7 +734,7 @@ body.node-moving { cursor: grabbing; }
 /* Плитка позиции — нода в духе Blender: шапка с именем и цветом
  * роли, тело со строками-сокетами; соседи цепи связаны «проводами» */
 .pos-card {
-    position: relative;
+    position: absolute;          /* нода холста: left/top = координаты поля */
     flex: 0 0 auto;
     width: 176px;
     min-height: 82px;

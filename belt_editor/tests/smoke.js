@@ -149,38 +149,45 @@ check('плитка позиции — нода: шапка с ролью, те�
             && doc.querySelector('.cam-node[data-pos="0"]') !== null
             && !c0.querySelector('.pos-top');
     })());
-check('у линии — притягивает в ряд по сетке, занятой слот обходит',
+check('свободное поле: две позиции в одно место — обе ровно там, где бросили',
     (function () {
         const row = doc.getElementById('belt-row');
         Object.defineProperty(row, 'offsetWidth',
             { value: 900, configurable: true });
         Object.defineProperty(row, 'offsetHeight',
-            { value: 210, configurable: true });
+            { value: 400, configurable: true });
         const n = cards().length;
         dropTool('position', 600);
         const c = cards()[cards().length - 1];
-        const y0 = Number(c.style.top.replace('px', ''));
-        const x0 = Number(c.style.left.replace('px', ''));
         dropTool('position', 600);
         const c2 = cards()[cards().length - 1];
-        return cards().length === n + 2 && y0 === 50
-            && (x0 - 16) % 206 === 0
-            && c2.style.top === '50px'
-            && Number(c2.style.left.replace('px', '')) > x0;
+        return cards().length === n + 2
+            && c.style.left === c2.style.left && c.style.top === c2.style.top
+            && c.style.top !== '' && c.style.left !== '';
     })());
-check('далеко от линии — всё равно на уровне ряда (один уровень всегда)',
+check('поле 2D: позицию можно поднять/опустить — вертикаль свободна',
     (function () {
-        const n = cards().length;
-        const r0 = doc.getElementById('belt-row');
-        Object.defineProperty(r0, 'offsetHeight',
-            { value: 400, configurable: true });
-        dropTool('position', 700);
         const last = cards()[cards().length - 1];
-        const yFar = Number(last.style.top.replace('px', ''));
-        Object.defineProperty(r0, 'offsetHeight',
+        const y0 = Number(last.style.top.replace('px', ''));
+        const head = last.querySelector('.node-head');
+        head.dispatchEvent(new window.MouseEvent('mousedown',
+            { bubbles: true, cancelable: true, button: 0,
+              clientX: 40, clientY: 40 }));
+        window.dispatchEvent(new window.MouseEvent('mousemove',
+            { bubbles: true, clientX: 40, clientY: 200 }));
+        window.dispatchEvent(new window.MouseEvent('mouseup',
+            { bubbles: true }));
+        const again = cards()[cards().length - 1];
+        const y1 = Number(again.style.top.replace('px', ''));
+        Object.defineProperty(doc.getElementById('belt-row'), 'offsetHeight',
             { value: 210, configurable: true });
-        return cards().length === n + 1 && yFar === (400 - 110) / 2
-            && last.style.left !== '';
+        return y1 === y0 + 160;
+    })());
+check('css: карточка позиции — absolute (иначе left/top не работают и ноды падают стопкой)',
+    (function () {
+        const css = fs.readFileSync(ROOT + '/css/belt-editor.css', 'utf8');
+        const m = css.match(/\.pos-card\s*\{[^}]*\}/);
+        return !!m && /position:\s*absolute/.test(m[0]);
     })());
 check('роли цепи: П0 — только выход, середина — вход+выход, сброс — только вход',
     (function () {

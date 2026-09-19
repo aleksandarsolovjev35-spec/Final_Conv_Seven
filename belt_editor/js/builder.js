@@ -136,11 +136,10 @@ function insertPosition(at) {
         return;
     }
     const wasEmpty = belt.positions.length === 0;
-    const raw = at || layoutSlot(belt.positions.length);
     belt.positions.push({
         label: '', inspection: null, reset: false,
         uid: ++uidSeq, nextUid: null,
-        at: snapRow(raw.x),
+        at: at || layoutSlot(belt.positions.length),
     });
     applyInvariants();
     render();
@@ -702,43 +701,12 @@ function renderCard(pos, i) {
 
 function clampN(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
-const ROW_STEP = 206;              /* шаг ряда: 176 карточка + 30 зазор */
-/* позиция живёт НА линии ленты: уровень физически общий для ряда,
- * свободна горизонталь; занятые слоты обходятся в обе стороны */
-
-function rowBaseline(h) {
-    const row = $('belt-row');
-    return Math.round(((row.offsetHeight || 210) - h) / 2);
-}
-
+/* запасная точка для позиции без координат (старое сохранение):
+ * ступенькой, чтобы ноды не легли стопкой; поле — свободное 2D */
 function layoutSlot(i) {
     const row = $('belt-row');
-    return { x: clampN(16 + i * ROW_STEP, 2,
-        Math.max(2, (row.offsetWidth || 600) - 190)),
-    y: rowBaseline(110) };
-}
-
-function snapRow(x, selfPos) {
-    const base = rowBaseline(110);
-    const row = $('belt-row');
-    const maxI = Math.max(0, Math.floor(
-        (row.offsetWidth - 176 - 4) / ROW_STEP));
-    const taken = Object.create(null);
-    belt.positions.forEach(function (p) {
-        if (p === selfPos || !p.at) { return; }
-        if (Math.abs(p.at.y - base) <= 6) {
-            const slot = Math.round((p.at.x - 16) / ROW_STEP);
-            if (Math.abs(p.at.x - (16 + slot * ROW_STEP)) <= 8) {
-                taken[slot] = true;
-            }
-        }
-    });
-    let idx = clampN(Math.round((x - 16) / ROW_STEP), 0, maxI);
-    for (let d = 0; d <= maxI + 1; d += 1) {
-        if (idx + d <= maxI && !taken[idx + d]) { idx += d; break; }
-        if (idx - d >= 0 && !taken[idx - d]) { idx -= d; break; }
-    }
-    return { x: 16 + idx * ROW_STEP, y: base };
+    return { x: clampN(16 + i * 206, 2, Math.max(2, (row.offsetWidth || 600) - 190)),
+        y: clampN(24 + (i % 3) * 40, 2, Math.max(2, (row.offsetHeight || 210) - 124)) };
 }
 
 /* экранные координаты дропа → координаты холста (учитывая зум) */
@@ -1188,16 +1156,10 @@ function dragGNodes() {
             ? (window.BeltView.state().z || 1) : 1;
         const row = $('belt-row');
         const tall = movingG.node.classList.contains('g-pos');
-        let x = clampN(movingG.px + (ev.clientX - movingG.x0) / z,
+        const x = clampN(movingG.px + (ev.clientX - movingG.x0) / z,
             2, Math.max(2, row.offsetWidth - (tall ? 180 : 110)));
-        let y = clampN(movingG.py + (ev.clientY - movingG.y0) / z,
+        const y = clampN(movingG.py + (ev.clientY - movingG.y0) / z,
             2, Math.max(2, row.offsetHeight - (tall ? 124 : 30)));
-        if (tall) {
-            const gk = movingG.node.dataset.gk || '';
-            const snapped = snapRow(x, belt.positions[Number(gk.slice(4))]);
-            x = snapped.x;
-            y = snapped.y;
-        }
         movingG.at.x = x;
         movingG.at.y = y;
         movingG.node.style.left = Math.round(x) + 'px';
