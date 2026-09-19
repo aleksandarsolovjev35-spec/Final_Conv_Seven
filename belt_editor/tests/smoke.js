@@ -322,6 +322,32 @@ check('ЛКМ за шапку двигает ноду по холсту',
         const st = doc.querySelector('.g-rule[data-rule="r0"]');
         return st.style.left !== '' && st.style.top !== '';
     })());
+check('позиция — свободная нода: ЛКМ за шапку двигает карточку',
+    (function () {
+        const c1 = cards()[1];
+        const head = c1.querySelector('.node-head');
+        head.dispatchEvent(new window.MouseEvent('mousedown',
+            { bubbles: true, cancelable: true, button: 0,
+              clientX: 40, clientY: 40 }));
+        window.dispatchEvent(new window.MouseEvent('mousemove',
+            { bubbles: true, clientX: 150, clientY: 120 }));
+        window.dispatchEvent(new window.MouseEvent('mouseup',
+            { bubbles: true }));
+        const c1b = cards()[1];
+        return c1b.classList.contains('g-pos') && c1b.style.left !== ''
+            && c1b.style.top !== '' && c1b.dataset.index === '1'
+            && cards().length === 3;
+    })());
+check('перенос карточек drag-ом удалён (порядок = места вставки)',
+    (function () {
+        const c = cards()[0];
+        if (c.draggable) { return false; }
+        const dt = mkDT();
+        fire(c, 'dragstart', dt);
+        const clean = !c.classList.contains('dragging-src');
+        fire(c, 'dragend', dt);
+        return clean;
+    })());
 check('СКМ — свободный пан по ленте из любой точки (и по карточке)',
     (function () {
         const z = doc.getElementById('belt-zone');

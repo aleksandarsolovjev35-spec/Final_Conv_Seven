@@ -1,14 +1,13 @@
 /* belt-view.js — вьюпорт ленты: зум колесом и панорамирование мышью.
  *
- * Ряд ленты — max-content-полотно, отцентровано flex'ом зоны;
+ * Ряд ленты — холст во всю зону (ноды свободны, цепи нет):
  * transform = translate(экранные px) + scale(центр). Композионный
  * слой (will-change) не поднимается сознательно: браузер перерастеризует
  * текст под текущий масштаб — на увеличении остаётся чётким.
  *
- * Автоматический режим: если цепь длиннее окна — ряд отдаляется до
- * вмещающего размера, смещений нет. Колесо или ЛКМ-драг по фону переводят
- * в ручное полотно: свободный зум к курсору и пан с границей
- * «не менее MIN_VIS цепи в окне». Двойной клик по фону — снова авто.
+ * Двойной клик по фону — вид сбрасывается (зум 1, центр). Колесо или
+ * ЛКМ-драг по фону — свободный зум к курсору и пан с границей
+ * «не менее MIN_VIS полотна в окне».
  *
  * Дроп не затронут: builder считает индексы по getBoundingClientRect,
  * который учитывает трансформацию.
@@ -34,16 +33,9 @@ function round(v) { return Math.round(v * 100) / 100; }
 function availW() { return zone.clientWidth - PAD * 2; }
 function availH() { return zone.clientHeight - PAD * 2; }
 /* layout-размеры ряда: не зависят от transform */
-function chainEl() { return row.querySelector('.belt-chain') || row; }
-/* размеры цепи — по обёртке (ряд теперь холст во всю зону) */
-function chainW() {
-    var c = chainEl();
-    return c.scrollWidth || c.offsetWidth || 0;
-}
-function chainH() {
-    var c = chainEl();
-    return c.scrollHeight || c.offsetHeight || 104;
-}
+/* ряд — холст во всю зону: границы панорамирования по его боксу */
+function chainW() { return row.offsetWidth || 0; }
+function chainH() { return row.offsetHeight || 104; }
 
 function write() {
     row.style.transform = 'translate(' + round(panX) + 'px, '
@@ -78,14 +70,10 @@ function zoomAt(clientX, clientY, factor) {
 }
 
 function autoFit() {
-    var aw = availW();
-    var ah = availH();
-    var w = chainW();
-    var h = chainH();
-    if (aw <= 0 || w <= 0) { return; }
-    var k = (aw - 8) / w;
-    if (ah > 0 && h > 0) { k = Math.min(k, (ah - 8) / h); }
-    z = clamp(Math.min(1, k), Z_MIN, 1);
+    /* холст уже равен зоне: «вместить» нечего — возврат к тождеству */
+    z = 1;
+    panX = 0;
+    panY = 0;
     apply();
 }
 
@@ -111,8 +99,7 @@ function wireWheel() {
 /* ── пан: ЛКМ по фону + движение ─────────────────────────────────────── */
 
 function isBackground(target) {
-    return target === zone || target === row
-        || target === chainEl() || target === document.body;
+    return target === zone || target === row || target === document.body;
 }
 
 function wirePan() {

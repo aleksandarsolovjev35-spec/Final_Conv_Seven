@@ -126,7 +126,7 @@ function findIndex(pred) {
 
 /* ─── Действия ───────────────────────────────────────────────────── */
 
-function insertPosition(gap) {
+function insertPosition(gap, at) {
     if (belt.positions.length >= MAX_POSITIONS) {
         toast('Максимум ' + MAX_POSITIONS + ' позиций на ленте.', 'err');
         return;
@@ -140,6 +140,7 @@ function insertPosition(gap) {
     }
     belt.positions.splice(gap, 0, {
         label: '', inspection: null, reset: false,
+        at: at || layoutSlot(gap),
     });
     applyInvariants();
     render();
@@ -148,24 +149,6 @@ function insertPosition(gap) {
     } else if (wasEmpty) {
         toast('Позиция добавлена.');
     }
-}
-
-function movePosition(from, gap) {
-    const to = gap > from ? gap - 1 : gap;
-    if (to === from) { return; }
-    const r = findIndex(function (p) { return p.reset; });
-    if (r >= 0) {
-        const r1 = from < r ? r - 1 : r;
-        const after = from === r ? to : (to <= r1 ? r1 + 1 : r1);
-        if (after !== belt.positions.length - 1) {
-            toast('Перенос нарушил бы «сброс — последняя».', 'err');
-            return;
-        }
-    }
-    const pos = belt.positions.splice(from, 1)[0];
-    belt.positions.splice(to, 0, pos);
-    applyInvariants();
-    render();
 }
 
 function removePosition(i) {
@@ -358,10 +341,8 @@ function el(tag, cls, text) {
 function render() {
     const row = $('belt-row');
     row.textContent = '';
-    const chain = el('div', 'belt-chain');
-    row.appendChild(chain);
     belt.positions.forEach(function (pos, i) {
-        chain.appendChild(renderCard(pos, i));
+        row.appendChild(renderCard(pos, i));
     });
     Object.keys(belt.places).forEach(function (key) {
         const parts = key.split(':');
@@ -605,7 +586,11 @@ function cameraViews() {
 }
 
 function renderCard(pos, i) {
-    const card = el('div', 'pos-card');
+    const card = el('div', 'pos-card gnode g-pos');
+    card.dataset.gk = 'pos:' + i;
+    if (!pos.at) { pos.at = layoutSlot(i); }
+    card.style.left = Math.round(pos.at.x) + 'px';
+    card.style.top = Math.round(pos.at.y) + 'px';
     if (pos.inspection) { card.classList.add('inspect'); }
     if (pos.reset) { card.classList.add('reset-pt'); }
     card.dataset.index = String(i);
@@ -648,6 +633,31 @@ function renderCard(pos, i) {
 
 function clampN(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
+function layoutSlot(i) {
+    const row = $('belt-row');
+    const h = row.offsetHeight || 210;
+    const w = row.offsetWidth || 600;
+    return { x: clampN(16 + i * 206, 2, Math.max(2, w - 190)),
+        y: clampN(Math.round((h - 120) / 2), 2, Math.max(2, h - 30)) };
+}
+
+/* экранные координаты дропа → координаты холста (учитывая зум) */
+function canvasPoint(ev, w, h) {
+    const row = $('belt-row');
+    const r = row.getBoundingClientRect();
+    const z = (window.BeltView && window.BeltView.state().z) || 1;
+    let x = 40;
+    let y = 16;
+    if (r.width) {
+        x = (ev.clientX - r.left) / z - w / 2;
+        y = (ev.clientY - r.top) / z - h / 2;
+    }
+    return {
+        x: clampN(x, 2, Math.max(2, row.offsetWidth - w - 2)),
+        y: clampN(y, 2, Math.max(2, row.offsetHeight - h - 2)),
+    };
+}
+
 function freePoint() {
     const row = $('belt-row');
     return { x: (row.offsetWidth || 480) / 2 - 60,
@@ -655,19 +665,7 @@ function freePoint() {
 }
 
 function placeNode(key, ev) {
-    const row = $('belt-row');
-    const r = row.getBoundingClientRect();
-    const z = (window.BeltView && window.BeltView.state().z) || 1;
-    let x = 40;
-    let y = 16;
-    if (r.width) {
-        x = (ev.clientX - r.left) / z - 50;
-        y = (ev.clientY - r.top) / z - 12;
-    }
-    belt.places[key] = {
-        x: clampN(x, 2, Math.max(2, row.offsetWidth - 110)),
-        y: clampN(y, 2, Math.max(2, row.offsetHeight - 30)),
-    };
+    belt.places[key] = canvasPoint(ev, 120, 28);
     toast('Связь — линкой сокета на холсте ленты.');
     render();
 }
@@ -1040,8 +1038,22 @@ function wireLinkEngine() {
     }
 }
 
-/* ЛКМ за шапку — свободное перемещение ноды по холсту */
+/* ЛКМ за шапку — свободное перемещение любой ноды по холсту */
 let movingG = null;
+
+function nodeAt(node) {
+    const key = node.dataset.gk || '';
+    if (key.indexOf('pos:') === 0) {
+        const idx = Number(key.slice(4));
+        const pos = belt.positions[idx];
+        if (pos) {
+            if (!pos.at) { pos.at = layoutSlot(idx); }
+            return pos.at;
+        }
+        return null;
+    }
+    return belt.places[key] || null;
+}
 
 function dragGNodes() {
     document.addEventListener('mousedown', function (ev) {
@@ -1050,9 +1062,9 @@ function dragGNodes() {
             ? ev.target.closest('.gnode .node-head') : null;
         if (!head || ev.target.closest('button, .sock')) { return; }
         const node = head.closest('.gnode');
-        const p = belt.places[node.dataset.gk];
+        const p = nodeAt(node);
         if (!p) { return; }
-        movingG = { node: node, key: node.dataset.gk, x0: ev.clientX,
+        movingG = { node: node, at: p, x0: ev.clientX,
             y0: ev.clientY, px: p.x, py: p.y };
         ev.preventDefault();
         document.body.classList.add('node-moving');
@@ -1062,12 +1074,13 @@ function dragGNodes() {
         const z = window.BeltView
             ? (window.BeltView.state().z || 1) : 1;
         const row = $('belt-row');
+        const tall = movingG.node.classList.contains('g-pos');
         const x = clampN(movingG.px + (ev.clientX - movingG.x0) / z,
-            2, Math.max(2, row.offsetWidth - 110));
+            2, Math.max(2, row.offsetWidth - (tall ? 180 : 110)));
         const y = clampN(movingG.py + (ev.clientY - movingG.y0) / z,
-            2, Math.max(2, row.offsetHeight - 30));
-        belt.places[movingG.key].x = x;
-        belt.places[movingG.key].y = y;
+            2, Math.max(2, row.offsetHeight - (tall ? 124 : 30)));
+        movingG.at.x = x;
+        movingG.at.y = y;
         movingG.node.style.left = Math.round(x) + 'px';
         movingG.node.style.top = Math.round(y) + 'px';
         renderWires();
@@ -1184,15 +1197,20 @@ function gapFromX(clientX) {
 }
 
 function showMarkerAt(gap) {
-    const row = $('belt-row').querySelector('.belt-chain')
-        || $('belt-row');
+    const row = $('belt-row');
     const m = ensureMarker();
-    const cards = row.querySelectorAll('.pos-card');
-    const before = cards[gap] || null;
-    if (m.parentNode !== row || (before ? m.nextSibling !== before
-        : before === null && row.lastChild !== m)) {
-        row.insertBefore(m, before);
+    if (m.parentNode !== row) { row.appendChild(m); }
+    const n = belt.positions.length;
+    let x = 16 + gap * 206 - 16;
+    if (gap < n && belt.positions[gap].at) {
+        x = belt.positions[gap].at.x - 16;
+    } else if (n > 0 && belt.positions[n - 1].at) {
+        x = belt.positions[n - 1].at.x + 192;
     }
+    const h = row.offsetHeight || 210;
+    m.style.left = Math.round(Math.max(2, x)) + 'px';
+    m.style.top = '12px';
+    m.style.height = Math.max(40, h - 24) + 'px';
 }
 
 function cardFromEvent(ev) {
@@ -1232,12 +1250,8 @@ function wireBelt() {
     zone.addEventListener('dragover', function (ev) {
         if (!dragKind) { return; }
         ev.preventDefault();
-        const wantsSlot = dragKind === 'position' || dragKind === 'move';
-        if (dragKind === 'move') {
-            ev.dataTransfer.dropEffect = 'move';
-        } else {
-            ev.dataTransfer.dropEffect = 'copy';
-        }
+        const wantsSlot = dragKind === 'position';
+        ev.dataTransfer.dropEffect = 'copy';
         if (wantsSlot) {
             showMarkerAt(gapFromX(ev.clientX));
             document.querySelectorAll('.pos-card.drop-target').forEach(
@@ -1279,11 +1293,7 @@ function wireBelt() {
 
         const emptyZone = belt.positions.length === 0;
         if (kind === 'position') {
-            insertPosition(gap);
-            return;
-        }
-        if (kind === 'move') {
-            if (from >= 0) { movePosition(from, gap); }
+            insertPosition(gap, canvasPoint(ev, 176, 100));
             return;
         }
         if (kind === 'model-part' || kind === 'rule') {
@@ -1340,40 +1350,8 @@ function wireBelt() {
         if (i >= 0) { renamePosition(i); }
     });
 
-    /* перенос карточек по ленте */
-    $('belt-row').addEventListener('dragstart', function (ev) {
-        const card = ev.target.closest('.pos-card');
-        if (!card || ev.target.closest('.chip, .pos-del, .editing')) {
-            ev.preventDefault();
-            return;
-        }
-        /* сброс — хвост: его карточка не переносится */
-        const moving = belt.positions[Number(card.dataset.index)];
-        if (moving && moving.reset) {
-            ev.preventDefault();
-            return;
-        }
-        dragKind = 'move';
-        dragFrom = Number(card.dataset.index);
-        ev.dataTransfer.setData('text/plain', 'move:' + dragFrom);
-        ev.dataTransfer.effectAllowed = 'move';
-        ev.dataTransfer.dropEffect = 'move';
-        card.classList.add('dragging-src');
-        $('belt-zone').classList.add('drop-ready');
-    });
-
-    $('belt-row').addEventListener('dragend', function () {
-        dragKind = null;
-        dragFrom = -1;
-        cleanVisuals();
-    });
-
-    /* карточки draggable только за «ручку»-тело: чипы и кнопки — нет */
-    const observer = new MutationObserver(function () {
-        $('belt-row').querySelectorAll('.pos-card')
-            .forEach(function (n) { n.draggable = true; });
-    });
-    observer.observe($('belt-row'), { childList: true, subtree: true });
+    /* цепь больше не «таскается» переносом: свободное размещение нод
+     * ЛКМ за шапку делает dragGNodes (позиции — тоже ноды) */
 }
 
 /* ─── Старт ───────────────────────────────────────────────────────── */
