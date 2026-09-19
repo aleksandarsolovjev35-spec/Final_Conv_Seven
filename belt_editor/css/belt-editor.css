@@ -697,17 +697,6 @@ body {
     padding: 6px 8px 7px 12px;
 }
 
-/* провод к следующему узлу цепи */
-.pos-card:not(:last-child)::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: calc(100% + 3px);
-    width: 24px;
-    border-top: 2px solid var(--border-strong);
-    pointer-events: none;
-}
-
 .pos-card:active { cursor: grabbing; }
 
 .pos-card:hover {
@@ -799,19 +788,6 @@ body {
     cursor: pointer;
 }
 
-.chip::before {
-    content: '';
-    position: absolute;
-    left: -3px;
-    top: 50%;
-    width: 7px;
-    height: 7px;
-    margin-top: -3.5px;
-    border-radius: 50%;
-    background: var(--bg-0, #0d1115);
-    border: 1.5px solid var(--accent);
-}
-
 .chip:hover {
     background: var(--panel-raised);
     border-color: var(--border);
@@ -893,4 +869,85 @@ body {
 @keyframes toast-in {
     from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: none; }
+}
+
+/* ─── Сокеты и провода (система связей) ────────────────────────── */
+
+.asset,
+.rule-tile,
+.thumb {
+    position: relative;
+}
+
+.sock {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--bg-0, #0d1115);
+    border: 2px solid var(--border-strong);
+    cursor: crosshair;
+    z-index: 3;
+}
+
+.sock-out {
+    right: -6px;
+    top: 50%;
+    margin-top: -4.5px;
+}
+
+.sock-in {
+    left: -4px;
+    top: 50%;
+    margin-top: -4.5px;
+}
+
+.sock-node {
+    left: -5px;
+    top: 12px;
+    margin-top: 0;
+}
+
+.sock-ok {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(79, 163, 209, 0.18);
+}
+
+.sock-hot {
+    border-color: #7ac48c;
+    background: #1c2a20;
+    box-shadow: 0 0 8px rgba(122, 196, 140, 0.7);
+}
+
+body.linking {
+    cursor: crosshair;
+}
+
+#wires {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 30;
+}
+
+.wire {
+    fill: none;
+    stroke: var(--border-strong);
+    stroke-width: 2;
+    opacity: 0.8;
+}
+
+.wire-live {
+    stroke: var(--accent);
+    stroke-dasharray: 4 4;
+    opacity: 1;
+}
+
+.wire-ok {
+    stroke: #7ac48c;
+    stroke-dasharray: none;
 }

@@ -350,7 +350,6 @@ function render() {
     row.textContent = '';
 
     belt.positions.forEach(function (pos, i) {
-        if (i > 0) { row.appendChild(el('span', 'lane-arrow', '→')); }
         row.appendChild(renderCard(pos, i));
     });
 
@@ -361,6 +360,7 @@ function render() {
         window.Cameras.sync(cameraViews());
     }
     renderAssets();
+    renderWires();
     const zn = $('belt-zone');
     if (zn) { zn.dispatchEvent(new CustomEvent('belt:render')); }
 }
@@ -448,6 +448,9 @@ function renderAssets() {
             const tile = el('div', 'asset'
                 + (byRules.length ? ' asset-used' : ''));
             tile.draggable = true;
+            const msock = el('span', 'sock sock-out');
+            msock.dataset.link = 'model:' + mod.id;
+            tile.appendChild(msock);
             tile.appendChild(el('b', '', mod.name));
             if (byRules.length) {
                 tile.appendChild(el('span', 'asset-use',
@@ -494,6 +497,10 @@ function renderAssets() {
                 + (rule.models.length ? '' : ' rule-empty'));
             tile.draggable = rule.models.length > 0;
             tile.dataset.ruleId = rule.id;
+            const rsock = el('span', 'sock sock-out');
+            rsock.dataset.link = 'rule:' + rule.id;
+            rsock.dataset.drop = 'rule';
+            tile.appendChild(rsock);
             const sw = el('span', 'rule-swatch');
             sw.style.background = rule.color;
             tile.appendChild(sw);
@@ -632,11 +639,21 @@ function renderCard(pos, i) {
     }
     body.appendChild(badges);
 
+    const camIn = el('span', 'sock sock-in sock-node');
+    camIn.dataset.drop = 'pos';
+    camIn.dataset.idx = String(i);
+    card.appendChild(camIn);
+
     if (pos.inspection && pos.inspection.cameras.length) {
         const cams = el('div', 'cam-chips');
         pos.inspection.cameras.forEach(function (id, j) {
             const chip = el('span', 'chip');
             chip.draggable = false;
+            chip.dataset.cam = id;
+            const cin = el('span', 'sock sock-in');
+            cin.dataset.drop = 'cam';
+            cin.dataset.cam = id;
+            chip.appendChild(cin);
             chip.appendChild(el('span', 'chip-name', camName(id)));
             const dev = inventory.find(function (d) { return d.id === id; });
             if (dev && dev.rules.length) {
@@ -733,6 +750,178 @@ function renderThrPop(dev) {
         pop.appendChild(blk);
     });
     return pop;
+}
+
+/* ─── Связи-провода (Blender-style) ──────────────────────────────
+ * mousedown по .sock-out — тянется bezier-линка; приёмник — .sock с
+ * data-drop. Совпадение вида (model→rule, rule→cam, camera→pos).
+ * Постоянные провода пересчитываются на каждый render/scroll/пан. */
+
+const LINK_WANT = { rule: 'cam', model: 'rule', camera: 'pos' };
+let linkDrag = null;
+let wiresScheduled = false;
+
+function sockXY(node) {
+    if (!node) { return null; }
+    const r = node.getBoundingClientRect();
+    if (!r.width) { return null; }
+    const out = node.classList.contains('sock-out');
+    return [r.left + (out ? r.width + 4 : -4), r.top + r.height / 2];
+}
+
+function bez(a, b) {
+    const dx = Math.max(28, Math.abs(b[0] - a[0]) / 2);
+    return 'M' + a[0].toFixed(1) + ' ' + a[1].toFixed(1)
+        + 'C' + (a[0] + dx).toFixed(1) + ' ' + a[1].toFixed(1)
+        + ',' + (b[0] - dx).toFixed(1) + ' ' + b[1].toFixed(1)
+        + ',' + b[0].toFixed(1) + ' ' + b[1].toFixed(1);
+}
+
+function svgPath(d, cls, color) {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', d);
+    p.setAttribute('class', cls);
+    if (color) { p.style.stroke = color; }
+    return p;
+}
+
+function scheduleWires() {
+    if (wiresScheduled) { return; }
+    wiresScheduled = true;
+    const run = function () { wiresScheduled = false; renderWires(); };
+    (window.requestAnimationFrame || function (f) { f(); })(run);
+}
+
+function patchWallSocks() {
+    document.querySelectorAll('.thumb').forEach(function (th) {
+        if (th.querySelector('.sock')) { return; }
+        const cv = th.querySelector('canvas');
+        if (!cv || !cv.dataset.cam) { return; }
+        const tk = el('span', 'sock sock-out');
+        tk.dataset.link = 'camera:' + cv.dataset.cam;
+        th.appendChild(tk);
+    });
+}
+
+function renderWires() {
+    patchWallSocks();
+    const svg = $('wires');
+    if (!svg) { return; }
+    svg.textContent = '';
+    const q = function (sel) { return document.querySelector(sel); };
+    function link(from, to, color) {
+        const a = sockXY(from);
+        const b = sockXY(to);
+        if (a && b) { svg.appendChild(svgPath(bez(a, b), 'wire', color)); }
+    }
+    RULES.forEach(function (rule) {
+        const to = q('.sock[data-drop="rule"][data-link="rule:' + rule.id + '"]');
+        rule.models.forEach(function (mid) {
+            link(q('.sock[data-link="model:' + mid + '"]'), to);
+        });
+    });
+    inventory.forEach(function (dev) {
+        dev.rules.forEach(function (rid) {
+            const rule = RULES.find(function (r) { return r.id === rid; });
+            link(q('.sock[data-link="rule:' + rid + '"]'),
+                q('.sock[data-drop="cam"][data-cam="' + dev.id + '"]'),
+                rule ? rule.color : null);
+        });
+    });
+    belt.positions.forEach(function (pos, i) {
+        if (!pos.inspection) { return; }
+        pos.inspection.cameras.forEach(function (cid) {
+            link(q('.sock[data-link="camera:' + cid + '"]'),
+                q('.pos-card[data-index="' + i + '"] .sock-node'));
+        });
+    });
+    if (linkDrag) {
+        const a = sockXY(linkDrag.from);
+        if (a) {
+            svg.appendChild(svgPath(bez(a, [linkDrag.x, linkDrag.y]),
+                'wire wire-live' + (linkDrag.hot ? ' wire-ok' : '')));
+        }
+    }
+}
+
+function markTargets(on) {
+    const want = LINK_WANT[on ? linkDrag.kind : ''] || '';
+    document.querySelectorAll('.sock[data-drop]').forEach(function (n) {
+        n.classList.toggle('sock-ok', on && n.dataset.drop === want);
+    });
+}
+
+function commitLink(d, t) {
+    if (d.kind === 'model') {
+        togglePart(t.dataset.link.split(':')[1], d.id);
+    } else if (d.kind === 'rule') {
+        toggleRuleOnCam(t.dataset.cam, d.id);
+    } else if (d.kind === 'camera') {
+        bindCamera(Number(t.dataset.idx), d.id);
+    }
+    render();
+}
+
+function wireLinkEngine() {
+    document.addEventListener('mousedown', function (ev) {
+        if (ev.button !== 0) { return; }
+        const sock = ev.target.closest ? ev.target.closest('.sock-out') : null;
+        if (!sock) { return; }
+        const parts = (sock.dataset.link || '').split(':');
+        if (!LINK_WANT[parts[0]]) { return; }
+        ev.preventDefault();
+        ev.stopPropagation();
+        linkDrag = { from: sock, kind: parts[0], id: parts[1],
+            x: ev.clientX, y: ev.clientY, hot: null };
+        document.body.classList.add('linking');
+        markTargets(true);
+        renderWires();
+    });
+    window.addEventListener('mousemove', function (ev) {
+        if (!linkDrag) { return; }
+        linkDrag.x = ev.clientX;
+        linkDrag.y = ev.clientY;
+        const under = document.elementFromPoint
+            ? document.elementFromPoint(ev.clientX, ev.clientY) : null;
+        const t = under && under.closest ? under.closest('[data-drop]') : null;
+        const ok = t && t.dataset.drop === LINK_WANT[linkDrag.kind];
+        if (linkDrag.hot && linkDrag.hot !== (ok ? t : null)) {
+            linkDrag.hot.classList.remove('sock-hot');
+        }
+        linkDrag.hot = ok ? t : null;
+        if (linkDrag.hot) { linkDrag.hot.classList.add('sock-hot'); }
+        renderWires();
+    });
+    window.addEventListener('mouseup', function (ev) {
+        if (!linkDrag) { return; }
+        const d = linkDrag;
+        let t = d.hot;
+        if (!t && ev.target && ev.target.closest) {
+            const cand = ev.target.closest('[data-drop]');
+            if (cand && cand.dataset.drop === LINK_WANT[d.kind]) { t = cand; }
+        }
+        markTargets(false);
+        if (linkDrag && linkDrag.hot) { linkDrag.hot.classList.remove('sock-hot'); }
+        document.body.classList.remove('linking');
+        linkDrag = null;
+        if (t) { commitLink(d, t); } else { render(); }
+    });
+    document.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape' && linkDrag) {
+            markTargets(false);
+            document.body.classList.remove('linking');
+            linkDrag = null;
+            render();
+        }
+    });
+    window.addEventListener('resize', scheduleWires);
+    document.addEventListener('scroll', scheduleWires, true);
+    const z = $('belt-zone');
+    if (z) {
+        ['wheel', 'mousemove', 'dblclick'].forEach(function (t) {
+            z.addEventListener(t, scheduleWires);
+        });
+    }
 }
 
 function $(id) { return document.getElementById(id); }
@@ -1102,6 +1291,7 @@ document.addEventListener('DOMContentLoaded', function () {
     wireBelt();
     wireSearch();
     wireThrClose();
+    wireLinkEngine();
     wireScrollSnap();
     render();
 });

@@ -136,6 +136,59 @@ check('плитка позиции — нода: шапка с ролью, те�
             && body.contains(c0.querySelector('.chip'))
             && !c0.querySelector('.pos-top');
     })());
+check('сокеты на местах: модель/правило/стена — выходы, чип/нода — входы',
+    doc.querySelector('.sock[data-link="model:m0"]') !== null
+    && doc.querySelector('.sock[data-link="rule:r0"]') !== null
+    && doc.querySelector('.sock[data-link^="camera:"]') !== null
+    && doc.querySelector('.sock[data-drop="cam"]') !== null
+    && doc.querySelector('.sock[data-drop="pos"]') !== null);
+check('ссылка: тянем r1 (с моделью) на чип cam1 — связь создана, провод нарисован',
+    (function () {
+        dragModelToRule(1, 1);            /* r1: наличие ← m1 */
+        dragWall(1, 0);                   /* cam1 → П0 (2-м чипом) */
+        const from = doc.querySelector('.sock[data-link="rule:r1"]');
+        const to = doc.querySelector('.sock[data-drop="cam"][data-cam="cam1"]')
+            || doc.querySelector('.chip[data-cam="cam1"]');
+        from.dispatchEvent(new window.MouseEvent('mousedown',
+            { bubbles: true, cancelable: true, button: 0,
+              clientX: 10, clientY: 10 }));
+        window.dispatchEvent(new window.MouseEvent('mousemove',
+            { bubbles: true, clientX: 60, clientY: 60 }));
+        const live = doc.querySelectorAll('#wires .wire-live').length === 1;
+        to.dispatchEvent(new window.MouseEvent('mouseup',
+            { bubbles: true, cancelable: true }));
+        const chip = doc.querySelector('.chip[data-cam="cam1"]');
+        return live && chip !== null
+            && /п:1/.test(chip.querySelector('.chip-assets').textContent)
+            && doc.querySelectorAll('#wires .wire').length >= 4;
+    })());
+check('та же ссылка по правилу снимает его (toggle-семантика)',
+    (function () {
+        const from = doc.querySelector('.sock[data-link="rule:r1"]');
+        const to = doc.querySelector('.chip[data-cam="cam1"] .sock-in');
+        from.dispatchEvent(new window.MouseEvent('mousedown',
+            { bubbles: true, cancelable: true, button: 0,
+              clientX: 10, clientY: 10 }));
+        to.dispatchEvent(new window.MouseEvent('mouseup',
+            { bubbles: true, cancelable: true }));
+        const chip = doc.querySelector('.chip[data-cam="cam1"]');
+        const clean = chip.querySelector('.chip-assets') === null;
+        chip.querySelector('.chip-x').dispatchEvent(
+            new window.MouseEvent('click', { bubbles: true }));
+        return clean && chips(0).length === 1;
+    })());
+check('Esc обрывает незавершённую линку без изменений',
+    (function () {
+        const before = doc.querySelectorAll('#wires .wire').length;
+        const from = doc.querySelector('.sock[data-link="rule:r2"]');
+        from.dispatchEvent(new window.MouseEvent('mousedown',
+            { bubbles: true, cancelable: true, button: 0,
+              clientX: 5, clientY: 5 }));
+        doc.dispatchEvent(new window.KeyboardEvent('keydown',
+            { key: 'Escape', bubbles: true }));
+        return doc.querySelectorAll('#wires .wire-live').length === 0
+            && doc.querySelectorAll('#wires .wire').length <= before;
+    })());
 check('клик по фишке — нода-карточка: блоки правил с их порогами',
     (function () {
         chips(0)[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
