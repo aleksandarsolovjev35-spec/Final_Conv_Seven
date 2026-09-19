@@ -149,6 +149,37 @@ check('плитка позиции — нода: шапка с ролью, те�
             && doc.querySelector('.cam-node[data-pos="0"]') !== null
             && !c0.querySelector('.pos-top');
     })());
+check('у линии — притягивает в ряд по сетке, занятой слот обходит',
+    (function () {
+        const row = doc.getElementById('belt-row');
+        Object.defineProperty(row, 'offsetWidth',
+            { value: 900, configurable: true });
+        Object.defineProperty(row, 'offsetHeight',
+            { value: 210, configurable: true });
+        const n = cards().length;
+        dropTool('position', 600);
+        const c = cards()[cards().length - 1];
+        const y0 = Number(c.style.top.replace('px', ''));
+        const x0 = Number(c.style.left.replace('px', ''));
+        dropTool('position', 600);
+        const c2 = cards()[cards().length - 1];
+        return cards().length === n + 2 && y0 === 50
+            && (x0 - 16) % 206 === 0
+            && c2.style.top === '50px'
+            && Number(c2.style.left.replace('px', '')) > x0;
+    })());
+check('далеко от линии — свободная постановка без привязки',
+    (function () {
+        const n = cards().length;
+        const r0 = doc.getElementById('belt-row');
+        Object.defineProperty(r0, 'offsetHeight',
+            { value: 400, configurable: true });
+        dropTool('position', 700);
+        const last = cards()[cards().length - 1];
+        Object.defineProperty(r0, 'offsetHeight',
+            { value: 210, configurable: true });
+        return cards().length === n + 1 && last.style.top !== '50px';
+    })());
 check('роли цепи: П0 — только выход, середина — вход+выход, сброс — только вход',
     (function () {
         const c = cards();
@@ -376,6 +407,7 @@ check('ЛКМ за шапку двигает ноду по холсту',
     })());
 check('позиция — свободная нода: ЛКМ за шапку двигает карточку',
     (function () {
+        const n0 = cards().length;
         const c1 = cards()[1];
         const head = c1.querySelector('.node-head');
         head.dispatchEvent(new window.MouseEvent('mousedown',
@@ -388,7 +420,7 @@ check('позиция — свободная нода: ЛКМ за шапку д
         const c1b = cards()[1];
         return c1b.classList.contains('g-pos') && c1b.style.left !== ''
             && c1b.style.top !== '' && c1b.dataset.index === '1'
-            && cards().length === 3;
+            && cards().length === n0;
     })());
 check('перенос карточек drag-ом удалён (порядок = места вставки)',
     (function () {
