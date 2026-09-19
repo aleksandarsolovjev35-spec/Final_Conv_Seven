@@ -1491,12 +1491,42 @@ function wireSideDock() {
     const collapsedBar = $('side-dock-collapsed-bar');
     if (!dock) { return; }
 
-    const KEY = 'belt_side_dock_collapsed';
+    const KEY_COL = 'belt_side_dock_collapsed';
+    const KEY_TAB = 'belt_side_dock_tab';
+
+    let currentTab = 'rules';
+
+    function setTab(tab, save) {
+        currentTab = tab === 'models' ? 'models' : 'rules';
+        dock.classList.toggle('show-rules', currentTab === 'rules');
+        dock.classList.toggle('show-models', currentTab === 'models');
+
+        const tabRules = $('tab-btn-rules');
+        const tabModels = $('tab-btn-models');
+        if (tabRules) {
+            tabRules.classList.toggle('active', currentTab === 'rules');
+            tabRules.setAttribute('aria-selected', currentTab === 'rules' ? 'true' : 'false');
+        }
+        if (tabModels) {
+            tabModels.classList.toggle('active', currentTab === 'models');
+            tabModels.setAttribute('aria-selected', currentTab === 'models' ? 'true' : 'false');
+        }
+
+        const barTabRules = dock.querySelector('.side-dock-tab[data-panel="rules"]');
+        const barTabModels = dock.querySelector('.side-dock-tab[data-panel="models"]');
+        if (barTabRules) { barTabRules.classList.toggle('active', currentTab === 'rules'); }
+        if (barTabModels) { barTabModels.classList.toggle('active', currentTab === 'models'); }
+
+        if (save) {
+            try { localStorage.setItem(KEY_TAB, currentTab); } catch (e) {}
+        }
+        renderWires();
+    }
 
     function setCollapsed(col, save) {
         dock.classList.toggle('collapsed', col);
         if (save) {
-            try { localStorage.setItem(KEY, col ? '1' : '0'); } catch (e) {}
+            try { localStorage.setItem(KEY_COL, col ? '1' : '0'); } catch (e) {}
         }
         window.dispatchEvent(new Event('resize'));
         renderWires();
@@ -1507,10 +1537,37 @@ function wireSideDock() {
     }
 
     try {
-        if (localStorage.getItem(KEY) === '1') {
+        if (localStorage.getItem(KEY_COL) === '1') {
             setCollapsed(true, false);
         }
     } catch (e) {}
+
+    try {
+        const savedTab = localStorage.getItem(KEY_TAB);
+        setTab(savedTab === 'models' ? 'models' : 'rules', false);
+    } catch (e) {
+        setTab('rules', false);
+    }
+
+    const tabRules = $('tab-btn-rules');
+    if (tabRules) {
+        tabRules.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            setTab('rules', true);
+            const s = $('rule-search');
+            if (s) { s.focus(); }
+        });
+    }
+
+    const tabModels = $('tab-btn-models');
+    if (tabModels) {
+        tabModels.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            setTab('models', true);
+            const s = $('model-search');
+            if (s) { s.focus(); }
+        });
+    }
 
     ['transitionend', 'transitioncancel'].forEach(function (evtName) {
         dock.addEventListener(evtName, function () {
@@ -1535,18 +1592,29 @@ function wireSideDock() {
 
     if (collapsedBar) {
         collapsedBar.addEventListener('click', function (ev) {
-            setCollapsed(false, true);
             const tab = ev.target && ev.target.closest
                 ? ev.target.closest('.side-dock-tab') : null;
-            if (tab && tab.dataset.panel === 'rules') {
-                const s = $('rule-search');
-                if (s) { setTimeout(function () { s.focus(); }, 160); }
-            } else if (tab && tab.dataset.panel === 'models') {
+            if (tab && tab.dataset.panel === 'models') {
+                setTab('models', true);
+                setCollapsed(false, true);
                 const s = $('model-search');
-                if (s) { setTimeout(function () { s.focus(); }, 160); }
+                if (s) { setTimeout(function () { s.focus(); }, 100); }
+            } else if (tab && tab.dataset.panel === 'rules') {
+                setTab('rules', true);
+                setCollapsed(false, true);
+                const s = $('rule-search');
+                if (s) { setTimeout(function () { s.focus(); }, 100); }
+            } else {
+                setCollapsed(false, true);
             }
         });
     }
+
+    window.SideDock = {
+        setTab: setTab,
+        setCollapsed: setCollapsed,
+        currentTab: function () { return currentTab; }
+    };
 }
 
 /* ─── Выбор папок с правилами (.py) и весами моделей ───────────────── */

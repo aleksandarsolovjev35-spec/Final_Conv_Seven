@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-<link rel="stylesheet" href="css/belt-editor.css?v=75.3">
+<link rel="stylesheet" href="css/belt-editor.css?v=75.4">
 </head>
 <body>
 
@@ -65,18 +65,17 @@
                 <svg id="wires" aria-hidden="true"></svg>
             </div>
 
-            <!-- Правая часть сборки ленты: панель с правилами и моделями -->
-            <aside class="side-dock" id="side-dock">
+            <!-- Правая часть сборки ленты: панель с переключением правил и моделей -->
+            <aside class="side-dock show-rules" id="side-dock">
                 <div class="side-dock-head">
-                    <span class="side-dock-title">
-                        <svg class="side-dock-icon" viewBox="0 0 16 16" aria-hidden="true">
-                            <rect x="2" y="2" width="5" height="5" rx="1"/>
-                            <rect x="9" y="2" width="5" height="5" rx="1"/>
-                            <rect x="2" y="9" width="5" height="5" rx="1"/>
-                            <rect x="9" y="9" width="5" height="5" rx="1"/>
-                        </svg>
-                        МЕНЮ
-                    </span>
+                    <div class="side-dock-tabs" role="tablist">
+                        <button type="button" class="side-dock-tab-btn active" id="tab-btn-rules" data-tab="rules" role="tab" aria-selected="true" title="Показать правила">
+                            ПРАВИЛА
+                        </button>
+                        <button type="button" class="side-dock-tab-btn" id="tab-btn-models" data-tab="models" role="tab" aria-selected="false" title="Показать модели">
+                            МОДЕЛИ
+                        </button>
+                    </div>
                     <button type="button" class="side-dock-collapse" id="btn-side-collapse" title="Свернуть боковую панель">
                         <svg viewBox="0 0 16 16" aria-hidden="true">
                             <path d="M6 3l5 5-5 5"/>
@@ -149,7 +148,7 @@
                             <path d="M10 3L5 8l5 5"/>
                         </svg>
                     </button>
-                    <div class="side-dock-tab" data-panel="rules" title="Правила">П</div>
+                    <div class="side-dock-tab active" data-panel="rules" title="Правила">П</div>
                     <div class="side-dock-tab" data-panel="models" title="Модели">М</div>
                 </div>
             </aside>
@@ -159,8 +158,8 @@
 
 <div id="toasts" class="toasts"></div>
 
-<script src="js/builder.js?v=75.3"></script>
-<script src="js/belt-view.js?v=75.3"></script>
-<script src="js/cameras.js?v=75.3"></script>
+<script src="js/builder.js?v=75.4"></script>
+<script src="js/belt-view.js?v=75.4"></script>
+<script src="js/cameras.js?v=75.4"></script>
 </body>
 </html>

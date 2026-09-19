@@ -1076,28 +1076,45 @@ body.linking {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
+    padding: 6px 8px;
     background: var(--bg-1);
     border-bottom: 1px solid var(--border);
     user-select: none;
 }
 
-.side-dock-title {
+.side-dock-tabs {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    color: var(--text-dim);
+    gap: 4px;
+    flex: 1 1 auto;
 }
 
-.side-dock-icon {
-    width: 13px;
-    height: 13px;
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 1.5;
+.side-dock-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    padding: 0 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+}
+
+.side-dock-tab-btn:hover {
+    color: var(--text);
+    background: var(--panel-raised);
+}
+
+.side-dock-tab-btn.active {
+    background: var(--panel-hover);
+    color: var(--accent);
+    border-color: var(--border-accent);
 }
 
 .side-dock-collapse,
@@ -1141,14 +1158,24 @@ body.linking {
     overflow: hidden;
 }
 
-/* Панель в стиле Photoshop (Правила / Модели) */
+/* Панель в стиле Photoshop (Правила / Модели) — за раз отображается только одна */
 .ps-panel {
-    flex: 1 1 50%;
+    flex: 1 1 auto;
+    height: 100%;
     display: flex;
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
 }
+
+/* Переключение: либо правила, либо модели */
+.side-dock.show-rules #ps-panel-rules { display: flex; }
+.side-dock.show-rules #ps-panel-models { display: none; }
+.side-dock.show-rules .ps-panel-divider { display: none; }
+
+.side-dock.show-models #ps-panel-rules { display: none; }
+.side-dock.show-models #ps-panel-models { display: flex; }
+.side-dock.show-models .ps-panel-divider { display: none; }
 
 .ps-panel-head {
     display: flex;

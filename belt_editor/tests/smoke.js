@@ -561,6 +561,27 @@ check('синхронизация связей: мгновенное обнов�
         const noWidthTransition = !/\.side-dock\s*\{[^}]*transition:[^}]*width/.test(css);
         return hasDirectWiresUpdate && noWidthTransition;
     })());
+check('переключение вкладок меню: за раз отображаются только правила либо только модели',
+    (function () {
+        const dock = doc.getElementById('side-dock');
+        const tabRules = doc.getElementById('tab-btn-rules');
+        const tabModels = doc.getElementById('tab-btn-models');
+        if (!dock || !tabRules || !tabModels) { return false; }
+
+        tabRules.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const isRules = dock.classList.contains('show-rules')
+            && !dock.classList.contains('show-models')
+            && tabRules.classList.contains('active');
+
+        tabModels.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const isModels = dock.classList.contains('show-models')
+            && !dock.classList.contains('show-rules')
+            && tabModels.classList.contains('active');
+
+        // Возвращаем в состояние rules
+        tabRules.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        return isRules && isModels;
+    })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 
