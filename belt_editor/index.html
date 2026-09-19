@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-<link rel="stylesheet" href="css/belt-editor.css?v=68">
+<link rel="stylesheet" href="css/belt-editor.css?v=69">
 </head>
 <body>
 
@@ -59,13 +59,22 @@
     </div>
 </div>
 
+<div class="splitter-h" id="app-splitter" title="Потяните для изменения высоты сборки ленты (до 50%)">
+    <div class="splitter-h-grip"></div>
+</div>
+
 <div class="app">
 
     <!-- Сборка ленты: инструменты — плавающие иконки в углу -->
     <main class="build">
         <div class="zone-head">СБОРКА ЛЕНТЫ
             <span class="hint" id="belt-meta"></span>
-            <span class="hint">сб. 68</span>
+            <button type="button" class="btn-expand" id="btn-expand-build" title="Развернуть сборку ленты (до 50%)">
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M3 10l5-5 5 5"/>
+                </svg>
+            </button>
+            <span class="hint">сб. 69</span>
         </div>
         <div class="belt-zone" id="belt-zone">
             <div class="tools">
@@ -100,8 +109,8 @@
 
 <div id="toasts" class="toasts"></div>
 
-<script src="js/builder.js?v=68"></script>
-<script src="js/belt-view.js?v=68"></script>
-<script src="js/cameras.js?v=68"></script>
+<script src="js/builder.js?v=69"></script>
+<script src="js/belt-view.js?v=69"></script>
+<script src="js/cameras.js?v=69"></script>
 </body>
 </html>

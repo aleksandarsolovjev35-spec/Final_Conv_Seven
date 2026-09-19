@@ -500,6 +500,42 @@ check('ЛКМ-пан по фону жив, drag карточки не перех
             { bubbles: true }));
         return st1.panX === st0.panX + 25;
     })());
+check('разделитель высоты сборки: перетаскивание вверх расширяет сборку ленты',
+    (function () {
+        const splitter = doc.getElementById('app-splitter');
+        if (!splitter) { return false; }
+        Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
+        splitter.dispatchEvent(new window.MouseEvent('mousedown',
+            { bubbles: true, cancelable: true, button: 0, clientY: 600 }));
+        window.dispatchEvent(new window.MouseEvent('mousemove',
+            { bubbles: true, clientY: 500 }));
+        window.dispatchEvent(new window.MouseEvent('mouseup',
+            { bubbles: true, clientY: 500 }));
+        const hVal = parseInt(doc.documentElement.style.getPropertyValue('--app-height'), 10);
+        return hVal >= 280 && hVal <= 320;
+    })());
+check('ограничение расширения сборки: строго не выше 50% экрана (400px при h=800)',
+    (function () {
+        const splitter = doc.getElementById('app-splitter');
+        splitter.dispatchEvent(new window.MouseEvent('mousedown',
+            { bubbles: true, cancelable: true, button: 0, clientY: 600 }));
+        window.dispatchEvent(new window.MouseEvent('mousemove',
+            { bubbles: true, clientY: 10 }));
+        window.dispatchEvent(new window.MouseEvent('mouseup',
+            { bubbles: true, clientY: 10 }));
+        const hVal = parseInt(doc.documentElement.style.getPropertyValue('--app-height'), 10);
+        return hVal === 400 && doc.querySelector('.app').classList.contains('expanded-50');
+    })());
+check('кнопка переключения: клик сворачивает/разворачивает до 50%',
+    (function () {
+        const btn = doc.getElementById('btn-expand-build');
+        if (!btn) { return false; }
+        btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const h1 = parseInt(doc.documentElement.style.getPropertyValue('--app-height'), 10);
+        btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const h2 = parseInt(doc.documentElement.style.getPropertyValue('--app-height'), 10);
+        return h1 === 200 && h2 === 400;
+    })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 

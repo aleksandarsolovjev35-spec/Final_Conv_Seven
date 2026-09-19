@@ -1453,6 +1453,110 @@ function wireSearch() {
         });
 }
 
+/* ─── Изменение высоты сборки ленты вверх до 50% экрана ─────────────── */
+
+function wireAppSplitter() {
+    const splitter = $('app-splitter');
+    const app = document.querySelector('.app');
+    const btnExpand = $('btn-expand-build');
+    if (!splitter || !app) { return; }
+
+    const KEY = 'belt_app_height';
+    const MIN_H = 196;
+
+    function maxH() {
+        return Math.max(MIN_H, Math.floor((window.innerHeight || 800) * 0.5));
+    }
+
+    function defaultH() {
+        return Math.max(MIN_H, Math.floor((window.innerHeight || 800) * 0.25));
+    }
+
+    let currentH = defaultH();
+
+    function setHeight(px, save) {
+        const mx = maxH();
+        const clamped = clampN(Math.round(px), MIN_H, mx);
+        currentH = clamped;
+        document.documentElement.style.setProperty('--app-height', clamped + 'px');
+        const isNear50 = clamped >= mx - 10;
+        app.classList.toggle('expanded-50', isNear50);
+        if (btnExpand) {
+            btnExpand.title = isNear50
+                ? 'Свернуть сборку ленты (до 25%)'
+                : 'Развернуть сборку ленты (до 50%)';
+        }
+        if (save) {
+            try { localStorage.setItem(KEY, isNear50 ? '50%' : String(clamped)); } catch (e) {}
+        }
+        scheduleWires();
+        window.dispatchEvent(new Event('resize'));
+    }
+
+    function toggle50() {
+        const mx = maxH();
+        if (currentH >= mx - 20) {
+            setHeight(defaultH(), true);
+        } else {
+            setHeight(mx, true);
+        }
+    }
+
+    try {
+        const saved = localStorage.getItem(KEY);
+        if (saved === '50%') {
+            setHeight(maxH(), false);
+        } else if (saved) {
+            const num = Number(saved);
+            if (num >= MIN_H) { setHeight(num, false); }
+        }
+    } catch (e) {}
+
+    if (btnExpand) {
+        btnExpand.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            toggle50();
+        });
+    }
+
+    splitter.addEventListener('dblclick', function (ev) {
+        ev.preventDefault();
+        toggle50();
+    });
+
+    splitter.addEventListener('mousedown', function (ev) {
+        if (ev.button !== 0) { return; }
+        ev.preventDefault();
+        document.body.classList.add('resizing-app');
+
+        const startY = ev.clientY;
+        const startH = currentH;
+
+        function onMove(me) {
+            const delta = startY - me.clientY;  /* движение мыши вверх увеличивает высоту */
+            setHeight(startH + delta, false);
+        }
+
+        function onUp(ue) {
+            document.body.classList.remove('resizing-app');
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            const finalDelta = startY - ue.clientY;
+            setHeight(startH + finalDelta, true);
+        }
+
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    });
+
+    window.addEventListener('resize', function () {
+        const mx = maxH();
+        if (currentH > mx) {
+            setHeight(mx, false);
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     wirePalette();
     wireBelt();
@@ -1461,6 +1565,7 @@ document.addEventListener('DOMContentLoaded', function () {
     wireLinkEngine();
     dragGNodes();
     wireScrollSnap();
+    wireAppSplitter();
     render();
 });
 
