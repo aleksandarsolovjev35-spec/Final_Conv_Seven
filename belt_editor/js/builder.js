@@ -610,16 +610,16 @@ function renderCard(pos, i) {
     if (pos.reset) { card.classList.add('reset-pt'); }
     card.dataset.index = String(i);
 
-    const top = el('div', 'pos-top');
-    top.appendChild(el('span', 'pos-index', 'П' + i));
+    const head = el('div', 'node-head');
+    head.appendChild(el('span', 'pos-index', 'П' + i));
+    head.appendChild(el('span', 'pos-label', pos.label || 'Позиция ' + i));
     const del = el('button', 'pos-del', '×');
     del.type = 'button';
     del.draggable = false;
-    top.appendChild(del);
-    card.appendChild(top);
+    head.appendChild(del);
+    card.appendChild(head);
 
-    card.appendChild(el('div', 'pos-label', pos.label || 'Позиция ' + i));
-
+    const body = el('div', 'node-body');
     const badges = el('div', 'pos-badges');
     if (pos.inspection) {
         badges.appendChild(el('span', 'badge badge-insp', 'инспекция'));
@@ -630,7 +630,7 @@ function renderCard(pos, i) {
     if (pos.reset) {
         badges.appendChild(el('span', 'badge badge-reset', 'сброс'));
     }
-    card.appendChild(badges);
+    body.appendChild(badges);
 
     if (pos.inspection && pos.inspection.cameras.length) {
         const cams = el('div', 'cam-chips');
@@ -673,7 +673,7 @@ function renderCard(pos, i) {
             }
             cams.appendChild(chip);
         });
-        card.appendChild(cams);
+        body.appendChild(cams);
         if (openThrCam !== null
             && pos.inspection.cameras.indexOf(openThrCam) !== -1) {
             const d0 = inventory.find(function (d) {
@@ -682,6 +682,7 @@ function renderCard(pos, i) {
             if (d0 && d0.rules.length) { card.appendChild(renderThrPop(d0)); }
         }
     }
+    card.appendChild(body);
     return card;
 }
 

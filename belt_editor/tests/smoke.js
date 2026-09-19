@@ -125,6 +125,17 @@ check('закладка цвета правила у камеры',
         return tab !== null && /217, 164, 65/.test(tab.getAttribute('style') || '')
             && doc.querySelectorAll('.thumb .rule-tabs i').length >= 1;
     })());
+check('плитка позиции — нода: шапка с ролью, тело со строками',
+    (function () {
+        const c0 = cards()[0];
+        const head = c0.querySelector('.node-head');
+        const body = c0.querySelector('.node-body');
+        return head !== null && body !== null
+            && head.querySelector('.pos-label') !== null
+            && head.querySelector('.pos-del') !== null
+            && body.contains(c0.querySelector('.chip'))
+            && !c0.querySelector('.pos-top');
+    })());
 check('клик по фишке — нода-карточка: блоки правил с их порогами',
     (function () {
         chips(0)[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
