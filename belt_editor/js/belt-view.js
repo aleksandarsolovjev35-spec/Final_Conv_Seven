@@ -19,7 +19,7 @@
 var Z_MIN = 0.1;
 var Z_MAX = 2.2;
 var PAD = 16;                      /* padding зоны */
-var MIN_VIS = 120;                 /* цепи видно минимум столько */
+var MIN_VIS = 40;                  /* цепи видно минимум столько */
 
 var zone = null;
 var row = null;
@@ -87,6 +87,13 @@ function wireWheel() {
     zone.addEventListener('wheel', function (ev) {
         ev.preventDefault();
         var unit = ev.deltaMode === 1 ? 16 : (ev.deltaMode === 2 ? 360 : 1);
+        if (Math.abs(ev.deltaX || 0) > Math.abs(ev.deltaY || 0)) {
+            /* трекпад/наклонённое колесо: свободный сдвиг, не зум */
+            userZoomed = true;
+            panX -= (ev.deltaX || 0) * unit;
+            apply();
+            return;
+        }
         userZoomed = true;
         zoomAt(ev.clientX, ev.clientY,
             Math.exp(-ev.deltaY * unit * 0.0015));
@@ -101,7 +108,10 @@ function isBackground(target) {
 
 function wirePan() {
     zone.addEventListener('mousedown', function (ev) {
-        if (ev.button !== 0 || !isBackground(ev.target)) { return; }
+        /* ЛКМ по фону или СКМ откуда угодно (Blender-style): пан
+         * свободного холста — по карточкам тоже, drag'у не мешает */
+        var mid = ev.button === 1;
+        if (!mid && (ev.button !== 0 || !isBackground(ev.target))) { return; }
         /* пан = пользователь взял полотно: автоподгонка до dblclick спит */
         userZoomed = true;
         var startX = ev.clientX - panX;
@@ -115,7 +125,7 @@ function wirePan() {
             window.removeEventListener('mouseup', up);
         }
         function move(mv) {
-            if (mv.buttons === 0) { up(); return; } /* кнопка потеряна */
+            if (!(mv.buttons & (mid ? 4 : 1))) { up(); return; } /* потёрян */
             panX = mv.clientX - startX;
             panY = mv.clientY - startY;
             apply();

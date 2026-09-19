@@ -195,6 +195,49 @@ check('модель, брошенная на ленту, отклоняется'
         fire(modelTiles()[1], 'dragend', dt);
         return entries()[0].querySelectorAll('.rule-chip').length === before;
     })());
+check('СКМ — свободный пан по ленте из любой точки (и по карточке)',
+    (function () {
+        const z = doc.getElementById('belt-zone');
+        const tgt = doc.querySelector('.pos-card') || z;
+        tgt.dispatchEvent(new window.MouseEvent('mousedown',
+            { bubbles: true, cancelable: true, button: 1,
+              clientX: 50, clientY: 50 }));
+        const panning = z.classList.contains('panning');
+        window.dispatchEvent(new window.MouseEvent('mousemove',
+            { bubbles: true, clientX: 90, clientY: 70, buttons: 4 }));
+        const st = window.BeltView.state();
+        window.dispatchEvent(new window.MouseEvent('mouseup',
+            { bubbles: true, button: 1 }));
+        return panning && st.panX === 40 && st.panY === 20;
+    })());
+check('горизонтальное колесо — сдвиг, не зум',
+    (function () {
+        const z = doc.getElementById('belt-zone');
+        const before = window.BeltView.state();
+        const ev = new window.MouseEvent('wheel',
+            { bubbles: true, cancelable: true });
+        Object.defineProperty(ev, 'deltaX', { value: 30 });
+        Object.defineProperty(ev, 'deltaY', { value: 5 });
+        Object.defineProperty(ev, 'deltaMode', { value: 0 });
+        z.dispatchEvent(ev);
+        const st = window.BeltView.state();
+        return st.panX === before.panX - 30 && st.z === before.z
+            && ev.defaultPrevented === true;
+    })());
+check('ЛКМ-пан по фону жив, drag карточки не перехвачен',
+    (function () {
+        const z = doc.getElementById('belt-zone');
+        const st0 = window.BeltView.state();
+        z.dispatchEvent(new window.MouseEvent('mousedown',
+            { bubbles: true, cancelable: true, button: 0,
+              clientX: 10, clientY: 10 }));
+        window.dispatchEvent(new window.MouseEvent('mousemove',
+            { bubbles: true, clientX: 35, clientY: 10, buttons: 1 }));
+        const st1 = window.BeltView.state();
+        window.dispatchEvent(new window.MouseEvent('mouseup',
+            { bubbles: true }));
+        return st1.panX === st0.panX + 25;
+    })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 
