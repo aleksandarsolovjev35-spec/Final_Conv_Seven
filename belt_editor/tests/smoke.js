@@ -35,7 +35,7 @@ const thumbs = () => doc.querySelectorAll('.thumb');
 const ruleTiles = () => doc.querySelectorAll('#asset-rules .rule-tile');
 const entries = () => doc.querySelectorAll('#asset-rules .rule-entry');
 const modelTiles = () => doc.querySelectorAll('#asset-models .asset');
-const chips = (i) => cards()[i].querySelectorAll('.cam-chips .chip');
+const chips = (i) => doc.querySelectorAll('.cam-node[data-pos="' + i + '"] .chip');
 function dropTool(kind, x, onCard) {
     const dt = mkDT();
     fire(doc.querySelector('.tool[data-kind="' + kind + '"]'), 'dragstart', dt);
@@ -133,7 +133,9 @@ check('плитка позиции — нода: шапка с ролью, те�
         return head !== null && body !== null
             && head.querySelector('.pos-label') !== null
             && head.querySelector('.pos-del') !== null
-            && body.contains(c0.querySelector('.chip'))
+            && !c0.querySelector('.chip')
+            && c0.querySelector('.sock-node') !== null
+            && doc.querySelector('.cam-node[data-pos="0"]') !== null
             && !c0.querySelector('.pos-top');
     })());
 check('сокеты на местах: модель/правило/стена — выходы, чип/нода — входы',
@@ -142,6 +144,30 @@ check('сокеты на местах: модель/правило/стена �
     && doc.querySelector('.sock[data-link^="camera:"]') !== null
     && doc.querySelector('.sock[data-drop="cam"]') !== null
     && doc.querySelector('.sock[data-drop="pos"]') !== null);
+check('камера мимо позиции — свободная нода; линка сокета к входу привязывает',
+    (function () {
+        const dt = mkDT();
+        fire(thumbs()[2], 'dragstart', dt);
+        fire(zone(), 'dragover', dt, 9999);
+        fire(zone(), 'drop', dt, 9999);
+        fire(thumbs()[2], 'dragend', dt);
+        const free = doc.querySelector('.cam-node.free[data-cam="cam2"]');
+        if (!free) { return false; }
+        const out = free.querySelector('.sock-out');
+        const posIn = doc.querySelector('.pos-card[data-index="0"] .sock-node');
+        out.dispatchEvent(new window.MouseEvent('mousedown',
+            { bubbles: true, cancelable: true, button: 0,
+              clientX: 1, clientY: 1 }));
+        posIn.dispatchEvent(new window.MouseEvent('mouseup',
+            { bubbles: true, cancelable: true }));
+        const bound = doc.querySelector(
+            '.cam-node[data-pos="0"] .chip[data-cam="cam2"]');
+        if (!bound || doc.querySelector('.cam-node.free')) { return false; }
+        bound.querySelector('.chip-x').dispatchEvent(
+            new window.MouseEvent('click', { bubbles: true }));
+        return doc.querySelectorAll('.cam-node[data-pos="0"]')
+            .length === 1;
+    })());
 check('ссылка: тянем r1 (с моделью) на чип cam1 — связь создана, провод нарисован',
     (function () {
         dragModelToRule(1, 1);            /* r1: наличие ← m1 */

@@ -85,7 +85,7 @@ function camName(id) {
 /* positions: [{label, inspection: null|{cameras:[], primary:bool}, reset}]
  * — форма совпадает с belt.path.v1, чтобы лента позже ушла в runtime
  * без переработки модели. */
-const belt = { positions: [] };
+const belt = { positions: [], freeCams: [] };
 
 let marker = null;      // индикатор вставки позиции
 let dragKind = null;    // что сейчас тащим
@@ -256,6 +256,8 @@ function bindCamera(i, camId) {
     } else {
         toast(camName(camId) + ' → П' + i);
     }
+    const fi = belt.freeCams.indexOf(camId);
+    if (fi >= 0) { belt.freeCams.splice(fi, 1); }
     pos.inspection.cameras.push(camId);
     applyInvariants();
     render();
@@ -270,8 +272,9 @@ function removeCamera(i, j) {
 }
 
 function renameCamera(i, j) {
-    const card = $('belt-row').querySelector('.pos-card[data-index="' + i + '"]');
-    const chip = card ? card.querySelectorAll('.chip')[j] : null;
+    const nodes = $('belt-row').querySelectorAll(
+        '.cam-node[data-pos="' + i + '"]');
+    const chip = nodes[j] ? nodes[j].querySelector('.chip') : null;
     if (!chip) { return; }
     const pos = belt.positions[i];
     if (!pos || !pos.inspection) { return; }
@@ -351,6 +354,14 @@ function render() {
 
     belt.positions.forEach(function (pos, i) {
         row.appendChild(renderCard(pos, i));
+        if (pos.inspection) {
+            pos.inspection.cameras.forEach(function (cid, j) {
+                row.appendChild(renderCamNode(cid, i, j));
+            });
+        }
+    });
+    belt.freeCams.forEach(function (cid, j) {
+        row.appendChild(renderCamNode(cid, -1, j));
     });
 
     $('belt-meta').textContent = 'позиций: ' + belt.positions.length +
@@ -644,63 +655,69 @@ function renderCard(pos, i) {
     camIn.dataset.idx = String(i);
     card.appendChild(camIn);
 
-    if (pos.inspection && pos.inspection.cameras.length) {
-        const cams = el('div', 'cam-chips');
-        pos.inspection.cameras.forEach(function (id, j) {
-            const chip = el('span', 'chip');
-            chip.draggable = false;
-            chip.dataset.cam = id;
-            const cin = el('span', 'sock sock-in');
-            cin.dataset.drop = 'cam';
-            cin.dataset.cam = id;
-            chip.appendChild(cin);
-            chip.appendChild(el('span', 'chip-name', camName(id)));
-            const dev = inventory.find(function (d) { return d.id === id; });
-            if (dev && dev.rules.length) {
-                chip.appendChild(el('span', 'chip-assets',
-                    'п:' + dev.rules.length
-                    + ' · м:' + loadedModels(dev).length));
-                const tabs = el('span', 'rule-tabs');
-                dev.rules.forEach(function (rid) {
-                    const t = el('i');
-                    t.style.background = ruleColor(rid);
-                    tabs.appendChild(t);
-                });
-                chip.appendChild(tabs);
-            }
-            const chipX = el('button', 'chip-x', '×');
-            chipX.type = 'button';
-            chipX.draggable = false;
-            chipX.addEventListener('click', function (ev) {
-                ev.stopPropagation();
-                removeCamera(i, j);
-            });
-            chip.appendChild(chipX);
-            chip.addEventListener('dblclick', function (ev) {
-                ev.stopPropagation();
-                renameCamera(i, j);
-            });
-            if (dev && dev.rules.length) {
-                if (openThrCam === id) { chip.classList.add('chip-open'); }
-                chip.addEventListener('click', function (ev) {
-                    ev.stopPropagation();
-                    openThrCam = openThrCam === id ? null : id;
-                    render();
-                });
-            }
-            cams.appendChild(chip);
-        });
-        body.appendChild(cams);
-        if (openThrCam !== null
-            && pos.inspection.cameras.indexOf(openThrCam) !== -1) {
-            const d0 = inventory.find(function (d) {
-                return d.id === openThrCam;
-            });
-            if (d0 && d0.rules.length) { card.appendChild(renderThrPop(d0)); }
-        }
-    }
     card.appendChild(body);
     return card;
+}
+
+/* Нода камеры — самостоятельный объект ленты: × возвращает на стену,
+ * сокет справа линкуется ко входу позиции, клик по шапке — пороги */
+function renderCamNode(camId, posIdx, j) {
+    const dev = inventory.find(function (d) { return d.id === camId; });
+    if (!dev) { return el('div', 'cam-node'); }
+    const node = el('div', 'cam-node' + (posIdx < 0 ? ' free' : ''));
+    node.dataset.cam = camId;
+    node.dataset.pos = String(posIdx);
+    const chip = el('span', 'chip');
+    chip.dataset.cam = camId;
+    const cin = el('span', 'sock sock-in');
+    cin.dataset.drop = 'cam';
+    cin.dataset.cam = camId;
+    chip.appendChild(cin);
+    chip.appendChild(el('span', 'chip-name', camName(camId)));
+    if (dev.rules.length) {
+        chip.appendChild(el('span', 'chip-assets',
+            'п:' + dev.rules.length
+            + ' · м:' + loadedModels(dev).length));
+        const tabs = el('span', 'rule-tabs');
+        dev.rules.forEach(function (rid) {
+            const t = el('i');
+            t.style.background = ruleColor(rid);
+            tabs.appendChild(t);
+        });
+        chip.appendChild(tabs);
+        if (openThrCam === camId) { chip.classList.add('chip-open'); }
+        chip.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            openThrCam = openThrCam === camId ? null : camId;
+            render();
+        });
+    }
+    const chipX = el('button', 'chip-x', '×');
+    chipX.type = 'button';
+    chipX.draggable = false;
+    chipX.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        if (posIdx < 0) {
+            belt.freeCams.splice(j, 1);
+            toast(camName(camId) + ' — возвращена на стену.');
+            render();
+        } else {
+            removeCamera(posIdx, j);
+        }
+    });
+    chip.appendChild(chipX);
+    chip.addEventListener('dblclick', function (ev) {
+        ev.stopPropagation();
+        if (posIdx >= 0) { renameCamera(posIdx, j); }
+    });
+    node.appendChild(chip);
+    const out = el('span', 'sock sock-out');
+    out.dataset.link = 'camera:' + camId;
+    node.appendChild(out);
+    if (openThrCam === camId && dev.rules.length) {
+        node.appendChild(renderThrPop(dev));
+    }
+    return node;
 }
 
 function fmtThr(v) {
@@ -831,7 +848,8 @@ function renderWires() {
     belt.positions.forEach(function (pos, i) {
         if (!pos.inspection) { return; }
         pos.inspection.cameras.forEach(function (cid) {
-            link(q('.sock[data-link="camera:' + cid + '"]'),
+            link(q('.cam-node[data-cam="' + cid + '"] .sock[data-link="camera:'
+                + cid + '"]'),
                 q('.pos-card[data-index="' + i + '"] .sock-node'));
         });
     });
@@ -1141,30 +1159,39 @@ function wireBelt() {
             dragAsset = null;
             return;
         }
-        if (cardIdx < 0) {
-            toast(kind === 'rule'
-                ? 'Опустите на фишку камеры.' : 'Не на позицию.', 'err');
-            return;
-        }
         if (kind === 'rule') {
             const chipEl = ev.target && ev.target.closest
                 ? ev.target.closest('.chip') : null;
-            const chips = chipEl && chipEl.parentNode
-                ? chipEl.parentNode.querySelectorAll('.chip') : [];
-            let j = -1;
-            for (let k = 0; k < chips.length; k += 1) {
-                if (chips[k] === chipEl) { j = k; }
-            }
-            const pos = belt.positions[cardIdx];
-            if (j < 0 || !chipEl.closest('.pos-card')
-                || Number(chipEl.closest('.pos-card').dataset.index) !== cardIdx
-                || !pos || !pos.inspection) {
-                toast('Опустите на фишку камеры.', 'err');
+            const camId = chipEl && chipEl.dataset.cam;
+            if (!camId) {
+                toast('Опустите на ноду камеры.', 'err');
                 dragAsset = null;
+                render();
                 return;
             }
-            toggleRuleOnCam(pos.inspection.cameras[j], dragAsset);
+            toggleRuleOnCam(camId, dragAsset);
             dragAsset = null;
+            return;
+        }
+        if (cardIdx < 0) {
+            if (kind === 'camera' && dragCamId
+                && belt.freeCams.indexOf(dragCamId) === -1) {
+                const own = findIndex(function (p) {
+                    return p.inspection
+                        && p.inspection.cameras.indexOf(dragCamId) !== -1;
+                });
+                if (own >= 0) {
+                    const arr = belt.positions[own].inspection.cameras;
+                    arr.splice(arr.indexOf(dragCamId), 1);
+                }
+                belt.freeCams.push(dragCamId);
+                toast(camName(dragCamId) + ' — объект на ленте:'
+                    + ' подключите сокет к позиции.');
+                dragCamId = null;
+                render();
+                return;
+            }
+            toast('Не на позицию.', 'err');
             return;
         }
         if (kind === 'inspect') { toggleInspection(cardIdx); }

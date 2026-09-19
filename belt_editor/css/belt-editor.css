@@ -871,6 +871,32 @@ body {
     to { opacity: 1; transform: none; }
 }
 
+/* ─── Нода камеры: самостоятельный объект ленты ────────────────── */
+.cam-node {
+    position: relative;
+    flex: 0 0 auto;
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 4px 8px 4px 6px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 10px -6px rgba(0, 0, 0, 0.5);
+}
+
+.cam-node .chip {
+    margin: 0;
+    padding-left: 8px;
+    font-size: 10.5px;
+}
+
+.cam-node.free {
+    border-style: dashed;
+    border-color: var(--border-accent);
+}
+
 /* ─── Сокеты и провода (система связей) ────────────────────────── */
 
 .asset,
