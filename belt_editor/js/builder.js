@@ -45,10 +45,14 @@ const MODELS = [
     { id: 'm11', name: 'yoke-drop' },
 ];
 const RULES = [
-    { id: 'r0', name: 'геометрия', color: '#d9a441', models: [] },
-    { id: 'r1', name: 'наличие', color: '#58b79a', models: [] },
-    { id: 'r2', name: 'пропуск', color: '#cf7aa6', models: [] },
-    { id: 'r3', name: 'контакты', color: '#a58ad9', models: [] },
+    { id: 'r0', name: 'геометрия', color: '#d9a441',
+      thr: ['площадь', 'перекос', 'высота'], models: [] },
+    { id: 'r1', name: 'наличие', color: '#58b79a',
+      thr: ['контраст'], models: [] },
+    { id: 'r2', name: 'пропуск', color: '#cf7aa6',
+      thr: ['окно'], models: [] },
+    { id: 'r3', name: 'контакты', color: '#a58ad9',
+      thr: ['нажим', 'смещение'], models: [] },
 ];
 
 function ruleColor(id) {
@@ -406,9 +410,9 @@ function toggleRuleOnCam(camId, ruleId) {
         }
         dev.rules.push(ruleId);
         if (!dev.thr) { dev.thr = Object.create(null); }
-        dev.thr[ruleId] = THR_DEFAULT;
-        toast(dev.name + ': «' + rule.name + '» подключено, порог '
-            + THR_DEFAULT.toFixed(2) + '.');
+        dev.thr[ruleId] = rule.thr.map(function () { return THR_DEFAULT; });
+        toast(dev.name + ': «' + rule.name + '» подключено, '
+            + rule.thr.length + ' порог(а) = ' + THR_DEFAULT.toFixed(2) + '.');
     }
     render();
 }
@@ -686,34 +690,46 @@ function fmtThr(v) {
     return Math.max(0, Math.min(1, n)).toFixed(2);
 }
 
-/* Blender-подобный поповер: список правил камеры с порогами */
+/* Нода-карточка: на камеру — блок каждого правила, шапка в цвете
+ * правила, тело — фиксированный набор порогов (число на каждый) */
 function renderThrPop(dev) {
-    const pop = el('div', 'thr-pop');
+    const pop = el('div', 'thr-node');
     pop.addEventListener('click', function (ev) { ev.stopPropagation(); });
     dev.rules.forEach(function (rid) {
         const rule = RULES.find(function (r) { return r.id === rid; });
         if (!rule) { return; }
-        const row = el('div', 'thr-row');
-        const sw = el('span', 'rule-swatch');
-        sw.style.background = rule.color;
-        row.appendChild(sw);
-        row.appendChild(el('b', '', rule.name));
-        row.appendChild(el('span', 'thr-gt', '≥'));
-        const inp = el('input', 'thr-input');
-        inp.type = 'text';
-        inp.value = fmtThr(dev.thr && dev.thr[rid]);
-        inp.addEventListener('input', function () {
-            const v = parseFloat(inp.value.replace(',', '.'));
-            if (!isFinite(v)) { return; }
-            if (!dev.thr) { dev.thr = Object.create(null); }
-            dev.thr[rid] = Math.max(0, Math.min(1, v));
+        if (!dev.thr) { dev.thr = Object.create(null); }
+        if (!dev.thr[rid]) {
+            dev.thr[rid] = rule.thr.map(function () { return THR_DEFAULT; });
+        }
+        const arr = dev.thr[rid];
+        const blk = el('div', 'thr-blk');
+        const head = el('div', 'thr-head');
+        head.style.background = rule.color;
+        head.appendChild(el('b', '', rule.name));
+        head.appendChild(el('span', 'thr-cams',
+            'кам: ' + ruleOnCameras(rule).length));
+        blk.appendChild(head);
+        rule.thr.forEach(function (pname, k) {
+            const row = el('div', 'thr-row');
+            row.appendChild(el('span', 'thr-name', pname));
+            row.appendChild(el('span', 'thr-gt', '≥'));
+            const inp = el('input', 'thr-input');
+            inp.type = 'text';
+            inp.value = fmtThr(arr[k]);
+            inp.addEventListener('input', function () {
+                const v = parseFloat(inp.value.replace(',', '.'));
+                if (!isFinite(v)) { return; }
+                arr[k] = Math.max(0, Math.min(1, v));
+            });
+            inp.addEventListener('change', function () {
+                inp.value = fmtThr(arr[k]);
+                render();
+            });
+            row.appendChild(inp);
+            blk.appendChild(row);
         });
-        inp.addEventListener('change', function () {
-            inp.value = fmtThr(dev.thr && dev.thr[rid]);
-            render();
-        });
-        row.appendChild(inp);
-        pop.appendChild(row);
+        pop.appendChild(blk);
     });
     return pop;
 }

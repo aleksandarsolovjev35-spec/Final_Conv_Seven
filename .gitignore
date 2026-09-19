@@ -12,3 +12,7 @@ debug_frames/
 # Данные замеров покрытия
 .coverage
 htmlcov/
+
+# Инструменты проверки (npm i в belt_editor/tests)
+node_modules/
+package-lock.json
