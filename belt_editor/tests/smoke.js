@@ -183,6 +183,22 @@ check('поле 2D: позицию можно поднять/опустить �
             { value: 210, configurable: true });
         return y1 === y0 + 160;
     })());
+check('расширенное поле: движение не зажато 210px — можно увести далеко по X и Y',
+    (function () {
+        const last = cards()[cards().length - 1];
+        const y0 = Number(last.style.top.replace('px', ''));
+        const head = last.querySelector('.node-head');
+        head.dispatchEvent(new window.MouseEvent('mousedown',
+            { bubbles: true, cancelable: true, button: 0,
+              clientX: 40, clientY: 40 }));
+        window.dispatchEvent(new window.MouseEvent('mousemove',
+            { bubbles: true, clientX: 700, clientY: 640 }));
+        window.dispatchEvent(new window.MouseEvent('mouseup',
+            { bubbles: true }));
+        const again = cards()[cards().length - 1];
+        const y1 = Number(again.style.top.replace('px', ''));
+        return y1 === y0 + 600 && y1 > 500;
+    })());
 check('css: карточка позиции — absolute (иначе left/top не работают и ноды падают стопкой)',
     (function () {
         const css = fs.readFileSync(ROOT + '/css/belt-editor.css', 'utf8');

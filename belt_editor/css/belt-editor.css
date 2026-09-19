@@ -647,14 +647,17 @@ body {
         var(--bg-1);
 }
 
-/* ряд — холст сборки: цепь по центру, ноды свободно поверх; без
- * will-change, чтобы текст перерастеризовался на зуме (нет мыла) */
+/* ряд — холст сборки: просторное 2D-поле (5000×3000), ноды свободно
+ * перемещаются в любую сторону; без will-change, чтобы текст
+ * перерастеризовался на зуме (нет мыла) */
 .belt-row {
     position: relative;
     display: block;
-    width: calc(100% - 0px);
-    height: 100%;
-    min-height: 210px;
+    width: 5000px;
+    height: 3000px;
+    min-width: 5000px;
+    min-height: 3000px;
+    flex-shrink: 0;
     max-width: none;
     padding: 0;
     transform-origin: 50% 50%;

@@ -33,9 +33,9 @@ function round(v) { return Math.round(v * 100) / 100; }
 function availW() { return zone.clientWidth - PAD * 2; }
 function availH() { return zone.clientHeight - PAD * 2; }
 /* layout-размеры ряда: не зависят от transform */
-/* ряд — холст во всю зону: границы панорамирования по его боксу */
-function chainW() { return row.offsetWidth || 0; }
-function chainH() { return row.offsetHeight || 104; }
+/* ряд — просторный холст 5000×3000: границы панорамирования по его боксу */
+function chainW() { return Math.max(row ? (row.offsetWidth || 0) : 0, 5000); }
+function chainH() { return Math.max(row ? (row.offsetHeight || 0) : 0, 3000); }
 
 function write() {
     row.style.transform = 'translate(' + round(panX) + 'px, '

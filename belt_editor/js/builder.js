@@ -701,12 +701,21 @@ function renderCard(pos, i) {
 
 function clampN(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
+const CANVAS_W = 5000;
+const CANVAS_H = 3000;
+
 /* запасная точка для позиции без координат (старое сохранение):
- * ступенькой, чтобы ноды не легли стопкой; поле — свободное 2D */
+ * ступенькой от центра поля; поле — свободное 2D */
 function layoutSlot(i) {
     const row = $('belt-row');
-    return { x: clampN(16 + i * 206, 2, Math.max(2, (row.offsetWidth || 600) - 190)),
-        y: clampN(24 + (i % 3) * 40, 2, Math.max(2, (row.offsetHeight || 210) - 124)) };
+    const maxW = Math.max(row ? (row.offsetWidth || 0) : 0, CANVAS_W);
+    const maxH = Math.max(row ? (row.offsetHeight || 0) : 0, CANVAS_H);
+    const cx = Math.round(maxW / 2);
+    const cy = Math.round(maxH / 2);
+    return {
+        x: clampN(cx - 260 + i * 206, 2, maxW - 190),
+        y: clampN(cy - 60 + (i % 3) * 40, 2, maxH - 124)
+    };
 }
 
 /* экранные координаты дропа → координаты холста (учитывая зум) */
@@ -714,22 +723,28 @@ function canvasPoint(ev, w, h) {
     const row = $('belt-row');
     const r = row.getBoundingClientRect();
     const z = (window.BeltView && window.BeltView.state().z) || 1;
-    let x = 40;
-    let y = 16;
+    const maxW = Math.max(row ? (row.offsetWidth || 0) : 0, CANVAS_W);
+    const maxH = Math.max(row ? (row.offsetHeight || 0) : 0, CANVAS_H);
+    let x = Math.round(maxW / 2 - w / 2);
+    let y = Math.round(maxH / 2 - h / 2);
     if (r.width) {
         x = (ev.clientX - r.left) / z - w / 2;
         y = (ev.clientY - r.top) / z - h / 2;
     }
     return {
-        x: clampN(x, 2, Math.max(2, row.offsetWidth - w - 2)),
-        y: clampN(y, 2, Math.max(2, row.offsetHeight - h - 2)),
+        x: clampN(x, 2, Math.max(2, maxW - w - 2)),
+        y: clampN(y, 2, Math.max(2, maxH - h - 2)),
     };
 }
 
 function freePoint() {
     const row = $('belt-row');
-    return { x: (row.offsetWidth || 480) / 2 - 60,
-        y: 18 + Object.keys(belt.places).length * 6 };
+    const maxW = Math.max(row ? (row.offsetWidth || 0) : 0, CANVAS_W);
+    const maxH = Math.max(row ? (row.offsetHeight || 0) : 0, CANVAS_H);
+    return {
+        x: Math.round(maxW / 2 - 60),
+        y: Math.round(maxH / 2 - 120) + Object.keys(belt.places).length * 20
+    };
 }
 
 function placeNode(key, ev) {
@@ -1156,10 +1171,12 @@ function dragGNodes() {
             ? (window.BeltView.state().z || 1) : 1;
         const row = $('belt-row');
         const tall = movingG.node.classList.contains('g-pos');
+        const maxW = Math.max(row ? (row.offsetWidth || 0) : 0, CANVAS_W);
+        const maxH = Math.max(row ? (row.offsetHeight || 0) : 0, CANVAS_H);
         const x = clampN(movingG.px + (ev.clientX - movingG.x0) / z,
-            2, Math.max(2, row.offsetWidth - (tall ? 180 : 110)));
+            2, Math.max(2, maxW - (tall ? 180 : 110)));
         const y = clampN(movingG.py + (ev.clientY - movingG.y0) / z,
-            2, Math.max(2, row.offsetHeight - (tall ? 124 : 30)));
+            2, Math.max(2, maxH - (tall ? 124 : 30)));
         movingG.at.x = x;
         movingG.at.y = y;
         movingG.node.style.left = Math.round(x) + 'px';
