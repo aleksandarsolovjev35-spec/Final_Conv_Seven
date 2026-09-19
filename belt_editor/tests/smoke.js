@@ -168,7 +168,7 @@ check('у линии — притягивает в ряд по сетке, за�
             && c2.style.top === '50px'
             && Number(c2.style.left.replace('px', '')) > x0;
     })());
-check('далеко от линии — свободная постановка без привязки',
+check('далеко от линии — всё равно на уровне ряда (один уровень всегда)',
     (function () {
         const n = cards().length;
         const r0 = doc.getElementById('belt-row');
@@ -176,9 +176,11 @@ check('далеко от линии — свободная постановка 
             { value: 400, configurable: true });
         dropTool('position', 700);
         const last = cards()[cards().length - 1];
+        const yFar = Number(last.style.top.replace('px', ''));
         Object.defineProperty(r0, 'offsetHeight',
             { value: 210, configurable: true });
-        return cards().length === n + 1 && last.style.top !== '50px';
+        return cards().length === n + 1 && yFar === (400 - 110) / 2
+            && last.style.left !== '';
     })());
 check('роли цепи: П0 — только выход, середина — вход+выход, сброс — только вход',
     (function () {

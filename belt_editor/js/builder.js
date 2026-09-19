@@ -140,7 +140,7 @@ function insertPosition(at) {
     belt.positions.push({
         label: '', inspection: null, reset: false,
         uid: ++uidSeq, nextUid: null,
-        at: snapRow(raw.x, raw.y, 176),
+        at: snapRow(raw.x),
     });
     applyInvariants();
     render();
@@ -703,7 +703,8 @@ function renderCard(pos, i) {
 function clampN(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
 const ROW_STEP = 206;              /* шаг ряда: 176 карточка + 30 зазор */
-const ROW_TOL = 26;               /* «близко к линии» — притянуть в ряд */
+/* позиция живёт НА линии ленты: уровень физически общий для ряда,
+ * свободна горизонталь; занятые слоты обходятся в обе стороны */
 
 function rowBaseline(h) {
     const row = $('belt-row');
@@ -717,14 +718,11 @@ function layoutSlot(i) {
     y: rowBaseline(110) };
 }
 
-/* вблизи базовой линии позиция встаёт в ближайший свободный слот ряда;
- * далеко — остаётся там, куда бросили (свободная нода) */
-function snapRow(x, y, w, selfPos) {
+function snapRow(x, selfPos) {
     const base = rowBaseline(110);
-    if (Math.abs(y - base) > ROW_TOL) { return { x: x, y: y }; }
     const row = $('belt-row');
     const maxI = Math.max(0, Math.floor(
-        (row.offsetWidth - w - 4) / ROW_STEP));
+        (row.offsetWidth - 176 - 4) / ROW_STEP));
     const taken = Object.create(null);
     belt.positions.forEach(function (p) {
         if (p === selfPos || !p.at) { return; }
@@ -1196,8 +1194,7 @@ function dragGNodes() {
             2, Math.max(2, row.offsetHeight - (tall ? 124 : 30)));
         if (tall) {
             const gk = movingG.node.dataset.gk || '';
-            const snapped = snapRow(x, y, 176,
-                belt.positions[Number(gk.slice(4))]);
+            const snapped = snapRow(x, belt.positions[Number(gk.slice(4))]);
             x = snapped.x;
             y = snapped.y;
         }
