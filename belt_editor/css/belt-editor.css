@@ -633,6 +633,8 @@ body {
 
 .belt-zone { cursor: grab; }
 
+.belt-zone.drop-ready { cursor: copy; }
+
 .belt-zone.panning { cursor: grabbing; user-select: none; }
 
 .belt-zone .pos-card,
@@ -645,17 +647,93 @@ body {
         var(--bg-1);
 }
 
-/* ряд — полотно по размеру цепи; центрирует flex зоны; без will-change,
- * чтобы текст перерастеризовался на зуме (нет мыла) */
+/* ряд — холст сборки: цепь по центру, ноды свободно поверх; без
+ * will-change, чтобы текст перерастеризовался на зуме (нет мыла) */
 .belt-row {
-    display: flex;
-    align-items: center;
-    gap: 30px;
-    width: max-content;
+    position: relative;
+    display: block;
+    width: calc(100% - 0px);
+    height: 100%;
+    min-height: 210px;
     max-width: none;
-    padding: 2px 0 10px;
+    padding: 0;
     transform-origin: 50% 50%;
 }
+
+.belt-chain {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+    width: 100%;
+    height: 100%;
+}
+
+/* ─── Ноды холста: модели, правила, камеры ───────────────────────── */
+.gnode {
+    position: absolute;
+    z-index: 3;
+    width: 128px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    box-shadow: 0 5px 12px -6px rgba(0, 0, 0, 0.55);
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.gnode .node-head { cursor: grab; }
+body.node-moving .gnode .node-head { cursor: grabbing; }
+body.node-moving { cursor: grabbing; }
+
+.gnode .g-title {
+    font: 8px/1 var(--mono, monospace);
+    color: var(--text-dim);
+    opacity: 0.75;
+    margin-right: 2px;
+}
+
+.g-swatch {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    flex: 0 0 auto;
+}
+
+.g-meta {
+    padding: 0 8px 5px;
+    font: 9px/1.2 var(--mono, monospace);
+    color: var(--text-dim);
+}
+
+.g-models {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    padding: 0 7px 7px;
+}
+
+.g-chip {
+    padding: 1px 5px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font: 9.5px/1.3 var(--mono, monospace);
+    cursor: pointer;
+}
+
+.g-chip:hover { border-color: #c9605c; color: #c9605c; }
+
+.g-empty {
+    font: 9px/1.3 var(--mono, monospace);
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+.gnode.free { border-style: dashed; border-color: var(--border-accent); }
+
+.gnode.cam-node { width: 148px; }
+.gnode.cam-node .chip { margin: 4px 6px 6px 12px; display: inline-flex; }
+.gnode.cam-node .node-body { padding: 0; }
 
 
 /* ─── Карточка позиции ─────────────────────────────────────────────── */
@@ -872,30 +950,7 @@ body {
 }
 
 /* ─── Нода камеры: самостоятельный объект ленты ────────────────── */
-.cam-node {
-    position: relative;
-    flex: 0 0 auto;
-    align-self: center;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 4px 8px 4px 6px;
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    box-shadow: 0 4px 10px -6px rgba(0, 0, 0, 0.5);
-}
-
-.cam-node .chip {
-    margin: 0;
-    padding-left: 8px;
-    font-size: 10.5px;
-}
-
-.cam-node.free {
-    border-style: dashed;
-    border-color: var(--border-accent);
-}
+/* ноды-камеры — общие правила .gnode выше */
 
 /* ─── Сокеты и провода (система связей) ────────────────────────── */
 

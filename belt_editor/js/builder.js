@@ -85,7 +85,7 @@ function camName(id) {
 /* positions: [{label, inspection: null|{cameras:[], primary:bool}, reset}]
  * — форма совпадает с belt.path.v1, чтобы лента позже ушла в runtime
  * без переработки модели. */
-const belt = { positions: [], freeCams: [] };
+const belt = { positions: [], places: Object.create(null) };
 
 let marker = null;      // индикатор вставки позиции
 let dragKind = null;    // что сейчас тащим
@@ -256,8 +256,9 @@ function bindCamera(i, camId) {
     } else {
         toast(camName(camId) + ' → П' + i);
     }
-    const fi = belt.freeCams.indexOf(camId);
-    if (fi >= 0) { belt.freeCams.splice(fi, 1); }
+    if (!belt.places['cam:' + camId]) {
+        belt.places['cam:' + camId] = freePoint();
+    }
     pos.inspection.cameras.push(camId);
     applyInvariants();
     render();
@@ -271,15 +272,21 @@ function removeCamera(i, j) {
     render();
 }
 
-function renameCamera(i, j) {
-    const nodes = $('belt-row').querySelectorAll(
-        '.cam-node[data-pos="' + i + '"]');
-    const chip = nodes[j] ? nodes[j].querySelector('.chip') : null;
-    if (!chip) { return; }
-    const pos = belt.positions[i];
-    if (!pos || !pos.inspection) { return; }
-    const cam = invCam(pos.inspection.cameras[j]);
-    if (!cam) { return; }
+function camOwner(camId) {
+    for (let i = 0; i < belt.positions.length; i += 1) {
+        const pos = belt.positions[i];
+        if (pos.inspection
+            && pos.inspection.cameras.indexOf(camId) !== -1) { return i; }
+    }
+    return -1;
+}
+
+function renameCamera(camId) {
+    const node = $('belt-row').querySelector(
+        '.cam-node[data-cam="' + camId + '"]');
+    const chip = node ? node.querySelector('.chip') : null;
+    const cam = invCam(camId);
+    if (!chip || !cam) { return; }
     startInlineEdit(chip, function (text) {
         const name = String(text).trim().toUpperCase()
             .replace(/[^A-Z0-9_]/g, '').slice(0, CAM_NAME_MAX);
@@ -351,17 +358,21 @@ function el(tag, cls, text) {
 function render() {
     const row = $('belt-row');
     row.textContent = '';
-
+    const chain = el('div', 'belt-chain');
+    row.appendChild(chain);
     belt.positions.forEach(function (pos, i) {
-        row.appendChild(renderCard(pos, i));
-        if (pos.inspection) {
-            pos.inspection.cameras.forEach(function (cid, j) {
-                row.appendChild(renderCamNode(cid, i, j));
-            });
-        }
+        chain.appendChild(renderCard(pos, i));
     });
-    belt.freeCams.forEach(function (cid, j) {
-        row.appendChild(renderCamNode(cid, -1, j));
+    Object.keys(belt.places).forEach(function (key) {
+        const parts = key.split(':');
+        const at = belt.places[key];
+        if (parts[0] === 'cam') {
+            row.appendChild(renderCamNode(parts[1], at));
+        } else if (parts[0] === 'rule') {
+            row.appendChild(renderRuleNode(parts[1], at));
+        } else if (parts[0] === 'model') {
+            row.appendChild(renderModelNode(parts[1], at));
+        }
     });
 
     $('belt-meta').textContent = 'позиций: ' + belt.positions.length +
@@ -459,9 +470,6 @@ function renderAssets() {
             const tile = el('div', 'asset'
                 + (byRules.length ? ' asset-used' : ''));
             tile.draggable = true;
-            const msock = el('span', 'sock sock-out');
-            msock.dataset.link = 'model:' + mod.id;
-            tile.appendChild(msock);
             tile.appendChild(el('b', '', mod.name));
             if (byRules.length) {
                 tile.appendChild(el('span', 'asset-use',
@@ -474,6 +482,8 @@ function renderAssets() {
                     'model:' + mod.id);
                 ev.dataTransfer.effectAllowed = 'copy';
                 tile.classList.add('dragging');
+                const zn = $('belt-zone');
+                if (zn) { zn.classList.add('drop-ready'); }
             });
             tile.addEventListener('dragend', function () {
                 dragKind = null;
@@ -506,12 +516,8 @@ function renderAssets() {
             const tile = el('div', 'rule-tile'
                 + (cams.length ? ' asset-used' : '')
                 + (rule.models.length ? '' : ' rule-empty'));
-            tile.draggable = rule.models.length > 0;
+            tile.draggable = true;
             tile.dataset.ruleId = rule.id;
-            const rsock = el('span', 'sock sock-out');
-            rsock.dataset.link = 'rule:' + rule.id;
-            rsock.dataset.drop = 'rule';
-            tile.appendChild(rsock);
             const sw = el('span', 'rule-swatch');
             sw.style.background = rule.color;
             tile.appendChild(sw);
@@ -548,27 +554,7 @@ function renderAssets() {
             });
             entry.appendChild(tile);
             entry.appendChild(drawer);
-            entry.addEventListener('dragover', function (ev) {
-                if (dragKind !== 'model-part') { return; }
-                ev.preventDefault();
-                ev.stopPropagation();
-                entry.classList.add('drop-target');
-            });
-            entry.addEventListener('dragleave', function () {
-                entry.classList.remove('drop-target');
-            });
-            entry.addEventListener('drop', function (ev) {
-                if (dragKind !== 'model-part') { return; }
-                ev.preventDefault();
-                ev.stopPropagation();
-                const mid = dragAsset;
-                dragKind = null;
-                dragAsset = null;
-                cleanVisuals();
-                togglePart(rule.id, mid);
-            });
             tile.addEventListener('dragstart', function (ev) {
-                if (!rule.models.length) { return; }
                 dragKind = 'rule';
                 dragAsset = rule.id;
                 ev.dataTransfer.setData('text/plain',
@@ -576,11 +562,7 @@ function renderAssets() {
                 ev.dataTransfer.effectAllowed = 'copy';
                 entry.classList.add('dragging');
                 const zn = $('belt-zone');
-                if (zn && belt.positions.some(function (p) {
-                    return p.inspection && p.inspection.cameras.length;
-                })) {
-                    zn.classList.add('drop-ready');
-                }
+                if (zn) { zn.classList.add('drop-ready'); }
             });
             tile.addEventListener('dragend', function () {
                 dragKind = null;
@@ -659,20 +641,152 @@ function renderCard(pos, i) {
     return card;
 }
 
-/* Нода камеры — самостоятельный объект ленты: × возвращает на стену,
- * сокет справа линкуется ко входу позиции, клик по шапке — пороги */
-function renderCamNode(camId, posIdx, j) {
-    const dev = inventory.find(function (d) { return d.id === camId; });
-    if (!dev) { return el('div', 'cam-node'); }
-    const node = el('div', 'cam-node' + (posIdx < 0 ? ' free' : ''));
+/* ─── Холст сборки: свободные ноды моделей/правил/камер ────────────
+ * Любая нода ставится в любое место ленты (places = координаты),
+ * связь — только сокет-линка: модель→правило, правило→камера,
+ * камера→зона инспекции. Ноду можно двигать ЛКМ за шапку. */
+
+function clampN(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+function freePoint() {
+    const row = $('belt-row');
+    return { x: (row.offsetWidth || 480) / 2 - 60,
+        y: 18 + Object.keys(belt.places).length * 6 };
+}
+
+function placeNode(key, ev) {
+    const row = $('belt-row');
+    const r = row.getBoundingClientRect();
+    const z = (window.BeltView && window.BeltView.state().z) || 1;
+    let x = 40;
+    let y = 16;
+    if (r.width) {
+        x = (ev.clientX - r.left) / z - 50;
+        y = (ev.clientY - r.top) / z - 12;
+    }
+    belt.places[key] = {
+        x: clampN(x, 2, Math.max(2, row.offsetWidth - 110)),
+        y: clampN(y, 2, Math.max(2, row.offsetHeight - 30)),
+    };
+    toast('Связь — линкой сокета на холсте ленты.');
+    render();
+}
+
+function gnodeFrame(cls, key, at, title) {
+    const node = el('div', 'gnode ' + cls);
+    node.dataset.gk = key;
+    node.style.left = Math.round(at.x) + 'px';
+    node.style.top = Math.round(at.y) + 'px';
+    const head = el('div', 'node-head');
+    head.appendChild(el('span', 'pos-label', title));
+    const del = el('button', 'pos-del', '×');
+    del.type = 'button';
+    del.draggable = false;
+    head.appendChild(del);
+    node.appendChild(head);
+    return node;
+}
+
+function gsock(cls, link, drop, rid) {
+    const n = el('span', 'sock ' + cls);
+    if (link) { n.dataset.link = link; }
+    if (drop) { n.dataset.drop = drop; }
+    if (rid) { n.dataset.rid = rid; }
+    return n;
+}
+
+function renderModelNode(mid, at) {
+    const mod = MODELS.find(function (m) { return m.id === mid; });
+    if (!mod) { return el('div', 'gnode'); }
+    const key = 'model:' + mid;
+    const node = gnodeFrame('g-model', key, at, mod.name);
+    node.dataset.model = mid;
+    node.querySelector('.pos-del').addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        delete belt.places[key];
+        render();
+    });
+    node.appendChild(gsock('sock-out', key, null));
+    const rules = RULES.filter(function (r) {
+        return r.models.indexOf(mid) !== -1;
+    });
+    if (rules.length) {
+        node.appendChild(el('div', 'g-meta', 'правил: ' + rules.length));
+    }
+    return node;
+}
+
+function renderRuleNode(rid, at) {
+    const rule = RULES.find(function (r) { return r.id === rid; });
+    if (!rule) { return el('div', 'gnode'); }
+    const key = 'rule:' + rid;
+    const node = gnodeFrame('g-rule', key, at, rule.name);
+    node.dataset.rule = rid;
+    node.querySelector('.pos-del').addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        delete belt.places[key];
+        render();
+    });
+    const head = node.querySelector('.node-head');
+    head.insertBefore(el('i', 'g-swatch'), head.firstChild);
+    head.firstChild.style.background = rule.color;
+    node.querySelector('.pos-label').style.color = rule.color;
+    node.appendChild(gsock('sock-in', null, 'rule', rid));
+    node.appendChild(gsock('sock-out', key, null));
+    const list = el('div', 'g-models');
+    rule.models.forEach(function (mid) {
+        const mod = MODELS.find(function (m) { return m.id === mid; });
+        const chip = el('span', 'g-chip', mod ? mod.name : mid);
+        chip.title = 'снять модель';
+        chip.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            togglePart(rid, mid);
+        });
+        list.appendChild(chip);
+    });
+    if (!rule.models.length) {
+        list.appendChild(el('span', 'g-empty', '→ тяни модель сюда'));
+    }
+    node.appendChild(list);
+    const cams = ruleOnCameras(rule);
+    if (cams.length) {
+        node.appendChild(el('div', 'g-meta', 'кам: ' + cams.length));
+    }
+    return node;
+}
+
+/* Нода камеры: привязка линкой ко входу позиции (или мимо — свободна),
+ * × — снять привязку, а у свободной — вернуть на стену; клик — пороги */
+function renderCamNode(camId, at) {
+    const dev = invCam(camId);
+    if (!dev) { return el('div', 'gnode'); }
+    const key = 'cam:' + camId;
+    const owner = camOwner(camId);
+    const node = gnodeFrame('cam-node g-cam'
+        + (owner < 0 ? ' free' : ''), key, at, '');
     node.dataset.cam = camId;
-    node.dataset.pos = String(posIdx);
+    if (owner >= 0) { node.dataset.pos = String(owner); }
+    const head = node.querySelector('.node-head');
+    const cin = gsock('sock-in', null, 'cam', null);
+    cin.dataset.cam = camId;
+    head.insertBefore(cin, head.firstChild);
+    const del = node.querySelector('.pos-del');
+    del.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        if (owner >= 0) {
+            const pos = belt.positions[owner];
+            const j = pos.inspection.cameras.indexOf(camId);
+            pos.inspection.cameras.splice(j, 1);
+            toast(camName(camId) + ' — снята с П' + owner + '.');
+            render();
+        } else {
+            delete belt.places[key];
+            toast(camName(camId) + ' — возвращена на стену.');
+            render();
+        }
+    });
     const chip = el('span', 'chip');
     chip.dataset.cam = camId;
-    const cin = el('span', 'sock sock-in');
-    cin.dataset.drop = 'cam';
-    cin.dataset.cam = camId;
-    chip.appendChild(cin);
     chip.appendChild(el('span', 'chip-name', camName(camId)));
     if (dev.rules.length) {
         chip.appendChild(el('span', 'chip-assets',
@@ -685,35 +799,26 @@ function renderCamNode(camId, posIdx, j) {
             tabs.appendChild(t);
         });
         chip.appendChild(tabs);
-        if (openThrCam === camId) { chip.classList.add('chip-open'); }
+        if (openThrCam === camId) {
+            node.classList.add('chip-open');
+            chip.classList.add('chip-open');
+        }
         chip.addEventListener('click', function (ev) {
             ev.stopPropagation();
             openThrCam = openThrCam === camId ? null : camId;
             render();
         });
     }
-    const chipX = el('button', 'chip-x', '×');
-    chipX.type = 'button';
-    chipX.draggable = false;
-    chipX.addEventListener('click', function (ev) {
-        ev.stopPropagation();
-        if (posIdx < 0) {
-            belt.freeCams.splice(j, 1);
-            toast(camName(camId) + ' — возвращена на стену.');
-            render();
-        } else {
-            removeCamera(posIdx, j);
-        }
-    });
-    chip.appendChild(chipX);
     chip.addEventListener('dblclick', function (ev) {
         ev.stopPropagation();
-        if (posIdx >= 0) { renameCamera(posIdx, j); }
+        renameCamera(camId);
     });
-    node.appendChild(chip);
-    const out = el('span', 'sock sock-out');
-    out.dataset.link = 'camera:' + camId;
-    node.appendChild(out);
+    const body = el('div', 'node-body');
+    body.appendChild(chip);
+    node.appendChild(body);
+    head.insertBefore(el('span', 'g-title'), head.children[1]);
+    node.querySelector('.g-title').textContent = 'камера';
+    node.appendChild(gsock('sock-out', 'camera:' + camId, null));
     if (openThrCam === camId && dev.rules.length) {
         node.appendChild(renderThrPop(dev));
     }
@@ -809,19 +914,9 @@ function scheduleWires() {
     (window.requestAnimationFrame || function (f) { f(); })(run);
 }
 
-function patchWallSocks() {
-    document.querySelectorAll('.thumb').forEach(function (th) {
-        if (th.querySelector('.sock')) { return; }
-        const cv = th.querySelector('canvas');
-        if (!cv || !cv.dataset.cam) { return; }
-        const tk = el('span', 'sock sock-out');
-        tk.dataset.link = 'camera:' + cv.dataset.cam;
-        th.appendChild(tk);
-    });
-}
+/* Стена камер — только источник плиток: связи живут на холсте */
 
 function renderWires() {
-    patchWallSocks();
     const svg = $('wires');
     if (!svg) { return; }
     svg.textContent = '';
@@ -832,7 +927,7 @@ function renderWires() {
         if (a && b) { svg.appendChild(svgPath(bez(a, b), 'wire', color)); }
     }
     RULES.forEach(function (rule) {
-        const to = q('.sock[data-drop="rule"][data-link="rule:' + rule.id + '"]');
+        const to = q('.sock[data-drop="rule"][data-rid="' + rule.id + '"]');
         rule.models.forEach(function (mid) {
             link(q('.sock[data-link="model:' + mid + '"]'), to);
         });
@@ -865,13 +960,16 @@ function renderWires() {
 function markTargets(on) {
     const want = LINK_WANT[on ? linkDrag.kind : ''] || '';
     document.querySelectorAll('.sock[data-drop]').forEach(function (n) {
-        n.classList.toggle('sock-ok', on && n.dataset.drop === want);
+        const own = n.closest ? n.closest('.cam-node') : null;
+        const skip = own && linkDrag && own.dataset.cam === linkDrag.id;
+        n.classList.toggle('sock-ok',
+            on && n.dataset.drop === want && !skip);
     });
 }
 
 function commitLink(d, t) {
     if (d.kind === 'model') {
-        togglePart(t.dataset.link.split(':')[1], d.id);
+        togglePart(t.dataset.rid || t.dataset.link.split(':')[1], d.id);
     } else if (d.kind === 'rule') {
         toggleRuleOnCam(t.dataset.cam, d.id);
     } else if (d.kind === 'camera') {
@@ -940,6 +1038,46 @@ function wireLinkEngine() {
             z.addEventListener(t, scheduleWires);
         });
     }
+}
+
+/* ЛКМ за шапку — свободное перемещение ноды по холсту */
+let movingG = null;
+
+function dragGNodes() {
+    document.addEventListener('mousedown', function (ev) {
+        if (ev.button !== 0 || linkDrag) { return; }
+        const head = ev.target.closest
+            ? ev.target.closest('.gnode .node-head') : null;
+        if (!head || ev.target.closest('button, .sock')) { return; }
+        const node = head.closest('.gnode');
+        const p = belt.places[node.dataset.gk];
+        if (!p) { return; }
+        movingG = { node: node, key: node.dataset.gk, x0: ev.clientX,
+            y0: ev.clientY, px: p.x, py: p.y };
+        ev.preventDefault();
+        document.body.classList.add('node-moving');
+    });
+    window.addEventListener('mousemove', function (ev) {
+        if (!movingG) { return; }
+        const z = window.BeltView
+            ? (window.BeltView.state().z || 1) : 1;
+        const row = $('belt-row');
+        const x = clampN(movingG.px + (ev.clientX - movingG.x0) / z,
+            2, Math.max(2, row.offsetWidth - 110));
+        const y = clampN(movingG.py + (ev.clientY - movingG.y0) / z,
+            2, Math.max(2, row.offsetHeight - 30));
+        belt.places[movingG.key].x = x;
+        belt.places[movingG.key].y = y;
+        movingG.node.style.left = Math.round(x) + 'px';
+        movingG.node.style.top = Math.round(y) + 'px';
+        renderWires();
+    });
+    window.addEventListener('mouseup', function () {
+        if (!movingG) { return; }
+        movingG = null;
+        document.body.classList.remove('node-moving');
+        render();
+    });
 }
 
 function $(id) { return document.getElementById(id); }
@@ -1046,7 +1184,8 @@ function gapFromX(clientX) {
 }
 
 function showMarkerAt(gap) {
-    const row = $('belt-row');
+    const row = $('belt-row').querySelector('.belt-chain')
+        || $('belt-row');
     const m = ensureMarker();
     const cards = row.querySelectorAll('.pos-card');
     const before = cards[gap] || null;
@@ -1103,13 +1242,10 @@ function wireBelt() {
             showMarkerAt(gapFromX(ev.clientX));
             document.querySelectorAll('.pos-card.drop-target').forEach(
                 function (n) { n.classList.remove('drop-target'); });
-        } else if (dragKind === 'rule') {
+        } else if (dragKind === 'model-part' || dragKind === 'rule') {
             if (marker && marker.parentNode) { marker.remove(); }
             document.querySelectorAll('.drop-target').forEach(
                 function (n) { n.classList.remove('drop-target'); });
-            const chipEl = ev.target && ev.target.closest
-                ? ev.target.closest('.chip') : null;
-            if (chipEl) { chipEl.classList.add('drop-target'); }
         } else {
             if (marker && marker.parentNode) { marker.remove(); }
             const idx = cardFromEvent(ev);
@@ -1150,47 +1286,27 @@ function wireBelt() {
             if (from >= 0) { movePosition(from, gap); }
             return;
         }
+        if (kind === 'model-part' || kind === 'rule') {
+            placeNode(kind === 'model-part'
+                ? 'model:' + dragAsset : 'rule:' + dragAsset, ev);
+            dragAsset = null;
+            return;
+        }
+        if (kind === 'camera' && dragCamId) {
+            if (cardIdx < 0) {
+                placeNode('cam:' + dragCamId, ev);
+                dragCamId = null;
+                return;
+            }
+            bindCamera(cardIdx, dragCamId);
+            dragCamId = null;
+            return;
+        }
         if (emptyZone) {
             toast('Нет ни одной позиции.', 'err');
             return;
         }
-        if (kind === 'model-part') {
-            toast('Модель ставится на плитку правила в каталоге.', 'err');
-            dragAsset = null;
-            return;
-        }
-        if (kind === 'rule') {
-            const chipEl = ev.target && ev.target.closest
-                ? ev.target.closest('.chip') : null;
-            const camId = chipEl && chipEl.dataset.cam;
-            if (!camId) {
-                toast('Опустите на ноду камеры.', 'err');
-                dragAsset = null;
-                render();
-                return;
-            }
-            toggleRuleOnCam(camId, dragAsset);
-            dragAsset = null;
-            return;
-        }
         if (cardIdx < 0) {
-            if (kind === 'camera' && dragCamId
-                && belt.freeCams.indexOf(dragCamId) === -1) {
-                const own = findIndex(function (p) {
-                    return p.inspection
-                        && p.inspection.cameras.indexOf(dragCamId) !== -1;
-                });
-                if (own >= 0) {
-                    const arr = belt.positions[own].inspection.cameras;
-                    arr.splice(arr.indexOf(dragCamId), 1);
-                }
-                belt.freeCams.push(dragCamId);
-                toast(camName(dragCamId) + ' — объект на ленте:'
-                    + ' подключите сокет к позиции.');
-                dragCamId = null;
-                render();
-                return;
-            }
             toast('Не на позицию.', 'err');
             return;
         }
@@ -1319,6 +1435,7 @@ document.addEventListener('DOMContentLoaded', function () {
     wireSearch();
     wireThrClose();
     wireLinkEngine();
+    dragGNodes();
     wireScrollSnap();
     render();
 });

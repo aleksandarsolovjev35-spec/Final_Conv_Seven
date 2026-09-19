@@ -51,23 +51,21 @@ function dragWall(nth, onCard) {
     fire(cards()[onCard], 'drop', dt, 10);
     fire(tile, 'dragend', dt);
 }
-function dragModelToRule(m, r) {
+function dragTileToBelt(tile) {
     const dt = mkDT();
-    const tile = modelTiles()[m];
-    const entry = entries()[r];
     fire(tile, 'dragstart', dt);
-    fire(entry, 'dragover', dt);
-    fire(entry, 'drop', dt);
+    fire(zone(), 'dragover', dt, 20);
+    fire(zone(), 'drop', dt, 20);
     fire(tile, 'dragend', dt);
 }
-function dropRuleOnChip(r, cardI, chipI) {
-    const dt = mkDT();
-    const tile = ruleTiles()[r];
-    const chip = chips(cardI)[chipI];
-    fire(tile, 'dragstart', dt);
-    fire(chip, 'dragover', dt);
-    fire(chip, 'drop', dt);
-    fire(tile, 'dragend', dt);
+function sockLink(srcSel, dstSel) {
+    const a = doc.querySelector(srcSel);
+    const b = doc.querySelector(dstSel);
+    a.dispatchEvent(new window.MouseEvent('mousedown',
+        { bubbles: true, cancelable: true, button: 0,
+          clientX: 10, clientY: 10 }));
+    b.dispatchEvent(new window.MouseEvent('mouseup',
+        { bubbles: true, cancelable: true }));
 }
 
 check('старт: цепь пуста (первый бросок станет входом)', cards().length === 0);
@@ -101,21 +99,31 @@ check('камера на не-инспекцию отклоняется',
         dragWall(1, 2);
         return !cards()[2].classList.contains('inspect') && chips(2).length === 0;
     })());
-dragModelToRule(0, 0);
-check('модель на правиле: чип в ящике, ящик раскрыт',
+dragTileToBelt(modelTiles()[0]);
+dragTileToBelt(ruleTiles()[0]);
+check('бросок модели и правила на холст — свободные ноды',
+    doc.querySelector('.gnode.g-model[data-model="m0"]') !== null
+    && doc.querySelector('.gnode.g-rule[data-rule="r0"]') !== null);
+sockLink('.g-model[data-model="m0"] .sock-out',
+    '.g-rule[data-rule="r0"] .sock-in');
+check('линка модель→правило: чип в ящике, ящик раскрыт',
     entries()[0].querySelectorAll('.rule-chip').length === 1
     && !entries()[0].querySelector('.rule-drawer').classList.contains('rule-drawer-empty')
     && doc.querySelectorAll('.rule-drawer-empty').length === 3);
-check('правило с составом стало draggable', ruleTiles()[0].draggable === true);
-dragModelToRule(2, 0);
-check('вторая модель: счётчик «2м»', /2м/.test(ruleTiles()[0].textContent));
-dragModelToRule(0, 0);
-check('повторный бросок той же модели снимает её',
+check('плитки правил draggable всегда (размещение на холст)',
+    ruleTiles()[1].draggable === true);
+dragTileToBelt(modelTiles()[2]);
+sockLink('.g-model[data-model="m2"] .sock-out',
+    '.g-rule[data-rule="r0"] .sock-in');
+check('вторая линка модели: счётчик «2м»', /2м/.test(ruleTiles()[0].textContent));
+sockLink('.g-model[data-model="m2"] .sock-out',
+    '.g-rule[data-rule="r0"] .sock-in');
+check('повторная линка той же модели снимает её',
     entries()[0].querySelectorAll('.rule-chip').length === 1
     && /1м/.test(ruleTiles()[0].textContent));
-dragModelToRule(0, 0);
-dropRuleOnChip(0, 0, 0);
-check('правило на фишке камеры: п:1, плашка «в деле»',
+sockLink('.g-rule[data-rule="r0"] .sock-out',
+    '.cam-node[data-cam="cam0"] .sock-in');
+check('линка правило→камера: п:1, плашка «в деле»',
     /п:1/.test(chips(0)[0].textContent)
     && ruleTiles()[0].classList.contains('asset-used')
     && /кам: 1/.test(ruleTiles()[0].textContent));
@@ -123,7 +131,8 @@ check('закладка цвета правила у камеры',
     (function () {
         const tab = chips(0)[0].querySelector('.rule-tabs i');
         return tab !== null && /217, 164, 65/.test(tab.getAttribute('style') || '')
-            && doc.querySelectorAll('.thumb .rule-tabs i').length >= 1;
+            && doc.querySelectorAll('.thumb .rule-tabs i').length >= 1
+            && doc.querySelector('.g-rule .g-swatch') !== null;
     })());
 check('плитка позиции — нода: шапка с ролью, тело со строками',
     (function () {
@@ -138,12 +147,18 @@ check('плитка позиции — нода: шапка с ролью, те�
             && doc.querySelector('.cam-node[data-pos="0"]') !== null
             && !c0.querySelector('.pos-top');
     })());
-check('сокеты на местах: модель/правило/стена — выходы, чип/нода — входы',
-    doc.querySelector('.sock[data-link="model:m0"]') !== null
-    && doc.querySelector('.sock[data-link="rule:r0"]') !== null
-    && doc.querySelector('.sock[data-link^="camera:"]') !== null
-    && doc.querySelector('.sock[data-drop="cam"]') !== null
-    && doc.querySelector('.sock[data-drop="pos"]') !== null);
+check('сокеты только на холсте: каталог/стена чисты, ноды — с сокетами',
+    (function () {
+        return doc.querySelector('#asset-models .sock') === null
+            && doc.querySelector('#asset-rules .sock') === null
+            && doc.querySelector('.thumb .sock') === null
+            && doc.querySelector('.g-model .sock-out') !== null
+            && doc.querySelector('.g-rule .sock-in[data-drop="rule"]') !== null
+            && doc.querySelector('.cam-node .sock-in[data-drop="cam"]') !== null
+            && doc.querySelector('.cam-node .sock-out[data-link^="camera:"]') !== null
+            && doc.querySelectorAll('.pos-card .sock-node[data-drop="pos"]').length
+                === cards().length;
+    })());
 check('камера мимо позиции — свободная нода; линка сокета к входу привязывает',
     (function () {
         const dt = mkDT();
@@ -163,15 +178,24 @@ check('камера мимо позиции — свободная нода; л�
         const bound = doc.querySelector(
             '.cam-node[data-pos="0"] .chip[data-cam="cam2"]');
         if (!bound || doc.querySelector('.cam-node.free')) { return false; }
-        bound.querySelector('.chip-x').dispatchEvent(
-            new window.MouseEvent('click', { bubbles: true }));
-        return doc.querySelectorAll('.cam-node[data-pos="0"]')
-            .length === 1;
+        const click = { bubbles: true };
+        doc.querySelector('.cam-node[data-cam="cam2"] .pos-del')
+            .dispatchEvent(new window.MouseEvent('click', click));
+        const unbound = doc.querySelectorAll('.cam-node[data-pos="0"]')
+            .length === 1
+            && doc.querySelector('.cam-node.free[data-cam="cam2"]') !== null;
+        doc.querySelector('.cam-node.free[data-cam="cam2"] .pos-del')
+            .dispatchEvent(new window.MouseEvent('click', click));
+        return unbound
+            && doc.querySelector('.cam-node[data-cam="cam2"]') === null;
     })());
 check('ссылка: тянем r1 (с моделью) на чип cam1 — связь создана, провод нарисован',
     (function () {
-        dragModelToRule(1, 1);            /* r1: наличие ← m1 */
-        dragWall(1, 0);                   /* cam1 → П0 (2-м чипом) */
+        dragTileToBelt(modelTiles()[1]);  /* m1 → нода */
+        dragTileToBelt(ruleTiles()[1]);   /* r1 → нода */
+        sockLink('.g-model[data-model="m1"] .sock-out',
+            '.g-rule[data-rule="r1"] .sock-in');
+        dragWall(1, 0);                   /* cam1 → П0, нода на холсте */
         const from = doc.querySelector('.sock[data-link="rule:r1"]');
         const to = doc.querySelector('.sock[data-drop="cam"][data-cam="cam1"]')
             || doc.querySelector('.chip[data-cam="cam1"]');
@@ -191,7 +215,7 @@ check('ссылка: тянем r1 (с моделью) на чип cam1 — св
 check('та же ссылка по правилу снимает его (toggle-семантика)',
     (function () {
         const from = doc.querySelector('.sock[data-link="rule:r1"]');
-        const to = doc.querySelector('.chip[data-cam="cam1"] .sock-in');
+        const to = doc.querySelector('.cam-node[data-cam="cam1"] .sock-in');
         from.dispatchEvent(new window.MouseEvent('mousedown',
             { bubbles: true, cancelable: true, button: 0,
               clientX: 10, clientY: 10 }));
@@ -199,14 +223,16 @@ check('та же ссылка по правилу снимает его (toggle-
             { bubbles: true, cancelable: true }));
         const chip = doc.querySelector('.chip[data-cam="cam1"]');
         const clean = chip.querySelector('.chip-assets') === null;
-        chip.querySelector('.chip-x').dispatchEvent(
-            new window.MouseEvent('click', { bubbles: true }));
-        return clean && chips(0).length === 1;
+        doc.querySelector('.cam-node[data-cam="cam1"] .pos-del')
+            .dispatchEvent(new window.MouseEvent('click',
+                { bubbles: true }));
+        return clean && chips(0).length === 1
+            && doc.querySelector('.cam-node.free[data-cam="cam1"]') !== null;
     })());
 check('Esc обрывает незавершённую линку без изменений',
     (function () {
         const before = doc.querySelectorAll('#wires .wire').length;
-        const from = doc.querySelector('.sock[data-link="rule:r2"]');
+        const from = doc.querySelector('.g-rule[data-rule="r1"] .sock-out');
         from.dispatchEvent(new window.MouseEvent('mousedown',
             { bubbles: true, cancelable: true, button: 0,
               clientX: 5, clientY: 5 }));
@@ -275,15 +301,26 @@ check('колесо над списком листает построчно',
         list.dispatchEvent(ev);
         return ev.defaultPrevented === true;
     })());
-check('модель, брошенная на ленту, отклоняется',
+check('бросок модели на холст — нода, связей не создаёт',
     (function () {
-        const before = entries()[0].querySelectorAll('.rule-chip').length;
-        const dt = mkDT();
-        fire(modelTiles()[1], 'dragstart', dt);
-        fire(zone(), 'dragover', dt, 10);
-        fire(zone(), 'drop', dt, 10);
-        fire(modelTiles()[1], 'dragend', dt);
-        return entries()[0].querySelectorAll('.rule-chip').length === before;
+        const chipsBefore = chips(0).length;
+        dragTileToBelt(modelTiles()[3]);
+        const n = doc.querySelector('.g-model[data-model="m3"]');
+        return n !== null && chips(0).length === chipsBefore
+            && /1м/.test(ruleTiles()[0].textContent);
+    })());
+check('ЛКМ за шапку двигает ноду по холсту',
+    (function () {
+        const head = doc.querySelector('.g-rule[data-rule="r0"] .node-head');
+        head.dispatchEvent(new window.MouseEvent('mousedown',
+            { bubbles: true, cancelable: true, button: 0,
+              clientX: 30, clientY: 30 }));
+        window.dispatchEvent(new window.MouseEvent('mousemove',
+            { bubbles: true, clientX: 110, clientY: 80 }));
+        window.dispatchEvent(new window.MouseEvent('mouseup',
+            { bubbles: true }));
+        const st = doc.querySelector('.g-rule[data-rule="r0"]');
+        return st.style.left !== '' && st.style.top !== '';
     })());
 check('СКМ — свободный пан по ленте из любой точки (и по карточке)',
     (function () {

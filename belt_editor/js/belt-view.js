@@ -34,8 +34,16 @@ function round(v) { return Math.round(v * 100) / 100; }
 function availW() { return zone.clientWidth - PAD * 2; }
 function availH() { return zone.clientHeight - PAD * 2; }
 /* layout-размеры ряда: не зависят от transform */
-function chainW() { return row.offsetWidth || 0; }
-function chainH() { return row.offsetHeight || 104; }
+function chainEl() { return row.querySelector('.belt-chain') || row; }
+/* размеры цепи — по обёртке (ряд теперь холст во всю зону) */
+function chainW() {
+    var c = chainEl();
+    return c.scrollWidth || c.offsetWidth || 0;
+}
+function chainH() {
+    var c = chainEl();
+    return c.scrollHeight || c.offsetHeight || 104;
+}
 
 function write() {
     row.style.transform = 'translate(' + round(panX) + 'px, '
@@ -103,7 +111,8 @@ function wireWheel() {
 /* ── пан: ЛКМ по фону + движение ─────────────────────────────────────── */
 
 function isBackground(target) {
-    return target === zone || target === row || target === document.body;
+    return target === zone || target === row
+        || target === chainEl() || target === document.body;
 }
 
 function wirePan() {
