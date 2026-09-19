@@ -570,6 +570,26 @@ check('боковая панель Photoshop: сворачивание/разв�
         const isExp = !dock.classList.contains('collapsed');
         return isCol && isExp;
     })());
+check('выбор папки: поля выбора папки в нижней части блоков правил и моделей',
+    doc.getElementById('rule-folder-path') !== null
+    && doc.getElementById('model-folder-path') !== null
+    && doc.getElementById('btn-rule-folder') !== null
+    && doc.getElementById('btn-model-folder') !== null);
+check('выбор папки: поле правил внутри #ps-panel-rules, поле моделей внутри #ps-panel-models',
+    doc.getElementById('ps-panel-rules').contains(doc.getElementById('rule-folder-path'))
+    && doc.getElementById('ps-panel-models').contains(doc.getElementById('model-folder-path')));
+check('выбор папки: загрузка файлов из папки добавляет модели и правила в каталог',
+    (function () {
+        const mBefore = doc.querySelectorAll('#asset-models .asset').length;
+        window.BeltBridge.addModelFromFile('defect_weight_test.pt', 'weights/defect_weight_test.pt');
+        const mAfter = doc.querySelectorAll('#asset-models .asset').length;
+
+        const rBefore = doc.querySelectorAll('#asset-rules .rule-entry').length;
+        window.BeltBridge.addRuleFromFile('rule_crack_test.py', 'domain/defect_rules/rule_crack_test.py');
+        const rAfter = doc.querySelectorAll('#asset-rules .rule-entry').length;
+
+        return mAfter === mBefore + 1 && rAfter === rBefore + 1;
+    })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 

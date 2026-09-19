@@ -55,6 +55,15 @@ const RULES = [
       thr: ['нажим', 'смещение'], models: [] },
 ];
 
+let nextModelId = 12;
+let nextRuleId = 4;
+
+const RULE_COLORS = [
+    '#4fa3d1', '#d9a441', '#58b79a', '#cf7aa6', '#a58ad9',
+    '#e06c75', '#98c379', '#d19a66', '#61afef', '#c678dd',
+    '#56b6c2', '#e5c07b', '#e27d60', '#85dcba', '#e8a87c'
+];
+
 function ruleColor(id) {
     const r = RULES.find(function (x) { return x.id === id; });
     return r ? r.color : 'var(--text-dim)';
@@ -1247,6 +1256,8 @@ window.BeltBridge = {
         cleanVisuals();
         toggleRuleOnCam(camId, rid);
     },
+    addModelFromFile: function (fileName, path) { return addModelFromFile(fileName, path); },
+    addRuleFromFile: function (fileName, path) { return addRuleFromFile(fileName, path); },
 };
 
 function cleanVisuals() {
@@ -1632,6 +1643,161 @@ function wireSideDock() {
     }
 }
 
+/* ─── Выбор папок с правилами (.py) и весами моделей ───────────────── */
+
+function addModelFromFile(fileName, path) {
+    const cleanName = fileName.replace(/\.[^/.]+$/, '').trim();
+    if (!cleanName) { return null; }
+    const existing = MODELS.find(function (m) {
+        return m.name.toLowerCase() === cleanName.toLowerCase();
+    });
+    if (existing) { return existing; }
+    const id = 'm' + (nextModelId++);
+    const newMod = { id: id, name: cleanName, path: path || cleanName };
+    MODELS.push(newMod);
+    render();
+    return newMod;
+}
+
+function addRuleFromFile(fileName, path) {
+    const cleanName = fileName.replace(/\.[^/.]+$/, '').replace(/^rule_/, '').replace(/_/g, ' ').trim();
+    if (!cleanName) { return null; }
+    const existing = RULES.find(function (r) {
+        return r.name.toLowerCase() === cleanName.toLowerCase();
+    });
+    if (existing) { return existing; }
+    const color = RULE_COLORS[RULES.length % RULE_COLORS.length];
+    const id = 'r' + (nextRuleId++);
+    const newRule = {
+        id: id,
+        name: cleanName,
+        color: color,
+        thr: ['порог'],
+        models: [],
+        path: path || cleanName
+    };
+    RULES.push(newRule);
+    render();
+    return newRule;
+}
+
+function wireFolderPickers() {
+    const rulePathInput = $('rule-folder-path');
+    const ruleBrowseBtn = $('btn-rule-folder');
+    const ruleFileInput = $('rule-folder-input');
+
+    const modelPathInput = $('model-folder-path');
+    const modelBrowseBtn = $('btn-model-folder');
+    const modelFileInput = $('model-folder-input');
+
+    const RULE_FOLDER_KEY = 'belt_rule_folder';
+    const MODEL_FOLDER_KEY = 'belt_model_folder';
+
+    try {
+        const savedRuleFolder = localStorage.getItem(RULE_FOLDER_KEY);
+        if (savedRuleFolder && rulePathInput) { rulePathInput.value = savedRuleFolder; }
+        const savedModelFolder = localStorage.getItem(MODEL_FOLDER_KEY);
+        if (savedModelFolder && modelPathInput) { modelPathInput.value = savedModelFolder; }
+    } catch (e) {}
+
+    // Правила: обзор папки
+    if (ruleBrowseBtn && ruleFileInput) {
+        ruleBrowseBtn.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            ruleFileInput.click();
+        });
+    }
+
+    if (ruleFileInput) {
+        ruleFileInput.addEventListener('change', function () {
+            if (!this.files || !this.files.length) { return; }
+            let folderName = '';
+            let addedCount = 0;
+            Array.from(this.files).forEach(function (f) {
+                const rel = f.webkitRelativePath || f.name;
+                if (!folderName && rel.indexOf('/') !== -1) {
+                    folderName = rel.split('/')[0];
+                }
+                const name = f.name.toLowerCase();
+                if ((name.endsWith('.py') || name.endsWith('.json') || name.endsWith('.rule'))
+                    && name !== '__init__.py' && name !== 'base.py') {
+                    const res = addRuleFromFile(f.name, rel);
+                    if (res) { addedCount += 1; }
+                }
+            });
+            if (!folderName) { folderName = 'папка правил'; }
+            if (rulePathInput) {
+                rulePathInput.value = folderName + '/';
+                try { localStorage.setItem(RULE_FOLDER_KEY, folderName + '/'); } catch (e) {}
+            }
+            toast('Папка правил: ' + folderName + (addedCount ? ' (+ ' + addedCount + ' правил)' : ''));
+            render();
+            this.value = '';
+        });
+    }
+
+    if (rulePathInput) {
+        rulePathInput.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') {
+                const val = rulePathInput.value.trim();
+                if (val) {
+                    try { localStorage.setItem(RULE_FOLDER_KEY, val); } catch (e) {}
+                    toast('Папка правил: ' + val);
+                }
+            }
+        });
+    }
+
+    // Модели: обзор папки
+    if (modelBrowseBtn && modelFileInput) {
+        modelBrowseBtn.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            modelFileInput.click();
+        });
+    }
+
+    if (modelFileInput) {
+        modelFileInput.addEventListener('change', function () {
+            if (!this.files || !this.files.length) { return; }
+            let folderName = '';
+            let addedCount = 0;
+            const validExts = ['.pt', '.onnx', '.engine', '.tflite', '.weights', '.bin'];
+            Array.from(this.files).forEach(function (f) {
+                const rel = f.webkitRelativePath || f.name;
+                if (!folderName && rel.indexOf('/') !== -1) {
+                    folderName = rel.split('/')[0];
+                }
+                const name = f.name.toLowerCase();
+                const hasExt = validExts.some(function (ext) { return name.endsWith(ext); });
+                if (hasExt) {
+                    const res = addModelFromFile(f.name, rel);
+                    if (res) { addedCount += 1; }
+                }
+            });
+            if (!folderName) { folderName = 'папка весов'; }
+            if (modelPathInput) {
+                modelPathInput.value = folderName + '/';
+                try { localStorage.setItem(MODEL_FOLDER_KEY, folderName + '/'); } catch (e) {}
+            }
+            toast('Папка весов: ' + folderName + (addedCount ? ' (+ ' + addedCount + ' моделей)' : ''));
+            render();
+            this.value = '';
+        });
+    }
+
+    if (modelPathInput) {
+        modelPathInput.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') {
+                const val = modelPathInput.value.trim();
+                if (val) {
+                    try { localStorage.setItem(MODEL_FOLDER_KEY, val); } catch (e) {}
+                    toast('Папка весов: ' + val);
+                }
+            }
+        });
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     wirePalette();
     wireBelt();
@@ -1642,6 +1808,7 @@ document.addEventListener('DOMContentLoaded', function () {
     wireScrollSnap();
     wireAppSplitter();
     wireSideDock();
+    wireFolderPickers();
     render();
 });
 
