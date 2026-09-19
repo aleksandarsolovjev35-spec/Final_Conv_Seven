@@ -1473,120 +1473,6 @@ function wireSearch() {
         });
 }
 
-/* ─── Изменение высоты сборки ленты вверх до 50% экрана ─────────────── */
-
-function wireAppSplitter() {
-    const splitter = $('app-splitter');
-    const app = document.querySelector('.app');
-    const btnExpand = $('btn-expand-build');
-    if (!splitter || !app) { return; }
-
-    const KEY = 'belt_app_height';
-    const MIN_H_FLOOR = 196;
-
-    /* Исходный размер сборки ленты — 25% высоты экрана (не менее 196px).
-     * Он же зафиксирован как МИНИМАЛЬНЫЙ размер: сборку можно только
-     * расширять вверх до 50% экрана; сжать ниже исходного нельзя. */
-    function minH() {
-        return Math.max(MIN_H_FLOOR, Math.floor((window.innerHeight || 800) * 0.25));
-    }
-
-    function maxH() {
-        return Math.max(minH(), Math.floor((window.innerHeight || 800) * 0.5));
-    }
-
-    let currentH = minH();
-
-    function setHeight(px, save) {
-        const mn = minH();
-        const mx = maxH();
-        const clamped = clampN(Math.round(px), mn, mx);
-        currentH = clamped;
-        document.documentElement.style.setProperty('--app-height', clamped + 'px');
-        const isNear50 = clamped >= mx - 10;
-        app.classList.toggle('expanded-50', isNear50);
-        if (btnExpand) {
-            btnExpand.title = isNear50
-                ? 'Вернуть исходный размер сборки ленты'
-                : 'Развернуть сборку ленты (до 50%)';
-        }
-        if (save) {
-            try { localStorage.setItem(KEY, isNear50 ? '50%' : String(clamped)); } catch (e) {}
-        }
-        scheduleWires();
-        window.dispatchEvent(new Event('resize'));
-    }
-
-    function toggle50() {
-        const mn = minH();
-        const mx = maxH();
-        if (currentH >= mx - 20) {
-            setHeight(mn, true);
-        } else {
-            setHeight(mx, true);
-        }
-    }
-
-    try {
-        const saved = localStorage.getItem(KEY);
-        if (saved === '50%') {
-            setHeight(maxH(), false);
-        } else if (saved) {
-            const num = Number(saved);
-            if (num >= minH()) { setHeight(num, false); }
-            else { setHeight(minH(), false); }
-        }
-    } catch (e) {}
-
-    if (btnExpand) {
-        btnExpand.addEventListener('click', function (ev) {
-            ev.stopPropagation();
-            toggle50();
-        });
-    }
-
-    splitter.addEventListener('dblclick', function (ev) {
-        ev.preventDefault();
-        toggle50();
-    });
-
-    splitter.addEventListener('mousedown', function (ev) {
-        if (ev.button !== 0) { return; }
-        ev.preventDefault();
-        document.body.classList.add('resizing-app');
-
-        const startY = ev.clientY;
-        const startH = currentH;
-
-        function onMove(me) {
-            const delta = startY - me.clientY;  /* движение мыши вверх увеличивает высоту */
-            setHeight(startH + delta, false);
-            renderWires();
-        }
-
-        function onUp(ue) {
-            document.body.classList.remove('resizing-app');
-            window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup', onUp);
-            const finalDelta = startY - ue.clientY;
-            setHeight(startH + finalDelta, true);
-        }
-
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
-    });
-
-    window.addEventListener('resize', function () {
-        const mn = minH();
-        const mx = maxH();
-        if (currentH > mx) {
-            setHeight(mx, false);
-        } else if (currentH < mn) {
-            setHeight(mn, false);
-        }
-    });
-}
-
 /* ─── Правая боковая стенка в стиле Photoshop (меню правил и моделей) ── */
 
 function wireSideDock() {
@@ -1806,7 +1692,6 @@ document.addEventListener('DOMContentLoaded', function () {
     wireLinkEngine();
     dragGNodes();
     wireScrollSnap();
-    wireAppSplitter();
     wireSideDock();
     wireFolderPickers();
     render();

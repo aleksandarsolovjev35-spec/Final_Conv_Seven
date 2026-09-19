@@ -500,59 +500,22 @@ check('ЛКМ-пан по фону жив, drag карточки не перех
             { bubbles: true }));
         return st1.panX === st0.panX + 25;
     })());
-check('разделитель высоты сборки: перетаскивание вверх расширяет сборку ленты',
+check('разделитель высоты сборки удалён, размер сборки зафиксирован на половине экрана',
+    doc.getElementById('app-splitter') === null && doc.getElementById('btn-expand-build') === null);
+check('сборка ленты: высота зафиксирована на 50%',
     (function () {
-        const splitter = doc.getElementById('app-splitter');
-        if (!splitter) { return false; }
-        Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
-        splitter.dispatchEvent(new window.MouseEvent('mousedown',
-            { bubbles: true, cancelable: true, button: 0, clientY: 600 }));
-        window.dispatchEvent(new window.MouseEvent('mousemove',
-            { bubbles: true, clientY: 500 }));
-        window.dispatchEvent(new window.MouseEvent('mouseup',
-            { bubbles: true, clientY: 500 }));
-        const hVal = parseInt(doc.documentElement.style.getPropertyValue('--app-height'), 10);
-        return hVal >= 280 && hVal <= 320;
+        const css = fs.readFileSync(ROOT + '/css/belt-editor.css', 'utf8');
+        return /\.app\s*\{[^}]*50%/.test(css) && /\.cameras\s*\{[^}]*50%/.test(css);
     })());
-check('ограничение расширения сборки: строго не выше 50% экрана (400px при h=800)',
-    (function () {
-        const splitter = doc.getElementById('app-splitter');
-        splitter.dispatchEvent(new window.MouseEvent('mousedown',
-            { bubbles: true, cancelable: true, button: 0, clientY: 600 }));
-        window.dispatchEvent(new window.MouseEvent('mousemove',
-            { bubbles: true, clientY: 10 }));
-        window.dispatchEvent(new window.MouseEvent('mouseup',
-            { bubbles: true, clientY: 10 }));
-        const hVal = parseInt(doc.documentElement.style.getPropertyValue('--app-height'), 10);
-        return hVal === 400 && doc.querySelector('.app').classList.contains('expanded-50');
-    })());
-check('кнопка переключения: клик сворачивает/разворачивает до 50%',
-    (function () {
-        const btn = doc.getElementById('btn-expand-build');
-        if (!btn) { return false; }
-        btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        const h1 = parseInt(doc.documentElement.style.getPropertyValue('--app-height'), 10);
-        btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        const h2 = parseInt(doc.documentElement.style.getPropertyValue('--app-height'), 10);
-        return h1 === 200 && h2 === 400;
-    })());
-check('минимальный размер сборки зафиксирован на исходном (нельзя сжать ниже 25%)',
-    (function () {
-        const splitter = doc.getElementById('app-splitter');
-        splitter.dispatchEvent(new window.MouseEvent('mousedown',
-            { bubbles: true, cancelable: true, button: 0, clientY: 500 }));
-        window.dispatchEvent(new window.MouseEvent('mousemove',
-            { bubbles: true, clientY: 900 }));
-        window.dispatchEvent(new window.MouseEvent('mouseup',
-            { bubbles: true, clientY: 900 }));
-        const hVal = parseInt(doc.documentElement.style.getPropertyValue('--app-height'), 10);
-        return hVal === 200;
-    })());
+check('панель правил и моделей #side-dock перенесена внутрь сборки ленты .build',
+    doc.querySelector('.build').contains(doc.getElementById('side-dock')));
+check('панель правил и моделей находится в правой части сборки ленты',
+    doc.querySelector('.build-body').lastElementChild === doc.getElementById('side-dock'));
 check('svg wires: строго внутри #belt-zone (провода не выходят за пределы поля на камеры)',
     doc.getElementById('belt-zone').contains(doc.getElementById('wires')));
-check('боковая панель: отдельный док #side-dock справа от рабочей зоны',
+check('боковая панель: отдельный док #side-dock внутри сборки ленты',
     doc.getElementById('side-dock') !== null);
-check('боковая панель: правила и модели перенесены в #side-dock',
+check('боковая панель: правила и модели внутри #side-dock',
     doc.getElementById('side-dock').contains(doc.getElementById('asset-rules'))
     && doc.getElementById('side-dock').contains(doc.getElementById('asset-models')));
 check('видеостена разгружена: в .cam-wall-wrap больше нет правил и моделей',

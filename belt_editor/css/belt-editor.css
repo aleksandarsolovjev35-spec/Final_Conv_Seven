@@ -45,30 +45,23 @@ html, body {
 
 body {
     display: flex;
-    flex-direction: row;
-    overflow: hidden;
-}
-
-.stage {
-    flex: 1 1 0;
-    min-width: 0;
-    height: 100vh;
-    display: flex;
     flex-direction: column;
     overflow: hidden;
+    height: 100vh;
 }
 
-/* Экран: видеостена тянется на всё свободное, нижняя зона (элементы
- * + сборка ленты) — половина прежней высоты (25%). Ряд ленты авто-впи-
- * сывается и по высоте, палитра при тесноте получает свой тонкий скролл.
- * Адаптивного отката нет намеренно. */
+/* Экран разделен ровно пополам (50% / 50%):
+ * Верхняя половина (50%): видеостена на всю ширину экрана.
+ * Нижняя половина (50%): сборка ленты на всю ширину экрана,
+ * внутри сборки справа размещена панель правил и моделей. */
 .cameras {
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     gap: 14px;
     padding: 14px 14px 7px;
-    flex: 1 1 auto;
-    min-height: 150px;
+    flex: 0 0 50%;
+    height: 50%;
+    min-height: 0;
 }
 
 .cam-main-wrap,
@@ -524,111 +517,13 @@ body {
     box-shadow: 0 0 6px var(--ok);
 }
 
-/* ─── Разделитель (изменение высоты сборки ленты вверх до 50% экрана) ─────── */
-.splitter-h {
-    flex: 0 0 10px;
-    height: 10px;
-    margin: -3px 14px;
-    position: relative;
-    z-index: 25;
-    cursor: row-resize;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    user-select: none;
-    -webkit-user-select: none;
-}
-
-.splitter-h::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--border);
-    transition: background 120ms ease, height 120ms ease;
-}
-
-.splitter-h:hover::before,
-body.resizing-app .splitter-h::before {
-    background: var(--border-accent);
-    height: 3px;
-}
-
-.splitter-h-grip {
-    position: relative;
-    z-index: 1;
-    width: 44px;
-    height: 6px;
-    border-radius: 3px;
-    background: var(--border-strong);
-    border: 1px solid var(--border);
-    transition: background 120ms ease, width 120ms ease, border-color 120ms ease;
-}
-
-.splitter-h:hover .splitter-h-grip,
-body.resizing-app .splitter-h-grip {
-    background: var(--accent);
-    border-color: var(--accent);
-    width: 60px;
-}
-
-body.resizing-app {
-    cursor: row-resize !important;
-    user-select: none !important;
-    -webkit-user-select: none !important;
-}
-
-body.resizing-app * {
-    user-select: none !important;
-    -webkit-user-select: none !important;
-}
-
-.btn-expand {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    margin: 0 4px;
-    padding: 0;
-    background: var(--panel-raised);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text-dim);
-    cursor: pointer;
-    transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
-}
-
-.btn-expand:hover {
-    color: var(--accent);
-    border-color: var(--border-accent);
-    background: var(--bg-1);
-}
-
-.btn-expand svg {
-    width: 12px;
-    height: 12px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    transition: transform 180ms ease;
-}
-
-.app.expanded-50 .btn-expand svg {
-    transform: rotate(180deg);
-}
-
 .app {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     padding: 7px 14px 14px;
-    flex: 0 0 var(--app-height, 25%);
-    height: var(--app-height, 25%);
-    min-height: max(196px, 25vh);
-    max-height: 50vh;
+    flex: 0 0 50%;
+    height: 50%;
+    min-height: 0;
 }
 
 .zone-head {
@@ -719,13 +614,25 @@ body.resizing-app * {
     box-shadow: var(--shadow-md);
     display: flex;
     flex-direction: column;
+    height: 100%;
     min-height: 0;
+    overflow: hidden;
+}
+
+.build-body {
+    display: flex;
+    flex-direction: row;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
 }
 
 .belt-zone {
     position: relative;
-    flex: 1;
-    margin: 12px;
+    flex: 1 1 0;
+    min-width: 0;
+    margin: 10px;
     padding: 16px;
     border: 2px dashed var(--border-strong);
     border-radius: var(--radius);
@@ -1154,10 +1061,10 @@ body.linking {
 .side-dock {
     flex: 0 0 320px;
     width: 320px;
-    height: 100vh;
+    height: 100%;
     background: var(--panel);
     border-left: 1px solid var(--border);
-    box-shadow: -3px 0 14px rgba(0, 0, 0, 0.35);
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.2);
     display: flex;
     flex-direction: column;
     overflow: hidden;
