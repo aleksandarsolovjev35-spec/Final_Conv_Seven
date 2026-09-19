@@ -902,16 +902,7 @@ body.node-moving { cursor: grabbing; }
     flex: 0 0 auto;
 }
 
-.insert-marker {
-    position: absolute;
-    z-index: 4;
-    width: 3px;
-    border-radius: 2px;
-    pointer-events: none;
-    background: var(--accent);
-    box-shadow: 0 0 8px var(--accent);
-    opacity: 0.85;
-}
+
 
 /* ─── Тосты ───────────────────────────────────────────────── */
 
@@ -978,6 +969,20 @@ body.node-moving { cursor: grabbing; }
     margin-top: -4.5px;
 }
 
+/* коннекторы цепи: квадратные, снизу ноды — вход слева, выход справа */
+.sock-line-in,
+.sock-line-out {
+    width: 11px;
+    height: 11px;
+    top: auto;
+    bottom: -6px;
+    border-radius: 2px;
+}
+
+.sock-line-in { left: -6px; right: auto; }
+
+.sock-line-out { right: -6px; }
+
 .sock-node {
     left: -5px;
     top: 12px;
@@ -1007,6 +1012,12 @@ body.linking {
     height: 100%;
     pointer-events: none;
     z-index: 30;
+}
+
+.wire-chain {
+    stroke-width: 2.5px;
+    opacity: 0.95;
+    stroke-dasharray: none;
 }
 
 .wire {

@@ -74,7 +74,8 @@ check('первая позиция = П0 вход с обязательной и
     cards().length === 1 && cards()[0].classList.contains('inspect')
     && /инспекция/.test(cards()[0].textContent));
 dropTool('position', 500);
-check('бросок позиции вставляет по месту (2 пластины)', cards().length === 2);
+check('бросок позиции добавляет свободную ноду (2 пластины)',
+    cards().length === 2);
 dropTool('inspect', undefined, 1);
 check('бросок инспекции делает П1 инспекционной', cards()[1].classList.contains('inspect'));
 dropTool('inspect', undefined, 1);
@@ -85,9 +86,10 @@ dropTool('reset', 20, 0);
 check('сброс нельзя на П0 (вход-инспекция)', !cards()[0].classList.contains('reset-pt'));
 const nBefore = cards().length;
 dropTool('position', 9999);
-check('вставка с хвоста встаёт перед сбросом',
+check('свободное добавление: нода встаёт в точку броска, а не в ряд',
     cards().length === nBefore + 1
-    && cards()[cards().length - 1].classList.contains('reset-pt'));
+    && cards()[cards().length - 1].classList.contains('g-pos')
+    && cards()[cards().length - 1].style.left !== '');
 check('инспекция и сброс не пересекаются',
     !Array.prototype.some.call(cards(),
         (c) => c.classList.contains('inspect') && c.classList.contains('reset-pt')));
@@ -147,7 +149,57 @@ check('плитка позиции — нода: шапка с ролью, те�
             && doc.querySelector('.cam-node[data-pos="0"]') !== null
             && !c0.querySelector('.pos-top');
     })());
-check('сокеты только на холсте: каталог/стена чисты, ноды — с сокетами',
+check('роли цепи: П0 — только выход, середина — вход+выход, сброс — только вход',
+    (function () {
+        const c = cards();
+        return c[0].querySelectorAll('.sock-line-out').length === 1
+            && c[0].querySelectorAll('.sock-line-in').length === 0
+            && c[2].querySelectorAll('.sock-line-in').length === 1
+            && c[2].querySelectorAll('.sock-line-out').length === 1
+            && c[1].querySelectorAll('.sock-line-in').length === 1
+            && c[1].querySelectorAll('.sock-line-out').length === 0;
+    })());
+check('цепь линками: сборка, перелинковка входа, разрыв',
+    (function () {
+        const d = (a, b) => {
+            a.dispatchEvent(new window.MouseEvent('mousedown',
+                { bubbles: true, cancelable: true, button: 0,
+                  clientX: 10, clientY: 10 }));
+            b.dispatchEvent(new window.MouseEvent('mouseup',
+                { bubbles: true, cancelable: true }));
+        };
+        const cnt = () => doc.querySelectorAll('#wires .wire-chain').length;
+        d(cards()[0].querySelector('.sock-line-out'),
+            cards()[2].querySelector('.sock-line-in'));
+        if (cnt() !== 1) { return false; }
+        d(cards()[2].querySelector('.sock-line-out'),
+            cards()[1].querySelector('.sock-line-in'));
+        if (cnt() !== 2) { return false; }
+        d(cards()[0].querySelector('.sock-line-out'),
+            cards()[1].querySelector('.sock-line-in'));
+        const rewired = cnt() === 1;
+        d(cards()[0].querySelector('.sock-line-out'),
+            cards()[1].querySelector('.sock-line-in'));
+        return rewired && cnt() === 0;
+    })());
+check('цикл на ленте невозможен, а П1 без связи дальше = валидный хвост',
+    (function () {
+        const d = (a, b) => {
+            a.dispatchEvent(new window.MouseEvent('mousedown',
+                { bubbles: true, cancelable: true, button: 0,
+                  clientX: 10, clientY: 10 }));
+            b.dispatchEvent(new window.MouseEvent('mouseup',
+                { bubbles: true, cancelable: true }));
+        };
+        const cnt = () => doc.querySelectorAll('#wires .wire-chain').length;
+        d(cards()[0].querySelector('.sock-line-out'),
+            cards()[2].querySelector('.sock-line-in'));
+        d(cards()[2].querySelector('.sock-line-out'),
+            cards()[0].querySelector('.sock-line-in')
+            || doc.createElement('i'));
+        return cnt() === 1;
+    })());
+check('сокеты только на холсте: каталог/стена чисты, ноды — с сокетаки',
     (function () {
         return doc.querySelector('#asset-models .sock') === null
             && doc.querySelector('#asset-rules .sock') === null

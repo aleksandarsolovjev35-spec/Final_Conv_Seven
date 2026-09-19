@@ -87,7 +87,7 @@ function camName(id) {
  * без переработки модели. */
 const belt = { positions: [], places: Object.create(null) };
 
-let marker = null;      // индикатор вставки позиции
+let uidSeq = 0;       // сквозной id позиций для связей цепи
 let dragKind = null;    // что сейчас тащим
 let dragFrom = -1;      // индекс карточки при переносе
 let dragCamId = null;   // id камеры при переносе из стены
@@ -101,6 +101,8 @@ const THR_DEFAULT = 0.5;
 function applyInvariants() {
     let resetKept = false;
     belt.positions.forEach(function (pos, i) {
+        if (pos.uid == null) { pos.uid = ++uidSeq; }
+        if (pos.reset && pos.nextUid) { pos.nextUid = null; }
         if (pos.reset) {
             if (resetKept) { pos.reset = false; }
             resetKept = true;
@@ -126,32 +128,37 @@ function findIndex(pred) {
 
 /* ─── Действия ───────────────────────────────────────────────────── */
 
-function insertPosition(gap, at) {
+/* Позиции ставятся буквально куда бросил; порядок ленты задают
+ * линки коннекторов (П0→…→сброс), а не место в ряду */
+function insertPosition(at) {
     if (belt.positions.length >= MAX_POSITIONS) {
         toast('Максимум ' + MAX_POSITIONS + ' позиций на ленте.', 'err');
         return;
     }
     const wasEmpty = belt.positions.length === 0;
-    const resetIdx = findIndex(function (p) { return p.reset; });
-    if (resetIdx >= 0 && gap > resetIdx) {
-        toast('После точки сброса позиции не ставятся — она всегда'
-            + ' последняя. Сначала снимите сброс.', 'err');
-        return;
-    }
-    belt.positions.splice(gap, 0, {
+    belt.positions.push({
         label: '', inspection: null, reset: false,
-        at: at || layoutSlot(gap),
+        uid: ++uidSeq, nextUid: null,
+        at: at || layoutSlot(belt.positions.length),
     });
     applyInvariants();
     render();
-    if (gap === 0) {
+    if (wasEmpty) {
         toast('П0 — вход: место инспекции, определяет наличие детали.');
-    } else if (wasEmpty) {
-        toast('Позиция добавлена.');
+    } else {
+        toast('Позиция добавлена — соедините её коннекторами.');
     }
 }
 
 function removePosition(i) {
+    const gone = belt.positions[i];
+    if (gone) {
+        belt.positions.forEach(function (p) {
+            if (String(p.nextUid) === String(gone.uid)) {
+                p.nextUid = null;
+            }
+        });
+    }
     belt.positions.splice(i, 1);
     const hadReset = belt.positions.some(function (p) {
         return p.reset;
@@ -195,10 +202,13 @@ function toggleReset(i) {
         pos.reset = false;
         toast('П' + i + ': точка сброса снята.');
     } else {
-        const last = belt.positions.length - 1;
-        if (i !== last) {
-            toast('Точка сброса — только на последней позиции (П'
-                + last + ').', 'err');
+        if (pos.nextUid) {
+            toast('У П' + i + ' есть связь дальше по ленте — сначала'
+                + ' разорвите её (повторная линка снимает).', 'err');
+            return;
+        }
+        if (pos.inspection && i === 0) {
+            toast('П0 — вход, сбросом быть не может.', 'err');
             return;
         }
         if (pos.inspection) {
@@ -206,7 +216,10 @@ function toggleReset(i) {
                 + ' на одной позиции невозможны.', 'err');
             return;
         }
-        belt.positions.forEach(function (p) { p.reset = false; });
+        belt.positions.forEach(function (p) {
+            p.reset = false;
+        });
+        pos.nextUid = null;
         pos.reset = true;
         toast('П' + i + ' — точка сброса');
     }
@@ -393,6 +406,50 @@ function togglePart(ruleId, modelId) {
         rule.models.push(modelId);
         toast('«' + rule.name + '» ← ' + mod.name + '.');
     }
+    render();
+}
+
+function findPosByUid(uid) {
+    for (let i = 0; i < belt.positions.length; i += 1) {
+        if (String(belt.positions[i].uid) === String(uid)) {
+            return belt.positions[i];
+        }
+    }
+    return null;
+}
+
+/* линка коннекторов ленты: у позиции один выход; вход приёмника
+ * перетягивается на себя; повторная линка разрывает; цикл запрещён */
+function linkPos(fromUid, toUid) {
+    const from = findPosByUid(fromUid);
+    const to = findPosByUid(toUid);
+    if (!from || !to) { return; }
+    if (from === to) {
+        toast('Позиция не связывается сама с собой.', 'err');
+        return;
+    }
+    if (String(from.nextUid) === String(toUid)) {
+        from.nextUid = null;
+        toast('Связь разорвана.');
+        render();
+        return;
+    }
+    let cur = to;
+    let guard = 0;
+    while (cur && guard <= belt.positions.length) {
+        if (cur === from) {
+            toast('Лента не делает цикл.', 'err');
+            return;
+        }
+        cur = cur.nextUid ? findPosByUid(cur.nextUid) : null;
+        guard += 1;
+    }
+    belt.positions.forEach(function (pp) {
+        if (String(pp.nextUid) === String(toUid)) { pp.nextUid = null; }
+    });
+    from.nextUid = String(toUid);
+    toast('П' + belt.positions.indexOf(from) + ' → П'
+        + belt.positions.indexOf(to));
     render();
 }
 
@@ -621,6 +678,17 @@ function renderCard(pos, i) {
     camIn.dataset.drop = 'pos';
     camIn.dataset.idx = String(i);
     card.appendChild(camIn);
+    if (i > 0) {
+        const lin = el('span', 'sock sock-in sock-line-in');
+        lin.dataset.drop = 'poslink';
+        lin.dataset.uid = String(pos.uid);
+        card.appendChild(lin);
+    }
+    if (!pos.reset) {
+        const lout = el('span', 'sock sock-out sock-line-out');
+        lout.dataset.link = 'posline:' + pos.uid;
+        card.appendChild(lout);
+    }
 
     card.appendChild(body);
     return card;
@@ -877,7 +945,8 @@ function renderThrPop(dev) {
  * data-drop. Совпадение вида (model→rule, rule→cam, camera→pos).
  * Постоянные провода пересчитываются на каждый render/scroll/пан. */
 
-const LINK_WANT = { rule: 'cam', model: 'rule', camera: 'pos' };
+const LINK_WANT = { rule: 'cam', model: 'rule', camera: 'pos',
+    posline: 'poslink' };
 let linkDrag = null;
 let wiresScheduled = false;
 
@@ -919,10 +988,12 @@ function renderWires() {
     if (!svg) { return; }
     svg.textContent = '';
     const q = function (sel) { return document.querySelector(sel); };
-    function link(from, to, color) {
+    function link(from, to, color, cls) {
         const a = sockXY(from);
         const b = sockXY(to);
-        if (a && b) { svg.appendChild(svgPath(bez(a, b), 'wire', color)); }
+        if (a && b) {
+            svg.appendChild(svgPath(bez(a, b), cls || 'wire', color));
+        }
     }
     RULES.forEach(function (rule) {
         const to = q('.sock[data-drop="rule"][data-rid="' + rule.id + '"]');
@@ -945,6 +1016,14 @@ function renderWires() {
                 + cid + '"]'),
                 q('.pos-card[data-index="' + i + '"] .sock-node'));
         });
+    });
+    belt.positions.forEach(function (pos, i) {
+        if (!pos.nextUid) { return; }
+        const tgt = findPosByUid(pos.nextUid);
+        if (!tgt) { return; }
+        link(q('.pos-card[data-index="' + i + '"] .sock-line-out'),
+            q('.pos-card[data-index="' + belt.positions.indexOf(tgt)
+                + '"] .sock-line-in'), null, 'wire wire-chain');
     });
     if (linkDrag) {
         const a = sockXY(linkDrag.from);
@@ -972,6 +1051,8 @@ function commitLink(d, t) {
         toggleRuleOnCam(t.dataset.cam, d.id);
     } else if (d.kind === 'camera') {
         bindCamera(Number(t.dataset.idx), d.id);
+    } else if (d.kind === 'posline') {
+        linkPos(d.id, t.dataset.uid);
     }
     render();
 }
@@ -1143,7 +1224,6 @@ window.BeltBridge = {
 };
 
 function cleanVisuals() {
-    if (marker && marker.parentNode) { marker.remove(); }
     document.querySelectorAll('.drop-target')
         .forEach(function (n) { n.classList.remove('drop-target'); });
     $('belt-zone').classList.remove('drop-ready');
@@ -1155,18 +1235,6 @@ function cleanVisuals() {
         });
 }
 
-function ensureMarker() {
-    if (!marker) {
-        marker = el('div', 'insert-marker');
-    }
-    return marker;
-}
-
-/* индекс щели (0..n), куда встанет позиция по X курсора; карточки и
- * стрелки лежат в ряду по очереди, поэтому шаг 2 */
-/* куда данный перетаскиваемый элемент реально «сядет» — подсветка
- * показывается только на принимающих целях (камера: только место
- * инспекции; не-позиционный сброс и т.п. отказа не подсвечиваем) */
 function acceptsAt(kind, idx) {
     const pos = belt.positions[idx];
     if (!pos) { return false; }
@@ -1179,39 +1247,7 @@ function acceptsAt(kind, idx) {
     return true;
 }
 
-function gapFromX(clientX) {
-    const cards = $('belt-row').querySelectorAll('.pos-card');
-    let gap = cards.length;
-    for (let i = 0; i < cards.length; i += 1) {
-        const r = cards[i].getBoundingClientRect();
-        if (clientX < r.left + r.width / 2) { gap = i; break; }
-    }
-    /* раньше входной позиции слота нет: левее П0 — вставка сразу
-     * после входа (маркер и drop считают один и тот же зажим) */
-    if (cards.length > 0 && gap === 0) { gap = 1; }
-    /* и слота за точкой сброса нет: дальше сброса цепь не растёт —
-     * встанет перед ним */
-    const rr = findIndex(function (p) { return p.reset; });
-    if (rr >= 0 && gap > rr) { gap = rr; }
-    return gap;
-}
 
-function showMarkerAt(gap) {
-    const row = $('belt-row');
-    const m = ensureMarker();
-    if (m.parentNode !== row) { row.appendChild(m); }
-    const n = belt.positions.length;
-    let x = 16 + gap * 206 - 16;
-    if (gap < n && belt.positions[gap].at) {
-        x = belt.positions[gap].at.x - 16;
-    } else if (n > 0 && belt.positions[n - 1].at) {
-        x = belt.positions[n - 1].at.x + 192;
-    }
-    const h = row.offsetHeight || 210;
-    m.style.left = Math.round(Math.max(2, x)) + 'px';
-    m.style.top = '12px';
-    m.style.height = Math.max(40, h - 24) + 'px';
-}
 
 function cardFromEvent(ev) {
     const node = ev.target && ev.target.closest
@@ -1250,18 +1286,13 @@ function wireBelt() {
     zone.addEventListener('dragover', function (ev) {
         if (!dragKind) { return; }
         ev.preventDefault();
-        const wantsSlot = dragKind === 'position';
         ev.dataTransfer.dropEffect = 'copy';
-        if (wantsSlot) {
-            showMarkerAt(gapFromX(ev.clientX));
-            document.querySelectorAll('.pos-card.drop-target').forEach(
-                function (n) { n.classList.remove('drop-target'); });
-        } else if (dragKind === 'model-part' || dragKind === 'rule') {
-            if (marker && marker.parentNode) { marker.remove(); }
-            document.querySelectorAll('.drop-target').forEach(
-                function (n) { n.classList.remove('drop-target'); });
+        document.querySelectorAll('.drop-target')
+            .forEach(function (n) { n.classList.remove('drop-target'); });
+        if (dragKind === 'model-part' || dragKind === 'rule'
+            || dragKind === 'position') {
+            /* свободное размещение: цели — весь холст */
         } else {
-            if (marker && marker.parentNode) { marker.remove(); }
             const idx = cardFromEvent(ev);
             document.querySelectorAll('.pos-card.drop-target').forEach(
                 function (n) { n.classList.remove('drop-target'); });
@@ -1275,7 +1306,6 @@ function wireBelt() {
 
     zone.addEventListener('dragleave', function (ev) {
         if (ev.relatedTarget && zone.contains(ev.relatedTarget)) { return; }
-        if (marker && marker.parentNode) { marker.remove(); }
         document.querySelectorAll('.pos-card.drop-target').forEach(
             function (n) { n.classList.remove('drop-target'); });
     });
@@ -1286,14 +1316,13 @@ function wireBelt() {
         const kind = dragKind;
         const from = dragFrom;
         const cardIdx = cardFromEvent(ev);
-        const gap = gapFromX(ev.clientX);
         cleanVisuals();
         dragKind = null;
         dragFrom = -1;
 
         const emptyZone = belt.positions.length === 0;
         if (kind === 'position') {
-            insertPosition(gap, canvasPoint(ev, 176, 100));
+            insertPosition(canvasPoint(ev, 176, 100));
             return;
         }
         if (kind === 'model-part' || kind === 'rule') {
