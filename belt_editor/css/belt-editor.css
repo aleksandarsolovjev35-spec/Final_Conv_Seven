@@ -45,6 +45,15 @@ html, body {
 
 body {
     display: flex;
+    flex-direction: row;
+    overflow: hidden;
+}
+
+.stage {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 100vh;
+    display: flex;
     flex-direction: column;
     overflow: hidden;
 }
@@ -419,8 +428,9 @@ body {
 }
 
 .cam-wall {
-    /* блок по высоте: камеры 2/3, правила и модели по 1/6 */
-    flex: 4 1 0;
+    /* свободное пространство для всех обнаруженных камер */
+    flex: 1 1 auto;
+    height: 100%;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
@@ -1138,4 +1148,206 @@ body.linking {
 .wire-ok {
     stroke: #7ac48c;
     stroke-dasharray: none;
+}
+
+/* ─── Правая боковая стенка в стиле Photoshop (меню правил и моделей) ─── */
+.side-dock {
+    flex: 0 0 320px;
+    width: 320px;
+    height: 100vh;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    box-shadow: -3px 0 14px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    z-index: 10;
+    transition: width 160ms cubic-bezier(0.2, 0, 0, 1),
+                flex-basis 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.side-dock-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+}
+
+.side-dock-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+}
+
+.side-dock-icon {
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.5;
+}
+
+.side-dock-collapse,
+.side-dock-expand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.side-dock-collapse:hover,
+.side-dock-expand:hover {
+    color: var(--text);
+    border-color: var(--border);
+    background: var(--panel-raised);
+}
+
+.side-dock-collapse svg,
+.side-dock-expand svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.side-dock-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Панель в стиле Photoshop (Правила / Модели) */
+.ps-panel {
+    flex: 1 1 50%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.ps-panel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 7px 12px;
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    user-select: none;
+}
+
+.ps-panel-content {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 8px 10px;
+    gap: 6px;
+    overflow: hidden;
+}
+
+.ps-panel-divider {
+    height: 1px;
+    background: var(--border);
+    opacity: 0.8;
+    flex: none;
+}
+
+/* Свёрнутая боковая стенка в стиле узкого дока Photoshop */
+.side-dock-collapsed-bar {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0;
+    gap: 8px;
+    height: 100%;
+    background: var(--bg-1);
+    user-select: none;
+    cursor: pointer;
+}
+
+.side-dock-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition: all 120ms ease;
+}
+
+.side-dock-tab:hover {
+    background: var(--panel-hover);
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.side-dock.collapsed {
+    flex: 0 0 38px;
+    width: 38px;
+}
+
+.side-dock.collapsed .side-dock-head,
+.side-dock.collapsed .side-dock-body {
+    display: none;
+}
+
+.side-dock.collapsed .side-dock-collapsed-bar {
+    display: flex;
+}
+
+/* Сетка моделей в правой панели: 2 аккуратные колонки */
+#asset-models.assets {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    align-content: start;
+}
+
+#asset-models .asset {
+    width: 100%;
+    min-width: 0;
+    justify-content: space-between;
+}
+
+/* Список правил в правой панели: вертикальный список во всю ширину */
+#asset-rules.assets {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-content: stretch;
+}
+
+#asset-rules .rule-entry {
+    width: 100%;
 }

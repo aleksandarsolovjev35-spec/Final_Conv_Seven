@@ -4,33 +4,104 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-<link rel="stylesheet" href="css/belt-editor.css?v=71">
+<link rel="stylesheet" href="css/belt-editor.css?v=72">
 </head>
 <body>
 
-<!-- Верх: видеостена. Слева — основная (входная) камера крупно,
-     справа — все обнаруженные камеры ленты. -->
-<div class="cameras">
-    <div class="cam-main-wrap">
-        <div class="zone-head">ОСНОВНАЯ КАМЕРА
-            <span class="hint" id="cam-main-role"></span>
+<div class="stage">
+    <!-- Верх: видеостена. Слева — основная (входная) камера крупно,
+         справа — все обнаруженные камеры ленты. -->
+    <div class="cameras">
+        <div class="cam-main-wrap">
+            <div class="zone-head">ОСНОВНАЯ КАМЕРА
+                <span class="hint" id="cam-main-role"></span>
+            </div>
+            <div class="cam-main-box" id="cam-main-box">
+                <canvas id="cam-main"></canvas>
+                <span class="cam-tag cam-tag-tr" id="cam-main-time"></span>
+                <span class="cam-tag cam-tag-br" id="cam-main-status"></span>
+            </div>
         </div>
-        <div class="cam-main-box" id="cam-main-box">
-            <canvas id="cam-main"></canvas>
-            <span class="cam-tag cam-tag-tr" id="cam-main-time"></span>
-            <span class="cam-tag cam-tag-br" id="cam-main-status"></span>
+        <div class="cam-wall-wrap">
+            <div class="zone-head">ОБНАРУЖЕННЫЕ КАМЕРЫ
+                <span class="hint" id="cam-count"></span>
+            </div>
+            <div class="cam-wall" id="cam-wall"></div>
         </div>
     </div>
-    <div class="cam-wall-wrap">
-        <div class="zone-head">ОБНАРУЖЕННЫЕ КАМЕРЫ
-            <span class="hint" id="cam-count"></span>
-        </div>
-        <div class="cam-wall" id="cam-wall"></div>
-        <div class="assets-zone">
-            <div class="assets-col">
-                <div class="zone-head">ПРАВИЛА
-                    <span class="hint" id="rule-count"></span>
+
+    <div class="splitter-h" id="app-splitter" title="Потяните для изменения высоты сборки ленты (до 50%)">
+        <div class="splitter-h-grip"></div>
+    </div>
+
+    <div class="app">
+        <!-- Сборка ленты: инструменты — плавающие иконки в углу -->
+        <main class="build">
+            <div class="zone-head">СБОРКА ЛЕНТЫ
+                <span class="hint" id="belt-meta"></span>
+                <button type="button" class="btn-expand" id="btn-expand-build" title="Развернуть сборку ленты (до 50%)">
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M3 10l5-5 5 5"/>
+                    </svg>
+                </button>
+                <span class="hint">сб. 72</span>
+            </div>
+            <div class="belt-zone" id="belt-zone">
+                <div class="tools">
+                    <span class="tool" draggable="true" data-kind="position">
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <rect x="4" y="2" width="8" height="7"/>
+                            <path d="M1.5 13h13"/>
+                        </svg>
+                    </span>
+                    <span class="tool" draggable="true" data-kind="inspect">
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <rect x="1.5" y="4.5" width="13" height="9"
+                                rx="1.5"/>
+                            <circle cx="8" cy="9" r="2.4"/>
+                            <path d="M6 4.5V3h4v1.5"/>
+                        </svg>
+                    </span>
+                    <span class="tool" draggable="true" data-kind="reset">
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <path d="M8 1.5v7.5M5 6.5l3 3 3-3"/>
+                            <path d="M2.5 13.5h11"/>
+                        </svg>
+                    </span>
                 </div>
+                <div class="belt-row" id="belt-row"></div>
+                <svg id="wires" aria-hidden="true"></svg>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Правая стенка в стиле Photoshop: панели правил и моделей -->
+<aside class="side-dock" id="side-dock">
+    <div class="side-dock-head">
+        <span class="side-dock-title">
+            <svg class="side-dock-icon" viewBox="0 0 16 16" aria-hidden="true">
+                <rect x="2" y="2" width="5" height="5" rx="1"/>
+                <rect x="9" y="2" width="5" height="5" rx="1"/>
+                <rect x="2" y="9" width="5" height="5" rx="1"/>
+                <rect x="9" y="9" width="5" height="5" rx="1"/>
+            </svg>
+            МЕНЮ
+        </span>
+        <button type="button" class="side-dock-collapse" id="btn-side-collapse" title="Свернуть боковую панель">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M6 3l5 5-5 5"/>
+            </svg>
+        </button>
+    </div>
+
+    <div class="side-dock-body">
+        <section class="ps-panel" id="ps-panel-rules">
+            <div class="ps-panel-head">
+                <span class="ps-panel-title">ПРАВИЛА</span>
+                <span class="hint" id="rule-count"></span>
+            </div>
+            <div class="ps-panel-content">
                 <label class="search">
                     <svg viewBox="0 0 16 16" aria-hidden="true">
                         <circle cx="6.5" cy="6.5" r="4.4"/>
@@ -41,10 +112,16 @@
                 </label>
                 <div class="assets" id="asset-rules"></div>
             </div>
-            <div class="assets-col">
-                <div class="zone-head">МОДЕЛИ
-                    <span class="hint" id="model-count"></span>
-                </div>
+        </section>
+
+        <div class="ps-panel-divider"></div>
+
+        <section class="ps-panel" id="ps-panel-models">
+            <div class="ps-panel-head">
+                <span class="ps-panel-title">МОДЕЛИ</span>
+                <span class="hint" id="model-count"></span>
+            </div>
+            <div class="ps-panel-content">
                 <label class="search">
                     <svg viewBox="0 0 16 16" aria-hidden="true">
                         <circle cx="6.5" cy="6.5" r="4.4"/>
@@ -55,61 +132,25 @@
                 </label>
                 <div class="assets" id="asset-models"></div>
             </div>
-        </div>
+        </section>
     </div>
-</div>
 
-<div class="splitter-h" id="app-splitter" title="Потяните для изменения высоты сборки ленты (до 50%)">
-    <div class="splitter-h-grip"></div>
-</div>
-
-<div class="app">
-
-    <!-- Сборка ленты: инструменты — плавающие иконки в углу -->
-    <main class="build">
-        <div class="zone-head">СБОРКА ЛЕНТЫ
-            <span class="hint" id="belt-meta"></span>
-            <button type="button" class="btn-expand" id="btn-expand-build" title="Развернуть сборку ленты (до 50%)">
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                    <path d="M3 10l5-5 5 5"/>
-                </svg>
-            </button>
-            <span class="hint">сб. 71</span>
-        </div>
-        <div class="belt-zone" id="belt-zone">
-            <div class="tools">
-                <span class="tool" draggable="true" data-kind="position">
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                        <rect x="4" y="2" width="8" height="7"/>
-                        <path d="M1.5 13h13"/>
-                    </svg>
-                </span>
-                <span class="tool" draggable="true" data-kind="inspect">
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                        <rect x="1.5" y="4.5" width="13" height="9"
-                            rx="1.5"/>
-                        <circle cx="8" cy="9" r="2.4"/>
-                        <path d="M6 4.5V3h4v1.5"/>
-                    </svg>
-                </span>
-                <span class="tool" draggable="true" data-kind="reset">
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                        <path d="M8 1.5v7.5M5 6.5l3 3 3-3"/>
-                        <path d="M2.5 13.5h11"/>
-                    </svg>
-                </span>
-            </div>
-            <div class="belt-row" id="belt-row"></div>
-            <svg id="wires" aria-hidden="true"></svg>
-        </div>
-    </main>
-
-</div>
+    <!-- Свёрнутая боковая панель (мини-док Photoshop) -->
+    <div class="side-dock-collapsed-bar" id="side-dock-collapsed-bar" title="Развернуть боковую панель">
+        <button type="button" class="side-dock-expand" id="btn-side-expand" title="Развернуть боковую панель">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M10 3L5 8l5 5"/>
+            </svg>
+        </button>
+        <div class="side-dock-tab" data-panel="rules" title="Правила">П</div>
+        <div class="side-dock-tab" data-panel="models" title="Модели">М</div>
+    </div>
+</aside>
 
 <div id="toasts" class="toasts"></div>
 
-<script src="js/builder.js?v=71"></script>
-<script src="js/belt-view.js?v=71"></script>
-<script src="js/cameras.js?v=71"></script>
+<script src="js/builder.js?v=72"></script>
+<script src="js/belt-view.js?v=72"></script>
+<script src="js/cameras.js?v=72"></script>
 </body>
 </html>

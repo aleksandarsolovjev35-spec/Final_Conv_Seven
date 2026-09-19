@@ -550,6 +550,26 @@ check('минимальный размер сборки зафиксирован
     })());
 check('svg wires: строго внутри #belt-zone (провода не выходят за пределы поля на камеры)',
     doc.getElementById('belt-zone').contains(doc.getElementById('wires')));
+check('боковая панель: отдельный док #side-dock справа от рабочей зоны',
+    doc.getElementById('side-dock') !== null);
+check('боковая панель: правила и модели перенесены в #side-dock',
+    doc.getElementById('side-dock').contains(doc.getElementById('asset-rules'))
+    && doc.getElementById('side-dock').contains(doc.getElementById('asset-models')));
+check('видеостена разгружена: в .cam-wall-wrap больше нет правил и моделей',
+    !doc.querySelector('.cam-wall-wrap').contains(doc.getElementById('asset-rules'))
+    && !doc.querySelector('.cam-wall-wrap').contains(doc.getElementById('asset-models')));
+check('боковая панель Photoshop: сворачивание/разворачивание по кнопке',
+    (function () {
+        const dock = doc.getElementById('side-dock');
+        const btnCol = doc.getElementById('btn-side-collapse');
+        const btnExp = doc.getElementById('btn-side-expand');
+        if (!dock || !btnCol || !btnExp) { return false; }
+        btnCol.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const isCol = dock.classList.contains('collapsed');
+        btnExp.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const isExp = !dock.classList.contains('collapsed');
+        return isCol && isExp;
+    })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 

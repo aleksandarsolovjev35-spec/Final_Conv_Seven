@@ -1576,6 +1576,62 @@ function wireAppSplitter() {
     });
 }
 
+/* ─── Правая боковая стенка в стиле Photoshop (меню правил и моделей) ── */
+
+function wireSideDock() {
+    const dock = $('side-dock');
+    const btnCollapse = $('btn-side-collapse');
+    const btnExpand = $('btn-side-expand');
+    const collapsedBar = $('side-dock-collapsed-bar');
+    if (!dock) { return; }
+
+    const KEY = 'belt_side_dock_collapsed';
+
+    function setCollapsed(col, save) {
+        dock.classList.toggle('collapsed', col);
+        if (save) {
+            try { localStorage.setItem(KEY, col ? '1' : '0'); } catch (e) {}
+        }
+        scheduleWires();
+        window.dispatchEvent(new Event('resize'));
+    }
+
+    try {
+        if (localStorage.getItem(KEY) === '1') {
+            setCollapsed(true, false);
+        }
+    } catch (e) {}
+
+    if (btnCollapse) {
+        btnCollapse.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            setCollapsed(true, true);
+        });
+    }
+
+    if (btnExpand) {
+        btnExpand.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            setCollapsed(false, true);
+        });
+    }
+
+    if (collapsedBar) {
+        collapsedBar.addEventListener('click', function (ev) {
+            setCollapsed(false, true);
+            const tab = ev.target && ev.target.closest
+                ? ev.target.closest('.side-dock-tab') : null;
+            if (tab && tab.dataset.panel === 'rules') {
+                const s = $('rule-search');
+                if (s) { setTimeout(function () { s.focus(); }, 160); }
+            } else if (tab && tab.dataset.panel === 'models') {
+                const s = $('model-search');
+                if (s) { setTimeout(function () { s.focus(); }, 160); }
+            }
+        });
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     wirePalette();
     wireBelt();
@@ -1585,6 +1641,7 @@ document.addEventListener('DOMContentLoaded', function () {
     dragGNodes();
     wireScrollSnap();
     wireAppSplitter();
+    wireSideDock();
     render();
 });
 
