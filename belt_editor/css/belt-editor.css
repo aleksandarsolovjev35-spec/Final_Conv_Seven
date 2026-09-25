@@ -315,8 +315,7 @@ body {
     min-height: 34px;
     padding: 5px 9px;
     border: 1px solid var(--border-strong);
-    border-bottom: 0;
-    border-radius: 6px 6px 0 0;
+    border-radius: 6px;
     background: var(--panel-raised);
     font-family: var(--font-mono);
     font-size: 12px;
@@ -327,8 +326,6 @@ body {
 .rule-tile b { font-weight: 600; }
 
 .rule-tile .asset-use { color: var(--text-dim); margin-left: auto; }
-
-.rule-tile.rule-empty { cursor: not-allowed; }
 
 .rule-tile.asset-used {
     border-color: rgba(114, 163, 126, 0.6);

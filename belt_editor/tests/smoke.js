@@ -108,20 +108,21 @@ check('бросок модели и правила на холст — своб�
     && doc.querySelector('.gnode.g-rule[data-rule="r0"]') !== null);
 sockLink('.g-model[data-model="m0"] .sock-out',
     '.g-rule[data-rule="r0"] .sock-in');
-check('линка модель→правило: чип в ящике, ящик раскрыт',
-    entries()[0].querySelectorAll('.rule-chip').length === 1
-    && !entries()[0].querySelector('.rule-drawer').classList.contains('rule-drawer-empty')
-    && doc.querySelectorAll('.rule-drawer-empty').length === 3);
+check('линка модель→правило: чип модели внутри ноды правила на холсте',
+    doc.querySelectorAll('.gnode.g-rule[data-rule="r0"] .g-chip').length === 1
+    && /1м/.test(ruleTiles()[0].textContent)
+    && doc.querySelectorAll('.rule-drawer').length === 0);
 check('плитки правил draggable всегда (размещение на холст)',
     ruleTiles()[1].draggable === true);
 dragTileToBelt(modelTiles()[2]);
 sockLink('.g-model[data-model="m2"] .sock-out',
     '.g-rule[data-rule="r0"] .sock-in');
-check('вторая линка модели: счётчик «2м»', /2м/.test(ruleTiles()[0].textContent));
+check('вторая линка модели: счётчик «2м»', /2м/.test(ruleTiles()[0].textContent)
+    && doc.querySelectorAll('.gnode.g-rule[data-rule="r0"] .g-chip').length === 2);
 sockLink('.g-model[data-model="m2"] .sock-out',
     '.g-rule[data-rule="r0"] .sock-in');
 check('повторная линка той же модели снимает её',
-    entries()[0].querySelectorAll('.rule-chip').length === 1
+    doc.querySelectorAll('.gnode.g-rule[data-rule="r0"] .g-chip').length === 1
     && /1м/.test(ruleTiles()[0].textContent));
 sockLink('.g-rule[data-rule="r0"] .sock-out',
     '.cam-node[data-cam="cam0"] .sock-in');
@@ -384,10 +385,10 @@ check('клик вне — закрыть; Esc — закрыть; клик по
     })());
 check('последнюю модель стоящего правила снять нельзя',
     (function () {
-        const chip = entries()[0].querySelectorAll('.rule-chip')[1]
-            || entries()[0].querySelectorAll('.rule-chip')[0];
+        const chip = doc.querySelector('.gnode.g-rule[data-rule="r0"] .g-chip');
+        if (!chip) { return false; }
         chip.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        return entries()[0].querySelectorAll('.rule-chip').length === 1;
+        return doc.querySelectorAll('.gnode.g-rule[data-rule="r0"] .g-chip').length === 1;
     })());
 const ri = doc.getElementById('rule-search');
 ri.value = 'геом';
@@ -581,6 +582,21 @@ check('переключение вкладок меню: за раз отобр�
         // Возвращаем в состояние rules
         tabRules.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
         return isRules && isModels;
+    })());
+check('видеостена камер не принимает правила: сборка только на сборке ленты',
+    (function () {
+        const br = window.BeltBridge;
+        const noRuleDrop = typeof br.ruleDrop === 'undefined';
+        const noRuleActive = typeof br.ruleActive === 'undefined';
+        const camJs = fs.readFileSync(ROOT + '/js/cameras.js', 'utf8');
+        const noWallDropRule = !camJs.includes('ruleDrop');
+        return noRuleDrop && noRuleActive && noWallDropRule;
+    })());
+check('каталог правил чист от ящиков сборки: сборка только на холсте ленты',
+    (function () {
+        const drawers = doc.querySelectorAll('.rule-drawer');
+        const ruleChipsInCatalog = doc.querySelectorAll('#asset-rules .rule-chip');
+        return drawers.length === 0 && ruleChipsInCatalog.length === 0;
     })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);

@@ -123,24 +123,6 @@ function buildWall() {
         tile.addEventListener('click', function () {
             if (!tileDragging) { pick(cam.id); }
         });
-        tile.addEventListener('dragover', function (ev) {
-            const br = window.BeltBridge;
-            if (!(br && br.ruleActive && br.ruleActive())) { return; }
-            ev.preventDefault();
-            ev.stopPropagation();
-            tile.classList.add('drop-target');
-        });
-        tile.addEventListener('dragleave', function () {
-            tile.classList.remove('drop-target');
-        });
-        tile.addEventListener('drop', function (ev) {
-            const br = window.BeltBridge;
-            if (!(br && br.ruleActive && br.ruleActive())) { return; }
-            ev.preventDefault();
-            ev.stopPropagation();
-            tile.classList.remove('drop-target');
-            br.ruleDrop(cam.id);
-        });
         wall.appendChild(tile);
     });
     $id('cam-count').textContent = 'камер: ' + cameras.length;

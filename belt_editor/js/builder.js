@@ -579,28 +579,7 @@ function renderAssets() {
                 tile.appendChild(el('span', 'asset-use',
                     'кам: ' + cams.length));
             }
-            const drawer = el('div', 'rule-drawer'
-                + (rule.models.length ? '' : ' rule-drawer-empty'));
-            if (!rule.models.length) {
-                drawer.style.borderColor = rule.color + '66';
-            }
-            rule.models.forEach(function (mid) {
-                const mod = MODELS.find(function (m) {
-                    return m.id === mid;
-                });
-                const chip = el('span', 'rule-chip',
-                    mod ? mod.name : mid);
-                chip.style.color = rule.color;
-                chip.style.borderColor = rule.color + '66';
-                chip.style.background = rule.color + '1f';
-                chip.addEventListener('click', function (ev) {
-                    ev.stopPropagation();
-                    togglePart(rule.id, mid);
-                });
-                drawer.appendChild(chip);
-            });
             entry.appendChild(tile);
-            entry.appendChild(drawer);
             tile.addEventListener('dragstart', function (ev) {
                 dragKind = 'rule';
                 dragAsset = rule.id;
@@ -1254,16 +1233,6 @@ window.BeltBridge = {
         dragKind = null;
         dragCamId = null;
         cleanVisuals();
-    },
-    /* правило можно бросить и на плитку камеры в стене (настроить
-     * прибор, даже не стоящий на ленте) — тот же тумбл, что и на фишке */
-    ruleActive: function () { return dragKind === 'rule'; },
-    ruleDrop: function (camId) {
-        const rid = dragAsset;
-        dragKind = null;
-        dragAsset = null;
-        cleanVisuals();
-        toggleRuleOnCam(camId, rid);
     },
     addModelFromFile: function (fileName, path) { return addModelFromFile(fileName, path); },
     addRuleFromFile: function (fileName, path) { return addRuleFromFile(fileName, path); },
