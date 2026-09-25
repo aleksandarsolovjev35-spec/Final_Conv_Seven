@@ -726,6 +726,23 @@ body {
 body.node-moving .gnode .node-head { cursor: grabbing; }
 body.node-moving { cursor: grabbing; }
 
+/* Предотвращение наложения блоков на сборке ленты */
+.gnode.collision-warning {
+    outline: 2px solid var(--bad, #e05353) !important;
+    box-shadow: 0 0 16px rgba(224, 83, 83, 0.75) !important;
+}
+
+@keyframes collision-shake {
+    0%, 100% { transform: translate(0, 0); }
+    20%, 60% { transform: translate(-5px, 0); }
+    40%, 80% { transform: translate(5px, 0); }
+}
+
+.gnode.collision-shake {
+    animation: collision-shake 280ms ease;
+    outline: 2px solid var(--bad, #e05353) !important;
+}
+
 .gnode .g-title {
     font: 8px/1 var(--mono, monospace);
     color: var(--text-dim);

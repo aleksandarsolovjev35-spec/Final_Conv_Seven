@@ -51,11 +51,13 @@ function dragWall(nth, onCard) {
     fire(cards()[onCard], 'drop', dt, 10);
     fire(tile, 'dragend', dt);
 }
-function dragTileToBelt(tile) {
+let dropTileSeq = 0;
+function dragTileToBelt(tile, x) {
     const dt = mkDT();
+    const cx = x !== undefined ? x : (1200 + (dropTileSeq++) * 180);
     fire(tile, 'dragstart', dt);
-    fire(zone(), 'dragover', dt, 20);
-    fire(zone(), 'drop', dt, 20);
+    fire(zone(), 'dragover', dt, cx);
+    fire(zone(), 'drop', dt, cx);
     fire(tile, 'dragend', dt);
 }
 function sockLink(srcSel, dstSel) {
@@ -150,7 +152,7 @@ check('плитка позиции — нода: шапка с ролью, те�
             && doc.querySelector('.cam-node[data-pos="0"]') !== null
             && !c0.querySelector('.pos-top');
     })());
-check('свободное поле: две позиции в одно место — обе ровно там, где бросили',
+check('запрет наложения: вторую позицию нельзя поместить поверх существующей',
     (function () {
         const row = doc.getElementById('belt-row');
         Object.defineProperty(row, 'offsetWidth',
@@ -158,13 +160,34 @@ check('свободное поле: две позиции в одно место
         Object.defineProperty(row, 'offsetHeight',
             { value: 400, configurable: true });
         const n = cards().length;
-        dropTool('position', 600);
-        const c = cards()[cards().length - 1];
-        dropTool('position', 600);
-        const c2 = cards()[cards().length - 1];
-        return cards().length === n + 2
-            && c.style.left === c2.style.left && c.style.top === c2.style.top
-            && c.style.top !== '' && c.style.left !== '';
+        dropTool('position', 700);
+        const countAfterFirst = cards().length;
+        dropTool('position', 700);
+        const countAfterSecond = cards().length;
+        return countAfterFirst === n + 1 && countAfterSecond === n + 1
+            && /Наложение/.test(doc.getElementById('toasts').textContent);
+    })());
+check('запрет наложения при перемещении: перетаскивание ноды на другую возвращает её назад',
+    (function () {
+        const c0 = cards()[0];
+        const c1 = cards()[1];
+        const x0 = parseFloat(c1.style.left);
+        const y0 = parseFloat(c1.style.top);
+        const head1 = c1.querySelector('.node-head');
+        head1.dispatchEvent(new window.MouseEvent('mousedown',
+            { bubbles: true, cancelable: true, button: 0, clientX: 10, clientY: 10 }));
+        const targetX = parseFloat(c0.style.left);
+        const targetY = parseFloat(c0.style.top);
+        window.dispatchEvent(new window.MouseEvent('mousemove',
+            { bubbles: true, clientX: 10 + (targetX - x0), clientY: 10 + (targetY - y0) }));
+        const warned = c1.classList.contains('collision-warning');
+        window.dispatchEvent(new window.MouseEvent('mouseup',
+            { bubbles: true }));
+        const c1After = cards()[1];
+        return warned
+            && parseFloat(c1After.style.left) === x0
+            && parseFloat(c1After.style.top) === y0
+            && /Наложение/.test(doc.getElementById('toasts').textContent);
     })());
 check('поле 2D: позицию можно поднять/опустить — вертикаль свободна',
     (function () {
@@ -272,8 +295,8 @@ check('камера мимо позиции — свободная нода; л�
     (function () {
         const dt = mkDT();
         fire(thumbs()[2], 'dragstart', dt);
-        fire(zone(), 'dragover', dt, 9999);
-        fire(zone(), 'drop', dt, 9999);
+        fire(zone(), 'dragover', dt, 2500);
+        fire(zone(), 'drop', dt, 2500);
         fire(thumbs()[2], 'dragend', dt);
         const free = doc.querySelector('.cam-node.free[data-cam="cam2"]');
         if (!free) { return false; }
@@ -605,6 +628,26 @@ check('плитки правил не блокированы: нет класс�
         const css = fs.readFileSync(ROOT + '/css/belt-editor.css', 'utf8');
         const noNotAllowed = !/\.rule-tile[^{]*\{[^}]*cursor:\s*not-allowed/i.test(css);
         return tiles.length > 0 && !hasRuleEmpty && noNotAllowed;
+    })());
+check('запрет наложения графа: нельзя поместить ноду правила поверх ноды модели',
+    (function () {
+        const m = doc.querySelector('.gnode.g-model');
+        const r = doc.querySelector('.gnode.g-rule');
+        if (!m || !r) { return false; }
+        const rX0 = parseFloat(r.style.left);
+        const rY0 = parseFloat(r.style.top);
+        const mX = parseFloat(m.style.left);
+        const mY = parseFloat(m.style.top);
+        const head = r.querySelector('.node-head');
+        head.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, clientX: 10, clientY: 10 }));
+        window.dispatchEvent(new window.MouseEvent('mousemove', { bubbles: true, clientX: 10 + (mX - rX0), clientY: 10 + (mY - rY0) }));
+        const warning = r.classList.contains('collision-warning');
+        window.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true }));
+        const rAfter = doc.querySelector('.gnode.g-rule');
+        return warning
+            && parseFloat(rAfter.style.left) === rX0
+            && parseFloat(rAfter.style.top) === rY0
+            && /Наложение/.test(doc.getElementById('toasts').textContent);
     })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);

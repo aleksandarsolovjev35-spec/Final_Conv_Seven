@@ -135,6 +135,98 @@ function findIndex(pred) {
     return -1;
 }
 
+/* ─── Геометрия холста и предотвращение наложения блоков ─────────── */
+
+function clampN(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+const CANVAS_W = 5000;
+const CANVAS_H = 3000;
+
+/* запасная точка для позиции без координат (старое сохранение):
+ * ступенькой от центра поля; поле — свободное 2D */
+function layoutSlot(i) {
+    const row = $('belt-row');
+    const maxW = Math.max(row ? (row.offsetWidth || 0) : 0, CANVAS_W);
+    const maxH = Math.max(row ? (row.offsetHeight || 0) : 0, CANVAS_H);
+    const cx = Math.round(maxW / 2);
+    const cy = Math.round(maxH / 2);
+    return {
+        x: clampN(cx - 260 + i * 206, 2, maxW - 190),
+        y: clampN(cy - 60 + (i % 3) * 40, 2, maxH - 124)
+    };
+}
+
+function getNodeDimensions(keyOrType, domNode) {
+    if (domNode && domNode.offsetWidth && domNode.offsetHeight) {
+        return { w: domNode.offsetWidth, h: domNode.offsetHeight };
+    }
+    const k = String(keyOrType || '');
+    if (k.startsWith('pos') || k === 'position') {
+        return { w: 176, h: 96 };
+    }
+    if (k.startsWith('cam')) {
+        return { w: 148, h: 54 };
+    }
+    if (k.startsWith('rule')) {
+        return { w: 128, h: 50 };
+    }
+    if (k.startsWith('model')) {
+        return { w: 128, h: 34 };
+    }
+    return { w: 128, h: 44 };
+}
+
+function getCanvasBoxes(excludeKey) {
+    const boxes = [];
+    const row = $('belt-row');
+
+    belt.positions.forEach(function (pos, i) {
+        const key = 'pos:' + i;
+        if (key === excludeKey) { return; }
+        const at = pos.at || layoutSlot(i);
+        const dom = row ? row.querySelector('.pos-card[data-index="' + i + '"]') : null;
+        const dims = getNodeDimensions('pos', dom);
+        boxes.push({
+            key: key,
+            x: at.x,
+            y: at.y,
+            w: dims.w,
+            h: dims.h
+        });
+    });
+
+    Object.keys(belt.places).forEach(function (key) {
+        if (key === excludeKey) { return; }
+        const at = belt.places[key];
+        if (!at) { return; }
+        const dom = row ? row.querySelector('.gnode[data-gk="' + key + '"]') : null;
+        const dims = getNodeDimensions(key, dom);
+        boxes.push({
+            key: key,
+            x: at.x,
+            y: at.y,
+            w: dims.w,
+            h: dims.h
+        });
+    });
+
+    return boxes;
+}
+
+function hasCollision(x, y, w, h, excludeKey, gap) {
+    const pad = gap !== undefined ? gap : 4;
+    const all = getCanvasBoxes(excludeKey);
+    for (let i = 0; i < all.length; i++) {
+        const b = all[i];
+        const overlapX = (x < b.x + b.w + pad) && (x + w + pad > b.x);
+        const overlapY = (y < b.y + b.h + pad) && (y + h + pad > b.y);
+        if (overlapX && overlapY) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /* ─── Действия ───────────────────────────────────────────────────── */
 
 /* Позиции ставятся буквально куда бросил; порядок ленты задают
@@ -142,13 +234,19 @@ function findIndex(pred) {
 function insertPosition(at) {
     if (belt.positions.length >= MAX_POSITIONS) {
         toast('Максимум ' + MAX_POSITIONS + ' позиций на ленте.', 'err');
-        return;
+        return false;
+    }
+    const targetAt = at || layoutSlot(belt.positions.length);
+    const dims = getNodeDimensions('pos');
+    if (at && hasCollision(targetAt.x, targetAt.y, dims.w, dims.h, null, 4)) {
+        toast('Наложение блоков запрещено.', 'err');
+        return false;
     }
     const wasEmpty = belt.positions.length === 0;
     belt.positions.push({
         label: '', inspection: null, reset: false,
         uid: ++uidSeq, nextUid: null,
-        at: at || layoutSlot(belt.positions.length),
+        at: targetAt,
     });
     applyInvariants();
     render();
@@ -157,6 +255,7 @@ function insertPosition(at) {
     } else {
         toast('Позиция добавлена — соедините её коннекторами.');
     }
+    return true;
 }
 
 function removePosition(i) {
@@ -686,25 +785,6 @@ function renderCard(pos, i) {
  * связь — только сокет-линка: модель→правило, правило→камера,
  * камера→зона инспекции. Ноду можно двигать ЛКМ за шапку. */
 
-function clampN(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
-
-const CANVAS_W = 5000;
-const CANVAS_H = 3000;
-
-/* запасная точка для позиции без координат (старое сохранение):
- * ступенькой от центра поля; поле — свободное 2D */
-function layoutSlot(i) {
-    const row = $('belt-row');
-    const maxW = Math.max(row ? (row.offsetWidth || 0) : 0, CANVAS_W);
-    const maxH = Math.max(row ? (row.offsetHeight || 0) : 0, CANVAS_H);
-    const cx = Math.round(maxW / 2);
-    const cy = Math.round(maxH / 2);
-    return {
-        x: clampN(cx - 260 + i * 206, 2, maxW - 190),
-        y: clampN(cy - 60 + (i % 3) * 40, 2, maxH - 124)
-    };
-}
-
 /* экранные координаты дропа → координаты холста (учитывая зум) */
 function canvasPoint(ev, w, h) {
     const row = $('belt-row');
@@ -724,20 +804,36 @@ function canvasPoint(ev, w, h) {
     };
 }
 
-function freePoint() {
+function freePoint(forType) {
     const row = $('belt-row');
     const maxW = Math.max(row ? (row.offsetWidth || 0) : 0, CANVAS_W);
     const maxH = Math.max(row ? (row.offsetHeight || 0) : 0, CANVAS_H);
-    return {
-        x: Math.round(maxW / 2 - 60),
-        y: Math.round(maxH / 2 - 120) + Object.keys(belt.places).length * 20
-    };
+    const dims = getNodeDimensions(forType || 'cam');
+    let x = Math.round(maxW / 2 - dims.w / 2);
+    let y = Math.round(maxH / 2 - 160);
+    let attempts = 0;
+    while (hasCollision(x, y, dims.w, dims.h, null, 8) && attempts < 100) {
+        y += dims.h + 16;
+        if (y + dims.h > maxH - 20) {
+            y = Math.round(maxH / 2 - 160);
+            x += dims.w + 24;
+        }
+        attempts++;
+    }
+    return { x: x, y: y };
 }
 
 function placeNode(key, ev) {
-    belt.places[key] = canvasPoint(ev, 120, 28);
+    const dims = getNodeDimensions(key);
+    const pt = canvasPoint(ev, dims.w, dims.h);
+    if (hasCollision(pt.x, pt.y, dims.w, dims.h, key, 4)) {
+        toast('Наложение блоков запрещено.', 'err');
+        return false;
+    }
+    belt.places[key] = pt;
     toast('Связь — линкой сокета на холсте ленты.');
     render();
+    return true;
 }
 
 function gnodeFrame(cls, key, at, title) {
@@ -1165,8 +1261,19 @@ function dragGNodes() {
         const node = head.closest('.gnode');
         const p = nodeAt(node);
         if (!p) { return; }
-        movingG = { node: node, at: p, x0: ev.clientX,
-            y0: ev.clientY, px: p.x, py: p.y };
+        const key = node.dataset.gk || '';
+        const dims = getNodeDimensions(key, node);
+        movingG = {
+            node: node,
+            key: key,
+            dims: dims,
+            at: p,
+            x0: ev.clientX,
+            y0: ev.clientY,
+            px: p.x,
+            py: p.y,
+            hasCollided: false
+        };
         ev.preventDefault();
         document.body.classList.add('node-moving');
     });
@@ -1186,13 +1293,37 @@ function dragGNodes() {
         movingG.at.y = y;
         movingG.node.style.left = Math.round(x) + 'px';
         movingG.node.style.top = Math.round(y) + 'px';
+
+        const coll = hasCollision(x, y, movingG.dims.w, movingG.dims.h, movingG.key, 4);
+        movingG.hasCollided = coll;
+        movingG.node.classList.toggle('collision-warning', coll);
+
         renderWires();
     });
     window.addEventListener('mouseup', function () {
         if (!movingG) { return; }
+        const target = movingG;
         movingG = null;
         document.body.classList.remove('node-moving');
-        render();
+        target.node.classList.remove('collision-warning');
+
+        if (target.hasCollided) {
+            target.at.x = target.px;
+            target.at.y = target.py;
+            toast('Наложение блоков запрещено.', 'err');
+            render();
+            const reNode = $('belt-row')
+                ? $('belt-row').querySelector('.gnode[data-gk="' + target.key + '"]')
+                : null;
+            if (reNode) {
+                reNode.classList.add('collision-shake');
+                setTimeout(function () {
+                    reNode.classList.remove('collision-shake');
+                }, 350);
+            }
+        } else {
+            render();
+        }
     });
 }
 
@@ -1252,6 +1383,7 @@ function cleanVisuals() {
 function acceptsAt(kind, idx) {
     const pos = belt.positions[idx];
     if (!pos) { return false; }
+    if (kind === 'position') { return false; }
     if (kind === 'camera') { return !!pos.inspection; }
     if (kind === 'inspect') { return !pos.reset || !!pos.inspection; }
     if (kind === 'reset') {
@@ -1300,12 +1432,16 @@ function wireBelt() {
     zone.addEventListener('dragover', function (ev) {
         if (!dragKind) { return; }
         ev.preventDefault();
-        ev.dataTransfer.dropEffect = 'copy';
         document.querySelectorAll('.drop-target')
             .forEach(function (n) { n.classList.remove('drop-target'); });
         if (dragKind === 'model-part' || dragKind === 'rule'
             || dragKind === 'position') {
-            /* свободное размещение: цели — весь холст */
+            const key = dragKind === 'position' ? 'pos'
+                : (dragKind === 'model-part' ? 'model' : 'rule');
+            const dims = getNodeDimensions(key);
+            const pt = canvasPoint(ev, dims.w, dims.h);
+            const coll = hasCollision(pt.x, pt.y, dims.w, dims.h, null, 4);
+            ev.dataTransfer.dropEffect = coll ? 'none' : 'copy';
         } else {
             const idx = cardFromEvent(ev);
             document.querySelectorAll('.pos-card.drop-target').forEach(
@@ -1314,6 +1450,14 @@ function wireBelt() {
                 const card = zone.querySelector(
                     '.pos-card[data-index="' + idx + '"]');
                 if (card) { card.classList.add('drop-target'); }
+                ev.dataTransfer.dropEffect = 'copy';
+            } else if (dragKind === 'camera') {
+                const dims = getNodeDimensions('cam');
+                const pt = canvasPoint(ev, dims.w, dims.h);
+                const coll = hasCollision(pt.x, pt.y, dims.w, dims.h, null, 4);
+                ev.dataTransfer.dropEffect = coll ? 'none' : 'copy';
+            } else {
+                ev.dataTransfer.dropEffect = 'none';
             }
         }
     });
