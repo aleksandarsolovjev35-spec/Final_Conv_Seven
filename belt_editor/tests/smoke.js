@@ -649,6 +649,83 @@ check('запрет наложения графа: нельзя поместит
             && parseFloat(rAfter.style.top) === rY0
             && /Наложение/.test(doc.getElementById('toasts').textContent);
     })());
+check('размерность при удержании: dragstart позиции формирует превью 176×96',
+    (function () {
+        const tool = doc.querySelector('.tool[data-kind="position"]');
+        let setDragImageCalled = false;
+        let dragEl = null;
+        let ox = 0, oy = 0;
+        const dt = {
+            setData: function () {},
+            setDragImage: function (el, x, y) {
+                setDragImageCalled = true;
+                dragEl = el;
+                ox = x;
+                oy = y;
+            }
+        };
+        const ev = new window.Event('dragstart', { bubbles: true, cancelable: true });
+        ev.dataTransfer = dt;
+        tool.dispatchEvent(ev);
+        const hasPreview = !!dragEl && dragEl.classList.contains('pos-card') && dragEl.classList.contains('ghost-preview');
+        const endEv = new window.Event('dragend', { bubbles: true });
+        tool.dispatchEvent(endEv);
+        return setDragImageCalled && hasPreview && ox === 88 && oy === 22;
+    })());
+check('размерность при удержании: dragstart правила и модели задает превью 128px',
+    (function () {
+        const rTile = doc.querySelector('#asset-rules .rule-tile');
+        let rCalled = false, rEl = null;
+        const dtR = {
+            setData: function () {},
+            setDragImage: function (el) { rCalled = true; rEl = el; }
+        };
+        const evR = new window.Event('dragstart', { bubbles: true, cancelable: true });
+        evR.dataTransfer = dtR;
+        rTile.dispatchEvent(evR);
+        const rOk = rCalled && rEl && rEl.classList.contains('g-rule');
+        rTile.dispatchEvent(new window.Event('dragend', { bubbles: true }));
+
+        const mTile = doc.querySelector('#asset-models .asset');
+        let mCalled = false, mEl = null;
+        const dtM = {
+            setData: function () {},
+            setDragImage: function (el) { mCalled = true; mEl = el; }
+        };
+        const evM = new window.Event('dragstart', { bubbles: true, cancelable: true });
+        evM.dataTransfer = dtM;
+        mTile.dispatchEvent(evM);
+        const mOk = mCalled && mEl && mEl.classList.contains('g-model');
+        mTile.dispatchEvent(new window.Event('dragend', { bubbles: true }));
+
+        return rOk && mOk;
+    })());
+check('фантом на холсте: при перемещении над сборкой ленты отображается призрак целевых габаритов',
+    (function () {
+        const zone = doc.getElementById('belt-zone');
+        const tool = doc.querySelector('.tool[data-kind="position"]');
+        const dt = { setData: function () {}, setDragImage: function () {} };
+        const evStart = new window.Event('dragstart', { bubbles: true, cancelable: true });
+        evStart.dataTransfer = dt;
+        tool.dispatchEvent(evStart);
+
+        const evOver = new window.Event('dragover', { bubbles: true, cancelable: true });
+        evOver.clientX = 500;
+        evOver.clientY = 150;
+        evOver.dataTransfer = { dropEffect: 'none' };
+        zone.dispatchEvent(evOver);
+
+        const ghost = doc.getElementById('canvas-drag-ghost');
+        const exists = !!ghost && ghost.classList.contains('canvas-drag-ghost');
+        const widthOk = ghost && ghost.style.width === '176px';
+        const heightOk = ghost && ghost.style.minHeight === '96px';
+
+        const evEnd = new window.Event('dragend', { bubbles: true });
+        tool.dispatchEvent(evEnd);
+        const ghostGone = !doc.getElementById('canvas-drag-ghost');
+
+        return exists && widthOk && heightOk && ghostGone;
+    })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 

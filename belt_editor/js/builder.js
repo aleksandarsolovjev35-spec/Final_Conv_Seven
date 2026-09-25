@@ -628,6 +628,7 @@ function renderAssets() {
                     'model:' + mod.id);
                 ev.dataTransfer.effectAllowed = 'copy';
                 tile.classList.add('dragging');
+                setupDragImage(ev, 'model-part', mod.id);
                 const zn = $('belt-zone');
                 if (zn) { zn.classList.add('drop-ready'); }
             });
@@ -685,6 +686,7 @@ function renderAssets() {
                     'rule:' + rule.id);
                 ev.dataTransfer.effectAllowed = 'copy';
                 entry.classList.add('dragging');
+                setupDragImage(ev, 'rule', rule.id);
                 const zn = $('belt-zone');
                 if (zn) { zn.classList.add('drop-ready'); }
             });
@@ -1342,15 +1344,149 @@ function toast(text, kind) {
 
 /* ─── Drag & drop ─────────────────────────────────────────────────── */
 
+/* Превью и призрак перетаскивания (соответствие реальным габаритам ноды) */
+
+function setupDragImage(ev, kind, id) {
+    if (!ev || !ev.dataTransfer || !ev.dataTransfer.setDragImage) { return; }
+    let ghost = document.getElementById('drag-ghost-native');
+    if (!ghost) {
+        ghost = el('div', 'drag-ghost-native');
+        ghost.id = 'drag-ghost-native';
+        document.body.appendChild(ghost);
+    }
+    ghost.textContent = '';
+
+    let preview = null;
+    let offsetX = 88;
+    let offsetY = 22;
+
+    if (kind === 'position') {
+        preview = el('div', 'pos-card gnode g-pos ghost-preview');
+        const head = el('div', 'node-head');
+        head.appendChild(el('span', 'pos-index', 'П' + belt.positions.length));
+        head.appendChild(el('span', 'pos-label', 'Позиция ' + belt.positions.length));
+        preview.appendChild(head);
+        const body = el('div', 'node-body');
+        const badges = el('div', 'pos-badges');
+        badges.appendChild(el('span', 'badge badge-insp', belt.positions.length === 0 ? 'вход' : 'позиция'));
+        body.appendChild(badges);
+        preview.appendChild(body);
+        offsetX = 88;
+        offsetY = 22;
+    } else if (kind === 'rule') {
+        const rule = RULES.find(function (r) { return r.id === id; }) || { name: id, color: '#c1a66a' };
+        preview = el('div', 'gnode g-rule ghost-preview');
+        const head = el('div', 'node-head');
+        const sw = el('i', 'g-swatch');
+        sw.style.background = rule.color;
+        head.appendChild(sw);
+        const lbl = el('span', 'pos-label', rule.name);
+        lbl.style.color = rule.color;
+        head.appendChild(lbl);
+        preview.appendChild(head);
+        offsetX = 64;
+        offsetY = 18;
+    } else if (kind === 'model-part') {
+        const mod = MODELS.find(function (m) { return m.id === id; }) || { name: id };
+        preview = el('div', 'gnode g-model ghost-preview');
+        const head = el('div', 'node-head');
+        head.appendChild(el('span', 'pos-label', mod.name));
+        preview.appendChild(head);
+        offsetX = 64;
+        offsetY = 16;
+    } else if (kind === 'camera') {
+        const cam = invCam(id) || { name: id };
+        preview = el('div', 'gnode cam-node g-cam ghost-preview free');
+        const head = el('div', 'node-head');
+        head.appendChild(el('span', 'pos-label', cam.name || id));
+        preview.appendChild(head);
+        offsetX = 74;
+        offsetY = 18;
+    }
+
+    if (preview) {
+        ghost.appendChild(preview);
+        try {
+            ev.dataTransfer.setDragImage(preview, offsetX, offsetY);
+        } catch (e) {}
+    }
+}
+
+function updateCanvasGhost(ev, kind, id) {
+    const row = document.getElementById('belt-row');
+    if (!row) { return; }
+    if (!kind || (kind !== 'position' && kind !== 'rule' && kind !== 'model-part' && kind !== 'camera')) {
+        removeCanvasGhost();
+        return;
+    }
+    const key = kind === 'position' ? 'pos'
+        : (kind === 'model-part' ? 'model' : (kind === 'rule' ? 'rule' : 'cam'));
+    const dims = getNodeDimensions(key);
+    const pt = canvasPoint(ev, dims.w, dims.h);
+    const coll = hasCollision(pt.x, pt.y, dims.w, dims.h, null, 4);
+
+    let ghost = document.getElementById('canvas-drag-ghost');
+    if (!ghost) {
+        ghost = el('div', 'canvas-drag-ghost gnode');
+        ghost.id = 'canvas-drag-ghost';
+        row.appendChild(ghost);
+    }
+
+    ghost.className = 'canvas-drag-ghost gnode '
+        + (kind === 'position' ? 'pos-card g-pos' : (kind === 'rule' ? 'g-rule' : (kind === 'model-part' ? 'g-model' : 'cam-node g-cam free')))
+        + (coll ? ' collision-warning' : ' ghost-valid');
+
+    ghost.style.width = dims.w + 'px';
+    ghost.style.minHeight = dims.h + 'px';
+    ghost.style.left = Math.round(pt.x) + 'px';
+    ghost.style.top = Math.round(pt.y) + 'px';
+
+    if (ghost.dataset.ghostKind !== kind || ghost.dataset.ghostId !== String(id || '')) {
+        ghost.dataset.ghostKind = kind;
+        ghost.dataset.ghostId = String(id || '');
+        ghost.textContent = '';
+        const head = el('div', 'node-head');
+        if (kind === 'position') {
+            head.appendChild(el('span', 'pos-index', 'П' + belt.positions.length));
+            head.appendChild(el('span', 'pos-label', 'Позиция ' + belt.positions.length));
+        } else if (kind === 'rule') {
+            const rule = RULES.find(function (r) { return r.id === id; });
+            const sw = el('i', 'g-swatch');
+            sw.style.background = rule ? rule.color : '#c1a66a';
+            head.appendChild(sw);
+            const lbl = el('span', 'pos-label', rule ? rule.name : id);
+            if (rule) { lbl.style.color = rule.color; }
+            head.appendChild(lbl);
+        } else if (kind === 'model-part') {
+            const mod = MODELS.find(function (m) { return m.id === id; });
+            head.appendChild(el('span', 'pos-label', mod ? mod.name : id));
+        } else if (kind === 'camera') {
+            const cam = invCam(id);
+            head.appendChild(el('span', 'pos-label', cam ? cam.name : id));
+        }
+        ghost.appendChild(head);
+    }
+}
+
+function removeCanvasGhost() {
+    const ghost = document.getElementById('canvas-drag-ghost');
+    if (ghost && ghost.parentNode) {
+        ghost.parentNode.removeChild(ghost);
+    }
+}
+
 /* Мост для стены камер: dragstart/dragend плиты ленты-редактор
  * обрабатывает как обычный drop-объект. */
 window.BeltBridge = {
-    camDragStart: function (id, dt) {
+    camDragStart: function (id, dt, ev) {
         dragKind = 'camera';
         dragCamId = id;
         if (dt) {
             dt.setData('text/plain', 'camera:' + id);
             dt.effectAllowed = 'copy';
+        }
+        if (ev) {
+            setupDragImage(ev, 'camera', id);
         }
         const zn = $('belt-zone');
         if (zn && belt.positions.some(function (p) {
@@ -1369,6 +1505,7 @@ window.BeltBridge = {
 };
 
 function cleanVisuals() {
+    removeCanvasGhost();
     document.querySelectorAll('.drop-target')
         .forEach(function (n) { n.classList.remove('drop-target'); });
     $('belt-zone').classList.remove('drop-ready');
@@ -1410,6 +1547,9 @@ function wirePalette() {
             ev.dataTransfer.setData('text/plain', dragKind);
             ev.dataTransfer.effectAllowed = 'copy';
             tool.classList.add('dragging');
+            if (dragKind === 'position') {
+                setupDragImage(ev, 'position', null);
+            }
             $('belt-zone').classList.add('drop-ready');
         });
         tool.addEventListener('dragend', function () {
@@ -1442,11 +1582,13 @@ function wireBelt() {
             const pt = canvasPoint(ev, dims.w, dims.h);
             const coll = hasCollision(pt.x, pt.y, dims.w, dims.h, null, 4);
             ev.dataTransfer.dropEffect = coll ? 'none' : 'copy';
+            updateCanvasGhost(ev, dragKind, dragAsset);
         } else {
             const idx = cardFromEvent(ev);
             document.querySelectorAll('.pos-card.drop-target').forEach(
                 function (n) { n.classList.remove('drop-target'); });
             if (idx >= 0 && acceptsAt(dragKind, idx)) {
+                removeCanvasGhost();
                 const card = zone.querySelector(
                     '.pos-card[data-index="' + idx + '"]');
                 if (card) { card.classList.add('drop-target'); }
@@ -1456,7 +1598,9 @@ function wireBelt() {
                 const pt = canvasPoint(ev, dims.w, dims.h);
                 const coll = hasCollision(pt.x, pt.y, dims.w, dims.h, null, 4);
                 ev.dataTransfer.dropEffect = coll ? 'none' : 'copy';
+                updateCanvasGhost(ev, 'camera', dragCamId);
             } else {
+                removeCanvasGhost();
                 ev.dataTransfer.dropEffect = 'none';
             }
         }
@@ -1464,11 +1608,13 @@ function wireBelt() {
 
     zone.addEventListener('dragleave', function (ev) {
         if (ev.relatedTarget && zone.contains(ev.relatedTarget)) { return; }
+        removeCanvasGhost();
         document.querySelectorAll('.pos-card.drop-target').forEach(
             function (n) { n.classList.remove('drop-target'); });
     });
 
     zone.addEventListener('drop', function (ev) {
+        removeCanvasGhost();
         if (!dragKind) { return; }
         ev.preventDefault();
         const kind = dragKind;

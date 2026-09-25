@@ -112,7 +112,7 @@ function buildWall() {
             tileDragging = true;
             tile.classList.add('dragging-src');
             if (window.BeltBridge) {
-                window.BeltBridge.camDragStart(cam.id, ev.dataTransfer);
+                window.BeltBridge.camDragStart(cam.id, ev.dataTransfer, ev);
             }
         });
         tile.addEventListener('dragend', function () {
