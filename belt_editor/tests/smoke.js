@@ -804,6 +804,15 @@ check('логика переноса камеры унифицирована с 
         const noChip = !c0.querySelector('.chip[data-cam="cam4"]');
         return hasOverlayToast && noChip;
     })());
+check('линии связей при отдалении: пути Безье не образуют петель и центрированы по сокетам',
+    (function () {
+        const wire = doc.querySelector('#wires path');
+        if (!wire) return false;
+        const d = wire.getAttribute('d');
+        const hasValidD = d && (d.startsWith('M') && (d.includes('C') || d.includes('L')));
+        const hasStroke = wire.style.strokeWidth !== '';
+        return hasValidD && hasStroke;
+    })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 

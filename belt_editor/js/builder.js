@@ -1052,21 +1052,34 @@ let wiresScheduled = false;
 function sockXY(node) {
     if (!node) { return null; }
     const r = node.getBoundingClientRect();
-    if (!r.width) { return null; }
+    if (!r.width && !r.height) { return null; }
     const zn = $('belt-zone');
     const zr = zn ? zn.getBoundingClientRect() : { left: 0, top: 0 };
-    const out = node.classList.contains('sock-out');
     return [
-        r.left - zr.left + (out ? r.width + 4 : -4),
+        r.left - zr.left + r.width / 2,
         r.top - zr.top + r.height / 2
     ];
 }
 
 function bez(a, b) {
-    const dx = Math.max(28, Math.abs(b[0] - a[0]) / 2);
+    const z = (window.BeltView && window.BeltView.state().z) || 1;
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const dist = Math.hypot(dx, dy);
+    if (dist < 2) {
+        return 'M' + a[0].toFixed(1) + ' ' + a[1].toFixed(1)
+            + 'L' + b[0].toFixed(1) + ' ' + b[1].toFixed(1);
+    }
+    let handle;
+    if (dx > 0) {
+        handle = Math.min(dx * 0.5, Math.max(4 * z, dist * 0.35));
+    } else {
+        handle = Math.min(50 * z, Math.max(6 * z, dist * 0.35));
+    }
+
     return 'M' + a[0].toFixed(1) + ' ' + a[1].toFixed(1)
-        + 'C' + (a[0] + dx).toFixed(1) + ' ' + a[1].toFixed(1)
-        + ',' + (b[0] - dx).toFixed(1) + ' ' + b[1].toFixed(1)
+        + 'C' + (a[0] + handle).toFixed(1) + ' ' + a[1].toFixed(1)
+        + ',' + (b[0] - handle).toFixed(1) + ' ' + b[1].toFixed(1)
         + ',' + b[0].toFixed(1) + ' ' + b[1].toFixed(1);
 }
 
@@ -1074,6 +1087,11 @@ function svgPath(d, cls, color) {
     const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     p.setAttribute('d', d);
     p.setAttribute('class', cls);
+    const z = (window.BeltView && window.BeltView.state().z) || 1;
+    const isChain = cls && cls.indexOf('wire-chain') !== -1;
+    const baseW = isChain ? 2.5 : 2.0;
+    const sw = Math.max(0.75, baseW * Math.min(1.2, Math.sqrt(z)));
+    p.style.strokeWidth = sw.toFixed(2) + 'px';
     if (color) { p.style.stroke = color; }
     return p;
 }
@@ -1237,7 +1255,10 @@ function wireLinkEngine() {
     document.addEventListener('transitionend', scheduleWires, true);
     const z = $('belt-zone');
     if (z) {
-        ['wheel', 'mousemove', 'dblclick', 'belt:view'].forEach(function (t) {
+        z.addEventListener('belt:view', function () {
+            renderWires();
+        });
+        ['wheel', 'mousemove', 'dblclick'].forEach(function (t) {
             z.addEventListener(t, scheduleWires);
         });
         if (typeof ResizeObserver !== 'undefined') {
