@@ -95,8 +95,22 @@ check('свободное добавление: нода встаёт в точ�
 check('инспекция и сброс не пересекаются',
     !Array.prototype.some.call(cards(),
         (c) => c.classList.contains('inspect') && c.classList.contains('reset-pt')));
+let dropCamSeq = 0;
+function dragWallToBelt(nth, x) {
+    const dt = mkDT();
+    const tile = thumbs()[nth];
+    fire(tile, 'dragstart', dt);
+    const cx = x !== undefined ? x : (3200 + (dropCamSeq++) * 200);
+    fire(zone(), 'dragover', dt, cx);
+    fire(zone(), 'drop', dt, cx);
+    fire(tile, 'dragend', dt);
+}
 dragWall(0, 0);
-check('камера с стены встала на П0', chips(0).length === 1 && /CAM/.test(chips(0)[0].textContent));
+check('перенос камеры на позицию не соединяет её напрямую', chips(0).length === 0);
+dragWallToBelt(0);
+check('выставление камеры на поле создает свободную ноду камеры', doc.querySelector('.cam-node[data-cam="cam0"]') !== null);
+sockLink('.cam-node[data-cam="cam0"] .sock-out', '.pos-card[data-index="0"] .sock-node');
+check('камера с поля подключена к П0 линией сокетов', chips(0).length === 1 && /CAM/.test(chips(0)[0].textContent));
 check('детект: плиток стены ≥ 3', thumbs().length >= 3);
 check('камера на не-инспекцию отклоняется',
     (function () {
@@ -327,7 +341,9 @@ check('ссылка: тянем r1 (с моделью) на чип cam1 — св
         dragTileToBelt(ruleTiles()[1]);   /* r1 → нода */
         sockLink('.g-model[data-model="m1"] .sock-out',
             '.g-rule[data-rule="r1"] .sock-in');
-        dragWall(1, 0);                   /* cam1 → П0, нода на холсте */
+        dragWallToBelt(1);                   /* cam1 → нода на холсте */
+        sockLink('.cam-node[data-cam="cam1"] .sock-out',
+            '.pos-card[data-index="0"] .sock-node'); /* линка к П0 */
         const from = doc.querySelector('.sock[data-link="rule:r1"]');
         const to = doc.querySelector('.sock[data-drop="cam"][data-cam="cam1"]')
             || doc.querySelector('.chip[data-cam="cam1"]');
@@ -755,6 +771,30 @@ check('перетаскиваемый блок поверх цели: z-index 10
             && /\.canvas-drag-ghost\s*\{[^}]*z-index:\s*100\s*!important/i.test(css);
 
         return isDragging && isLastChild && hasHighZ;
+    })());
+check('камера подключается к позиции только линией сокетов после выставления на поле',
+    (function () {
+        const c0 = cards()[0];
+        const camCountBefore = doc.querySelectorAll('.cam-node').length;
+        const dt = mkDT();
+        fire(thumbs()[3], 'dragstart', dt);
+        fire(zone(), 'dragover', dt, 50);
+        fire(c0, 'drop', dt, 50);
+        fire(thumbs()[3], 'dragend', dt);
+        const notConnected = !c0.querySelector('.chip[data-cam="cam3"]')
+            && doc.querySelectorAll('.cam-node').length === camCountBefore;
+
+        dragWallToBelt(3);
+        const cam3Free = doc.querySelector('.cam-node[data-cam="cam3"]');
+        const onField = cam3Free !== null && cam3Free.classList.contains('free');
+
+        sockLink('.cam-node[data-cam="cam3"] .sock-out', '.pos-card[data-index="0"] .sock-node');
+        const cam3Bound = doc.querySelector('.cam-node[data-cam="cam3"]');
+        const connectedByLine = cam3Bound !== null
+            && !cam3Bound.classList.contains('free')
+            && cam3Bound.dataset.pos === '0';
+
+        return notConnected && onField && connectedByLine;
     })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);

@@ -1144,8 +1144,12 @@ function markTargets(on) {
     document.querySelectorAll('.sock[data-drop]').forEach(function (n) {
         const own = n.closest ? n.closest('.cam-node') : null;
         const skip = own && linkDrag && own.dataset.cam === linkDrag.id;
-        n.classList.toggle('sock-ok',
-            on && n.dataset.drop === want && !skip);
+        let ok = on && n.dataset.drop === want && !skip;
+        if (ok && want === 'pos') {
+            const pos = belt.positions[Number(n.dataset.idx)];
+            if (!pos || !pos.inspection) { ok = false; }
+        }
+        n.classList.toggle('sock-ok', ok);
     });
 }
 
@@ -1188,7 +1192,11 @@ function wireLinkEngine() {
         const under = document.elementFromPoint
             ? document.elementFromPoint(ev.clientX, ev.clientY) : null;
         const t = under && under.closest ? under.closest('[data-drop]') : null;
-        const ok = t && t.dataset.drop === LINK_WANT[linkDrag.kind];
+        let ok = t && t.dataset.drop === LINK_WANT[linkDrag.kind];
+        if (ok && LINK_WANT[linkDrag.kind] === 'pos') {
+            const pos = belt.positions[Number(t.dataset.idx)];
+            if (!pos || !pos.inspection) { ok = false; }
+        }
         if (linkDrag.hot && linkDrag.hot !== (ok ? t : null)) {
             linkDrag.hot.classList.remove('sock-hot');
         }
@@ -1202,7 +1210,14 @@ function wireLinkEngine() {
         let t = d.hot;
         if (!t && ev.target && ev.target.closest) {
             const cand = ev.target.closest('[data-drop]');
-            if (cand && cand.dataset.drop === LINK_WANT[d.kind]) { t = cand; }
+            if (cand && cand.dataset.drop === LINK_WANT[d.kind]) {
+                let ok = true;
+                if (LINK_WANT[d.kind] === 'pos') {
+                    const pos = belt.positions[Number(cand.dataset.idx)];
+                    if (!pos || !pos.inspection) { ok = false; }
+                }
+                if (ok) { t = cand; }
+            }
         }
         markTargets(false);
         if (linkDrag && linkDrag.hot) { linkDrag.hot.classList.remove('sock-hot'); }
@@ -1496,9 +1511,7 @@ window.BeltBridge = {
             setupDragImage(ev, 'camera', id);
         }
         const zn = $('belt-zone');
-        if (zn && belt.positions.some(function (p) {
-            return p.inspection;
-        })) {
+        if (zn) {
             zn.classList.add('drop-ready');
         }
     },
@@ -1527,8 +1540,7 @@ function cleanVisuals() {
 function acceptsAt(kind, idx) {
     const pos = belt.positions[idx];
     if (!pos) { return false; }
-    if (kind === 'position') { return false; }
-    if (kind === 'camera') { return !!pos.inspection; }
+    if (kind === 'position' || kind === 'camera') { return false; }
     if (kind === 'inspect') { return !pos.reset || !!pos.inspection; }
     if (kind === 'reset') {
         return pos.reset
@@ -1582,14 +1594,14 @@ function wireBelt() {
         document.querySelectorAll('.drop-target')
             .forEach(function (n) { n.classList.remove('drop-target'); });
         if (dragKind === 'model-part' || dragKind === 'rule'
-            || dragKind === 'position') {
+            || dragKind === 'position' || dragKind === 'camera') {
             const key = dragKind === 'position' ? 'pos'
-                : (dragKind === 'model-part' ? 'model' : 'rule');
+                : (dragKind === 'model-part' ? 'model' : (dragKind === 'rule' ? 'rule' : 'cam'));
             const dims = getNodeDimensions(key);
             const pt = canvasPoint(ev, dims.w, dims.h);
             const coll = hasCollision(pt.x, pt.y, dims.w, dims.h, null, 4);
             ev.dataTransfer.dropEffect = coll ? 'none' : 'copy';
-            updateCanvasGhost(ev, dragKind, dragAsset);
+            updateCanvasGhost(ev, dragKind, dragKind === 'camera' ? dragCamId : dragAsset);
         } else {
             const idx = cardFromEvent(ev);
             document.querySelectorAll('.pos-card.drop-target').forEach(
@@ -1600,12 +1612,6 @@ function wireBelt() {
                     '.pos-card[data-index="' + idx + '"]');
                 if (card) { card.classList.add('drop-target'); }
                 ev.dataTransfer.dropEffect = 'copy';
-            } else if (dragKind === 'camera') {
-                const dims = getNodeDimensions('cam');
-                const pt = canvasPoint(ev, dims.w, dims.h);
-                const coll = hasCollision(pt.x, pt.y, dims.w, dims.h, null, 4);
-                ev.dataTransfer.dropEffect = coll ? 'none' : 'copy';
-                updateCanvasGhost(ev, 'camera', dragCamId);
             } else {
                 removeCanvasGhost();
                 ev.dataTransfer.dropEffect = 'none';
@@ -1633,22 +1639,30 @@ function wireBelt() {
 
         const emptyZone = belt.positions.length === 0;
         if (kind === 'position') {
+            if (cardIdx >= 0) {
+                toast('Наложение блоков запрещено.', 'err');
+                return;
+            }
             insertPosition(canvasPoint(ev, 176, 100));
             return;
         }
         if (kind === 'model-part' || kind === 'rule') {
+            if (cardIdx >= 0) {
+                toast('Наложение блоков запрещено.', 'err');
+                return;
+            }
             placeNode(kind === 'model-part'
                 ? 'model:' + dragAsset : 'rule:' + dragAsset, ev);
             dragAsset = null;
             return;
         }
         if (kind === 'camera' && dragCamId) {
-            if (cardIdx < 0) {
-                placeNode('cam:' + dragCamId, ev);
+            if (cardIdx >= 0) {
+                toast('Камеры подключаются линией сокетов на холсте ленты.', 'err');
                 dragCamId = null;
                 return;
             }
-            bindCamera(cardIdx, dragCamId);
+            placeNode('cam:' + dragCamId, ev);
             dragCamId = null;
             return;
         }
@@ -1660,12 +1674,8 @@ function wireBelt() {
             toast('Не на позицию.', 'err');
             return;
         }
-        if (kind === 'inspect') { toggleInspection(cardIdx); }
-        else if (kind === 'reset') { toggleReset(cardIdx); }
-        else if (kind === 'camera') {
-            bindCamera(cardIdx, dragCamId);
-            dragCamId = null;
-        }
+        if (kind === 'inspect') { toggleInspection(cardIdx); return; }
+        if (kind === 'reset') { toggleReset(cardIdx); return; }
     });
 
     /* клик по карточке: делёжка и значки */
