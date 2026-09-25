@@ -796,6 +796,18 @@ check('камера подключается к позиции только ли
 
         return notConnected && onField && connectedByLine;
     })());
+check('логика переноса камеры унифицирована с правилами и моделями: отказ с запретом наложения',
+    (function () {
+        const c0 = cards()[0];
+        const dt = mkDT();
+        fire(thumbs()[4], 'dragstart', dt);
+        fire(zone(), 'dragover', dt, 50);
+        fire(c0, 'drop', dt, 50);
+        fire(thumbs()[4], 'dragend', dt);
+        const hasOverlayToast = /Наложение/.test(doc.getElementById('toasts').textContent);
+        const noChip = !c0.querySelector('.chip[data-cam="cam4"]');
+        return hasOverlayToast && noChip;
+    })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 

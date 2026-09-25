@@ -6,10 +6,9 @@
  *     (part_presence), поэтому это место неснимаемо;
  *   - место инспекции навешивается и на другие позиции; повторный бросок
  *     снимает его (кроме входа);
- *   - камеры приходят из блока «Обнаруженные камеры» (js/cameras.js):
- *     плита тянется на позицию и привязывается к её месту инспекции;
- *     один прибор — в одном месте, перенос = ребинд, повторный бросок
- *     на ту же позицию отвязывает;
+ *   - камеры, правила и модели выставляются со стены / из каталога на
+ *     свободное поле ленты отдельными нодами; подключение — исключительно
+ *     линиями связей между сокетами на холсте (модель→правило→камера→позиция);
  *   - точка сброса одна: бросок на новую позицию переносит её, повторный
  *     бросок на занятую позицию снимает;
  *   - максимум 64 позиции.
@@ -1503,6 +1502,7 @@ window.BeltBridge = {
     camDragStart: function (id, dt, ev) {
         dragKind = 'camera';
         dragCamId = id;
+        dragAsset = id;
         if (dt) {
             dt.setData('text/plain', 'camera:' + id);
             dt.effectAllowed = 'copy';
@@ -1518,6 +1518,7 @@ window.BeltBridge = {
     camDragEnd: function () {
         dragKind = null;
         dragCamId = null;
+        dragAsset = null;
         cleanVisuals();
     },
     addModelFromFile: function (fileName, path) { return addModelFromFile(fileName, path); },
@@ -1540,13 +1541,13 @@ function cleanVisuals() {
 function acceptsAt(kind, idx) {
     const pos = belt.positions[idx];
     if (!pos) { return false; }
-    if (kind === 'position' || kind === 'camera') { return false; }
+    if (kind === 'position' || kind === 'camera' || kind === 'rule' || kind === 'model-part') { return false; }
     if (kind === 'inspect') { return !pos.reset || !!pos.inspection; }
     if (kind === 'reset') {
         return pos.reset
             || (idx === belt.positions.length - 1 && !pos.inspection);
     }
-    return true;
+    return false;
 }
 
 
@@ -1646,23 +1647,19 @@ function wireBelt() {
             insertPosition(canvasPoint(ev, 176, 100));
             return;
         }
-        if (kind === 'model-part' || kind === 'rule') {
+        if (kind === 'model-part' || kind === 'rule' || kind === 'camera') {
             if (cardIdx >= 0) {
                 toast('Наложение блоков запрещено.', 'err');
-                return;
-            }
-            placeNode(kind === 'model-part'
-                ? 'model:' + dragAsset : 'rule:' + dragAsset, ev);
-            dragAsset = null;
-            return;
-        }
-        if (kind === 'camera' && dragCamId) {
-            if (cardIdx >= 0) {
-                toast('Камеры подключаются линией сокетов на холсте ленты.', 'err');
+                dragAsset = null;
                 dragCamId = null;
                 return;
             }
-            placeNode('cam:' + dragCamId, ev);
+            const assetId = kind === 'camera' ? (dragCamId || dragAsset) : dragAsset;
+            if (assetId) {
+                const key = (kind === 'model-part' ? 'model:' : (kind === 'rule' ? 'rule:' : 'cam:')) + assetId;
+                placeNode(key, ev);
+            }
+            dragAsset = null;
             dragCamId = null;
             return;
         }
