@@ -716,7 +716,7 @@ check('размерность при удержании: dragstart правил�
 
         return rOk && mOk;
     })());
-check('фантом на холсте: при перемещении над сборкой ленты отображается призрак целевых габаритов',
+check('нет дублирования при первой установке: на холсте не создается второй элемент-призрак',
     (function () {
         const zone = doc.getElementById('belt-zone');
         const tool = doc.querySelector('.tool[data-kind="position"]');
@@ -732,22 +732,19 @@ check('фантом на холсте: при перемещении над сб
         zone.dispatchEvent(evOver);
 
         const ghost = doc.getElementById('canvas-drag-ghost');
-        const exists = !!ghost && ghost.classList.contains('canvas-drag-ghost');
-        const widthOk = ghost && ghost.style.width === '176px';
-        const heightOk = ghost && ghost.style.minHeight === '96px';
+        const noDuplicate = ghost === null;
 
         const evEnd = new window.Event('dragend', { bubbles: true });
         tool.dispatchEvent(evEnd);
-        const ghostGone = !doc.getElementById('canvas-drag-ghost');
 
-        return exists && widthOk && heightOk && ghostGone;
+        return noDuplicate;
     })());
 check('перетаскиваемый объект: сплошная обводка без пунктира',
     (function () {
         const css = fs.readFileSync(ROOT + '/css/belt-editor.css', 'utf8');
-        const ghostBlock = css.match(/\.canvas-drag-ghost\s*\{[^}]*\}/);
-        const hasSolid = ghostBlock && /border-style:\s*solid\s*!important/i.test(ghostBlock[0]);
-        const noDashed = ghostBlock && !/border-style:\s*dashed/i.test(ghostBlock[0]);
+        const previewBlock = css.match(/\.ghost-preview\s*\{[^}]*\}/);
+        const hasSolid = previewBlock && /border-style:\s*solid\s*!important/i.test(previewBlock[0]);
+        const noDashed = previewBlock && !/border-style:\s*dashed/i.test(previewBlock[0]);
         return !!(hasSolid && noDashed);
     })());
 check('перетаскиваемый блок поверх цели: z-index 100 и верхушка DOM при наведении на другой блок',
@@ -767,8 +764,7 @@ check('перетаскиваемый блок поверх цели: z-index 10
         window.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true }));
 
         const css = fs.readFileSync(ROOT + '/css/belt-editor.css', 'utf8');
-        const hasHighZ = /\.node-dragging[^{]*\{[^}]*z-index:\s*100\s*!important/i.test(css)
-            && /\.canvas-drag-ghost\s*\{[^}]*z-index:\s*100\s*!important/i.test(css);
+        const hasHighZ = /\.node-dragging[^{]*\{[^}]*z-index:\s*100\s*!important/i.test(css);
 
         return isDragging && isLastChild && hasHighZ;
     })());

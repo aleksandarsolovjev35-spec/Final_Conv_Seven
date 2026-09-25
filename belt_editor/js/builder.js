@@ -1431,64 +1431,6 @@ function setupDragImage(ev, kind, id) {
     }
 }
 
-function updateCanvasGhost(ev, kind, id) {
-    const row = document.getElementById('belt-row');
-    if (!row) { return; }
-    if (!kind || (kind !== 'position' && kind !== 'rule' && kind !== 'model-part' && kind !== 'camera')) {
-        removeCanvasGhost();
-        return;
-    }
-    const key = kind === 'position' ? 'pos'
-        : (kind === 'model-part' ? 'model' : (kind === 'rule' ? 'rule' : 'cam'));
-    const dims = getNodeDimensions(key);
-    const pt = canvasPoint(ev, dims.w, dims.h);
-    const coll = hasCollision(pt.x, pt.y, dims.w, dims.h, null, 4);
-
-    let ghost = document.getElementById('canvas-drag-ghost');
-    if (!ghost) {
-        ghost = el('div', 'canvas-drag-ghost gnode');
-        ghost.id = 'canvas-drag-ghost';
-        row.appendChild(ghost);
-    } else if (row.lastElementChild !== ghost) {
-        row.appendChild(ghost);
-    }
-
-    ghost.className = 'canvas-drag-ghost gnode '
-        + (kind === 'position' ? 'pos-card g-pos' : (kind === 'rule' ? 'g-rule' : (kind === 'model-part' ? 'g-model' : 'cam-node g-cam free')))
-        + (coll ? ' collision-warning' : ' ghost-valid');
-
-    ghost.style.width = dims.w + 'px';
-    ghost.style.minHeight = dims.h + 'px';
-    ghost.style.left = Math.round(pt.x) + 'px';
-    ghost.style.top = Math.round(pt.y) + 'px';
-
-    if (ghost.dataset.ghostKind !== kind || ghost.dataset.ghostId !== String(id || '')) {
-        ghost.dataset.ghostKind = kind;
-        ghost.dataset.ghostId = String(id || '');
-        ghost.textContent = '';
-        const head = el('div', 'node-head');
-        if (kind === 'position') {
-            head.appendChild(el('span', 'pos-index', 'П' + belt.positions.length));
-            head.appendChild(el('span', 'pos-label', 'Позиция ' + belt.positions.length));
-        } else if (kind === 'rule') {
-            const rule = RULES.find(function (r) { return r.id === id; });
-            const sw = el('i', 'g-swatch');
-            sw.style.background = rule ? rule.color : '#c1a66a';
-            head.appendChild(sw);
-            const lbl = el('span', 'pos-label', rule ? rule.name : id);
-            if (rule) { lbl.style.color = rule.color; }
-            head.appendChild(lbl);
-        } else if (kind === 'model-part') {
-            const mod = MODELS.find(function (m) { return m.id === id; });
-            head.appendChild(el('span', 'pos-label', mod ? mod.name : id));
-        } else if (kind === 'camera') {
-            const cam = invCam(id);
-            head.appendChild(el('span', 'pos-label', cam ? cam.name : id));
-        }
-        ghost.appendChild(head);
-    }
-}
-
 function removeCanvasGhost() {
     const ghost = document.getElementById('canvas-drag-ghost');
     if (ghost && ghost.parentNode) {
@@ -1527,8 +1469,8 @@ window.BeltBridge = {
 
 function cleanVisuals() {
     removeCanvasGhost();
-    document.querySelectorAll('.drop-target')
-        .forEach(function (n) { n.classList.remove('drop-target'); });
+    document.querySelectorAll('.drop-target, .collision-warning')
+        .forEach(function (n) { n.classList.remove('drop-target', 'collision-warning'); });
     $('belt-zone').classList.remove('drop-ready');
     document.querySelectorAll('.tool.dragging, .asset.dragging,'
         + '.pos-card.dragging-src,.rule-entry.dragging,'
@@ -1592,8 +1534,8 @@ function wireBelt() {
     zone.addEventListener('dragover', function (ev) {
         if (!dragKind) { return; }
         ev.preventDefault();
-        document.querySelectorAll('.drop-target')
-            .forEach(function (n) { n.classList.remove('drop-target'); });
+        document.querySelectorAll('.drop-target, .collision-warning')
+            .forEach(function (n) { n.classList.remove('drop-target', 'collision-warning'); });
         if (dragKind === 'model-part' || dragKind === 'rule'
             || dragKind === 'position' || dragKind === 'camera') {
             const key = dragKind === 'position' ? 'pos'
@@ -1602,19 +1544,20 @@ function wireBelt() {
             const pt = canvasPoint(ev, dims.w, dims.h);
             const coll = hasCollision(pt.x, pt.y, dims.w, dims.h, null, 4);
             ev.dataTransfer.dropEffect = coll ? 'none' : 'copy';
-            updateCanvasGhost(ev, dragKind, dragKind === 'camera' ? dragCamId : dragAsset);
+            if (coll) {
+                const under = ev.target && ev.target.closest ? ev.target.closest('.gnode') : null;
+                if (under) { under.classList.add('collision-warning'); }
+            }
         } else {
             const idx = cardFromEvent(ev);
             document.querySelectorAll('.pos-card.drop-target').forEach(
                 function (n) { n.classList.remove('drop-target'); });
             if (idx >= 0 && acceptsAt(dragKind, idx)) {
-                removeCanvasGhost();
                 const card = zone.querySelector(
                     '.pos-card[data-index="' + idx + '"]');
                 if (card) { card.classList.add('drop-target'); }
                 ev.dataTransfer.dropEffect = 'copy';
             } else {
-                removeCanvasGhost();
                 ev.dataTransfer.dropEffect = 'none';
             }
         }
@@ -1622,9 +1565,8 @@ function wireBelt() {
 
     zone.addEventListener('dragleave', function (ev) {
         if (ev.relatedTarget && zone.contains(ev.relatedTarget)) { return; }
-        removeCanvasGhost();
-        document.querySelectorAll('.pos-card.drop-target').forEach(
-            function (n) { n.classList.remove('drop-target'); });
+        document.querySelectorAll('.pos-card.drop-target, .collision-warning').forEach(
+            function (n) { n.classList.remove('drop-target', 'collision-warning'); });
     });
 
     zone.addEventListener('drop', function (ev) {
