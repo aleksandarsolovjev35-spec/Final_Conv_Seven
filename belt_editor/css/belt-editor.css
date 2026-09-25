@@ -753,26 +753,37 @@ body.node-moving { cursor: grabbing; }
 }
 
 .ghost-preview {
+    border-style: solid !important;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--border-accent);
 }
 
 .canvas-drag-ghost {
     position: absolute;
     pointer-events: none;
-    z-index: 25;
-    opacity: 0.88;
-    border-style: dashed !important;
+    z-index: 100 !important;
+    opacity: 0.94;
+    border-style: solid !important;
     transition: none !important;
 }
 
 .canvas-drag-ghost.ghost-valid {
     border-color: var(--accent, #4fa3d1) !important;
-    box-shadow: 0 0 14px rgba(79, 163, 209, 0.45) !important;
+    box-shadow: 0 0 16px rgba(79, 163, 209, 0.5), 0 10px 24px rgba(0, 0, 0, 0.65) !important;
 }
 
 .canvas-drag-ghost.collision-warning {
     border-color: var(--bad, #e05353) !important;
-    box-shadow: 0 0 16px rgba(224, 83, 83, 0.75) !important;
+    box-shadow: 0 0 20px rgba(224, 83, 83, 0.85), 0 10px 24px rgba(0, 0, 0, 0.65) !important;
+}
+
+/* Перетаскиваемый блок всегда поверх всех остальных блоков на сборке */
+.gnode.node-dragging,
+.pos-card.node-dragging {
+    z-index: 100 !important;
+    border-style: solid !important;
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.75), 0 0 0 1px var(--border-accent) !important;
+    opacity: 0.96;
+    cursor: grabbing !important;
 }
 
 .gnode .g-title {
@@ -831,6 +842,7 @@ body.node-moving { cursor: grabbing; }
  * роли, тело со строками-сокетами; соседи цепи связаны «проводами» */
 .pos-card {
     position: absolute;          /* нода холста: left/top = координаты поля */
+    z-index: 3;
     flex: 0 0 auto;
     width: 176px;
     min-height: 82px;

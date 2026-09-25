@@ -726,6 +726,36 @@ check('фантом на холсте: при перемещении над сб
 
         return exists && widthOk && heightOk && ghostGone;
     })());
+check('перетаскиваемый объект: сплошная обводка без пунктира',
+    (function () {
+        const css = fs.readFileSync(ROOT + '/css/belt-editor.css', 'utf8');
+        const ghostBlock = css.match(/\.canvas-drag-ghost\s*\{[^}]*\}/);
+        const hasSolid = ghostBlock && /border-style:\s*solid\s*!important/i.test(ghostBlock[0]);
+        const noDashed = ghostBlock && !/border-style:\s*dashed/i.test(ghostBlock[0]);
+        return !!(hasSolid && noDashed);
+    })());
+check('перетаскиваемый блок поверх цели: z-index 100 и верхушка DOM при наведении на другой блок',
+    (function () {
+        const m = doc.querySelector('.gnode.g-model');
+        const r = doc.querySelector('.gnode.g-rule');
+        if (!m || !r) { return false; }
+        const rX0 = parseFloat(r.style.left);
+        const rY0 = parseFloat(r.style.top);
+        const mX = parseFloat(m.style.left);
+        const mY = parseFloat(m.style.top);
+        const head = r.querySelector('.node-head');
+        head.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, clientX: 10, clientY: 10 }));
+        window.dispatchEvent(new window.MouseEvent('mousemove', { bubbles: true, clientX: 10 + (mX - rX0), clientY: 10 + (mY - rY0) }));
+        const isDragging = r.classList.contains('node-dragging');
+        const isLastChild = r.parentNode && r.parentNode.lastElementChild === r;
+        window.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true }));
+
+        const css = fs.readFileSync(ROOT + '/css/belt-editor.css', 'utf8');
+        const hasHighZ = /\.node-dragging[^{]*\{[^}]*z-index:\s*100\s*!important/i.test(css)
+            && /\.canvas-drag-ghost\s*\{[^}]*z-index:\s*100\s*!important/i.test(css);
+
+        return isDragging && isLastChild && hasHighZ;
+    })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 

@@ -1277,6 +1277,10 @@ function dragGNodes() {
             hasCollided: false
         };
         ev.preventDefault();
+        node.classList.add('node-dragging');
+        if (node.parentNode) {
+            node.parentNode.appendChild(node);
+        }
         document.body.classList.add('node-moving');
     });
     window.addEventListener('mousemove', function (ev) {
@@ -1307,6 +1311,7 @@ function dragGNodes() {
         const target = movingG;
         movingG = null;
         document.body.classList.remove('node-moving');
+        target.node.classList.remove('node-dragging');
         target.node.classList.remove('collision-warning');
 
         if (target.hasCollided) {
@@ -1429,6 +1434,8 @@ function updateCanvasGhost(ev, kind, id) {
     if (!ghost) {
         ghost = el('div', 'canvas-drag-ghost gnode');
         ghost.id = 'canvas-drag-ghost';
+        row.appendChild(ghost);
+    } else if (row.lastElementChild !== ghost) {
         row.appendChild(ghost);
     }
 
