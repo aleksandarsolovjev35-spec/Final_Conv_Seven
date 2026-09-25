@@ -598,6 +598,14 @@ check('каталог правил чист от ящиков сборки: сб
         const ruleChipsInCatalog = doc.querySelectorAll('#asset-rules .rule-chip');
         return drawers.length === 0 && ruleChipsInCatalog.length === 0;
     })());
+check('плитки правил не блокированы: нет класса rule-empty, курсор grab (перетаскивание доступно)',
+    (function () {
+        const tiles = doc.querySelectorAll('#asset-rules .rule-tile');
+        const hasRuleEmpty = Array.from(tiles).some(t => t.classList.contains('rule-empty'));
+        const css = fs.readFileSync(ROOT + '/css/belt-editor.css', 'utf8');
+        const noNotAllowed = !/\.rule-tile[^{]*\{[^}]*cursor:\s*not-allowed/i.test(css);
+        return tiles.length > 0 && !hasRuleEmpty && noNotAllowed;
+    })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 

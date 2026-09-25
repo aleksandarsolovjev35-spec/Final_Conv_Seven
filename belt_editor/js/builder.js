@@ -561,8 +561,7 @@ function renderAssets() {
             const cams = ruleOnCameras(rule);
             const entry = el('div', 'rule-entry');
             const tile = el('div', 'rule-tile'
-                + (cams.length ? ' asset-used' : '')
-                + (rule.models.length ? '' : ' rule-empty'));
+                + (cams.length ? ' asset-used' : ''));
             tile.draggable = true;
             tile.dataset.ruleId = rule.id;
             const sw = el('span', 'rule-swatch');

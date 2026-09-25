@@ -279,6 +279,20 @@ body {
     user-select: none;
 }
 
+.asset:hover {
+    cursor: grab;
+    border-color: var(--border-hover, #666);
+}
+
+.asset:active {
+    cursor: grabbing;
+}
+
+.asset * {
+    pointer-events: none;
+    cursor: inherit;
+}
+
 .asset b { font-weight: 600; }
 
 .asset .asset-use { color: var(--text-dim); }
@@ -290,9 +304,7 @@ body {
 
 .asset.dragging { opacity: 0.45; }
 
-/* плашка правила — тот же размер, что плитка модели; под ней —
- * выдвижной ящик прикреплённых моделей; пустой ящик — щель,
- * слегка выглядывающая из-под плашки */
+/* плашка правила — тот же размер, что плитка модели */
 .rule-entry {
     display: flex;
     flex-direction: column;
@@ -321,6 +333,24 @@ body {
     font-size: 12px;
     cursor: grab;
     user-select: none;
+}
+
+.rule-tile:hover {
+    cursor: grab;
+    border-color: var(--border-hover, #666);
+}
+
+.rule-tile:active {
+    cursor: grabbing;
+}
+
+.rule-tile * {
+    pointer-events: none;
+    cursor: inherit;
+}
+
+.rule-tile.rule-empty {
+    cursor: grab !important;
 }
 
 .rule-tile b { font-weight: 600; }
