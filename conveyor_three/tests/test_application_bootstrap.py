@@ -26,10 +26,10 @@ from application.bootstrap import (  # noqa: E402
     run_application,
     start_json_queue_syncer,
 )
-from application.factory import ProductionSystemFactory
-from application.ui import DesktopUI
+from application.factory import ProductionSystemFactory  # noqa: E402
+from application.ui import DesktopUI  # noqa: E402
 from json_sender import scan_and_send_all_batches  # noqa: E402
-from vision.ui.live_monitor import LiveMonitor, LiveMonitorApi
+from vision.ui.live_monitor import LiveMonitor, LiveMonitorApi  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -131,6 +131,24 @@ class CreateApplicationTest(unittest.TestCase):
             run_application()
         fake_app.run.assert_called_once()
         syncer.assert_called_once()
+
+    def test_run_application_error_returns_console_and_reraises(self):
+        # После закрытия окна консоль скрыта; при аварии она обязана
+        # вернуться, иначе пауза ошибки в run.bat останется невидимой.
+        with mock.patch(
+            "application.bootstrap.ensure_camera_mapping",
+            return_value=True,
+        ), mock.patch(
+            "application.bootstrap.start_json_queue_syncer",
+        ), mock.patch(
+            "application.bootstrap.create_application",
+            side_effect=RuntimeError("boom"),
+        ), mock.patch(
+            "application.bootstrap.show_console",
+        ) as show:
+            with self.assertRaisesRegex(RuntimeError, "boom"):
+                run_application()
+        show.assert_called_once()
 
 
 class JsonQueueSyncerTest(unittest.TestCase):

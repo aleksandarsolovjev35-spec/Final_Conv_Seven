@@ -6,6 +6,7 @@ import os
 import threading
 
 from application.callbacks import ExitCoordinator
+from application.console import show_console
 from application.factory import ProductionSystemFactory
 from application.lifecycle import ProductionApplication
 from application.runtime import RuntimeState
@@ -80,4 +81,11 @@ def run_application() -> None:
     if not ensure_camera_mapping():
         return
     start_json_queue_syncer()
-    create_application().run()
+    try:
+        create_application().run()
+    except BaseException:
+        # Аварийный выход: окно HMI закрылось, и консоль могла быть уже
+        # скрыта. Вернуть её, иначе run.bat покажет сообщение об ошибке и
+        # паузу в невидимом окне, и оператор ничего не узнает.
+        show_console()
+        raise

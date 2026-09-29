@@ -821,6 +821,52 @@ class ExitAndShutdownTest(unittest.TestCase):
         )
         self.assertIs(manager.batch_sender, scan_and_send_all_batches)
 
+    def test_after_window_closed_hides_console_before_cycle_stop(self):
+        events = []
+        monitor = FakeMonitor(events)
+        runtime = RuntimeState(monitor=monitor)
+        runtime.cycle = FakeCycle(events)
+        manager = ShutdownManager(
+            runtime,
+            thread_factory=ImmediateThread,
+            console_hider=lambda: events.append("console.hide"),
+        )
+
+        manager.after_window_closed()
+
+        # Консоль скрывается сразу -- до ожидания остановки цикла, --
+        # чтобы «чёрное окно» не висело до конца фоновой очистки.
+        self.assertEqual(events[0], "console.hide")
+        self.assertLess(
+            events.index("console.hide"), events.index("cycle.force_exit")
+        )
+
+    def test_console_hide_failure_does_not_block_shutdown(self):
+        events = []
+        monitor = FakeMonitor(events)
+        runtime = RuntimeState(monitor=monitor)
+        runtime.cycle = FakeCycle(events)
+        runtime.cameras = SimpleNamespace(
+            release=lambda: events.append("cameras.release")
+        )
+        runtime.transport = FakeTransport(events)
+
+        def failing_hider():
+            raise RuntimeError("no console")
+
+        manager = ShutdownManager(
+            runtime,
+            thread_factory=ImmediateThread,
+            console_hider=failing_hider,
+        )
+
+        manager.after_window_closed()
+        manager.shutdown()
+
+        self.assertIn("cycle.force_exit", events)
+        self.assertIn("cameras.release", events)
+        self.assertIn("serial.close", events)
+
 
 class DesktopUITest(unittest.TestCase):
     def test_webview_uses_monitor_configuration(self):

@@ -10,6 +10,7 @@ from application.constants import (
     CYCLE_JOIN_TIMEOUT,
     INIT_JOIN_TIMEOUT,
 )
+from application.console import hide_console
 from json_sender import scan_and_send_all_batches
 
 
@@ -23,6 +24,7 @@ class ShutdownManager:
         compress_timeout: float = COMPRESS_TIMEOUT,
         thread_factory=threading.Thread,
         batch_sender=scan_and_send_all_batches,
+        console_hider=hide_console,
     ):
         self.runtime = runtime
         self.cycle_join_timeout = cycle_join_timeout
@@ -30,13 +32,24 @@ class ShutdownManager:
         self.compress_timeout = compress_timeout
         self._thread_factory = thread_factory
         self.batch_sender = batch_sender
+        self._console_hider = console_hider
 
     def after_window_closed(self) -> None:
         """Остановить цикл сразу после возврата из блокирующего webview."""
 
         print("[UI] Окно закрыто, завершение...")
+        self._hide_console()
         self._request_force_exit()
         self._join_cycle(warn=True)
+
+    def _hide_console(self) -> None:
+        # Дальнейшая очистка ресурсов оператору не видна и не нужна: консоль
+        # скрывается сразу, чтобы «чёрное окно» не висело до конца shutdown.
+        # Ошибка скрытия не должна мешать детерминированному завершению.
+        try:
+            self._console_hider()
+        except Exception as exc:
+            print(f"[SHUTDOWN] Не удалось скрыть консоль: {exc}")
 
     def shutdown(self) -> None:
         runtime = self.runtime
