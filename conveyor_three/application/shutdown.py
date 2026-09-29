@@ -10,6 +10,8 @@ from application.constants import (
     CYCLE_JOIN_TIMEOUT,
     INIT_JOIN_TIMEOUT,
 )
+from application.console import hide_console
+from json_sender import scan_and_send_all_batches
 
 
 class ShutdownManager:
@@ -21,19 +23,33 @@ class ShutdownManager:
         init_join_timeout: float = INIT_JOIN_TIMEOUT,
         compress_timeout: float = COMPRESS_TIMEOUT,
         thread_factory=threading.Thread,
+        batch_sender=scan_and_send_all_batches,
+        console_hider=hide_console,
     ):
         self.runtime = runtime
         self.cycle_join_timeout = cycle_join_timeout
         self.init_join_timeout = init_join_timeout
         self.compress_timeout = compress_timeout
         self._thread_factory = thread_factory
+        self.batch_sender = batch_sender
+        self._console_hider = console_hider
 
     def after_window_closed(self) -> None:
         """Остановить цикл сразу после возврата из блокирующего webview."""
 
         print("[UI] Окно закрыто, завершение...")
+        self._hide_console()
         self._request_force_exit()
         self._join_cycle(warn=True)
+
+    def _hide_console(self) -> None:
+        # Дальнейшая очистка ресурсов оператору не видна и не нужна: консоль
+        # скрывается сразу, чтобы «чёрное окно» не висело до конца shutdown.
+        # Ошибка скрытия не должна мешать детерминированному завершению.
+        try:
+            self._console_hider()
+        except Exception as exc:
+            print(f"[SHUTDOWN] Не удалось скрыть консоль: {exc}")
 
     def shutdown(self) -> None:
         runtime = self.runtime
@@ -60,7 +76,7 @@ class ShutdownManager:
         cycle_thread = runtime.cycle_thread
         if cycle_thread and cycle_thread.is_alive():
             print(
-                "[SHUTDOWN] Cycle still active; archive compression skipped"
+                "[SHUTDOWN] Cycle still active; archive finalization skipped"
             )
         else:
             self._shutdown_compress(runtime.archive)
@@ -134,20 +150,52 @@ class ShutdownManager:
 
         try:
             worker = self._thread_factory(
-                target=lambda: self._safe_compress(archive),
+                target=lambda: self._finalize_archive(archive),
                 daemon=True,
             )
             worker.start()
             worker.join(timeout=self.compress_timeout)
             if worker.is_alive():
                 print(
-                    "[SHUTDOWN] Сжатие архива не завершилось за "
+                    "[SHUTDOWN] Финализация архива не завершилась за "
                     f"{self.compress_timeout}с, пропускаем"
                 )
         except Exception as exc:
             # Ошибка вспомогательного потока не должна препятствовать
             # освобождению камер и закрытию контроллера.
-            print(f"[SHUTDOWN] Ошибка потока сжатия архива: {exc}")
+            print(f"[SHUTDOWN] Ошибка потока финализации архива: {exc}")
+
+    def _finalize_archive(self, archive) -> None:
+        """Финализировать партию: CLOSED-манифест, отправка, сжатие.
+
+        Отправка batch.json аналитику выполняется в том же worker-потоке,
+        что и сжатие: сетевой диск с зависшим SMB-таймаутом не может
+        снять детерминированность завершения -- весь блок ограничен
+        ``compress_timeout``, неотправленное остаётся в локальной очереди
+        и уйдёт при следующем старте программы.
+        """
+        try:
+            self._close_manifest(archive)
+        except Exception as exc:
+            print(f"[SHUTDOWN] Закрытие манифеста партии не удалось: {exc}")
+        try:
+            self._send_batch_manifests(archive)
+        except Exception as exc:
+            print(f"[SHUTDOWN] Отправка JSON аналитику не удалась: {exc}")
+        self._safe_compress(archive)
+
+    def _send_batch_manifests(self, archive) -> None:
+        # Дубли архива без root_folder (тестовые) отправку не запускают.
+        root = getattr(archive, "root_folder", None)
+        if root is None:
+            return
+        self.batch_sender(root)
+
+    @staticmethod
+    def _close_manifest(archive) -> None:
+        close = getattr(archive, "close_manifest", None)
+        if close is not None:
+            close()
 
     @staticmethod
     def _safe_compress(archive) -> None:
