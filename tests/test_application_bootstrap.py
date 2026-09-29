@@ -24,9 +24,11 @@ from application.bootstrap import (  # noqa: E402
     create_application,
     ensure_camera_mapping,
     run_application,
+    start_json_queue_syncer,
 )
 from application.factory import ProductionSystemFactory
 from application.ui import DesktopUI
+from json_sender import scan_and_send_all_batches  # noqa: E402
 from vision.ui.live_monitor import LiveMonitor, LiveMonitorApi
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -95,6 +97,11 @@ class CreateApplicationTest(unittest.TestCase):
         init_cls.assert_called_once()
         ui_cls.assert_called_once()
         shutdown_cls.assert_called_once()
+        # Shutdown получает production-отправку batch.json аналитику.
+        self.assertIs(
+            shutdown_cls.call_args.kwargs["batch_sender"],
+            scan_and_send_all_batches,
+        )
 
     def test_run_application_no_mapping(self):
         with mock.patch(
@@ -102,10 +109,13 @@ class CreateApplicationTest(unittest.TestCase):
             return_value=False,
         ) as ensure, mock.patch(
             "application.bootstrap.create_application",
-        ) as create:
+        ) as create, mock.patch(
+            "application.bootstrap.start_json_queue_syncer",
+        ) as syncer:
             run_application()
         ensure.assert_called_once()
         create.assert_not_called()
+        syncer.assert_not_called()
 
     def test_run_application_runs(self):
         fake_app = mock.Mock()
@@ -115,9 +125,60 @@ class CreateApplicationTest(unittest.TestCase):
         ), mock.patch(
             "application.bootstrap.create_application",
             return_value=fake_app,
-        ):
+        ), mock.patch(
+            "application.bootstrap.start_json_queue_syncer",
+        ) as syncer:
             run_application()
         fake_app.run.assert_called_once()
+        syncer.assert_called_once()
+
+
+class JsonQueueSyncerTest(unittest.TestCase):
+    """Стартовая догрузка очереди batch.json на ПК аналитика."""
+
+    def test_start_json_queue_syncer_starts_daemon_worker(self):
+        class Worker:
+            def __init__(self, target, daemon):
+                self.target = target
+                self.daemon = daemon
+                self.started = False
+
+            def start(self):
+                self.started = True
+
+        created = []
+
+        def thread_factory(target, daemon):
+            worker = Worker(target, daemon)
+            created.append(worker)
+            return worker
+
+        start_json_queue_syncer(thread_factory=thread_factory)
+
+        self.assertEqual(len(created), 1)
+        self.assertTrue(created[0].started)
+        self.assertTrue(created[0].daemon)
+        self.assertTrue(callable(created[0].target))
+
+    def test_start_json_queue_syncer_swallows_sync_errors(self):
+        class ImmediateWorker:
+            def __init__(self, target, daemon):
+                self.target = target
+
+            def start(self):
+                self.target()
+
+        with mock.patch(
+            "application.bootstrap.sync_local_queue",
+            side_effect=RuntimeError("Z: hung"),
+        ) as sync:
+            start_json_queue_syncer(
+                thread_factory=(
+                    lambda target, daemon: ImmediateWorker(target, daemon)
+                )
+            )
+
+        sync.assert_called_once()
 
 
 class DesktopUITest(unittest.TestCase):
