@@ -334,6 +334,19 @@ class PartArchive:
         }
         self._write_json(os.path.join(self.batch_folder, "batch.json"), manifest)
 
+    def close_manifest(self) -> None:
+        """Дописать финальный ``batch.json`` со статусом ``CLOSED``.
+
+        Вызывается при завершении программы до отправки манифеста
+        аналитику и до сжатия партии: аналитик должен получить закрытую
+        партию, а не промежуточный ``OPEN``-манифест. Пустая партия (без
+        единой детали) манифеста не создаёт: нечего отправлять и сжимать.
+        """
+        manifest_path = os.path.join(self.batch_folder, "batch.json")
+        if not os.path.exists(manifest_path):
+            return
+        self._save_batch_manifest(status="CLOSED")
+
     # ---------- сжатие ----------
 
     def compress(self) -> str | None:

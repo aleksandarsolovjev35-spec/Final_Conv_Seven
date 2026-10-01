@@ -129,7 +129,7 @@ float       speed                       = 30000.0;
 float       acceleration                = 10000.0;
 bool        direction                   = 1;
 int         divisions_per_movement      = 2;
-uint32_t    pause_between_movements     = 2000;
+uint32_t    pause_between_movements     = 100;
 bool        autoPauseMode               = true;
 bool        pause_checker               = false;
 

@@ -11,6 +11,7 @@ from application.runtime import RuntimeState
 from application.shutdown import ShutdownManager
 from application.startup import SystemInitializer
 from application.ui import DesktopUI
+from json_sender import scan_and_send_all_batches
 
 
 class PassiveThread:
@@ -52,6 +53,27 @@ class StubbornThread:
 
     def join(self, timeout=None):
         self.join_timeouts.append(timeout)
+
+
+class HangingWorker:
+    """Дубль потока финализации архива: target не запускается.
+
+    Имитирует зависший сетевой диск: поток «вечно жив», join уходит
+    по таймауту, освобождение ресурсов обязано продолжиться.
+    """
+
+    def __init__(self, target, daemon=True):
+        self.target = target
+        self.daemon = daemon
+
+    def start(self):
+        pass
+
+    def is_alive(self):
+        return True
+
+    def join(self, timeout=None):
+        return None
 
 
 class FakeServer:
@@ -639,6 +661,211 @@ class ExitAndShutdownTest(unittest.TestCase):
         self.assertLess(
             events.index("archive.compress"), events.index("cameras.release"),
         )
+
+    def test_shutdown_finalizes_archive_before_releasing_cameras(self):
+        events = []
+        monitor = FakeMonitor(events)
+        runtime = RuntimeState(monitor=monitor)
+        runtime.cycle = FakeCycle(events)
+        runtime.cameras = SimpleNamespace(
+            release=lambda: events.append("cameras.release")
+        )
+        runtime.transport = FakeTransport(events)
+        sender_roots = []
+
+        def batch_sender(root):
+            sender_roots.append(root)
+            events.append("json.send")
+
+        runtime.archive = SimpleNamespace(
+            root_folder="archive",
+            close_manifest=lambda: events.append("manifest.close"),
+            compress=lambda: events.append("archive.compress"),
+        )
+        manager = ShutdownManager(
+            runtime,
+            thread_factory=ImmediateThread,
+            batch_sender=batch_sender,
+        )
+
+        manager.shutdown()
+
+        # Отправка получает фактический корень архива из конфигурации.
+        self.assertEqual(sender_roots, ["archive"])
+        # Манифест закрывается до отправки, отправка -- до сжатия,
+        # сжатие -- до освобождения камер.
+        order = [events.index(name) for name in (
+            "manifest.close", "json.send", "archive.compress",
+            "cameras.release",
+        )]
+        self.assertEqual(order, sorted(order))
+
+    def test_shutdown_sender_failure_does_not_skip_compression(self):
+        events = []
+        monitor = FakeMonitor(events)
+        runtime = RuntimeState(monitor=monitor)
+        runtime.cycle = FakeCycle(events)
+        runtime.cameras = SimpleNamespace(
+            release=lambda: events.append("cameras.release")
+        )
+        runtime.transport = FakeTransport(events)
+
+        def failing_sender(_root):
+            raise RuntimeError("network share hung")
+
+        runtime.archive = SimpleNamespace(
+            root_folder="archive",
+            close_manifest=lambda: events.append("manifest.close"),
+            compress=lambda: events.append("archive.compress"),
+        )
+        manager = ShutdownManager(
+            runtime,
+            thread_factory=ImmediateThread,
+            batch_sender=failing_sender,
+        )
+
+        manager.shutdown()
+
+        self.assertIn("manifest.close", events)
+        self.assertIn("archive.compress", events)
+        self.assertIn("cameras.release", events)
+        self.assertIn("serial.close", events)
+
+    def test_shutdown_close_manifest_failure_still_sends_json(self):
+        events = []
+        monitor = FakeMonitor(events)
+        runtime = RuntimeState(monitor=monitor)
+        runtime.cycle = FakeCycle(events)
+        runtime.cameras = SimpleNamespace(
+            release=lambda: events.append("cameras.release")
+        )
+        runtime.transport = FakeTransport(events)
+
+        def failing_close():
+            raise RuntimeError("disk full")
+
+        runtime.archive = SimpleNamespace(
+            root_folder="archive",
+            close_manifest=failing_close,
+            compress=lambda: events.append("archive.compress"),
+        )
+        manager = ShutdownManager(
+            runtime,
+            thread_factory=ImmediateThread,
+            batch_sender=lambda _root: events.append("json.send"),
+        )
+
+        manager.shutdown()
+
+        self.assertIn("json.send", events)
+        self.assertIn("archive.compress", events)
+        self.assertIn("cameras.release", events)
+
+    def test_shutdown_duck_typed_archive_without_root_skips_sender(self):
+        events = []
+        monitor = FakeMonitor(events)
+        runtime = RuntimeState(monitor=monitor)
+        runtime.cycle = FakeCycle(events)
+        runtime.cameras = SimpleNamespace(
+            release=lambda: events.append("cameras.release")
+        )
+        runtime.transport = FakeTransport(events)
+        runtime.archive = SimpleNamespace(
+            compress=lambda: events.append("archive.compress"),
+        )
+        manager = ShutdownManager(
+            runtime,
+            thread_factory=ImmediateThread,
+            batch_sender=lambda root: self.fail(
+                f"отправка не должна запускаться без root_folder: {root}"
+            ),
+        )
+
+        manager.shutdown()
+
+        self.assertIn("archive.compress", events)
+        self.assertIn("cameras.release", events)
+
+    def test_shutdown_hanging_finalization_times_out(self):
+        events = []
+        monitor = FakeMonitor(events)
+        runtime = RuntimeState(monitor=monitor)
+        runtime.cycle = FakeCycle(events)
+        runtime.cameras = SimpleNamespace(
+            release=lambda: events.append("cameras.release")
+        )
+        runtime.transport = FakeTransport(events)
+        runtime.archive = SimpleNamespace(
+            root_folder="archive",
+            close_manifest=lambda: events.append("manifest.close"),
+            compress=lambda: events.append("archive.compress"),
+        )
+        manager = ShutdownManager(
+            runtime,
+            thread_factory=HangingWorker,
+            compress_timeout=0.01,
+            batch_sender=lambda _root: events.append("json.send"),
+        )
+
+        manager.shutdown()
+
+        # Зависшая отправка не блокирует освобождение ресурсов.
+        self.assertNotIn("archive.compress", events)
+        self.assertIn("cameras.release", events)
+        self.assertIn("serial.close", events)
+
+    def test_shutdown_default_batch_sender_is_production_scan(self):
+        manager = ShutdownManager(
+            RuntimeState(monitor=FakeMonitor([])),
+            thread_factory=PassiveThread,
+        )
+        self.assertIs(manager.batch_sender, scan_and_send_all_batches)
+
+    def test_after_window_closed_hides_console_before_cycle_stop(self):
+        events = []
+        monitor = FakeMonitor(events)
+        runtime = RuntimeState(monitor=monitor)
+        runtime.cycle = FakeCycle(events)
+        manager = ShutdownManager(
+            runtime,
+            thread_factory=ImmediateThread,
+            console_hider=lambda: events.append("console.hide"),
+        )
+
+        manager.after_window_closed()
+
+        # Консоль скрывается сразу -- до ожидания остановки цикла, --
+        # чтобы «чёрное окно» не висело до конца фоновой очистки.
+        self.assertEqual(events[0], "console.hide")
+        self.assertLess(
+            events.index("console.hide"), events.index("cycle.force_exit")
+        )
+
+    def test_console_hide_failure_does_not_block_shutdown(self):
+        events = []
+        monitor = FakeMonitor(events)
+        runtime = RuntimeState(monitor=monitor)
+        runtime.cycle = FakeCycle(events)
+        runtime.cameras = SimpleNamespace(
+            release=lambda: events.append("cameras.release")
+        )
+        runtime.transport = FakeTransport(events)
+
+        def failing_hider():
+            raise RuntimeError("no console")
+
+        manager = ShutdownManager(
+            runtime,
+            thread_factory=ImmediateThread,
+            console_hider=failing_hider,
+        )
+
+        manager.after_window_closed()
+        manager.shutdown()
+
+        self.assertIn("cycle.force_exit", events)
+        self.assertIn("cameras.release", events)
+        self.assertIn("serial.close", events)
 
 
 class DesktopUITest(unittest.TestCase):
