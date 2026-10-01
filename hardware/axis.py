@@ -59,7 +59,11 @@ class Axis:
         time.sleep(0.1)
 
     def read_status(self) -> dict:
-        data = self.transport.query("I10")
+        # I10 c P<axis>: прошивка v2.6.0+ отвечает одной строкой только по
+        # нужной оси — ответ короче, Serial реже блокирует loop() во время
+        # движения. Старая прошивка параметр P игнорирует и печатает все
+        # оси; парсер в любом случае выбирает строку своей оси.
+        data = self.transport.query(f"I10 P{self.axis_id}")
         line_match = re.search(
             rf"AXIS{self.axis_id}\s+([^\r\n]+)",
             data,

@@ -58,7 +58,15 @@ class Conveyor:
             )
 
     def wait_stop(self, timeout: float = 15.0, progress_callback=None):
-        """Ждать остановки и подтверждения выполнения ожидаемого STEP."""
+        """Ждать остановки и подтверждения выполнения ожидаемого STEP.
+
+        Во время движения опрашивается только короткий ``I1`` (3 байта —
+        не переполняет TX-буфер контроллера и не останавливает генерацию
+        шагов). Полный ``I2`` запрашивается при остановке, при нечитаемом
+        ``I1`` и изредка во время движения — для обновления позиции в UI.
+        Длинный ответ ``I2`` (~90 байт) блокирует ``loop()`` прошивки на
+        ~2-3 мс; на высоких скоростях ленты такие паузы видны как рывки.
+        """
         expected = self._pending_step_sequence
         if expected is None:
             raise RuntimeError("Нет принятой команды шага конвейера")
@@ -66,24 +74,33 @@ class Conveyor:
         start = time.time()
         data = ""
         status = ""
+        poll_index = 0
+        # I2 во время движения не чаще каждого третьего цикла опроса.
+        I2_PROGRESS_EVERY = 3
 
         while True:
+            poll_index += 1
             data = self.transport.query("I1", delay=0.1)
             stopped = self._parse_motion_reply(data)
-            status = self.transport.query("I2", delay=0.1)
-            parsed_status = self._parse_status(status)
-            if progress_callback is not None:
-                progress_callback(parsed_status)
-
-            completed = parsed_status["step"] == expected
             if (
                 stopped is True
-                and self._strict_stop_confirmed(status)
-                and completed
+                or stopped is None
+                or poll_index % I2_PROGRESS_EVERY == 0
             ):
-                self._pending_step_sequence = None
-                time.sleep(0.05)
-                return
+                status = self.transport.query("I2", delay=0.1)
+                parsed_status = self._parse_status(status)
+                if progress_callback is not None:
+                    progress_callback(parsed_status)
+
+                completed = parsed_status["step"] == expected
+                if (
+                    stopped is True
+                    and self._strict_stop_confirmed(status)
+                    and completed
+                ):
+                    self._pending_step_sequence = None
+                    time.sleep(0.05)
+                    return
 
             if time.time() - start > timeout:
                 raise TimeoutError(
@@ -108,6 +125,12 @@ class Conveyor:
         self.transport.send(f"G4 S{accel}")
         self.transport.send(f"G7 S{steps_per_division}")
         self.transport.send(f"G6 S{divisions_per_movement}")
+        # G9 — пауза между ходами. После каждого хода прошивка держит
+        # I2.WAIT=1 ровно эту паузу, и подтверждение production-шага
+        # задерживается на неё. 100 мс по умолчанию — плата за каждый шаг;
+        # 20 мс достаточно для стыковки сегментов JOG и почти не мешают
+        # подтверждению.
+        self.transport.send("G9 S20")
         # Сохраняем параметры: они читаются production-циклом
         # (_on_conveyor_progress) для расчёта длительности движения в UI.
         self.speed = int(speed)

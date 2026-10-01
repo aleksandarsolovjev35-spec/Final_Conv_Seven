@@ -224,9 +224,9 @@ class FakeAxisTransport(RecordingTransport):
 
     def query(self, command, delay=0.15):
         self.commands.append(command)
-        if command == "I10":
+        if command.startswith("I10"):
             return self.status_line
-        if command == "I11":
+        if command.startswith("I11"):
             return self.config_line
         return ""
 
@@ -311,6 +311,18 @@ class AxisTest(unittest.TestCase):
         status = axis.read_status()
         self.assertIsNone(status["position"])
 
+    def test_read_status_queries_single_axis(self):
+        # I10 отправляется с P<axis>: прошивка v2.6.0+ отвечает одной
+        # строкой (короче ответ — меньше блокировка Serial при движении).
+        transport = FakeAxisTransport(
+            "AXIS0 POS=0 TGT=0 MOV=0 EN=1 HOME=0 HOMED=1 LIM=1 ES=0",
+        )
+        with mock.patch("time.sleep"):
+            axis = Axis(transport, 0, 1000)
+        transport.commands.clear()
+        axis.read_status()
+        self.assertEqual(transport.commands, ["I10 P0"])
+
     def test_verify_homed_failures(self):
         transport = FakeAxisTransport(
             "AXIS0 POS=50 TGT=50 MOV=0 EN=1 HOME=0 HOMED=0 LIM=1 ES=0",
@@ -383,7 +395,7 @@ class ConveyorTest(unittest.TestCase):
     def test_constructor_sets_parameters(self):
         conveyor, transport = self.make_conveyor()
         self.assertEqual(transport.commands, [
-            "G5 S20000", "G4 S6000", "G7 S19048", "G6 S2",
+            "G5 S20000", "G4 S6000", "G7 S19048", "G6 S2", "G9 S20",
         ])
         self.assertEqual(conveyor.speed, 20000)
         self.assertEqual(conveyor.steps_per_division, 19048)
@@ -448,6 +460,29 @@ class ConveyorTest(unittest.TestCase):
         with mock.patch("time.sleep"):
             conveyor.move_step()
             conveyor.wait_stop(timeout=1.0)
+        self.assertIsNone(conveyor._pending_step_sequence)
+
+    def test_wait_stop_polls_i2_rarely_while_moving(self):
+        # Во время движения опрашивается только короткий I1; полный I2 —
+        # не чаще каждого третьего цикла (обновление позиции для UI) и
+        # обязательно при остановке.
+        transport = RecordingTransport({
+            "I1": ["1", "1", "1", "1", "1", "0"],
+            "I2": [
+                "MOV=0 WAIT=0 STEP=12 lastErr=0",
+                "MOV=1 WAIT=0 POS=1 TGT=19048 STEP=12 lastErr=0",
+                "MOV=0 WAIT=0 STEP=13 lastErr=0",
+            ],
+            "G3 N13": "ACK G3 STEP=13",
+        })
+        conveyor, _ = self.make_conveyor(transport)
+        with mock.patch("time.sleep"):
+            conveyor.move_step()
+            conveyor.wait_stop(timeout=5.0)
+        i1_count = transport.commands.count("I1")
+        i2_count = transport.commands.count("I2")
+        self.assertGreaterEqual(i1_count, 6)
+        self.assertLessEqual(i2_count, i1_count // 3 + 2)
         self.assertIsNone(conveyor._pending_step_sequence)
 
     def test_wait_stop_does_not_accept_idle_without_completed_step(self):
