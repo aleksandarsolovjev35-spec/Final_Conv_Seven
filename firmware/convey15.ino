@@ -62,11 +62,22 @@
 //   I6  — версия прошивки
 //   I7  — последняя ошибка (если была)
 //   I8  — помощь по I-командам
-//   I10 — статус осей NEMA (позиция/цель/движение/драйвер/концевик/хоминг/homed)
+//   I10 — статус осей NEMA (позиция/цель/движение/драйвер/концевик/хоминг/homed);
+//         с P<axis> — только указанная ось (короче ответ, меньше блокировка порта)
 //   I11 — конфигурация осей NEMA (speed/accel/dir/homeSpeed/backoff/limits)
 //   I12 — состояние концевиков (0=свободен, 1=нажат)
 //
 // ---------------------------------------------------------------------
+
+// ==================== БЫСТРЫЙ ПРОФИЛЬ ПЛАНИРОВЩИКА ====================
+// GS_FAST_PROFILE включает в GyverStepper2 разгон/торможение по заранее
+// посчитанной таблице периодов. Обычный профиль пересчитывает период на
+// каждом шаге и на AVR упирается в ~18000 шаг/с в фазах разгона; табличный
+// держит до ~37000 шаг/с. Число = количество сегментов таблицы (больше —
+// точнее профиль, ~8 Б ОЗУ на сегмент на каждый мотор).
+// Для ленты на SSD2505 (10000 имп/об) это позволяет исполнять профили
+// со скоростями 18000..30000 имп/с, для осей NEMA запас по расчёту.
+#define GS_FAST_PROFILE 10
 
 #include "GyverStepper2.h"
 #include <Servo.h>
@@ -74,7 +85,7 @@
 
 // ==================== ВЕРСИЯ ====================
 static const char* FW_NAME    = "convey15";
-static const char* FW_VERSION = "2.5.0";
+static const char* FW_VERSION = "2.6.0";
 static const char* FW_DATE    = __DATE__ " " __TIME__;
 
 // ==================== КОНФИГУРАЦИЯ ====================
@@ -985,8 +996,11 @@ void parseCommand(String cmd) {
         Serial.println("I11 NEMA axes config");
         Serial.println("I12 endstop status");
         break;
-      case 10: { // I10 — статус осей
-        for (uint8_t i = 0; i < NUM_NEMA; i++) {
+      case 10: { // I10 — статус осей NEMA (P<axis> — только указанная ось)
+        float axisF = extractParameter(params, 'P');
+        int s, e;
+        if (!getNemaRange(axisF, s, e)) break;
+        for (int i = s; i < e; i++) {
           Serial.print("AXIS"); Serial.print(i);
           Serial.print(" POS=");    Serial.print(nema[i].getCurrent());
           Serial.print(" TGT=");    Serial.print(nema[i].getTarget());
