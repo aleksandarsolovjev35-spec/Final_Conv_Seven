@@ -2,6 +2,14 @@ import json
 import math
 import os
 
+from domain.rule_names import (
+    DISABLEABLE_RULES,
+    PART_PRESENCE_RULE,
+    canonical_rule_name,
+    describe_allowed_names,
+    normalize_disabled_rules,
+)
+
 ROLE_SECTIONS = (
     "INPUT_LEFT", "INPUT_RIGHT",
     "SPIDER_LEFT", "SPIDER_RIGHT", "SPIDER_IN", "SPIDER_OUT",
@@ -200,8 +208,21 @@ class ThresholdLoader:
         disabled = data.get("disabled_rules", [])
         if not isinstance(disabled, list) or any(not isinstance(x, str) for x in disabled):
             raise ValueError("disabled_rules должен быть списком строк")
-        if "part_presence" in disabled:
-            raise ValueError("part_presence нельзя отключать")
+        names = normalize_disabled_rules(disabled)
+        if PART_PRESENCE_RULE in names:
+            raise ValueError(
+                "part_presence (наличие детали) нельзя отключать — "
+                "уберите его из disabled_rules"
+            )
+        unknown = sorted(
+            str(x) for x in disabled
+            if canonical_rule_name(x) not in DISABLEABLE_RULES
+        )
+        if unknown:
+            raise ValueError(
+                f"disabled_rules: неизвестные правила {unknown}. "
+                f"Допустимые имена: {describe_allowed_names()}"
+            )
         if labels is not None:
             if not isinstance(labels, dict) or any(not isinstance(k, str) or not str(v).strip() for k, v in labels.items()):
                 raise ValueError("Названия порогов должны быть непустыми строками")

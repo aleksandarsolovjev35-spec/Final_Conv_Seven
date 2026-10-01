@@ -29,8 +29,10 @@ PLATFORM_BBOX = (120, 120, 280, 200)
 
 def make_rule(rule_class, thresholds, disabled=None):
     thresholds = dict(thresholds)
-    if disabled:
-        thresholds["disabled_rules"] = list(disabled)
+    # Логика правила проверяется независимо от рабочего списка
+    # disabled_rules в thresholds.json (оператор может временно
+    # отключать правила на линии).
+    thresholds["disabled_rules"] = list(disabled or [])
     return rule_class(thresholds)
 
 

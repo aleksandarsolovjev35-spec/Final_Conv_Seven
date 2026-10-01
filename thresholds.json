@@ -118,5 +118,5 @@
         "top_glass_pin_min_confidence": 0.3
     },
 
-    "disabled_rules": []
+    "disabled_rules": ["black_spots_omission"]
 }

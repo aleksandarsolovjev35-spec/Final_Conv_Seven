@@ -26,8 +26,10 @@ TOP_RANGE = (15.0, 45.0)
 
 def make_rule(rule_class, thresholds, disabled=None):
     thresholds = dict(thresholds)
-    if disabled:
-        thresholds["disabled_rules"] = list(disabled)
+    # Логика правила проверяется независимо от рабочего списка
+    # disabled_rules в thresholds.json (оператор может временно
+    # отключать правила на линии).
+    thresholds["disabled_rules"] = list(disabled or [])
     return rule_class(thresholds)
 
 
