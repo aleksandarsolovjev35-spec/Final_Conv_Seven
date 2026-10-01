@@ -1,6 +1,8 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 
+from domain.rule_names import normalize_disabled_rules
+
 
 @dataclass
 class RuleResult:
@@ -28,8 +30,10 @@ class BaseRule:
 
     def __init__(self, thresholds: dict):
         self.thresholds = thresholds
-        self._enabled = self.name not in thresholds.get(
-            "disabled_rules", []
+        # Принимаются и внутренние имена, и имена групп порогов
+        # (``input_window_geometry`` == ``window_geometry``).
+        self._enabled = self.name not in normalize_disabled_rules(
+            thresholds.get("disabled_rules", [])
         )
 
     @property

@@ -115,6 +115,23 @@ class DecisionEngineTest(unittest.TestCase):
         self.assertNotIn("sinks", names)
         self.assertIn("top_contacts", names)
 
+    def test_disabled_rules_accept_threshold_group_names(self):
+        thresholds = dict(self.thresholds)
+        thresholds["disabled_rules"] = [
+            "input_window_geometry", "input_window_sinks",
+            "black_spots_omission",
+        ]
+        engine = DecisionEngine(thresholds=thresholds)
+        names = {rule.name for rule in engine.rules}
+        self.assertNotIn("window_geometry", names)
+        self.assertNotIn("window_sinks", names)
+        self.assertNotIn("black_spots_omission", names)
+        self.assertEqual(engine.rules_for_roles(("INPUT_LEFT",)), [])
+        spider_in = {
+            rule.name for rule in engine.rules_for_roles(("SPIDER_IN",))
+        }
+        self.assertEqual(spider_in, {"contacts_short", "short_omission"})
+
     def test_no_active_rules_raises(self):
         thresholds = dict(self.thresholds)
         thresholds["disabled_rules"] = [

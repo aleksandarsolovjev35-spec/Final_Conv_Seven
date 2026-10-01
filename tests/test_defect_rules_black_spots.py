@@ -38,8 +38,10 @@ class SpiderBlackSpotsOmissionRuleTest(unittest.TestCase):
 
     def make_rule(self, disabled=None):
         thresholds = dict(self.thresholds)
-        if disabled:
-            thresholds["disabled_rules"] = list(disabled)
+        # Логика правила проверяется независимо от рабочего списка
+        # disabled_rules в thresholds.json (оператор может временно
+        # отключать правила на линии).
+        thresholds["disabled_rules"] = list(disabled or [])
         return SpiderBlackSpotsOmissionRule(thresholds)
 
     def test_disabled_rule_skipped(self):
@@ -147,7 +149,6 @@ class SpiderBlackSpotsOmissionRuleTest(unittest.TestCase):
     def test_is_independent_of_short_omission_trigger(self):
         # Правило работает независимо от short_omission: короткая полоса без
         # избытка (обычная) + пятно в ней -> брак black_spots_omission.
-        from domain.defect_rules import SpiderBlackSpotsOmissionRule as BS
         short = SpiderShortOmissionRule(self.thresholds)
         omissions = [
             # полоса толщиной 10px, allowed_thickness для SPIDER_IN = 25px.
@@ -155,7 +156,7 @@ class SpiderBlackSpotsOmissionRuleTest(unittest.TestCase):
         ]
         short_result = short.check({"SPIDER_IN": omissions})
         self.assertFalse(short_result.triggered)
-        rule = BS(self.thresholds)
+        rule = self.make_rule()
         result = rule.check({"SPIDER_IN": omissions + [black_spot((100, 5, 120, 15))]})
         self.assertTrue(result.triggered)
 

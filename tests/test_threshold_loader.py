@@ -138,6 +138,26 @@ class ThresholdLoaderValidationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "нельзя отключать"):
             ThresholdLoader.validate(data)
 
+    def test_part_presence_alias_cannot_be_disabled(self):
+        data = self.make_data()
+        data["disabled_rules"] = ["input_part_presence"]
+        with self.assertRaisesRegex(ValueError, "нельзя отключать"):
+            ThresholdLoader.validate(data)
+
+    def test_disabled_rules_accept_threshold_group_names(self):
+        data = self.make_data()
+        data["disabled_rules"] = [
+            "input_window_geometry", "input_window_sinks",
+            "black_spots_omission", "top_glass",
+        ]
+        ThresholdLoader.validate(data)
+
+    def test_unknown_disabled_rule_is_reported(self):
+        data = self.make_data()
+        data["disabled_rules"] = ["black_spots", "window_geometry"]
+        with self.assertRaisesRegex(ValueError, "неизвестные правила.*black_spots"):
+            ThresholdLoader.validate(data)
+
     def test_labels_validated(self):
         data = self.make_data()
         with self.assertRaisesRegex(ValueError, "непустыми строками"):
