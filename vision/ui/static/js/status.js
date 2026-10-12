@@ -163,6 +163,7 @@ const PROCESS_PHASE_LABELS = {
     SETTLE: 'СТОП · ЗАТУХАНИЕ ВИБРАЦИИ',
     CAMERA_CAPTURE: 'КАДР · ЗАХВАТ СТОП-КАДРА',
     CAPTURE: 'КАДР · ЗАХВАТ СТОП-КАДРА',
+    PARALLEL_ANALYSIS: 'ВХОД + КОНТРОЛЬ · АНАЛИЗ ПАРАЛЛЕЛЬНО',
     INPUT_ANALYSIS: 'INPUT · АНАЛИЗ',
     INPUT_MODELS: 'INPUT · МОДЕЛИ',
     INPUT_PRESENCE: 'INPUT · ПРОВЕРКА НАЛИЧИЯ',
@@ -212,7 +213,8 @@ const PROCESS_STAGE_PHASES = {
     SETTLE: new Set(['CONVEYOR_CONFIRMED', 'PART_TRANSFER', 'SETTLE']),
     CAPTURE: new Set(['CAMERA_CAPTURE', 'CAPTURE']),
     ANALYSIS: new Set([
-        'ANALYSIS', 'INPUT_ANALYSIS', 'INPUT_MODELS', 'INPUT_PRESENCE',
+        'ANALYSIS', 'PARALLEL_ANALYSIS',
+        'INPUT_ANALYSIS', 'INPUT_MODELS', 'INPUT_PRESENCE',
         'INPUT_PRESENT', 'INPUT_GEOMETRY', 'INPUT_DECISION',
         'INPUT_FRAME_RECORD',
         'INPUT_FRAME_RECORDED', 'INPUT_RESULT_RECORDED', 'SPIDER_CHECK',

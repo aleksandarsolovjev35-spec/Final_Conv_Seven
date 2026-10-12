@@ -40,6 +40,9 @@ PROCESS_LABELS = {
     "MOTION": "Горизонтальное движение ленты",
     "SETTLE": "Ожидание затухания вибрации",
     "CAPTURE": "Захват стоп-кадра камеры",
+    "PARALLEL_ANALYSIS": (
+        "Вход и контроль: модели обеих позиций параллельно"
+    ),
     "INPUT_MODELS": "INPUT: запуск моделей",
     "INPUT_GEOMETRY": "INPUT: построение геометрии и измерений",
     "INPUT_DECISION": "INPUT: решение правил сформировано",
@@ -314,9 +317,12 @@ class LineSimulation:
     def _run_camera_stages(self) -> bool:
         """Run the visible production chain in the same order as hardware.
 
-        Each occupied stage runs CAPTURE → MODELS → GEOMETRY → DECISION →
-        RECORD before the next stage starts. INPUT finishes before
-        SPIDER/TOP, matching ``ProductionCycle._inspect_occupied_stages``.
+        Frames of every occupied stage are captured first (USB reads stay
+        sequential), then MODELS → GEOMETRY → DECISION → RECORD run stage
+        by stage. Both positions occupied — the analysis phases of INPUT
+        and SPIDER interleave, mirroring the two threads of
+        ``ProductionCycle._inspect_occupied_stages``; decisions are still
+        applied in the fixed order INPUT → SPIDER/TOP.
         """
         batches: list[tuple[SimPart, tuple[str, ...]]] = []
         input_part = next((part for part in self.parts if part.position == 0), None)
@@ -339,26 +345,26 @@ class LineSimulation:
                     if self.state not in ("RUNNING", "STOPPING"):
                         return False
 
-        for part, roles in batches:
-            prefix = "INPUT" if roles == self.INPUT_STAGES else "SPIDER"
-            self._publish(f"{prefix}_MODELS", list(roles))
+        if len(batches) > 1:
+            # Обе позиции заняты: анализ идёт одновременно, поэтому фазы
+            # стадий чередуются — так же, как их публикуют два потока
+            # производственного цикла.
+            self._publish("PARALLEL_ANALYSIS", captured_roles)
             if self._stop.wait(self.CAMERA_STAGE_SECONDS):
                 return False
-            self._publish(f"{prefix}_GEOMETRY", list(roles))
-            if self._stop.wait(self.CAMERA_STAGE_SECONDS):
-                return False
-            with self._lock:
-                if roles == self.CONTROL_STAGES:
-                    self._inspect_part(part)
-            self._publish(f"{prefix}_DECISION", list(roles))
-            if self._stop.wait(self.CAMERA_STAGE_SECONDS):
-                return False
-            self._publish(
-                f"{prefix}_RESULT_RECORDED",
-                list(roles),
-            )
-            if self._stop.wait(self.CAMERA_STAGE_SECONDS):
-                return False
+
+        for phase in ("MODELS", "GEOMETRY", "DECISION", "RESULT_RECORDED"):
+            for part, roles in batches:
+                prefix = "INPUT" if roles == self.INPUT_STAGES else "SPIDER"
+                if phase == "RESULT_RECORDED" and roles == self.CONTROL_STAGES:
+                    # Решение контроля записывается последним: вход
+                    # попадает в учёт раньше, как и в производственном
+                    # цикле.
+                    with self._lock:
+                        self._inspect_part(part)
+                self._publish(f"{prefix}_{phase}", list(roles))
+                if self._stop.wait(self.CAMERA_STAGE_SECONDS):
+                    return False
 
         self._publish("ANALYSIS_REVIEW", captured_roles)
         if self._stop.wait(self.REVIEW_SECONDS):
@@ -466,12 +472,14 @@ class LineSimulation:
                     active_roles = list(self.CONTROL_STAGES)
             inspection_static = phase in {
                 "INITIAL_INSPECTION", "CAPTURE", "ANALYSIS", "PUBLISH", "ANALYSIS_REVIEW",
+                "PARALLEL_ANALYSIS",
                 "INPUT_MODELS", "INPUT_GEOMETRY", "INPUT_DECISION",
                 "INPUT_RESULT_RECORDED", "SPIDER_MODELS", "SPIDER_GEOMETRY",
                 "SPIDER_DECISION", "SPIDER_RESULT_RECORDED",
             }
             capture_roles = active_roles if phase in {
-                "CAPTURE", "ANALYSIS_REVIEW", "INPUT_MODELS", "INPUT_GEOMETRY",
+                "CAPTURE", "ANALYSIS_REVIEW", "PARALLEL_ANALYSIS",
+                "INPUT_MODELS", "INPUT_GEOMETRY",
                 "INPUT_DECISION", "INPUT_RESULT_RECORDED", "SPIDER_MODELS",
                 "SPIDER_GEOMETRY", "SPIDER_DECISION", "SPIDER_RESULT_RECORDED",
             } else []

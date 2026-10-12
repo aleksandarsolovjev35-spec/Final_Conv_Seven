@@ -125,6 +125,9 @@ class ProductionCycle(
         self._fault_reason = None
         self._operation_lock = threading.Lock()
         self._cancel_motion = threading.Event()
+        # Этапы инспекции публикует и поток шага, и потоки параллельного
+        # анализа двух позиций, поэтому смена фазы в HMI сериализуется.
+        self._progress_lock = threading.RLock()
 
         # Снимки inspection остаются стоп-кадром до следующего
         # движения: live заморожен на весь инспекционный блок.
@@ -207,21 +210,24 @@ class ProductionCycle(
         обработки.
         """
         prefix = str(phase or "").upper()
-        if prefix == "INPUT_PRESENT" and part_id is not None:
-            # Корпус подтверждён правилом наличия — показываем его в
-            # «Пути корпусов». Вызов синхронный (один поток цикла),
-            # поэтому статус не успеет уйти в HMI раньше разметки.
-            part = next(
-                (p for p in self.parts if p.id == part_id), None,
+        with self._progress_lock:
+            if prefix == "INPUT_PRESENT" and part_id is not None:
+                # Корпус подтверждён правилом наличия — показываем его в
+                # «Пути корпусов». Потоков может быть два (вход и
+                # контроль параллельно), поэтому смена состояния корпуса
+                # и фазы идёт под блокировкой: в HMI не попадёт статус
+                # раньше разметки.
+                part = next(
+                    (p for p in self.parts if p.id == part_id), None,
+                )
+                if part is not None:
+                    part.present = True
+            self._set_process(
+                prefix,
+                label,
+                part_id=part_id,
+                capture_roles=roles,
             )
-            if part is not None:
-                part.present = True
-        self._set_process(
-            prefix,
-            label,
-            part_id=part_id,
-            capture_roles=roles,
-        )
 
     def _on_conveyor_progress(self, status: dict):
         current = self._process

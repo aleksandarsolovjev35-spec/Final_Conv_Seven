@@ -1,5 +1,6 @@
 import math
 import os
+import threading
 import time
 
 from ultralytics import YOLO
@@ -61,6 +62,10 @@ class VisionCluster:
         self.verbose = verbose
         self.models = {}
         self.last_health = []
+        # Обе позиции могут считаться параллельно: карточки состояния
+        # моделей публикуются одним присваиванием под блокировкой, чтобы
+        # HMI не увидел половину чужого прогона.
+        self._health_lock = threading.Lock()
         self._load_all_models()
         if self.verbose:
             self._log_device()
@@ -153,7 +158,8 @@ class VisionCluster:
     def process_all(self, frames: dict) -> dict:
         results = {}
         health = []
-        self.last_health = []
+        with self._health_lock:
+            self.last_health = []
 
         for role, frame in frames.items():
             group_name = ROLE_TO_GROUP.get(role)
@@ -196,7 +202,8 @@ class VisionCluster:
                         "detections": 0,
                         "error": f"{type(e).__name__}: {e}",
                     })
-                    self.last_health = health
+                    with self._health_lock:
+                        self.last_health = health
                     raise RuntimeError(
                         f"Model inference failed for {role} / {path}: "
                         f"{type(e).__name__}: {e}"
@@ -230,7 +237,8 @@ class VisionCluster:
 
             results[role] = valid
 
-        self.last_health = health
+        with self._health_lock:
+            self.last_health = health
         return results
 
     def _parse_predictions(self, preds) -> list:
