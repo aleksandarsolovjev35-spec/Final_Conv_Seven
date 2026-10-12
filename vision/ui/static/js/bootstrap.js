@@ -9,13 +9,6 @@ function setupHotkeys() {
         const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
         if (e.key === 'Escape') {
-            if (typeof batchExitDialogVisible === 'function'
-                && batchExitDialogVisible()) {
-                if (typeof answerBatchExit === 'function') answerBatchExit('cancel');
-                e.preventDefault();
-                return;
-            }
-
             const fullscreen = document.querySelector('.gallery-fullscreen');
             if (fullscreen) {
                 fullscreen.remove();

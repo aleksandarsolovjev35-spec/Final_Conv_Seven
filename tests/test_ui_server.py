@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 
 from domain.threshold_loader import ThresholdLoader
 from inspection.batch_manager import NO_BATCH_MESSAGE, BatchManager
+from inspection.part_archive import safe_component
 from inspection.operator_store import NO_OPERATOR_MESSAGE, OperatorStore
 from vision.ui.server.server import UIServer
 
@@ -750,11 +751,31 @@ class BatchUiServerTest(OperatorSessionMixin, unittest.TestCase):
             response.json()["batch"]["batch"]["operator"], OPERATOR,
         )
 
-    def test_open_batch_twice_409(self):
+    def test_open_batch_switches_without_finishing(self):
+        """Второй запрос открытия переключает учёт, партию не закрывая."""
         self.assertEqual(self.open_batch().status_code, 200)
+        first_id = self.manager.batch_id
         response = self.open_batch(label="П-2")
-        self.assertEqual(response.status_code, 409)
-        self.assertIn("уже открыта", response.json()["error"])
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()["batch"]
+        self.assertEqual(payload["batch"]["label"], "П-2")
+        self.assertNotEqual(self.manager.batch_id, first_id)
+        self.assertEqual(
+            sorted(item["label"] for item in payload["open"]),
+            ["П-1", "П-2"],
+        )
+        self.assertEqual(
+            len([item for item in payload["open"] if item["status"] == "OPEN"]),
+            2,
+        )
+
+    def test_open_batch_same_batch_changes_nothing(self):
+        self.assertEqual(self.open_batch().status_code, 200)
+        batch_id = self.manager.batch_id
+        response = self.open_batch(label="П-1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.manager.batch_id, batch_id)
+        self.assertEqual(len(response.json()["batch"]["open"]), 1)
 
     def test_open_batch_on_running_line_409(self):
         self.server.line_status = {"state": "RUNNING", "in_line": 1}
@@ -862,6 +883,75 @@ class BatchUiServerTest(OperatorSessionMixin, unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.manager.batch_id, batch_id)
+
+    def test_start_switches_to_selected_batch(self):
+        """Выбранная в списке партия переключает учёт тем же ПУСКОМ."""
+        self.server.on_start = mock.Mock(return_value=True)
+        self.assertEqual(self.open_batch().status_code, 200)
+        first_id = self.manager.batch_id
+        folder = os.path.join(self.tmp.name, "orders", "П-5")
+        self.assertEqual(
+            self.open_batch(label="П-5", path=folder).status_code, 200,
+        )
+        switched_id = self.manager.batch_id
+        self.assertNotEqual(switched_id, first_id)
+
+        # Переключение назад по выбранной партии из списка.
+        response = self.client.post(
+            "/api/start", json={"label": "П-1", "batch_id": first_id},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.manager.batch_id, first_id)
+        self.assertEqual(len(self.manager.status_payload()["open"]), 2)
+
+    def test_start_switches_by_label_from_card(self):
+        """Номер другой партии в поле — ПУСК переключает учёт на неё."""
+        self.server.on_start = mock.Mock(return_value=True)
+        self.assertEqual(self.open_batch().status_code, 200)
+        first_id = self.manager.batch_id
+        response = self.client.post(
+            "/api/start", json={"label": "П-8"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotEqual(self.manager.batch_id, first_id)
+        self.assertEqual(self.manager.status_payload()["batch"]["label"], "П-8")
+        self.assertEqual(
+            sorted(
+                item["label"]
+                for item in self.manager.status_payload()["open"]
+            ),
+            ["П-1", "П-8"],
+        )
+        self.assertEqual(first_id, "batch_" + safe_component("П-1"))
+
+    def test_start_with_card_of_open_batch_does_not_switch(self):
+        """Поля карточки повторяют открытую партию — переключения нет."""
+        self.server.on_start = mock.Mock(return_value=True)
+        self.open_batch()
+        batch_id = self.manager.batch_id
+        folder = self.manager.batch_folder
+        response = self.client.post(
+            "/api/start", json={"label": "П-1", "path": folder},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.manager.batch_id, batch_id)
+        self.assertEqual(len(self.manager.status_payload()["open"]), 1)
+
+    def test_start_switch_needs_stopped_line(self):
+        self.open_batch()
+        self.server.line_status = {"state": "RUNNING", "in_line": 1}
+        response = self.client.post("/api/start", json={"label": "П-2"})
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("остановленной", response.json()["error"])
+        self.assertEqual(self.manager.batch_id, "batch_" + safe_component("П-1"))
+
+    def test_start_switch_with_parts_in_line_409(self):
+        self.open_batch()
+        self.server.line_status = {"state": "STOPPED", "in_line": 2}
+        response = self.client.post("/api/start", json={"label": "П-2"})
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("корпуса", response.json()["error"])
+        self.assertEqual(self.manager.batch_id, "batch_" + safe_component("П-1"))
 
     def test_start_allowed_with_open_batch(self):
         self.server.on_start = mock.Mock(return_value=True)

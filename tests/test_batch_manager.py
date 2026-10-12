@@ -265,6 +265,129 @@ class BatchManagerTest(unittest.TestCase):
                 batch_id="batch_" + safe_component("П-1"),
             )
 
+    # ---------- переключение партий ----------
+
+    def switch(self, **kwargs):
+        kwargs.setdefault("operator", "Иванов Иван Иванович")
+        return self.manager.switch_batch(**kwargs)
+
+    def test_switch_keeps_previous_batch_open(self):
+        """Партия не завершается: учёт переключается на другую."""
+        self.open_batch(label="П-1")
+        first_id = self.manager.batch_id
+        first_folder = self.manager.batch_folder
+        self.store_part(part_id=1)
+
+        payload = self.switch(label="П-2")
+        self.assertTrue(payload["active"])
+        self.assertNotEqual(self.manager.batch_id, first_id)
+        self.assertEqual(
+            [item["label"] for item in payload["open"]], ["П-1", "П-2"],
+        )
+        first = payload["open"][0]
+        self.assertEqual(first["status"], STATUS_OPEN)
+        self.assertEqual(first["counts"]["total"], 1)
+        # Прежняя партия не закрыта и не сжата: папка и OPEN-манифест целы.
+        self.assertTrue(os.path.isdir(first_folder))
+        with open(
+            os.path.join(first_folder, "batch.json"), encoding="utf-8",
+        ) as stream:
+            self.assertEqual(json.load(stream)["status"], STATUS_OPEN)
+        self.sender.assert_not_called()
+        self.assertFalse(os.path.exists(first_folder + ".zip"))
+        self.assertEqual(self.manager.counts()["total"], 0)
+
+    def test_switch_back_continues_counters(self):
+        """Возврат к отложенной партии продолжает её нумерацию."""
+        self.open_batch(label="П-1")
+        first_id = self.manager.batch_id
+        first_folder = self.manager.batch_folder
+        self.store_part(part_id=1)
+        self.switch(label="П-2")
+
+        self.switch(batch_id=first_id)
+        self.assertEqual(self.manager.batch_id, first_id)
+        self.assertEqual(self.manager.batch_folder, first_folder)
+        self.assertEqual(self.manager.counts()["total"], 1)
+        self.store_part(part_id=2)
+        self.assertEqual(self.manager.counts()["total"], 2)
+        self.assertTrue(os.path.isdir(
+            os.path.join(first_folder, "GOOD", "part_0002"),
+        ))
+
+    def test_switch_by_label_finds_open_batch(self):
+        """Введённый номер незавершённой партии продолжает её, а не
+        открывает вторую партию в той же папке."""
+        self.open_batch(label="П-1")
+        first_id = self.manager.batch_id
+        self.switch(label="П-2")
+
+        self.switch(label="П-1")
+        self.assertEqual(self.manager.batch_id, first_id)
+        self.assertEqual(len(self.manager.status_payload()["open"]), 2)
+
+    def test_switch_to_same_batch_changes_nothing(self):
+        self.open_batch(label="П-1")
+        batch_id = self.manager.batch_id
+        before = self.manager.status_payload()
+
+        self.assertEqual(self.switch(label="П-1"), before)
+        self.assertEqual(self.switch(batch_id=batch_id), before)
+        self.assertEqual(self.manager.batch_id, batch_id)
+
+    def test_switch_to_unknown_batch_is_rejected(self):
+        self.open_batch(label="П-1")
+        batch_id = self.manager.batch_id
+        with self.assertRaises(ValueError):
+            self.switch(batch_id="batch_нет")
+        self.assertEqual(self.manager.batch_id, batch_id)
+
+    def test_switch_to_closed_batch_is_rejected(self):
+        self.open_batch(label="П-1")
+        self.store_part(part_id=1)
+        closed_id = self.manager.batch_id
+        self.manager.finish_batch()
+        self.open_batch(label="П-2")
+
+        with self.assertRaises(RuntimeError):
+            self.switch(batch_id=closed_id)
+        self.assertTrue(self.manager.active)
+        self.assertEqual(self.manager.status_payload()["batch"]["label"], "П-2")
+
+    def test_switch_to_broken_folder_keeps_current_batch(self):
+        """Отказ по пути партии не оставляет линию без учёта."""
+        self.open_batch(label="П-1")
+        batch_id = self.manager.batch_id
+        broken = os.path.join(self.tmp.name, "file.txt")
+        with open(broken, "w", encoding="utf-8") as stream:
+            stream.write("not a folder")
+
+        with self.assertRaises(ValueError):
+            self.switch(label="П-9", folder=broken)
+        self.assertEqual(self.manager.batch_id, batch_id)
+        self.assertEqual(self.manager.counts()["total"], 0)
+
+    def test_switch_after_restart_continues_registry_batch(self):
+        """Отложенную партию видно в реестре и можно продолжить."""
+        self.open_batch(label="П-1")
+        first_id = self.manager.batch_id
+        self.store_part(part_id=1)
+        self.switch(label="П-2")
+
+        restarted = BatchManager(
+            root_folder=self.root, batch_sender=self.sender,
+        )
+        payload = restarted.status_payload()
+        self.assertFalse(payload["active"])
+        self.assertEqual(
+            sorted(item["label"] for item in payload["open"]),
+            ["П-1", "П-2"],
+        )
+        restarted.open_batch(
+            operator="Петров Пётр Петрович", batch_id=first_id,
+        )
+        self.assertEqual(restarted.counts()["total"], 1)
+
     # ---------- завершение партии ----------
 
     def test_finish_batch_closes_and_compresses(self):

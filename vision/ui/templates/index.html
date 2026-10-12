@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="/static/css/motion.css?v=41">
     <link rel="stylesheet" href="/static/css/thresholds.css?v=26">
     <link rel="stylesheet" href="/static/css/panel-deck.css?v=11">
-    <link rel="stylesheet" href="/static/css/batch.css?v=8">
+    <link rel="stylesheet" href="/static/css/batch.css?v=9">
     <link rel="stylesheet" href="/static/css/operator.css?v=4">
 </head>
 <body>
@@ -249,12 +249,12 @@
                             МЕНЕДЖЕР ПАРТИЙ НЕДОСТУПЕН
                         </div>
 
-                        <!-- Нет открытой партии: номер и путь партии. Партию
-                             открывает ПУСК — номер берётся отсюда, путь
-                             задаёт папку партии (пусто — путь по умолчанию
-                             от корня хранения). Ниже — незавершённые партии:
-                             нажатие выбирает партию, и ПУСК продолжает её.
-                             Оператор смены показан плашкой над вкладками. -->
+                        <!-- Список партий: номер и путь партии, ниже —
+                             незавершённые партии. Нажатие на строку выбирает
+                             партию, а ПУСК открывает, продолжает или
+                             переключает учёт: открытая партия при этом
+                             остаётся открытой и ждёт продолжения. Оператор
+                             смены показан плашкой над вкладками. -->
                         <div id="batch-open-face" class="batch-face batch-open-face">
                             <div class="batch-steps">
                                 <div id="batch-step-label" class="batch-step"
@@ -277,7 +277,9 @@
                             </div>
                         </div>
 
-                        <!-- Партия открыта: в её учёт пишутся корпуса. -->
+                        <!-- Партия открыта: в её учёт пишутся корпуса. Блок
+                             стоит под списком и не мешает выбрать другую
+                             партию — текущая останется открытой. -->
                         <div id="batch-active-face" class="batch-face batch-active-face is-hidden">
                             <div id="batch-active-info" class="batch-info"></div>
                             <div class="batch-actions">
@@ -366,22 +368,6 @@
         </footer>
     </div>
 
-    <!-- Диалог выхода: партия открыта — закрыть её или оставить? -->
-    <div id="batch-exit-modal" class="batch-exit-modal is-hidden" data-ui-block="batch-exit">
-        <div class="batch-exit-backdrop"></div>
-        <section class="batch-exit-dialog" role="dialog" aria-modal="true"
-                 aria-labelledby="batch-exit-title">
-            <h2 id="batch-exit-title" class="batch-exit-title">ПАРТИЯ ОТКРЫТА</h2>
-            <div id="batch-exit-text" class="batch-exit-text"></div>
-            <div class="batch-exit-actions">
-                <button id="batch-exit-close" class="btn btn-sm btn-batch-exit-close"
-                        type="button">ЗАКРЫТЬ ПАРТИЮ И ВЫЙТИ</button>
-                <button id="batch-exit-keep" class="btn btn-sm" type="button">ВЫЙТИ, ОСТАВИВ ОТКРЫТОЙ</button>
-                <button id="batch-exit-cancel" class="btn btn-sm" type="button">ОТМЕНА</button>
-            </div>
-        </section>
-    </div>
-
     <!-- GALLERY MODAL -->
     <div id="gallery-modal" class="gallery-modal is-hidden" data-ui-block="gallery">
         <div class="gallery-backdrop"></div>
@@ -409,17 +395,17 @@
         </div>
     </div>
 
-    <script src="/static/js/core.js?v=67"></script>
+    <script src="/static/js/core.js?v=68"></script>
     <script src="/static/js/boot.js?v=34"></script>
     <script src="/static/js/status.js?v=66"></script>
-    <script src="/static/js/controls.js?v=38"></script>
+    <script src="/static/js/controls.js?v=39"></script>
     <script src="/static/js/thresholds.js?v=22"></script>
     <script src="/static/js/cameras.js?v=44"></script>
     <script src="/static/js/jog.js?v=40"></script>
     <script src="/static/js/history.js?v=38"></script>
     <script src="/static/js/operator.js?v=3"></script>
-    <script src="/static/js/batch.js?v=10"></script>
+    <script src="/static/js/batch.js?v=11"></script>
     <script src="/static/js/panel-deck.js?v=4"></script>
-    <script src="/static/js/bootstrap.js?v=40"></script>
+    <script src="/static/js/bootstrap.js?v=41"></script>
 </body>
 </html>

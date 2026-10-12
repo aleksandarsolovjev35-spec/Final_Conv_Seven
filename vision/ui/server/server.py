@@ -789,7 +789,7 @@ class UIServer:
         return payload
 
     def open_batch(self, payload: dict) -> dict:
-        """Начать новую партию или продолжить открытую."""
+        """Начать новую партию, продолжить открытую или переключиться."""
         manager = self.batch_manager
         if manager is None:
             raise RuntimeError("Менеджер партий ещё не инициализирован")
@@ -810,18 +810,24 @@ class UIServer:
                 "На линии остались корпуса: партия открывается на пустой линии"
             )
         data = payload if isinstance(payload, dict) else {}
-        manager.open_batch(
-            label=str(data.get("label") or ""),
+        request = {
+            "label": str(data.get("label") or ""),
             # Оператор берётся из сессии: в карточке партии его больше нет,
             # и подменить ФИО в запросе нельзя.
-            operator=str(self.operator or ""),
-            batch_id=(
+            "operator": str(self.operator or ""),
+            "batch_id": (
                 str(data["batch_id"]) if data.get("batch_id") else None
             ),
             # «ПУТЬ ПАРТИИ»: папка, в которую пишется партия. Пусто — путь
             # по умолчанию от корня хранения.
-            folder=str(data.get("path") or ""),
-        )
+            "folder": str(data.get("path") or ""),
+        }
+        # Партия уже открыта — не завершаем её, а переключаем учёт: так
+        # оператор ведёт список партий и возвращается к любой из них.
+        if manager.active:
+            manager.switch_batch(**request)
+        else:
+            manager.open_batch(**request)
         self._notify_batch_changed()
         return self.batch_status_payload()
 
@@ -830,11 +836,12 @@ class UIServer:
 
         Партию открывает сама кнопка ПУСК: оператор вводит номер и путь в
         карточке, выбирает незавершённую партию или оставляет поля пустыми —
-        тогда пуск отклоняется с понятным текстом. Если партия уже открыта,
-        запрос не трогает её: ПУСК просто продолжает работу.
+        тогда пуск отклоняется с понятным текстом. Если партия уже открыта и
+        в карточке выбрана другая, учёт переключается на неё: прежняя партия
+        остаётся открытой и ждёт продолжения.
         """
         manager = self.batch_manager
-        if manager is None or manager.active:
+        if manager is None:
             return
         # Порядок причин отказа тот же, что и в очереди гейтов: оператор,
         # затем номер партии.
@@ -845,15 +852,56 @@ class UIServer:
         data = payload if isinstance(payload, dict) else {}
         label = str(data.get("label") or "").strip()
         batch_id = str(data.get("batch_id") or "").strip()
+        path = str(data.get("path") or "").strip()
+        if manager.active:
+            # Партия открыта: если в карточке выбрана другая, учёт
+            # переключается на неё, а прежняя остаётся открытой.
+            if not self._batch_switch_needed(
+                label=label, batch_id=batch_id, path=path,
+            ):
+                return
+            if not self.batch_editable():
+                raise RuntimeError(
+                    "Партия переключается на остановленной линии"
+                )
+            if int((self.line_status or {}).get("in_line") or 0) > 0:
+                raise RuntimeError(
+                    "На линии остались корпуса: партия переключается "
+                    "на пустой линии"
+                )
+            manager.switch_batch(
+                label=label,
+                operator=str(self.operator or ""),
+                batch_id=batch_id or None,
+                folder=path,
+            )
+            self._notify_batch_changed()
+            return
         if not label and not batch_id:
             from inspection.batch_manager import NO_BATCH_MESSAGE
 
             raise RuntimeError(NO_BATCH_MESSAGE)
-        self.open_batch({
-            "label": label,
-            "path": str(data.get("path") or ""),
-            "batch_id": batch_id or None,
-        })
+        self.open_batch({"label": label, "path": path, "batch_id": batch_id or None})
+
+    def _batch_switch_needed(
+        self, *, label: str, batch_id: str, path: str,
+    ) -> bool:
+        """Нужно ли переключить учёт по данным карточки партии.
+
+        Пусто — ПУСК просто продолжает открытую партию. Условия те же, что
+        и в ``BatchManager.switch_batch``: другая выбранная партия, другой
+        номер или тот же номер в другой папке.
+        """
+        manager = self.batch_manager
+        info = (manager.batch_info() or {}) if manager is not None else {}
+        if batch_id:
+            return batch_id != str(info.get("batch_id") or "")
+        if not label:
+            return False
+        if label != str(info.get("label") or ""):
+            return True
+        folder = str(info.get("folder") or "")
+        return bool(path) and path != folder
 
     def finish_batch(self) -> dict:
         """Завершить партию: манифест, отправка аналитику, ZIP."""

@@ -138,7 +138,7 @@ function setupButtons() {
             || els.btnStart.disabled) return;
         flashButton(els.btnStart);
         // Номер, путь и выбранная незавершённая партия уходят вместе с
-        // пуском: партию открывает ПУСК.
+        // пуском: ПУСК открывает, продолжает или переключает партию.
         const payload = (typeof batchStartPayload === 'function')
             ? batchStartPayload() : null;
         const result = await submitControl('/api/start', payload || undefined);
@@ -176,12 +176,8 @@ function setupButtons() {
         if (els.btnExit.classList.contains('is-hidden')
             || els.btnExit.disabled) return;
         flashButton(els.btnExit);
-        // Партию можно закрыть прямо при выходе: диалог спрашивает об этом,
-        // если партия открыта и её действительно можно завершить.
-        if (typeof requestExitWithBatch === 'function') {
-            const proceed = await requestExitWithBatch();
-            if (!proceed) return;
-        }
+        // Выход партию не закрывает: она остаётся открытой и ждёт
+        // оператора при следующем запуске программы.
         await submitControl('/api/exit');
     });
 

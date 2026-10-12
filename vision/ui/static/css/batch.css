@@ -4,9 +4,9 @@
  * альтернативными карточками, переключаемыми вкладками, снизу — ручное
  * управление лентой (JOG). Зона видна и в работе: счётчики корпусов
  * относятся к открытой партии и нужны оператору во время цикла.
- *   ПАРТИЯ — менеджер партий (номер партии, пуск, продолжение
- *            незавершённой партии, завершение партии; вход и плашка
- *            оператора — operator.css);
+ *   ПАРТИЯ — менеджер партий (номер и путь партии, список незавершённых
+ *            партий, открытие/продолжение/переключение по ПУСКУ и
+ *            завершение партии; вход и плашка оператора — operator.css);
  *   ПОРОГИ — прежний редактор порогов правил (thresholds.css).
  *
  * Высота зоны фиксирована (как у панели порогов), поэтому правая колонка
@@ -108,14 +108,20 @@
     gap: 5px;
     flex: 1 1 auto;
     min-height: 0;
-    overflow: hidden;
+    /* Поля, список незавершённых партий и блок открытой партии видны
+       одновременно: при нехватке места прокручивается сама карточка. */
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
 }
 
 .batch-face {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    flex: 1 1 auto;
+    /* Лица карточки идут друг за другом и не выдавливают одно другое. */
+    flex: 0 0 auto;
     min-height: 0;
     overflow: hidden;
 }
@@ -280,7 +286,7 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     min-height: 0;
     overflow: hidden;
 }
@@ -297,8 +303,10 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
-    flex: 1 1 auto;
+    /* Список растёт вместе с партиями до предела, дальше — своя прокрутка. */
+    flex: 0 0 auto;
     min-height: 0;
+    max-height: 150px;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: thin;
@@ -483,6 +491,29 @@
     opacity: 0.55;
 }
 
+/* ─── Открытая партия ───────────────────────────────────────────── */
+
+/* Блок текущей партии стоит под списком партий и отделён линией: список
+   остаётся на месте, чтобы партию можно было переключить, не закрывая её. */
+.batch-active-face {
+    flex: 0 0 auto;
+    padding-top: 5px;
+    border-top: 1px solid var(--border);
+}
+
+/* Открытая строка списка: её видно среди незавершённых партий. */
+.batch-open-row.is-open {
+    border-left-color: var(--ok);
+}
+
+/* Открытая партия в списке помечается словом: метка шире точки, поэтому
+   для неё — свой размер и разрядка. */
+.batch-open-row.is-open .batch-open-mark {
+    color: var(--ok);
+    font-size: 8px;
+    letter-spacing: 0.6px;
+}
+
 /* ─── Подпись партии в футере ───────────────────────────────────── */
 
 .footer-batch {
@@ -503,65 +534,4 @@
 
 @media (max-width: 1100px) {
     .footer-batch { max-width: 180px; }
-}
-
-/* ─── Диалог выхода с открытой партией ──────────────────────────── */
-
-.batch-exit-modal {
-    position: fixed;
-    inset: 0;
-    /* Выше сервисной зоны, ниже splash: выход спрашивают поверх HMI. */
-    z-index: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.batch-exit-modal.is-hidden {
-    display: none !important;
-}
-
-.batch-exit-backdrop {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.72);
-}
-
-.batch-exit-dialog {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    width: min(430px, 92vw);
-    padding: 16px;
-    background: var(--panel);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-md, 0 10px 24px rgba(0, 0, 0, 0.4));
-}
-
-.batch-exit-title {
-    margin: 0;
-    color: var(--warn);
-    font: 800 12px var(--font-ui);
-    letter-spacing: 1.2px;
-}
-
-.batch-exit-text {
-    color: var(--text);
-    font-family: var(--font-ui);
-    font-size: 11px;
-    line-height: 1.5;
-}
-
-.batch-exit-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: flex-end;
-}
-
-.btn-batch-exit-close {
-    border-color: var(--border-accent);
-    color: var(--text);
 }

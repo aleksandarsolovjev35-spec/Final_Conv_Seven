@@ -219,73 +219,153 @@ class BatchManager:
                 raise RuntimeError(
                     "Партия уже открыта: сначала завершите текущую партию"
                 )
-            if batch_id:
-                entry = self._find_entry(batch_id)
+            return self._open_locked(
+                label=label,
+                operator=operator,
+                batch_id=batch_id,
+                folder=folder,
+            )
+
+    def switch_batch(
+        self,
+        *,
+        label: str = "",
+        operator: str = "",
+        batch_id: str | None = None,
+        folder: str = "",
+    ) -> dict:
+        """Переключить учёт на другую партию, не завершая текущую.
+
+        Оператор ведёт список партий: одну он может отложить и вернуться к
+        ней позже. Открытая партия остаётся ``OPEN`` — её счётчики уходят в
+        реестр и манифест, детали лежат на диске, а продолжить её можно
+        следующим переключением. Цель — выбранная незавершённая партия
+        (``batch_id`` или её номер из реестра) либо новая партия с введённым
+        номером и путём. Если цель совпадает с открытой партией, ничего не
+        меняется.
+        """
+        operator = PartArchive.normalise_operator(operator)
+        self._validate_operator(operator)
+
+        with self._lock:
+            current = self._current
+            if current is None:
+                return self._open_locked(
+                    label=label,
+                    operator=operator,
+                    batch_id=batch_id,
+                    folder=folder,
+                )
+            path = str(folder or "").strip()
+            target_id = str(batch_id or "").strip()
+            if not target_id and label:
+                entry = self._find_open_by_label(label)
+                target_id = str((entry or {}).get("batch_id") or "")
+            if target_id and target_id == current.batch_id:
+                # Эта партия уже открыта: переключаться некуда.
+                return self.status_payload()
+            if (
+                not target_id
+                and label
+                and label == current.display_label
+                and (not path or path == current.batch_folder)
+            ):
+                # Тот же номер без нового пути: ПУСК просто продолжает её.
+                return self.status_payload()
+            if target_id:
+                entry = self._find_entry(target_id)
                 if entry is None:
                     raise ValueError("Партия не найдена в реестре архива")
                 if entry.get("status") != STATUS_OPEN:
                     raise RuntimeError("Партия уже завершена")
-                # Путь продолжения берётся из реестра: партия пишется туда,
-                # куда её открыли, даже если корень хранения изменился.
-                resume_folder = str(
-                    folder or entry.get("folder") or ""
-                ).strip()
-                archive = PartArchive.resume(
-                    self.root_folder,
-                    batch_id=entry["batch_id"],
-                    date_folder=entry.get("date"),
-                    operator=operator,
-                    label=entry.get("label") or entry["batch_id"],
-                    batch_folder=resume_folder or None,
-                )
-                entry["operator"] = operator
-                entry["folder"] = archive.batch_folder
-                entry["resumed_at"] = self._now()
-                entry["updated_at"] = self._now()
-                archive.open_manifest()
-                self._current = archive
-                action = f"продолжена ({archive.display_label})"
             else:
+                # Новая партия: папку проверяем до того, как отложим
+                # текущую, иначе отказ оставил бы линию без партии.
                 label = self._validate_label(label)
-                batch_id = self._unique_batch_id(label)
-                date_folder = datetime.now().strftime("%Y-%m-%d")
-                archive = PartArchive(
-                    self.root_folder,
-                    batch_id=batch_id,
-                    date_folder=date_folder,
-                    operator=operator,
-                    label=label,
-                    batch_folder=self._validated_folder(
-                        folder or os.path.join(
-                            self.root_folder, date_folder,
-                            self._folder_name(batch_id),
-                        ),
-                    ),
-                )
-                self._registry["batches"].append({
-                    "batch_id": archive.batch_id,
-                    "label": label,
-                    "operator": operator,
-                    "started_by": operator,
-                    "status": STATUS_OPEN,
-                    "date": archive.date_folder,
-                    "folder": archive.batch_folder,
-                    "started_at": archive.batch_started_at,
-                    "updated_at": archive.batch_started_at,
-                    "closed_at": None,
-                    "counts": _empty_counts(),
-                    "zip": None,
-                })
-                archive.open_manifest()
-                self._current = archive
-                action = f"открыта ({label})"
-
-            self._save_registry()
-            print(
-                f"[BATCH] Партия {archive.batch_id} {action}; "
-                f"оператор: {operator}"
+                if path:
+                    self._validated_folder(path)
+            self._suspend_locked(current)
+            return self._open_locked(
+                label=label,
+                operator=operator,
+                batch_id=target_id or None,
+                folder=folder,
             )
-            return self.status_payload()
+
+    def _open_locked(
+        self,
+        *,
+        label: str = "",
+        operator: str = "",
+        batch_id: str | None = None,
+        folder: str = "",
+    ) -> dict:
+        """Открыть или продолжить партию; вызывается под ``self._lock``."""
+        if batch_id:
+            entry = self._find_entry(batch_id)
+            if entry is None:
+                raise ValueError("Партия не найдена в реестре архива")
+            if entry.get("status") != STATUS_OPEN:
+                raise RuntimeError("Партия уже завершена")
+            # Путь продолжения берётся из реестра: партия пишется туда,
+            # куда её открыли, даже если корень хранения изменился.
+            resume_folder = str(entry.get("folder") or "").strip()
+            archive = PartArchive.resume(
+                self.root_folder,
+                batch_id=entry["batch_id"],
+                date_folder=entry.get("date"),
+                operator=operator,
+                label=entry.get("label") or entry["batch_id"],
+                batch_folder=resume_folder or None,
+            )
+            entry["operator"] = operator
+            entry["folder"] = archive.batch_folder
+            entry["resumed_at"] = self._now()
+            entry["updated_at"] = self._now()
+            archive.open_manifest()
+            self._current = archive
+            action = f"продолжена ({archive.display_label})"
+        else:
+            label = self._validate_label(label)
+            batch_id = self._unique_batch_id(label)
+            date_folder = datetime.now().strftime("%Y-%m-%d")
+            archive = PartArchive(
+                self.root_folder,
+                batch_id=batch_id,
+                date_folder=date_folder,
+                operator=operator,
+                label=label,
+                batch_folder=self._validated_folder(
+                    folder or os.path.join(
+                        self.root_folder, date_folder,
+                        self._folder_name(batch_id),
+                    ),
+                ),
+            )
+            self._registry["batches"].append({
+                "batch_id": archive.batch_id,
+                "label": label,
+                "operator": operator,
+                "started_by": operator,
+                "status": STATUS_OPEN,
+                "date": archive.date_folder,
+                "folder": archive.batch_folder,
+                "started_at": archive.batch_started_at,
+                "updated_at": archive.batch_started_at,
+                "closed_at": None,
+                "counts": _empty_counts(),
+                "zip": None,
+            })
+            archive.open_manifest()
+            self._current = archive
+            action = f"открыта ({label})"
+
+        self._save_registry()
+        print(
+            f"[BATCH] Партия {archive.batch_id} {action}; "
+            f"оператор: {operator}"
+        )
+        return self.status_payload()
 
     def finish_batch(self) -> dict:
         """Закрыть партию: манифест CLOSED, отправка аналитику, ZIP."""
@@ -458,6 +538,41 @@ class BatchManager:
     def _current_entry(self) -> dict | None:
         batch_id = self.batch_id
         return self._find_entry(batch_id) if batch_id else None
+
+    def _suspend_locked(self, current) -> None:
+        """Отложить партию: она остаётся открытой и ждёт продолжения.
+
+        Счётчики уходят в реестр и манифест, детали остаются на диске —
+        так оператор переключается на другую партию, не завершая текущую.
+        """
+        entry = self._current_entry()
+        if entry is not None:
+            entry["counts"] = dict(current.counts)
+            entry["operator"] = current.operator
+            entry["updated_at"] = self._now()
+        current.open_manifest()
+        self._current = None
+        self._save_registry()
+        print(
+            f"[BATCH] Партия {current.batch_id} остаётся открытой: "
+            f"учтено корпусов {current.counts['total']}, "
+            f"её можно продолжить позже"
+        )
+
+    def _find_open_by_label(self, label: str) -> dict | None:
+        """Незавершённая партия с этим номером (последняя запись реестра).
+
+        Нужна, когда оператор ввёл номер руками: продолжать известную
+        партию безопаснее, чем открывать под тем же номером новую — та
+        легла бы в ту же папку.
+        """
+        found = None
+        for item in self._registry["batches"]:
+            if item.get("status") != STATUS_OPEN:
+                continue
+            if (item.get("label") or item.get("batch_id")) == label:
+                found = item
+        return found
 
     @staticmethod
     def _validated_folder(folder: str) -> str:
