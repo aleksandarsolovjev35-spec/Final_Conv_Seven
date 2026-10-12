@@ -65,6 +65,9 @@ function updateJogState(jog) {
     if (wasActive !== state.jogActive) {
         updateViewModeControls();
         applyMainCameraSource();
+        // Пороги — вкладка сервисной зоны и доступны только в ручном
+        // режиме: сообщаем об этом сразу, не ожидая очередного опроса.
+        if (typeof updateServiceDeck === 'function') updateServiceDeck();
     }
 }
 
