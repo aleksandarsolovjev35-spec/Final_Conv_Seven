@@ -25,8 +25,6 @@ function thresholdsPanelVisible() {
         && !state.offline
         && !state.serverExitRequested
         && jogMode
-        && !state.selectedAnalysisActive
-        && !state.selectedAnalysisPending
         && THRESHOLD_EDITABLE_STATES.includes(state.lineState)
         && !!state.currentCamera
     );
@@ -38,9 +36,6 @@ function thresholdsEditableNow() {
         && !state.controlPending
         && !state.startPending
         && !state.jogBusy
-        && !state.distributorDiagnosticPending
-        && !state.distributorDiagnosticBackendBusy
-        && !state.selectedAnalysisPending
     );
 }
 

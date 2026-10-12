@@ -371,13 +371,6 @@ class CycleBehaviorTest(unittest.TestCase):
         cycle.request_start()
         self.assertFalse(cycle.enter_jog())
 
-    def test_distributor_diagnostic_only_when_idle_and_empty(self):
-        cycle, log = make_cycle()
-        self.assertTrue(cycle.distributor_diagnostic("DIST1_HOME"))
-        cycle.request_start()
-        cycle._run_once()
-        self.assertFalse(cycle.distributor_diagnostic("DIST1_HOME"))
-
     def test_status_controls_match_state(self):
         cycle, log = make_cycle(with_jog=True, with_monitor=True)
         status = cycle._build_status()

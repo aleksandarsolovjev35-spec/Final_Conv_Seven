@@ -12,7 +12,6 @@ const STATUS_INTERVAL_MOTION = 60;
 const STATUS_INTERVAL_IDLE   = 500;
 const STATUS_OFFLINE_AFTER   = 1500;
 const PREVIEW_INTERVAL       = 180;
-const UPTIME_INTERVAL      = 1000;
 const MAIN_CAM_MIN_GAP     = 16;
 const LIVE_CAM_MIN_GAP     = 1000 / 30;
 
@@ -87,19 +86,13 @@ const state = {
     jogHeartbeatBusy:    false,
     jogReleasePending:   false,
     jogStartPromise:     null,
-    distributorDiagnosticPending: false,
-    distributorDiagnosticBackendBusy: false,
-
-    selectedAnalysisActive: false,
-    selectedAnalysisRole:   null,
-    selectedAnalysisPending: false,
 
     liveFps:              0.0,
     // Backend сообщает целевой режим, но изображение меняется асинхронно.
     // Бейдж использует displayedFrameKind — режим кадра, уже загруженного в
     // главное окно, а не только состояние камеры на сервере.
     liveStreaming:        false,
-    displayedFrameKind:   null, // 'live' | 'static' | 'analysis' | null
+    displayedFrameKind:   null, // 'live' | 'static' | null
     pendingDisplayKind:   null,
     pendingDisplaySeq:    0,
     controlPending:       false,
@@ -116,11 +109,10 @@ const state = {
     mainCamMode:          'pull',
     mainCamStreamRole:    null,
     mainCamStreamView:    null,
-    mainCamAnalysisKey:   null,
     livePullTimer:        null,
 
-    pendingAnalysisVersion: null,
-    pendingFlushTimer:      null,
+    pendingStaticVersion: null,
+    pendingStaticTimer:      null,
     lastLineStatus:         null,
 };
 
@@ -144,42 +136,25 @@ const els = {
 
     main:             $('main'),
 
-    metricStep:       $('metric-step'),
-    metricUptime:     $('metric-uptime'),
-
     previewStrip:     $('preview-strip'),
     cameraLabel:      $('camera-label'),
     modeBadge:        $('mode-badge'),
     mainCamera:       $('main-camera'),
     cameraOverlay:    $('camera-overlay'),
     viewModeToggle:   $('view-mode-toggle'),
-    analyzeSelectedFrame: $('analyze-selected-frame'),
     cameraContainer:  null,
 
-    dist1Blade:       $('dist1-blade'),
-    dist2Blade:       $('dist2-blade'),
-    distributorDiagnostics: $('distributor-diagnostics'),
-    controlError:      $('control-error'),
-
-    statsSummary:         $('stats-summary'),
-    statsBody:            $('stats-body'),
+    controlError:     $('control-error'),
 
     historyCards:     $('history-cards'),
     statsPanel:       $('stats-panel'),
 
-    statTotal:        $('stat-total'),
-    statGood:         $('stat-good'),
-    statBad:          $('stat-bad'),
-    statCleanup:      $('stat-cleanup'),
-    statInline:       $('stat-inline'),
     lineCells:        $('line-cells'),
     processPhaseLabel: $('process-phase-label'),
     processPhaseStep: $('process-phase-step'),
     processStageTrack: $('process-stage-track'),
 
     jogPanel:         $('jog-panel'),
-
-    frameAnalysisPanel: $('frame-analysis-panel'),
 
     archiveSettingsOpen: $('archive-settings-open'),
     archiveSettingsGroup: $('archive-settings-group'),
@@ -298,8 +273,8 @@ mainBuffer.addEventListener('load', () => {
     }
     mainBufferLoading = false;
 
-    if (requestIsCurrent && state.pendingAnalysisVersion !== null && typeof flushPendingAnalysis === 'function') {
-        flushPendingAnalysis();
+    if (requestIsCurrent && state.pendingStaticVersion !== null && typeof flushPendingStatic === 'function') {
+        flushPendingStatic();
     }
 
     if (state.mainCamMode === 'live-pull' && typeof scheduleNextLiveFrame === 'function') {
@@ -440,7 +415,7 @@ async function sendActiveCameraIfChanged(role) {
 
 function getStatusInterval() {
     const s = state.lineState;
-    if (state.controlPending || state.distributorDiagnosticPending || state.distributorDiagnosticBackendBusy) return STATUS_INTERVAL_MOTION;
+    if (state.controlPending) return STATUS_INTERVAL_MOTION;
     if (s === 'RUNNING' || s === 'PAUSED' || s === 'STOPPING') return STATUS_INTERVAL_FAST;
     if (state.serverExitRequested) return STATUS_INTERVAL_FAST;
     if (state.jogActive) return STATUS_INTERVAL_FAST;

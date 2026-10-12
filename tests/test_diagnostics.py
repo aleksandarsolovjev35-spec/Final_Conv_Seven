@@ -222,39 +222,14 @@ class MakeDiagnosticsTest(unittest.TestCase):
 
 
 class DiagnosticsMixinTest(unittest.TestCase):
-    def test_distributor_diagnostic_gate(self):
-        log = []
-        cycle = make_cycle(log)
-        self.assertTrue(cycle.distributor_diagnostic("DIST1_HOME"))
-        self.assertIn(("gate", "HOME"), log)
-        self.assertEqual(cycle._process["phase"], "DIAGNOSTIC_DONE")
-
-    def test_distributor_diagnostic_open(self):
-        log = []
-        cycle = make_cycle(log)
-        self.assertTrue(cycle.distributor_diagnostic("DIST1_OPEN"))
-        self.assertIn(("gate", "OPEN"), log)
-
-    def test_distributor_diagnostic_routes(self):
-        log = []
-        cycle = make_cycle(log)
-        self.assertTrue(cycle.distributor_diagnostic("DIST2_BAD"))
-        self.assertIn(("dist_route", "BAD"), log)
-        self.assertTrue(cycle.distributor_diagnostic("DIST2_CLEANUP"))
-        self.assertIn(("dist_route", "CLEANUP"), log)
-
-    def test_distributor_diagnostic_unknown(self):
+    def test_removed_hmi_diagnostics_are_gone(self):
+        # Кнопки распределителя и ручной анализ кадра убраны из HMI:
+        # соответствующие методы цикла сняты вместе с правой колонкой.
         cycle = make_cycle()
-        with self.assertRaises(ValueError):
-            cycle.distributor_diagnostic("DIST9")
-
-    def test_distributor_diagnostic_busy_lock(self):
-        cycle = make_cycle()
-        cycle._operation_lock.acquire()
-        try:
-            self.assertFalse(cycle.distributor_diagnostic("DIST1_HOME"))
-        finally:
-            cycle._operation_lock.release()
+        for name in ("distributor_diagnostic",
+                     "diagnostic_analyze_selected_camera",
+                     "diagnostic_release_selected_camera"):
+            self.assertFalse(hasattr(cycle, name), name)
 
     def test_diagnostic_check_cameras(self):
         cycle = make_cycle()
@@ -285,43 +260,6 @@ class DiagnosticsMixinTest(unittest.TestCase):
         self.assertEqual(cycle._diagnostics["kind"], "VISION_RULES")
         self.assertEqual(cycle._diagnostics["status"], "ERROR")
 
-    def test_analyze_selected_camera(self):
-        cycle = make_cycle()
-        self.assertTrue(cycle.diagnostic_analyze_selected_camera("TOP"))
-        report = cycle._diagnostics
-        self.assertEqual(report["kind"], "SELECTED_MODEL")
-        self.assertEqual(report["status"], "PASSED")
-        self.assertEqual(report["selected_role"], "TOP")
-        self.assertTrue(cycle._selected_analysis_active)
-
-    def test_analyze_selected_camera_input_role(self):
-        cycle = make_cycle()
-        self.assertTrue(cycle.diagnostic_analyze_selected_camera("INPUT_LEFT"))
-        report = cycle._diagnostics
-        self.assertGreaterEqual(len(report["rules"]), 1)
-
-    def test_analyze_unknown_role(self):
-        cycle = make_cycle()
-        with self.assertRaisesRegex(ValueError, "Неизвестная роль"):
-            cycle.diagnostic_analyze_selected_camera("NOPE")
-        self.assertFalse(cycle._selected_analysis_active)
-
-    def test_analyze_busy_lock(self):
-        cycle = make_cycle()
-        cycle._operation_lock.acquire()
-        try:
-            self.assertFalse(cycle.diagnostic_analyze_selected_camera("TOP"))
-        finally:
-            cycle._operation_lock.release()
-
-    def test_release_selected_camera(self):
-        cycle = make_cycle()
-        self.assertFalse(cycle.diagnostic_release_selected_camera())
-        cycle.diagnostic_analyze_selected_camera("TOP")
-        self.assertTrue(cycle.diagnostic_release_selected_camera())
-        self.assertFalse(cycle._selected_analysis_active)
-        self.assertEqual(cycle._diagnostics["status"], "NOT_RUN")
-
     def test_rule_report_row(self):
         result = RuleResult("top_platform", True, details={
             "per_role": {"TOP": {"triggered": True, "reason": "no_valid_platform"}},
@@ -329,19 +267,6 @@ class DiagnosticsMixinTest(unittest.TestCase):
         row = make_cycle()._rule_report_row(result)
         self.assertEqual(row["name"], "top_platform")
         self.assertTrue(row["triggered"])
-
-    def test_rule_report_rows_filter_by_role(self):
-        results = [
-            RuleResult("a", False, details={
-                "per_role": {"TOP": {"triggered": False}},
-            }),
-            RuleResult("b", False, details={
-                "per_role": {"INPUT_LEFT": {"triggered": False}},
-            }),
-        ]
-        rows = make_cycle()._rule_report_rows(results, role="TOP")
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["name"], "a")
 
     def test_prestart_not_allowed_with_jog_busy(self):
         cycle = make_cycle(jog=FakeJog(busy=True))

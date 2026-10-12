@@ -1,11 +1,10 @@
 /* panel-deck.css — варианты правой панели с переворотом (rotateY).
  *
  * Правая панель — «колода лиц». Одновременно видно одно лицо:
- *   ready       — ПОДГОТОВКА (IDLE / STOPPED): статистика, распределитель
- *                 с кнопками, пороги, ручное управление;
- *   production  — ПРОИЗВОДСТВО (RUNNING / PAUSED / STOPPING): статистика,
- *                 распределитель без кнопок, анализ кадра, ручное
- *                 управление под шторкой с замком;
+ *   ready       — ПОДГОТОВКА (IDLE / STOPPED): карточка партии со
+ *                 счётчиками, пороги, ручное управление;
+ *   production  — ПРОИЗВОДСТВО (RUNNING / PAUSED / STOPPING): та же
+ *                 карточка партии, ручное управление под шторкой;
  *   fault       — АВАРИЯ (FAULT): причина аварии и корпуса на линии.
  *
  * Переворот выполняется панелью самой по себе (self-perspective): JS
@@ -34,16 +33,9 @@
 
 /* ─── Лицо «ПРОИЗВОДСТВО» ─────────────────────────────────────── */
 
-/* Распределитель без кнопок диагностики. */
-.stats-panel[data-face="production"] .blade-diagnostic-grid {
-    display: none;
-}
-
-/* Сервисная зона (карточки «ПАРТИЯ» и «ПОРОГИ») видна только на
-   остановленной линии: в работе её место отдано анализу кадра. */
-.stats-panel[data-face="production"] .service-deck {
-    display: none;
-}
+/* Правая колонка построена вокруг партии: сервисная зона (карточки
+   «ПАРТИЯ» и «ПОРОГИ») видна и в работе. Раньше её место в работе
+   отдавалось статистике цикла и анализу кадра. */
 
 /* Ручное управление остаётся видимым, но накрыто шторкой, когда JOG
    заблокирован (RUNNING / STOPPING). На паузе JOG доступен, поэтому
@@ -66,10 +58,7 @@
     border-color: var(--bad);
 }
 
-.stats-panel[data-face="fault"] .stats-summary,
-.stats-panel[data-face="fault"] .distributor-panel,
 .stats-panel[data-face="fault"] .service-deck,
-.stats-panel[data-face="fault"] .frame-analysis-panel-new,
 .stats-panel[data-face="fault"] .jog-deck {
     display: none;
 }

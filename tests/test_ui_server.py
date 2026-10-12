@@ -472,14 +472,6 @@ class UIServerTest(unittest.TestCase):
             self.client.post("/api/diagnostics/vision-rules").status_code, 200,
         )
 
-    def test_api_distributor_diagnostic(self):
-        self.server.on_distributor_diagnostic = mock.Mock(return_value=True)
-        response = self.client.post("/api/distributor/diagnostic/DIST1_HOME")
-        self.assertEqual(response.status_code, 200)
-        self.server.on_distributor_diagnostic.assert_called_once_with(
-            "DIST1_HOME",
-        )
-
     def test_api_jog(self):
         self.server.on_jog_enter = mock.Mock(return_value=True)
         self.assertEqual(self.client.post("/api/jog/enter").status_code, 200)

@@ -50,7 +50,6 @@ PROCESS_LABELS = {
     "STOPPING": "Остановка",
     "STOPPED": "Линия остановлена и пуста",
     "PAUSED": "Пауза линии",
-    "SELECTED_MODEL_ANALYSIS": "Анализ выбранного стоп-кадра",
     "JOG_HOLD": "JOG: удерживаемое движение ленты",
     "JOG_STOPPED": "JOG: движение ленты остановлено",
     "DISTRIBUTOR_DIAGNOSTIC": "Проверка распределителя",
@@ -109,7 +108,6 @@ class LineSimulation:
         self.conveyor_max = 340
         self.jog_active = False
         self.jog_busy = False
-        self.selected_role: str | None = None
         self.step = 0
         self.next_id = 1
         self.slot_counter = 0
@@ -194,7 +192,6 @@ class LineSimulation:
             if (
                 not self.jog_active
                 or self.state not in JOG_ALLOWED_STATES
-                or self.selected_role is not None
             ):
                 return False
             self.jog_busy = True
@@ -235,51 +232,6 @@ class LineSimulation:
         with self._lock:
             self.jog_busy = False
         self._publish("JOG_STOPPED")
-        return True
-
-    def selected_analysis(self, role: str) -> bool:
-        with self._lock:
-            if self.state not in ("IDLE", "STOPPED") or role not in CAMERA_ORDER:
-                return False
-            self.selected_role = role
-        self._publish("SELECTED_MODEL_ANALYSIS")
-        return True
-
-    def release_selected_analysis(self) -> bool:
-        with self._lock:
-            self.selected_role = None
-        self._publish("IDLE")
-        return True
-
-    def distributor_diagnostic(self, command: str) -> bool:
-        with self._lock:
-            if self.state not in ("IDLE", "STOPPED"):
-                return False
-            # Ручная проверка двигает только свою заслонку: кнопки верхнего
-            # распределителя управляют DIST1, кнопки нижнего — только DIST2.
-            if command == "DIST1_HOME":
-                self.dist1_position = 0
-                self.dist1_state = "GOOD"
-                self.last_distributor_action = "DIAGNOSTIC DIST1 -> GOOD"
-            elif command == "DIST1_OPEN":
-                self.dist1_position = 340
-                self.dist1_state = "TO_DIST2"
-                self.last_distributor_action = "DIAGNOSTIC DIST1 -> DIST2"
-            elif command == "DIST2_BAD":
-                moved = self.dist2_position != 0
-                self.dist2_position = 0
-                if moved:
-                    self.dist2_state = "READY"
-                self.last_distributor_action = "DIAGNOSTIC DIST2 -> BAD"
-            elif command == "DIST2_CLEANUP":
-                moved = self.dist2_position != 340
-                self.dist2_position = 340
-                if moved:
-                    self.dist2_state = "READY"
-                self.last_distributor_action = "DIAGNOSTIC DIST2 -> CLEANUP"
-            else:
-                return False
-        self._publish("DISTRIBUTOR_DIAGNOSTIC")
         return True
 
     def camera_diagnostic(self) -> bool:
@@ -442,72 +394,6 @@ class LineSimulation:
             })
         return raw, [SimRule(drawings=drawings)]
 
-    def _frame_analysis_report(self, kind: str, role: str | None, part_id,
-                               stage: str | None, triggered: bool,
-                               defects: list[str]) -> dict:
-        """Общий вид отчёта о замерах кадра для панели «АНАЛИЗ КАДРА»."""
-        return {
-            "available": True,
-            "kind": kind,
-            "role": role,
-            "part_id": part_id,
-            "stage": stage,
-            "rules": [{
-                "name": "part_presence", "title": "Наличие корпуса", "triggered": False,
-                "measurement_cards": [{"type": "metric", "metrics": [{"key": "simulated_confidence", "label": "Уверенность модели", "value": "0.99", "limit": "0.40", "ok": True}]}],
-            }, {
-                "name": "sinks" if triggered else "window_geometry",
-                "title": "Симулированная проверка",
-                "triggered": triggered,
-                "human_cause": ", ".join(defects) if defects else "Норма",
-                "measurement_cards": [{"type": "metric", "metrics": [{"key": "simulated_result", "label": "Результат правила", "value": "СРАБОТАЛО" if triggered else "НОРМА", "limit": "—", "ok": not triggered}]}],
-            }],
-        }
-
-    def _frame_analysis_payload(self) -> dict:
-        """Замеры текущего кадра для панели «АНАЛИЗ КАДРА».
-
-        Как в реальном бэкенде, во время цикла панель следует за камерой,
-        выбранной в UI, и показывает замеры её стадии: ВХОД (корпус
-        на +0) или КОНТРОЛЬ +4 (корпус на +4). В ручном анализе
-        показывается выбранная камера.
-        """
-        input_part = next((part for part in self.parts if part.position == 0), None)
-        control_part = next((part for part in self.parts if part.position == 4), None)
-        active_role = self.server.active_camera_role
-
-        if self.selected_role is not None:
-            inspection = control_part
-            defects = inspection.defects if inspection else []
-            return self._frame_analysis_report(
-                kind="selected",
-                role=self.selected_role,
-                part_id=inspection.id if inspection else None,
-                stage="ДИАГНОСТИКА",
-                triggered=bool(defects),
-                defects=defects,
-            )
-
-        if active_role in self.INPUT_STAGES and input_part is not None:
-            part, role, stage = input_part, active_role, "ВХОД"
-        elif control_part is not None:
-            part, role, stage = control_part, active_role or "TOP", "КОНТРОЛЬ +4"
-        elif input_part is not None:
-            part, role, stage = input_part, "INPUT_LEFT", "ВХОД"
-        else:
-            return {"available": False}
-
-        triggered = bool(part.defects) if part.inspected else False
-        defects = part.defects or []
-        return self._frame_analysis_report(
-            kind="production",
-            role=role,
-            part_id=part.id,
-            stage=stage,
-            triggered=triggered,
-            defects=defects,
-        )
-
     def sync_batch_accounting(self) -> None:
         """Продолжить учёт открытой партии вместо старта с нуля.
 
@@ -588,16 +474,12 @@ class LineSimulation:
                 # start closes JOG and transfers control to the cycle.
                 "batch_open": self._batch_ready(),
                 "controls": {"start": (state in ("IDLE", "STOPPED")
-                                       and self.selected_role is None
                                        and self._batch_ready()),
                              "stop": state in ("RUNNING", "PAUSED"), "pause": state == "RUNNING",
                              "resume": state == "PAUSED", "exit": True,
-                             "jog_hold": self.jog_active and state in JOG_ALLOWED_STATES and self.selected_role is None,
-                             "selected_model_analysis": state in ("IDLE", "STOPPED") and self.selected_role is None,
-                             "selected_model_release": self.selected_role is not None,
-                             "distributor_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None,
-                             "camera_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None,
-                             "vision_rule_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None},
+                             "jog_hold": self.jog_active and state in JOG_ALLOWED_STATES,
+                             "camera_diagnostic": state in ("IDLE", "STOPPED"),
+                             "vision_rule_diagnostic": state in ("IDLE", "STOPPED")},
                 "process": {"phase": phase,
                             "label": PROCESS_LABELS.get(phase, phase.replace("_", " ")),
                             "step": self.step,
@@ -607,14 +489,12 @@ class LineSimulation:
                             "conveyor": {"speed": 18000,
                                          "position": self.conveyor_position,
                                          "max": self.conveyor_max}},
-                "selected_analysis": {"active": self.selected_role is not None, "role": self.selected_role},
-                "diagnostic_allowed": state in ("IDLE", "STOPPED") and self.selected_role is None,
+                "diagnostic_allowed": state in ("IDLE", "STOPPED"),
                 "diagnostic_busy": False,
-                "frame_analysis": self._frame_analysis_payload(),
                 "live": {"running": True,
-                         "static": self.selected_role is not None or inspection_static,
-                         "streaming": self.selected_role is None and not inspection_static,
-                         "static_roles": [self.selected_role] if self.selected_role else (active_roles if inspection_static else []),
+                         "static": inspection_static,
+                         "streaming": not inspection_static,
+                         "static_roles": active_roles if inspection_static else [],
                          "all_roles_static": False, "fps": 25},
                 "jog": {"active": self.jog_active, "busy": self.jog_busy, "can_enter": state in JOG_ALLOWED_STATES,
                         "live_fps": 25},
@@ -825,11 +705,8 @@ def main() -> None:
     server.on_jog_hold_start = simulation.jog_hold_start
     server.on_jog_hold_heartbeat = simulation.jog_hold_heartbeat
     server.on_jog_hold_release = simulation.jog_hold_release
-    server.on_distributor_diagnostic = simulation.distributor_diagnostic
     server.on_camera_diagnostic = simulation.camera_diagnostic
     server.on_vision_rule_diagnostic = simulation.vision_rule_diagnostic
-    server.on_selected_model_analysis = simulation.selected_analysis
-    server.on_selected_model_release = simulation.release_selected_analysis
     server.on_batch_changed = simulation.batch_changed
     configure_simulated_thresholds(server)
     server.update(frames=demo_frames())

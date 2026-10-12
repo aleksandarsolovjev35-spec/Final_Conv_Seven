@@ -299,37 +299,6 @@ def setup_api_routes(app, server):
             server.on_vision_rule_diagnostic,
         )
 
-    @app.post("/api/diagnostics/selected/release")
-    async def api_diagnostic_selected_release():
-        return await invoke(
-            "ВОЗВРАТ К ПОТОКУ",
-            server.on_selected_model_release,
-        )
-
-    @app.post("/api/diagnostics/selected/{role}")
-    async def api_diagnostic_selected_model(role: str):
-        return await invoke(
-            "АНАЛИЗ КАДРА",
-            server.on_selected_model_analysis,
-            role,
-        )
-
-    @app.post("/api/distributor/diagnostic/{command}")
-    async def api_distributor_diagnostic(command: str):
-        allowed = {
-            "DIST1_HOME",
-            "DIST1_OPEN",
-            "DIST2_BAD",
-            "DIST2_CLEANUP",
-        }
-        if command not in allowed:
-            raise HTTPException(400, "Недопустимая команда распределителя")
-        return await invoke(
-            "ПРОВЕРКА РАСПРЕДЕЛИТЕЛЯ",
-            server.on_distributor_diagnostic,
-            command,
-        )
-
     # JOG
 
     @app.post("/api/jog/enter")

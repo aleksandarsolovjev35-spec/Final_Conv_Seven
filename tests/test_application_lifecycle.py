@@ -167,11 +167,8 @@ class FakeCycle:
     def request_stop(self): pass
     def request_pause(self): pass
     def request_resume(self): pass
-    def distributor_diagnostic(self): pass
     def diagnostic_check_cameras(self): pass
     def diagnostic_check_vision_rules(self): pass
-    def diagnostic_analyze_selected_camera(self): pass
-    def diagnostic_release_selected_camera(self): pass
 
     def enter_jog(self):
         self.events.append("jog.enter")
@@ -308,16 +305,9 @@ class ApplicationStartupTest(unittest.TestCase):
             "stop_callback": "request_stop",
             "pause_callback": "request_pause",
             "resume_callback": "request_resume",
-            "distributor_diagnostic_callback": "distributor_diagnostic",
             "camera_diagnostic_callback": "diagnostic_check_cameras",
             "vision_rule_diagnostic_callback": (
                 "diagnostic_check_vision_rules"
-            ),
-            "selected_model_analysis_callback": (
-                "diagnostic_analyze_selected_camera"
-            ),
-            "selected_model_release_callback": (
-                "diagnostic_release_selected_camera"
             ),
             "jog_enter_callback": "enter_jog",
             "jog_exit_callback": "exit_jog",
@@ -1076,10 +1066,8 @@ class BatchCallbackBindingTest(unittest.TestCase):
         events = []
         names = (
             "request_start", "request_stop", "request_pause", "request_resume",
-            "distributor_diagnostic", "diagnostic_check_cameras",
-            "diagnostic_check_vision_rules",
-            "diagnostic_analyze_selected_camera",
-            "diagnostic_release_selected_camera", "enter_jog", "exit_jog",
+            "diagnostic_check_cameras", "diagnostic_check_vision_rules",
+            "enter_jog", "exit_jog",
             "jog_hold_start", "jog_hold_heartbeat", "jog_hold_release",
         )
         cycle = SimpleNamespace(

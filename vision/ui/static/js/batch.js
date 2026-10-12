@@ -51,9 +51,6 @@ function batchBusyNow() {
         || state.controlPending
         || state.startPending
         || state.jogBusy
-        || state.distributorDiagnosticPending
-        || state.distributorDiagnosticBackendBusy
-        || state.selectedAnalysisPending
     );
 }
 
@@ -62,18 +59,17 @@ function batchEditableNow() {
         batchManagerAvailable()
         && batchData.editable === true
         && !batchBusyNow()
-        && !state.selectedAnalysisActive
     );
 }
 
+// Правая колонка построена вокруг партии: карточка видна и на ходу — по
+// ней оператор видит, в какую партию пишутся корпуса. Лицо «АВАРИЯ» и
+// недоступные вкладки прячутся отдельно (CSS-лицо панели и disable вкладок).
 function serviceDeckVisible() {
     return (
         !state.splashActive
         && !state.offline
         && !state.serverExitRequested
-        && ['IDLE', 'STOPPED'].includes(state.lineState)
-        && !state.selectedAnalysisActive
-        && !state.selectedAnalysisPending
     );
 }
 

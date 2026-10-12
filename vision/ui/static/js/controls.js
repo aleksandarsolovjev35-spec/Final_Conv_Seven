@@ -92,12 +92,6 @@ async function submitControl(path) {
         state.serverExitRequested,
         state.backendControls,
     );
-    if (els.distributorDiagnostics) {
-        els.distributorDiagnostics.querySelectorAll('button').forEach(
-            button => { button.disabled = true; }
-        );
-    }
-    disableSelectedAnalysisButton();
     if (els.jogPanel) {
         if (path === '/api/start') {
             els.jogPanel.classList.add('is-collapsed');
@@ -210,10 +204,6 @@ function updateStateOverlay(ls) {
             ? `На линии осталось корпусов: ${remaining}`
             : 'Завершение работы...';
         peekable = true;
-    } else if (state.selectedAnalysisActive) {
-        // Оператор запросил стоп-кадр выбранной камеры: не закрываем его
-        // большим состоянием IDLE/STOPPED поверх изображения.
-        mainText = '';
     } else if (lineState === 'PAUSED') {
         if (state.jogActive) {
             mainText = '';

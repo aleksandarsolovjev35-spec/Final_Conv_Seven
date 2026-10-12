@@ -346,7 +346,6 @@ class CycleStepMixin:
         if result.is_empty_tray:
             # Пустой лоток остаётся нейтральным: Part и архив не создаются.
             self.parts.remove(part)
-            self._record_frame_analysis("INPUT", None, result)
             self.empty_count += 1
             # Очищаем детекции для входных камер, чтобы не рисовать прямоугольники
             # на пустом лотке.
@@ -369,7 +368,6 @@ class CycleStepMixin:
         # Результат правила становится состоянием Part только после того,
         # как модели и геометрия отработали для этого же набора кадров.
         part.mark_input_done()
-        self._record_frame_analysis("INPUT", part.id, result)
         print(f"[INPUT] Деталь #{part.id}")
 
         self._last_vision_results.update(result.vision_results or {})
@@ -411,7 +409,6 @@ class CycleStepMixin:
             # После SPIDER это уже окончательное решение Part: обе стадии
             # прошли модели и геометрию, поэтому маршрут можно зафиксировать.
             part.mark_spider_done()
-            self._record_frame_analysis("SPIDER", part.id, result)
 
             self._last_vision_results.update(result.vision_results or {})
             self._last_rule_results.extend(result.rule_results or [])
@@ -428,9 +425,7 @@ class CycleStepMixin:
                 f"категория={part.route_category}"
             )
             return result
-        # На позиции +4 в этом шаге детали нет: старый результат другой
-        # детали показывать нельзя.
-        self._frame_analysis_groups["SPIDER"] = self._empty_frame_analysis_entry()
+        # На позиции +4 в этом шаге детали нет.
         return None
 
     # Распределитель

@@ -178,13 +178,6 @@
     cursor: default;
 }
 
-.mode-badge.mode-analysis {
-    color: var(--warn);
-    border-color: var(--warn);
-    box-shadow: none;
-    cursor: default;
-}
-
 /* Лента стоит: показан статичный кадр, по которому считались правила. */
 .mode-badge.mode-static {
     color: var(--text-dim);

@@ -61,26 +61,6 @@ CAMERA_ORDER = [
     "TOP",
 ]
 
-# Правило отчёта -> группа порогов (RULE_GROUPS в thresholds.json). Нужна
-# только для ручных названий порогов (_label.*): по полному имени параметра
-# подставляется пользовательское название вместо встроенного перевода.
-RULE_THRESHOLD_GROUPS = {
-    "part_presence": "input_part_presence",
-    "window_geometry": "input_window_geometry",
-    "window_sinks": "input_window_sinks",
-    "contacts_long": "spider_contacts_long",
-    "contacts_short": "spider_contacts_short",
-    "long_omission": "spider_long_omission",
-    "short_omission": "spider_short_omission",
-    "black_spots_omission": "black_spots_omission",
-    "top_contacts": "top_contacts",
-    "top_platform": "top_platform",
-    "platform_contacts_overlap": "top_platform_overlap",
-    "sinks": "top_sinks",
-    "glass": "top_glass",
-    "glass_on_contacts": "top_glass",
-}
-
 
 class UIServer:
 
@@ -122,11 +102,8 @@ class UIServer:
         self.on_pause:  callable | None = None
         self.on_resume: callable | None = None
         self.on_exit:   callable | None = None
-        self.on_distributor_diagnostic: callable | None = None
         self.on_camera_diagnostic: callable | None = None
         self.on_vision_rule_diagnostic: callable | None = None
-        self.on_selected_model_analysis: callable | None = None
-        self.on_selected_model_release: callable | None = None
 
         self.on_jog_enter: callable | None = None
         self.on_jog_exit: callable | None = None
@@ -335,7 +312,6 @@ class UIServer:
                     rules_overlay_changed = True
             if line_status is not None:
                 self.line_status = line_status
-                self._apply_custom_threshold_labels(line_status)
             if recent_parts is not None:
                 self.recent_parts = list(recent_parts)
             if should_invalidate:
@@ -358,47 +334,6 @@ class UIServer:
                 if stream_overlay_changed:
                     self._latest_stream_jpeg.clear()
                 self._cache_version += 1
-
-    def _apply_custom_threshold_labels(self, line_status: dict) -> None:
-        """Подставить ручные названия порогов (_label.*) в анализ кадра.
-
-        Каждое правило несёт ``measurement_cards`` — замеры текущего кадра
-        с ключами метрик. Для метрик, у которых есть ручное название в
-        thresholds.json (``_label.<параметр>``), заменяем встроенный перевод
-        на пользовательский, как и в панели «Пороги правил».
-        """
-        custom_labels = dict(self.threshold_labels or {})
-        if not custom_labels:
-            return
-        frame_analysis = (line_status or {}).get("frame_analysis")
-        rules = (
-            frame_analysis.get("rules")
-            if isinstance(frame_analysis, dict) else None
-        )
-        if not isinstance(rules, list):
-            return
-        for rule in rules:
-            if not isinstance(rule, dict):
-                continue
-            group_id = RULE_THRESHOLD_GROUPS.get(rule.get("name"))
-            if not group_id:
-                continue
-            for card in rule.get("measurement_cards") or []:
-                if not isinstance(card, dict):
-                    continue
-                role = card.get("role")
-                if not role:
-                    continue
-                for metric in card.get("metrics") or []:
-                    if not isinstance(metric, dict):
-                        continue
-                    key = metric.get("key")
-                    if not key:
-                        continue
-                    full_key = f"{group_id}_{key}"
-                    custom = custom_labels.get(f"{role}.{full_key}")
-                    if custom:
-                        metric["label"] = custom
 
     def set_camera_roles(self, roles) -> None:
         """Опубликовать роли открытых камер без обязательного чтения кадров.

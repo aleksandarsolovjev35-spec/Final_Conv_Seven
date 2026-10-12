@@ -27,9 +27,10 @@ function updateMode(mode) {
 }
 
 function viewModeContextVisible() {
-    const production = ['RUNNING', 'STOPPING'].includes(state.lineState);
-    const selectedFrame = JOG_ALLOWED_STATES.includes(state.lineState) && state.selectedAnalysisActive;
-    return production || selectedFrame;
+    // Переключение МОДЕЛИ/ПРАВИЛА имеет смысл только в работе: на
+    // остановленной линии кадр живёт в ручном режиме и показывает то,
+    // что уже применено.
+    return ['RUNNING', 'STOPPING'].includes(state.lineState);
 }
 
 function viewModeAllowed() {
@@ -41,9 +42,6 @@ function viewModeAllowed() {
         && !state.offline
         && !state.modePending
         && !state.jogBusy
-        && !state.distributorDiagnosticPending
-        && !state.distributorDiagnosticBackendBusy
-        && !state.selectedAnalysisPending
     );
 }
 
@@ -61,12 +59,7 @@ function updateViewModeControls() {
 
 function applyModeUI() {
     updateViewModeControls();
-    if (typeof applyLiveBadge === 'function') {
-        applyLiveBadge(state.jogActive);
-        return;
-    }
-    if (state.jogActive || state.selectedAnalysisActive) return;
-    if (els.modeBadge) els.modeBadge.classList.add('is-faded');
+    if (typeof applyLiveBadge === 'function') applyLiveBadge(state.jogActive);
 }
 
 async function setViewMode(newMode) {
@@ -204,7 +197,6 @@ function renderPreviewStrip() {
 }
 
 function selectCamera(role) {
-    if (state.selectedAnalysisActive || state.selectedAnalysisPending) return;
     if (!state.cameras.includes(role)) return;
     if (state.currentCamera === role) return;
     state.currentCamera = role;
@@ -233,36 +225,6 @@ function updateMainCameraLabel() {
     setIfChanged(els.cameraLabel, `${cameraRoleLabel(role)}${suffix}`);
 }
 
-function showSelectedAnalysisFrame(role) {
-    if (!role) return;
-    setIfChanged(els.cameraLabel, `${cameraRoleLabel(role)} · АНАЛИЗ`);
-    clearLivePullTimer();
-    const analysisKey = `${role}|${state.mode}|${state.currentVersion}`;
-    if (state.mainCamMode === 'analysis' && state.mainCamAnalysisKey === analysisKey) return;
-    state.mainCamMode = 'analysis';
-    state.mainCamStreamRole = null;
-    state.mainCamStreamView = null;
-    state.mainCamAnalysisKey = analysisKey;
-    mainBufferLoading = false;
-    const source = `/frame/${encodeURIComponent(role)}?mode=${encodeURIComponent(state.mode)}&v=${state.currentVersion}&analysis=1`;
-    if (typeof showMainCameraFrame === 'function') {
-        showMainCameraFrame(source, 'analysis');
-    } else if (els.mainCamera) {
-        els.mainCamera.src = source;
-    }
-}
-
-function returnSelectedCameraToLive() {
-    updateMainCameraLabel();
-    state.mainCamMode = 'pull';
-    state.mainCamStreamRole = null;
-    state.mainCamStreamView = null;
-    state.mainCamAnalysisKey = null;
-    mainBufferLoading = false;
-    if (els.mainCamera) els.mainCamera.removeAttribute('src');
-    applyMainCameraSource();
-}
-
 // ——— переключение источника главной камеры ———
 
 function clearLivePullTimer() {
@@ -278,11 +240,6 @@ function scheduleNextLiveFrame(delay = LIVE_CAM_MIN_GAP) {
 }
 
 function applyMainCameraSource() {
-    if (state.selectedAnalysisActive) {
-        clearLivePullTimer();
-        showSelectedAnalysisFrame(state.selectedAnalysisRole || state.currentCamera);
-        return;
-    }
     if (!state.currentCamera) return;
     if (state.splashActive) return;
 
@@ -298,7 +255,6 @@ function applyMainCameraSource() {
         state.mainCamMode = 'live-pull';
         state.mainCamStreamRole = desiredRole;
         state.mainCamStreamView = desiredView;
-        state.mainCamAnalysisKey = null;
         mainBufferLoading = false;
         maybeRequestMainFrame();
     } else {
@@ -307,7 +263,6 @@ function applyMainCameraSource() {
         state.mainCamMode = 'pull';
         state.mainCamStreamRole = null;
         state.mainCamStreamView = null;
-        state.mainCamAnalysisKey = null;
         if (els.mainCamera) els.mainCamera.removeAttribute('src');
         maybeRequestMainFrame();
     }
@@ -427,17 +382,39 @@ function requestPreviewImage(img) {
 
 function refreshPreviewStrip() {
     if (!els.previewStrip) return;
-    if (state.pendingAnalysisVersion !== null) return;
+    if (state.pendingStaticVersion !== null) return;
 
     // Миниатюры загружаются и под splash: основной интерфейс откроется уже
     // с декодированными кадрами всех семи камер, а не с пустыми карточками.
     els.previewStrip.querySelectorAll('.preview-cam img').forEach(requestPreviewImage);
 }
 
-function updateUptime() {
-    const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
-    const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
-    const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
-    const s = String(elapsed % 60).padStart(2, '0');
-    setIfChanged(els.metricUptime, `${h}:${m}:${s}`, false);
+
+// ——— живой статус камер ———
+
+// Раньше это жило в diagnostics.js вместе с анализом кадра. Режим анализа
+// убран, а вывод «идёт поток или стоп-кадр» нужен главному кадру и
+// миниатюрам, поэтому расчёт остался здесь и вызывается из status.js.
+function updateLiveStatus(ls) {
+    const wasLiveStreaming = state.liveStreaming;
+    const live = ls.live || {};
+    state.liveFps = Number(live.fps || (ls.jog || {}).live_fps || 0);
+    const staticRoles = Array.isArray(live.static_roles) ? live.static_roles : [];
+    const process = ls.process || {};
+    const inspectionRoles = Array.isArray(process.inspection_roles) ? process.inspection_roles : [];
+    const phase = String(process.phase || '').toUpperCase();
+    const inspectionDisplay = inspectionRoles.includes(state.currentCamera)
+        && isInspectionDisplayPhase(phase);
+    const selectedRoleStatic = live.all_roles_static === true
+        || staticRoles.includes(state.currentCamera)
+        || inspectionDisplay
+        // Совместимость со статусом backend до ролевых пауз.
+        || (live.static === true && live.streaming === false && staticRoles.length === 0);
+    // Источник главной камеры зависит от её собственной роли, а не от
+    // inspection другой группы камер.
+    state.liveStreaming = live.running === true && !selectedRoleStatic;
+
+    if (wasLiveStreaming !== state.liveStreaming && typeof applyMainCameraSource === 'function') {
+        applyMainCameraSource();
+    }
 }

@@ -255,16 +255,9 @@ def bind_cycle_callbacks(
     monitor.pause_callback = cycle.request_pause
     monitor.resume_callback = cycle.request_resume
     monitor.exit_callback = exit_callback
-    monitor.distributor_diagnostic_callback = cycle.distributor_diagnostic
     monitor.camera_diagnostic_callback = cycle.diagnostic_check_cameras
     monitor.vision_rule_diagnostic_callback = (
         cycle.diagnostic_check_vision_rules
-    )
-    monitor.selected_model_analysis_callback = (
-        cycle.diagnostic_analyze_selected_camera
-    )
-    monitor.selected_model_release_callback = (
-        cycle.diagnostic_release_selected_camera
     )
     monitor.active_camera_callback = lambda _role: cycle._refresh_monitor()
 

@@ -65,8 +65,6 @@ class ProductionCycle(
     # требованием к оператору показывает карточка «ПАРТИЯ» в HMI.
     NO_BATCH_LABEL = "Партия не открыта: пуск заблокирован"
 
-    FRAME_ANALYSIS_GROUPS = ("INPUT", "SPIDER")
-
     def __init__(
         self,
         conveyor,
@@ -122,7 +120,6 @@ class ProductionCycle(
         """Состояние шага, блокировки и телеметрия для HMI."""
         self._last_vision_results: dict = {}
         self._last_rule_results: list = []
-        self._frame_analysis_groups = self._empty_frame_analysis_groups()
 
         self._drain_start_time: float = 0
         self._fault_reason = None
@@ -144,8 +141,6 @@ class ProductionCycle(
         # JOG
         self.jog_active: bool = False
         self._jog_lock = threading.Lock()
-        self._selected_analysis_active = False
-        self._selected_analysis_role = None
         self._shutdown = False
 
         # Пауза в рабочем цикле
@@ -302,8 +297,6 @@ class ProductionCycle(
         if not self._operation_lock.acquire(blocking=False):
             return False
         try:
-            if self._selected_analysis_active:
-                return False
             if self.live.error:
                 return False
             if self.jog is not None and self.jog.status.get("error"):
@@ -341,15 +334,10 @@ class ProductionCycle(
             if accepted:
                 self._drain_start_time = 0
                 self._fault_reason = None
-                self._reset_frame_analysis()
                 # Деталь могла остаться под входными камерами ещё до пуска:
                 # первый шаг выполняется без движения ленты, чтобы она
                 # попала в учёт, а не уехала дальше непроверенной.
                 self._await_initial_inspection = True
-                if self._diagnostics.get("kind") == "SELECTED_MODEL":
-                    self._diagnostics = make_diagnostics(
-                        message="Анализ кадра ещё не выполнялся",
-                    )
                 # Оператор видит поток всё время, пока линия работает;
                 # на статических этапах шага он приостанавливается.
                 self.live.start()
@@ -534,8 +522,6 @@ class ProductionCycle(
         self._cancel_motion.set()
         self._pause_requested.clear()
         self._stop_pause_frame_loop()
-        self._selected_analysis_active = False
-        self._selected_analysis_role = None
         self.stages.reset()
         self.live.reset_pause()
         self.live.stop()
