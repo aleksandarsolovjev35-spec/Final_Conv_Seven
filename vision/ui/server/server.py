@@ -3,6 +3,7 @@ import os
 import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -148,6 +149,9 @@ class UIServer:
         # привязан к конкретному человеку.
         self.operator_store = None
         self.operator: str | None = None
+        # Время входа оператора смены: плашка над вкладками показывает, с
+        # какого часа человек работает.
+        self.operator_since: str = ""
 
         # Кэш JPEG для pull-механики (/frame): ключ (role, mode, size)
         self._jpeg_cache: dict = {}
@@ -669,6 +673,7 @@ class UIServer:
                 "available": False,
                 "assigned": False,
                 "operator": None,
+                "since": "",
                 "users": [],
                 "last_login": "",
                 "can_register": False,
@@ -682,6 +687,7 @@ class UIServer:
             "available": True,
             "assigned": bool(assigned),
             "operator": assigned,
+            "since": self.operator_since if assigned else "",
             "users": store.logins(),
             "last_login": store.last_login(),
             "can_register": not store.has_users(),
@@ -710,7 +716,8 @@ class UIServer:
                 f"Оператор уже назначен: {self.operator}"
             )
         self.operator = store.authenticate(login, password)
-        print(f"[OPERATOR] Вошёл: {self.operator}")
+        self.operator_since = datetime.now().strftime("%H:%M")
+        print(f"[OPERATOR] Вошёл: {self.operator} (с {self.operator_since})")
         self._notify_batch_changed()
         return self.operator_status_payload()
 
@@ -727,6 +734,7 @@ class UIServer:
         print(f"[OPERATOR] Заведён оператор: {name}")
         if not self.operator:
             self.operator = name
+            self.operator_since = datetime.now().strftime("%H:%M")
             self._notify_batch_changed()
         return self.operator_status_payload()
 
@@ -741,6 +749,7 @@ class UIServer:
             )
         print(f"[OPERATOR] Вышел: {self.operator}")
         self.operator = None
+        self.operator_since = ""
         self._notify_batch_changed()
         return self.operator_status_payload()
 

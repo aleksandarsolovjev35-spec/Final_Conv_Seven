@@ -18,8 +18,8 @@
     <link rel="stylesheet" href="/static/css/thresholds.css?v=25">
     <link rel="stylesheet" href="/static/css/archive.css?v=7">
     <link rel="stylesheet" href="/static/css/panel-deck.css?v=10">
-    <link rel="stylesheet" href="/static/css/batch.css?v=4">
-    <link rel="stylesheet" href="/static/css/operator.css?v=1">
+    <link rel="stylesheet" href="/static/css/batch.css?v=6">
+    <link rel="stylesheet" href="/static/css/operator.css?v=2">
 </head>
 <body>
 
@@ -211,18 +211,28 @@
 
                 <!-- Сервисная зона правой колонки: две альтернативные
                      карточки на одном месте. «ПАРТИЯ» — менеджер партий:
-                     ФИО оператора, номер партии, продолжение незавершённой
-                     партии и её завершение. «ПОРОГИ» — прежний редактор
-                     порогов правил. Высота зоны фиксирована — правая
-                     колонка HMI не прокручивается. -->
+                     номер партии, продолжение незавершённой партии и её
+                     завершение. «ПОРОГИ» — прежний редактор порогов правил;
+                     после входа в программу зона открывается на них. Высота
+                     зоны фиксирована — правая колонка HMI не прокручивается. -->
                 <section id="service-deck" class="service-deck is-hidden"
                          data-ui-block="service-deck" data-face="batch">
-                    <!-- Оператор смены виден всегда: строкой над вкладками.
-                         Смена оператора — оттуда же (только на остановленной
-                         линии и после завершения партии). -->
+                    <!-- Оператор смены виден всегда: плашкой над вкладками
+                         (ФИО и время входа). Смена оператора — оттуда же
+                         (только на остановленной линии и после завершения
+                         партии). -->
                     <div id="operator-line" class="operator-line">
-                        <span class="operator-line-label">ОПЕРАТОР</span>
-                        <span id="operator-name" class="operator-line-name">НЕ НАЗНАЧЕН</span>
+                        <span class="operator-line-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="8.4" r="3.6"></circle>
+                                <path d="M4.6 20.4 a7.6 7.6 0 0 1 14.8 0"></path>
+                            </svg>
+                        </span>
+                        <span class="operator-line-text">
+                            <span class="operator-line-label">ОПЕРАТОР СМЕНЫ</span>
+                            <span id="operator-name" class="operator-line-name">НЕ НАЗНАЧЕН</span>
+                        </span>
+                        <span id="operator-since" class="operator-line-since"></span>
                         <button id="operator-change" class="btn btn-sm operator-change"
                                 type="button" disabled>СМЕНИТЬ</button>
                     </div>
@@ -243,42 +253,24 @@
                             МЕНЕДЖЕР ПАРТИЙ НЕДОСТУПЕН
                         </div>
 
-                        <!-- Нет открытой партии: три шага оператора —
-                             1) оператор смены (назначен при входе),
-                             2) номер партии, 3) пуск учёта. Ниже — выбор
+                        <!-- Нет открытой партии: номер партии и пуск учёта.
+                             Оператор смены показан плашкой над вкладками —
+                             здесь он не дублируется. Ниже — выбор
                              незавершённой партии для продолжения. -->
                         <div id="batch-open-face" class="batch-face batch-open-face">
                             <div class="batch-steps">
-                                <div id="batch-step-operator" class="batch-step" data-step="1"
-                                     data-state="done">
-                                    <span class="batch-step-number">1</span>
-                                    <div class="batch-step-body">
-                                        <span class="batch-step-title">ОПЕРАТОР</span>
-                                        <span id="batch-step-operator-name"
-                                              class="batch-step-value">—</span>
-                                    </div>
-                                    <span class="batch-step-mark">назначен при входе</span>
-                                </div>
-                                <div id="batch-step-label" class="batch-step" data-step="2"
+                                <div id="batch-step-label" class="batch-step"
                                      data-state="active">
-                                    <span class="batch-step-number">2</span>
-                                    <div class="batch-step-body">
-                                        <label class="batch-step-title" for="batch-label-input">НОМЕР ПАРТИИ</label>
-                                        <input id="batch-label-input" class="batch-input" type="text"
-                                               maxlength="40" autocomplete="off" spellcheck="false">
-                                    </div>
+                                    <label class="batch-step-title" for="batch-label-input">НОМЕР ПАРТИИ</label>
+                                    <input id="batch-label-input" class="batch-input" type="text"
+                                           maxlength="40" autocomplete="off" spellcheck="false">
                                 </div>
-                                <div id="batch-step-start" class="batch-step" data-step="3"
-                                     data-state="todo">
-                                    <span class="batch-step-number">3</span>
-                                    <div class="batch-step-body">
-                                        <span class="batch-step-title">ПУСК УЧЁТА</span>
-                                        <button id="batch-start" class="btn btn-sm btn-batch-start"
-                                                type="button" disabled>НАЧАТЬ ПАРТИЮ</button>
-                                    </div>
+                                <div id="batch-step-start" class="batch-step" data-state="todo">
+                                    <span id="batch-status" class="batch-status"></span>
+                                    <button id="batch-start" class="btn btn-sm btn-batch-start"
+                                            type="button" disabled>НАЧАТЬ ПАРТИЮ</button>
                                 </div>
                             </div>
-                            <div id="batch-status" class="batch-status"></div>
                             <div class="batch-open">
                                 <div class="batch-open-title">НЕЗАВЕРШЁННЫЕ ПАРТИИ</div>
                                 <div id="batch-open-list" class="batch-open-list"></div>
@@ -434,7 +426,7 @@
         </div>
     </div>
 
-    <script src="/static/js/core.js?v=63"></script>
+    <script src="/static/js/core.js?v=65"></script>
     <script src="/static/js/boot.js?v=34"></script>
     <script src="/static/js/status.js?v=65"></script>
     <script src="/static/js/controls.js?v=37"></script>
@@ -443,8 +435,8 @@
     <script src="/static/js/jog.js?v=40"></script>
     <script src="/static/js/history.js?v=38"></script>
     <script src="/static/js/archive.js?v=4"></script>
-    <script src="/static/js/operator.js?v=1"></script>
-    <script src="/static/js/batch.js?v=5"></script>
+    <script src="/static/js/operator.js?v=2"></script>
+    <script src="/static/js/batch.js?v=7"></script>
     <script src="/static/js/panel-deck.js?v=4"></script>
     <script src="/static/js/bootstrap.js?v=39"></script>
 </body>

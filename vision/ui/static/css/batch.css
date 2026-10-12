@@ -4,9 +4,9 @@
  * альтернативными карточками, переключаемыми вкладками, снизу — ручное
  * управление лентой (JOG). Зона видна и в работе: счётчики корпусов
  * относятся к открытой партии и нужны оператору во время цикла.
- *   ПАРТИЯ — менеджер партий (номер партии, продолжение незавершённой
- *            партии, завершение партии; шаги и вход оператора —
- *            operator.css);
+ *   ПАРТИЯ — менеджер партий (номер партии, пуск, продолжение
+ *            незавершённой партии, завершение партии; вход и плашка
+ *            оператора — operator.css);
  *   ПОРОГИ — прежний редактор порогов правил (thresholds.css).
  *
  * Высота зоны фиксирована (как у панели порогов), поэтому правая колонка
@@ -131,6 +131,66 @@
     letter-spacing: 0.6px;
     text-align: center;
     text-transform: uppercase;
+}
+
+/* ─── Номер партии и пуск учёта ─────────────────────────────────── */
+
+.batch-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 0 0 auto;
+    min-width: 0;
+}
+
+/* Строка шага: цветная полоса слева показывает, где сейчас оператор,
+   номеров и счётчиков шагов нет. */
+.batch-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 4px 6px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-left-width: 2px;
+    border-radius: var(--radius-sm);
+}
+
+.batch-step[data-state="done"] {
+    border-left-color: var(--ok);
+}
+
+.batch-step[data-state="active"] {
+    border-left-color: var(--accent);
+    background: var(--panel-raised);
+}
+
+.batch-step[data-state="todo"] {
+    border-left-color: var(--border-strong);
+    opacity: 0.72;
+}
+
+.batch-step-title {
+    flex: 0 0 auto;
+    color: var(--text-dim);
+    font: 700 8px var(--font-ui);
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+}
+
+.batch-step .batch-input {
+    height: 22px;
+    font-size: 10px;
+}
+
+.batch-step .btn-batch-start {
+    flex: 0 0 auto;
+}
+
+/* Строка состояния не должна менять высоту строки: карточка не «прыгает». */
+.batch-step .batch-status {
+    min-height: 12px;
 }
 
 /* ─── Поле номера партии ────────────────────────────────────────── */

@@ -180,7 +180,7 @@ const els = {
     btnExit:          $('btn-exit'),
 
     serviceDeck:          $('service-deck'),
-    // Вход в программу: экран входа и строка оператора над вкладками.
+    // Вход в программу: экран входа и плашка оператора над вкладками.
     loginScreen:          $('login-screen'),
     loginSubtitle:        $('login-subtitle'),
     loginName:            $('login-name'),
@@ -193,6 +193,7 @@ const els = {
     loginSubmit:          $('login-submit'),
     operatorLine:         $('operator-line'),
     operatorName:         $('operator-name'),
+    operatorSince:        $('operator-since'),
     operatorChange:       $('operator-change'),
     operatorStatus:       $('operator-status'),
     deckTabBatch:         $('deck-tab-batch'),
@@ -201,8 +202,6 @@ const els = {
     batchUnavailable:     $('batch-unavailable'),
     batchOpenFace:        $('batch-open-face'),
     batchActiveFace:      $('batch-active-face'),
-    batchStepOperator:    $('batch-step-operator'),
-    batchStepOperatorName: $('batch-step-operator-name'),
     batchStepLabel:       $('batch-step-label'),
     batchStepStart:       $('batch-step-start'),
     batchLabelInput:      $('batch-label-input'),

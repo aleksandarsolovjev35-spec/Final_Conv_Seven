@@ -880,6 +880,7 @@ class OperatorUiServerTest(OperatorSessionMixin, unittest.TestCase):
         self.assertFalse(payload["available"])
         self.assertFalse(payload["assigned"])
         self.assertIsNone(payload["operator"])
+        self.assertEqual(payload["since"], "")
 
     def test_get_operator_route(self):
         payload = self.client.get("/api/operator").json()
@@ -903,6 +904,8 @@ class OperatorUiServerTest(OperatorSessionMixin, unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertTrue(payload["operator"]["assigned"])
         self.assertEqual(payload["operator"]["operator"], OPERATOR)
+        # Плашка над вкладками показывает, с какого времени оператор в смене.
+        self.assertRegex(payload["operator"]["since"], r"^\d{2}:\d{2}$")
 
     def test_login_accepts_case_and_spaces(self):
         response = self.login("  иванов иван иванович  ")
@@ -971,7 +974,9 @@ class OperatorUiServerTest(OperatorSessionMixin, unittest.TestCase):
         response = self.logout()
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.json()["operator"]["assigned"])
+        self.assertEqual(response.json()["operator"]["since"], "")
         self.assertIsNone(self.server.operator)
+        self.assertEqual(self.server.operator_since, "")
 
     def test_logout_without_operator_409(self):
         response = self.logout()
