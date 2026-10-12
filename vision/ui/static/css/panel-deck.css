@@ -39,8 +39,9 @@
     display: none;
 }
 
-/* Пороги правил видны только на остановленной линии. */
-.stats-panel[data-face="production"] #thresholds-panel {
+/* Сервисная зона (карточки «ПАРТИЯ» и «ПОРОГИ») видна только на
+   остановленной линии: в работе её место отдано анализу кадра. */
+.stats-panel[data-face="production"] .service-deck {
     display: none;
 }
 
@@ -67,7 +68,7 @@
 
 .stats-panel[data-face="fault"] .stats-summary,
 .stats-panel[data-face="fault"] .distributor-panel,
-.stats-panel[data-face="fault"] .thresholds-panel,
+.stats-panel[data-face="fault"] .service-deck,
 .stats-panel[data-face="fault"] .frame-analysis-panel-new,
 .stats-panel[data-face="fault"] .jog-deck {
     display: none;

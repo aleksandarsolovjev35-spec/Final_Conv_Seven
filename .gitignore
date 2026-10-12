@@ -10,6 +10,9 @@ archive/
 debug_frames/
 training_datasets/
 
+# Локальная очередь batch.json на не-Windows-хостах (json_sender)
+json_queue/
+
 # Данные замеров покрытия
 .coverage
 htmlcov/

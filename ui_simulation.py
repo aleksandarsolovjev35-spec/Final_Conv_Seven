@@ -4,8 +4,9 @@ Run from the repository root:
     python ui_simulation.py --host 0.0.0.0 --port 8000
 
 It serves the same FastAPI UI as production but never opens cameras, serial
-ports, models, or pywebview. Use the UI buttons to start, pause, resume and
-stop the simulated conveyor.
+ports, models, or pywebview. The batch logic is the production one: the
+operator opens a batch in the HMI card (ФИО + номер партии) and only then
+may press ПУСК; an unfinished batch stays open and can be continued.
 """
 from __future__ import annotations
 
@@ -18,7 +19,7 @@ import cv2
 import numpy as np
 
 from domain.threshold_loader import ThresholdLoader
-from inspection.part_archive import PartArchive
+from inspection.batch_manager import BatchManager
 from vision.ui.server.server import CAMERA_ORDER, UIServer
 
 
@@ -29,6 +30,7 @@ JOG_ALLOWED_STATES = ("IDLE", "STOPPED", "PAUSED")
 
 PROCESS_LABELS = {
     "IDLE": "Система готова к пуску",
+    "NO_BATCH": "Партия не открыта: пуск заблокирован",
     "READY": "Цикл запущен",
     "INITIAL_INSPECTION": "Контроль корпуса под INPUT без движения",
     "ROUTE_PREPARE": "Подготовка маршрута распределителя",
@@ -108,7 +110,6 @@ class LineSimulation:
         self.jog_active = False
         self.jog_busy = False
         self.selected_role: str | None = None
-        self.archive_compressed = False
         self.step = 0
         self.next_id = 1
         self.slot_counter = 0
@@ -120,19 +121,29 @@ class LineSimulation:
         self._await_initial_inspection = False
         self.recent: list[dict] = []
         self.counts = {"total": 0, "good": 0, "bad": 0, "cleanup": 0}
+        # Последняя опубликованная фаза: нужна, чтобы пересобрать статус
+        # после смены партии без движения линии.
+        self._phase = "IDLE"
         self.thread = threading.Thread(target=self._run, name="ui-simulation", daemon=True)
 
-    def _open_next_archive_batch(self) -> None:
-        """A new production launch must never append to a closed ZIP batch."""
-        archive = self.server.archive
-        if archive is None or not self.archive_compressed:
-            return
-        self.server.archive = PartArchive(
-            root_folder=archive.root_folder,
-        )
-        self.archive_compressed = False
+    def _batch_ready(self) -> bool:
+        """Пуск возможен только в открытую партию (как в production).
+
+        Симулятор без подключённого менеджера (юнит-тесты модели линии)
+        пуск не блокирует — гейт проверяется отдельными тестами.
+        """
+        manager = getattr(self.server, "batch_manager", None)
+        if manager is None:
+            return True
+        return bool(manager.active)
 
     def start(self) -> bool:
+        # Учёт ведётся в партии: без неё пуск запрещён так же, как в
+        # production ProductionCycle.request_start().
+        if not self._batch_ready():
+            print("[BATCH] Партия не открыта: пуск заблокирован")
+            self._publish("NO_BATCH")
+            return False
         with self._lock:
             # «Замёрзшая» линия: поток остановлен ВЫХОДОМ (close), а
             # состояние осталось RUNNING/PAUSED/STOPPING.
@@ -149,7 +160,6 @@ class LineSimulation:
                     target=self._run, name="ui-simulation", daemon=True,
                 )
                 self.thread.start()
-            self._open_next_archive_batch()
             self.jog_active = False
             # A launch begins with the same special initial inspection as
             # ProductionCycle: do not advance the virtual belt first.
@@ -334,16 +344,6 @@ class LineSimulation:
                            "dropping": True})
         return result
 
-    def _finalize_archive_batch(self) -> None:
-        """Apply the real archive shutdown policy after graceful line drain."""
-        if self.archive_compressed:
-            return
-        archive = self.server.archive
-        if archive is None:
-            return
-        archive.compress()
-        self.archive_compressed = True
-
     def _run_camera_stages(self) -> bool:
         """Run the visible production chain in the same order as hardware.
 
@@ -508,7 +508,46 @@ class LineSimulation:
             defects=defects,
         )
 
+    def sync_batch_accounting(self) -> None:
+        """Продолжить учёт открытой партии вместо старта с нуля.
+
+        Нумерация корпусов и статистика относятся к партии: новая партия
+        начинается с нуля, продолжение берёт счётчики из манифеста, поэтому
+        новые детали не затирают уже сохранённые ``part_NNNN``.
+        """
+        manager = getattr(self.server, "batch_manager", None)
+        read = getattr(manager, "accounting", None)
+        if read is None:
+            return
+        counters = read() or {}
+        self.counts = {
+            key: int(counters.get(key) or 0) for key in self.counts
+        }
+        self.next_id = max(
+            int(counters.get("total") or 0),
+            int(counters.get("last_part_id") or 0),
+        ) + 1
+        print(
+            f"[BATCH] Учёт линии переведён в партию: корпусов "
+            f"{self.counts['total']}, следующий корпус #{self.next_id}"
+        )
+
+    def batch_changed(self) -> None:
+        """Смена партии: учёт переходит в неё, HMI обновляет статус."""
+        self.sync_batch_accounting()
+        self.refresh_status()
+
+    def refresh_status(self) -> None:
+        """Перепубликовать статус после смены партии.
+
+        Доступность ПУСК зависит от партии, а симулятор публикует кадры и
+        статус событийно: без этого ПУСК оставался бы заблокированным до
+        следующего движения линии.
+        """
+        self._publish(self._phase)
+
     def _publish(self, phase: str, inspection_roles: list[str] | None = None) -> None:
+        self._phase = phase
         with self._lock:
             state = self.state
             line_parts = self._line_parts()
@@ -547,7 +586,10 @@ class LineSimulation:
                 "last_distributor_action": self.last_distributor_action,
                 # Production start is available while JOG is open: issuing
                 # start closes JOG and transfers control to the cycle.
-                "controls": {"start": state in ("IDLE", "STOPPED") and self.selected_role is None,
+                "batch_open": self._batch_ready(),
+                "controls": {"start": (state in ("IDLE", "STOPPED")
+                                       and self.selected_role is None
+                                       and self._batch_ready()),
                              "stop": state in ("RUNNING", "PAUSED"), "pause": state == "RUNNING",
                              "resume": state == "PAUSED", "exit": True,
                              "jog_hold": self.jog_active and state in JOG_ALLOWED_STATES and self.selected_role is None,
@@ -639,7 +681,8 @@ class LineSimulation:
                 self._wake.clear()
                 continue
             if current == "STOPPING" and not self.parts and self.egress is None:
-                self._finalize_archive_batch()
+                # Партия не закрывается автоматически: её завершает
+                # оператор кнопкой в карточке «ПАРТИЯ».
                 with self._lock:
                     self.state = "STOPPED"
                 self._publish("STOPPED")
@@ -766,9 +809,11 @@ def main() -> None:
     args = parser.parse_args()
 
     server = UIServer()
-    # The real archive implementation writes only into ignored sandbox data.
-    # Its settings dialog and validation therefore behave exactly as in the app.
-    server.archive = PartArchive(root_folder="archive/ui_simulation")
+    # The real batch manager writes only into ignored sandbox data. Its
+    # operator/batch card and settings dialog behave exactly as in the app.
+    batch_manager = BatchManager(root_folder="archive/ui_simulation")
+    server.batch_manager = batch_manager
+    server.archive = batch_manager
     simulation = LineSimulation(server)
     server.on_start = simulation.start
     server.on_stop = simulation.stop
@@ -785,6 +830,7 @@ def main() -> None:
     server.on_vision_rule_diagnostic = simulation.vision_rule_diagnostic
     server.on_selected_model_analysis = simulation.selected_analysis
     server.on_selected_model_release = simulation.release_selected_analysis
+    server.on_batch_changed = simulation.batch_changed
     configure_simulated_thresholds(server)
     server.update(frames=demo_frames())
     # Имитируем camera_mapping.json: роль -> физический Camera ID. Маппинг

@@ -18,6 +18,7 @@ import numpy as np
 from fastapi.testclient import TestClient
 
 from domain.threshold_loader import ThresholdLoader
+from inspection.batch_manager import NO_BATCH_MESSAGE, BatchManager
 from vision.ui.server.server import UIServer
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -651,6 +652,155 @@ class UIServerTest(unittest.TestCase):
 
     def test_configure_windows_event_loop_policy_on_linux(self):
         self.assertFalse(UIServer._configure_windows_event_loop_policy())
+
+
+class BatchUiServerTest(unittest.TestCase):
+    """Менеджер партий в UIServer: маршруты, гейт пуска и статус."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.server = UIServer()
+        # Отправка аналитику заглушена: тест не пишет в очередь json_sender.
+        self.manager = BatchManager(
+            root_folder=os.path.join(self.tmp.name, "archive"),
+            batch_sender=lambda folder: True,
+        )
+        self.server.batch_manager = self.manager
+        self.server.archive = self.manager
+        self.server.splash_active = False
+        self.server.line_status = {"state": "IDLE", "in_line": 0}
+        self.client = TestClient(self.server.app)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def open_batch(self, **payload):
+        body = {"operator": "Иванов Иван Иванович", "label": "П-1"}
+        body.update(payload)
+        return self.client.post("/api/batch/open", json=body)
+
+    # ---------- состояние ----------
+
+    def test_batch_payload_without_manager(self):
+        self.server.batch_manager = None
+        payload = self.server.batch_status_payload()
+        self.assertFalse(payload["available"])
+        self.assertFalse(payload["active"])
+
+    def test_get_batch_route(self):
+        response = self.client.get("/api/batch")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["available"])
+        self.assertFalse(payload["active"])
+        self.assertTrue(payload["editable"])
+        self.assertTrue(payload["suggestion"])
+
+    def test_status_route_includes_batch(self):
+        payload = self.client.get("/api/status").json()
+        self.assertIn("batch", payload)
+        self.assertFalse(payload["batch"]["active"])
+
+    # ---------- открытие и продолжение ----------
+
+    def test_open_batch_route(self):
+        response = self.open_batch()
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["batch"]["active"])
+        self.assertEqual(
+            payload["batch"]["batch"]["operator"], "Иванов Иван Иванович",
+        )
+        self.assertTrue(payload["batch"]["can_finish"])
+
+    def test_open_batch_validation_400(self):
+        response = self.open_batch(operator="Ив")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("ФИО", response.json()["error"])
+        response = self.open_batch(label="")
+        self.assertEqual(response.status_code, 400)
+
+    def test_open_batch_twice_409(self):
+        self.assertEqual(self.open_batch().status_code, 200)
+        response = self.open_batch(label="П-2")
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("уже открыта", response.json()["error"])
+
+    def test_open_batch_on_running_line_409(self):
+        self.server.line_status = {"state": "RUNNING", "in_line": 1}
+        self.assertEqual(self.open_batch().status_code, 409)
+
+    def test_open_batch_with_parts_in_line_409(self):
+        """Корпуса прежней партии на линии не переходят в новый учёт."""
+        self.server.line_status = {"state": "STOPPED", "in_line": 2}
+        response = self.open_batch()
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("корпуса", response.json()["error"])
+        self.assertFalse(self.manager.active)
+
+    def test_continue_open_batch_route(self):
+        self.assertEqual(self.open_batch().status_code, 200)
+        batch_id = self.manager.batch_id
+        self.manager.prepare_shutdown()
+        self.manager = BatchManager(
+            root_folder=self.manager.root_folder,
+            batch_sender=lambda folder: True,
+        )
+        self.server.batch_manager = self.manager
+        self.server.archive = self.manager
+        response = self.open_batch(batch_id=batch_id, operator="Петров Пётр Петрович")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["batch"]["batch"]["operator"],
+            "Петров Пётр Петрович",
+        )
+
+    # ---------- завершение ----------
+
+    def test_finish_batch_route(self):
+        self.open_batch()
+        response = self.client.post("/api/batch/finish")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["batch"]["active"])
+
+    def test_finish_without_batch_409(self):
+        response = self.client.post("/api/batch/finish")
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("не открыта", response.json()["error"])
+
+    def test_finish_with_parts_in_line_409(self):
+        self.open_batch()
+        self.server.line_status = {"state": "STOPPED", "in_line": 2}
+        response = self.client.post("/api/batch/finish")
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("остались корпуса", response.json()["error"])
+
+    # ---------- гейт пуска ----------
+
+    def test_start_requires_open_batch(self):
+        ok, message = self.server.archive_ready_for_start()
+        self.assertFalse(ok)
+        self.assertEqual(message, NO_BATCH_MESSAGE)
+        response = self.client.post("/api/start")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error"], NO_BATCH_MESSAGE)
+
+    def test_start_allowed_with_open_batch(self):
+        self.server.on_start = mock.Mock(return_value=True)
+        self.open_batch()
+        ok, message = self.server.archive_ready_for_start()
+        self.assertTrue(ok)
+        self.assertIsNone(message)
+        self.assertEqual(self.client.post("/api/start").status_code, 200)
+
+    def test_batch_changed_hook_is_called(self):
+        hook = mock.Mock()
+        self.server.on_batch_changed = hook
+        self.open_batch()
+        hook.assert_called_once()
+        self.client.post("/api/batch/finish")
+        self.assertEqual(hook.call_count, 2)
 
 
 if __name__ == "__main__":

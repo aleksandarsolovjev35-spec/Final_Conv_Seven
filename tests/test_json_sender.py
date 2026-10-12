@@ -219,6 +219,29 @@ class JsonSenderTest(unittest.TestCase):
             (self.queue_dir / "batch_001" / TARGET_JSON_NAME).exists()
         )
 
+    def test_scan_and_send_skips_open_manifests(self):
+        """Партия, которую оператор ещё ведёт, аналитику не отправляется."""
+        self.make_batch("batch_open", payload={
+            "batch_id": "batch_open", "status": "OPEN",
+        })
+        self.make_batch("batch_closed")
+        self.remote_root.mkdir()
+
+        delivered = scan_and_send_all_batches(
+            self.archive_root,
+            queue_dir=self.queue_dir,
+            remote_root=self.remote_root,
+        )
+
+        self.assertEqual(delivered, 1)
+        self.assertTrue(
+            (self.remote_root / "batch_closed" / TARGET_JSON_NAME).exists()
+        )
+        self.assertFalse((self.remote_root / "batch_open").exists())
+        self.assertFalse(
+            (self.queue_dir / "batch_open" / TARGET_JSON_NAME).exists()
+        )
+
     def test_scan_and_send_all_batches_without_remote(self):
         self.make_batch("batch_001")
 

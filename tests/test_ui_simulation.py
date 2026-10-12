@@ -264,16 +264,56 @@ class SimulationApiTest(unittest.TestCase):
         self.assertIsNone(self.sim.egress)
         self.assertEqual(self.sim.recent[0]["id"], 1)
 
-    def test_open_next_archive_batch(self):
-        self.sim.server.archive = None
-        self.sim._open_next_archive_batch()  # не падает
-        self.sim.archive_compressed = False
-        self.sim._open_next_archive_batch()
+    def test_start_requires_open_batch(self):
+        """Симулятор повторяет production-гейт: пуск только в партию."""
+        import tempfile
+        from inspection.batch_manager import BatchManager
 
-    def test_finalize_archive_batch_without_archive(self):
-        self.sim.server.archive = None
-        self.sim._finalize_archive_batch()
-        self.assertFalse(self.sim.archive_compressed)
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = BatchManager(root_folder=tmp)
+            self.sim.server.batch_manager = manager
+            self.sim.server.archive = manager
+
+            self.assertFalse(self.sim.start())
+            self.assertEqual(self.sim.state, "IDLE")
+            self.assertFalse(self.sim._batch_ready())
+
+            manager.open_batch(label="П-1", operator="Иванов Иван Иванович")
+            self.assertTrue(self.sim._batch_ready())
+            self.assertTrue(self.sim.start())
+            self.assertEqual(self.sim.state, "RUNNING")
+            self.sim.close()
+
+    def test_batch_change_continues_simulated_counting(self):
+        """Продолжение партии продолжает нумерацию корпусов симулятора."""
+        import tempfile
+        from inspection.batch_manager import BatchManager
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = BatchManager(
+                root_folder=tmp, batch_sender=lambda folder: True,
+            )
+            self.sim.server.batch_manager = manager
+            self.sim.server.archive = manager
+            manager.open_batch(label="П-1", operator="Иванов Иван Иванович")
+            manager.finalize(1, "GOOD", "ok", [], 1)
+            manager.finalize(2, "BAD", "no", [], 2)
+
+            self.sim.batch_changed()
+            self.assertEqual(self.sim.counts["total"], 2)
+            self.assertEqual(self.sim.counts["good"], 1)
+            self.assertEqual(self.sim.next_id, 3)
+
+            # Завершение партии обнуляет учёт: следующая партия с нуля.
+            manager.finish_batch()
+            self.sim.batch_changed()
+            self.assertEqual(self.sim.counts["total"], 0)
+            self.assertEqual(self.sim.next_id, 1)
+
+    def test_start_without_batch_manager_keeps_working(self):
+        """Модель линии без менеджера партий (юнит-тесты) пуск не блокирует."""
+        self.sim.server.batch_manager = None
+        self.assertTrue(self.sim._batch_ready())
 
 
 class DemoFramesTest(unittest.TestCase):

@@ -95,6 +95,11 @@ async function fetchStatus() {
         updateArchiveStatus(status.archive || null);
     }
 
+    // Менеджер партий: карточка «ПАРТИЯ» и подпись партии в футере.
+    if (typeof updateBatchStatus === 'function') {
+        updateBatchStatus(status.batch || null);
+    }
+
     const lineStatusPayload = status.line_status || {};
     const liveInfo = lineStatusPayload.live || {};
     const staticRoles = Array.isArray(liveInfo.static_roles) ? liveInfo.static_roles : [];

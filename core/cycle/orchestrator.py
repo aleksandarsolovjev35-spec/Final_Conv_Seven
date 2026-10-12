@@ -61,6 +61,10 @@ class ProductionCycle(
 
     JOG_ALLOWED_STATES = ("IDLE", "STOPPED", "PAUSED")
 
+    # Фаза процесса, пока оператор не открыл партию: подробный текст с
+    # требованием к оператору показывает карточка «ПАРТИЯ» в HMI.
+    NO_BATCH_LABEL = "Партия не открыта: пуск заблокирован"
+
     FRAME_ANALYSIS_GROUPS = ("INPUT", "SPIDER")
 
     def __init__(
@@ -236,6 +240,62 @@ class ProductionCycle(
             conveyor_status=conveyor_info,
         )
 
+    # Партия (учёт корпусов)
+
+    def _batch_ready(self) -> bool:
+        """Открыта ли партия, в которую пойдёт учёт корпусов.
+
+        В production архивом владеет менеджер партий и отвечает через
+        ``active``. Архив без менеджера (совместимость и тестовые дубли)
+        пуск не блокирует.
+        """
+        archive = self.archive
+        if archive is None:
+            return False
+        active = getattr(archive, "active", None)
+        return True if active is None else bool(active)
+
+    def sync_batch_accounting(self) -> bool:
+        """Продолжить учёт открытой партии вместо старта с нуля.
+
+        Вызывается при смене партии. Нумерация корпусов и статистика HMI
+        относятся к партии, а не к запуску программы: новая партия
+        начинается с нуля, продолжение берёт счётчики из манифеста, поэтому
+        новые детали не затирают уже сохранённые ``part_NNNN``. Архив без
+        менеджера партий (совместимость и тестовые дубли) учёт не меняет.
+        """
+        archive = self.archive
+        read = getattr(archive, "accounting", None)
+        if read is None:
+            return False
+        try:
+            counters = read()
+        except Exception as exc:
+            print(f"[BATCH] Учёт партии не прочитан: {exc}")
+            return False
+        if counters is None:
+            # Партии нет (ещё не открыта или уже завершена): учёт линии
+            # пуст, иначе новая партия начиналась бы с чужих счётчиков.
+            self.part_counter = 0
+            self.good_count = 0
+            self.bad_count = 0
+            self.cleanup_count = 0
+            print("[BATCH] Партия не открыта: учёт линии обнулён")
+            return True
+        self.part_counter = max(
+            int(counters.get("total") or 0),
+            int(counters.get("last_part_id") or 0),
+        )
+        self.good_count = int(counters.get("good") or 0)
+        self.bad_count = int(counters.get("bad") or 0)
+        self.cleanup_count = int(counters.get("cleanup") or 0)
+        print(
+            f"[BATCH] Учёт линии переведён в партию: корпусов "
+            f"{self.part_counter} (годно {self.good_count}, "
+            f"брак {self.bad_count}, зачистка {self.cleanup_count})"
+        )
+        return True
+
     # Public API
 
     def request_start(self):
@@ -257,6 +317,12 @@ class ProductionCycle(
             if self.jog is not None and self.jog.status.get("error"):
                 return False
             if self.state not in ("IDLE", "STOPPED"):
+                return False
+            # Учёт ведётся в партии: без открытой партии пускать линию
+            # нельзя — корпуса было бы некуда записывать.
+            if not self._batch_ready():
+                print(f"[BATCH] {self.NO_BATCH_LABEL}")
+                self._set_process("NO_BATCH", self.NO_BATCH_LABEL)
                 return False
             self._cancel_motion.clear()
             self._set_process(

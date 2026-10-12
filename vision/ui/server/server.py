@@ -154,6 +154,14 @@ class UIServer:
         # пересоздать DecisionEngine и вернуть итоговый dict.
         self.on_thresholds_reload: callable | None = None
 
+        # Менеджер партий (inspection.batch_manager.BatchManager): он же
+        # владелец архива. Пока оператор не открыл партию, писать корпуса
+        # некуда, поэтому пуск линии заблокирован (line_status.controls.start).
+        self.batch_manager = None
+        # Уведомление о смене партии: доступность ПУСК зависит от партии,
+        # поэтому владелец статуса линии пересобирает его сразу, не ожидая
+        # следующего производственного шага.
+        self.on_batch_changed = None
         self.archive = None
         self.archive_config_path = "archive_config.json"
 
@@ -663,9 +671,15 @@ class UIServer:
         return settings
 
     def archive_ready_for_start(self) -> tuple[bool, str | None]:
+        """Готовность учёта к пуску: партия открыта, папка доступна."""
         archive = self.archive
         if archive is None:
             return False, "архив не инициализирован"
+        manager = self.batch_manager
+        if manager is not None and not manager.active:
+            from inspection.batch_manager import NO_BATCH_MESSAGE
+
+            return False, NO_BATCH_MESSAGE
         try:
             archive.validate_root(archive.root_folder)
         except ValueError as exc:
@@ -693,6 +707,97 @@ class UIServer:
         settings["available"] = True
         settings["editable"] = self.archive_editable()
         return settings
+
+    # ─── Менеджер партий ───────────────────────────────────────
+
+    def batch_editable(self) -> bool:
+        """Партию открывают и завершают только на остановленной линии."""
+        if self.splash_active or self.batch_manager is None:
+            return False
+        line_state = (self.line_status or {}).get("state")
+        return line_state in ("IDLE", "STOPPED")
+
+    def batch_status_payload(self) -> dict:
+        """Состояние менеджера партий для карточки HMI."""
+        manager = self.batch_manager
+        if manager is None:
+            return {
+                "available": False,
+                "active": False,
+                "batch": None,
+                "operators": [],
+                "open": [],
+                "recent": [],
+                "suggestion": "",
+                "editable": False,
+                "can_finish": False,
+            }
+        payload = manager.status_payload()
+        payload["available"] = True
+        payload["editable"] = self.batch_editable()
+        payload["can_finish"] = bool(
+            payload.get("active")
+            and payload["editable"]
+            and int((self.line_status or {}).get("in_line") or 0) == 0
+        )
+        return payload
+
+    def open_batch(self, payload: dict) -> dict:
+        """Начать новую партию или продолжить открытую."""
+        manager = self.batch_manager
+        if manager is None:
+            raise RuntimeError("Менеджер партий ещё не инициализирован")
+        if self.splash_active:
+            raise RuntimeError("Система ещё инициализируется")
+        if not self.batch_editable():
+            raise RuntimeError(
+                "Партию можно открыть только на остановленной линии"
+            )
+        # Корпуса на линии ещё принадлежат прежней партии: сначала линия
+        # должна опустеть, иначе новый учёт начнётся с чужой нумерации.
+        if int((self.line_status or {}).get("in_line") or 0) > 0:
+            raise RuntimeError(
+                "На линии остались корпуса: партия открывается на пустой линии"
+            )
+        data = payload if isinstance(payload, dict) else {}
+        manager.open_batch(
+            label=str(data.get("label") or ""),
+            operator=str(data.get("operator") or ""),
+            batch_id=(
+                str(data["batch_id"]) if data.get("batch_id") else None
+            ),
+        )
+        self._notify_batch_changed()
+        return self.batch_status_payload()
+
+    def finish_batch(self) -> dict:
+        """Завершить партию: манифест, отправка аналитику, ZIP."""
+        manager = self.batch_manager
+        if manager is None:
+            raise RuntimeError("Менеджер партий ещё не инициализирован")
+        if not manager.active:
+            raise RuntimeError("Партия не открыта")
+        if not self.batch_editable():
+            raise RuntimeError(
+                "Партию можно завершить только на остановленной линии"
+            )
+        if int((self.line_status or {}).get("in_line") or 0) > 0:
+            raise RuntimeError(
+                "На линии остались корпуса: завершите партию после остановки"
+            )
+        manager.finish_batch()
+        self._notify_batch_changed()
+        return self.batch_status_payload()
+
+    def _notify_batch_changed(self) -> None:
+        """Пересобрать статус линии: controls.start зависит от партии."""
+        callback = self.on_batch_changed
+        if callback is None:
+            return
+        try:
+            callback()
+        except Exception as exc:
+            print(f"[BATCH] Обновление статуса линии не удалось: {exc}")
 
     def boot_step_start(self, key, message=None):
         with self.lock:

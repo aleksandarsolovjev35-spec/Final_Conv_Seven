@@ -222,7 +222,11 @@ def bind_inspection_callbacks(runtime, services) -> ThresholdCallbacks:
     """Публикует архив/пороги в UI и возвращает владельца callbacks."""
 
     monitor = runtime.monitor
-    monitor.server.archive = services.archive
+    # Менеджер партий — владелец архива: HMI открывает/завершает партию
+    # через его методы, а line_status.controls.start без открытой партии
+    # остаётся запрещающим.
+    monitor.server.batch_manager = services.batch_manager
+    monitor.server.archive = services.batch_manager
     monitor.server.archive_config_path = "archive_config.json"
     monitor.server.thresholds = dict(services.thresholds)
     monitor.server.threshold_labels = dict(
@@ -263,6 +267,15 @@ def bind_cycle_callbacks(
         cycle.diagnostic_release_selected_camera
     )
     monitor.active_camera_callback = lambda _role: cycle._refresh_monitor()
+
+    # Смена партии переводит учёт в новую партию (нумерация и статистика
+    # продолжаются с её счётчиков) и меняет доступность ПУСК: статус линии
+    # пересобирается сразу, а не на следующем шаге цикла.
+    def _on_batch_changed():
+        cycle.sync_batch_accounting()
+        cycle._refresh_monitor()
+
+    monitor.server.on_batch_changed = _on_batch_changed
 
     monitor.jog_enter_callback = cycle.enter_jog
     monitor.jog_exit_callback = cycle.exit_jog

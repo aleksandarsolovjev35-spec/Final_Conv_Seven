@@ -30,9 +30,10 @@ function archiveSettingsVisible() {
 function updateArchiveButton() {
     const button = els.archiveSettingsOpen;
     if (!button) return;
+    // Группа футера остаётся видимой всегда: в ней живёт подпись текущей
+    // партии (batch.js). На работе скрывается только кнопка настроек.
     const visible = archiveSettingsVisible();
-    const group = els.archiveSettingsGroup;
-    if (group) group.classList.toggle('is-hidden', !visible);
+    button.classList.toggle('is-hidden', !visible);
     button.disabled = !visible || !archiveSettingsEditable() || archiveSettingsBusy;
 }
 
@@ -68,7 +69,10 @@ function renderArchiveSettings(data, preserveForm = false) {
     }
 
     const stats = data.batch_stats || {};
-    setIfChanged(els.archiveBatchId, data.batch_id || '—');
+    // Номер партии показывает то, что ввёл оператор; код партии (папка
+    // архива) остаётся в карточке «ПАРТИЯ».
+    setIfChanged(els.archiveBatchId, data.batch_label || data.batch_id || '—');
+    setIfChanged(els.archiveBatchOperator, data.operator || '—');
     setIfChanged(els.archiveBatchGood, stats.good || 0);
     setIfChanged(els.archiveBatchBad, stats.bad || 0);
     setIfChanged(els.archiveBatchCleanup, stats.cleanup || 0);

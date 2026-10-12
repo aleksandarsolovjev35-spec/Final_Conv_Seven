@@ -142,6 +142,7 @@ function init() {
     setupDistributorDiagnostics();
     setupSelectedFrameAnalysis();
     setupThresholdsControls();
+    if (typeof setupBatchControls === 'function') setupBatchControls();
 
     fetchBoot();
     state.bootInterval = setInterval(fetchBoot, BOOT_INTERVAL);

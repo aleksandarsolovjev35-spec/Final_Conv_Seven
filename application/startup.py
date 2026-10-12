@@ -211,7 +211,7 @@ class SystemInitializer:
 
     def _initialize_inspection(self, vision):
         services = self.factory.create_inspection(vision)
-        self.runtime.archive = services.archive
+        self.runtime.archive = services.batch_manager
         bind_inspection_callbacks(self.runtime, services)
         return services
 
@@ -259,7 +259,7 @@ class SystemInitializer:
             cameras=cameras,
             inspector=inspection.inspector,
             monitor=self.monitor,
-            archive=inspection.archive,
+            archive=inspection.batch_manager,
             calibration=calibration,
         )
         self.runtime.cycle = cycle

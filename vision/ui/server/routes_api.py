@@ -27,6 +27,28 @@ def setup_api_routes(app, server):
             )
         return JSONResponse({"ok": True})
 
+    async def _batch_action(action, payload):
+        """Действие менеджера партий: 400 — данные, 409 — состояние линии."""
+        try:
+            if payload is None:
+                result = await asyncio.to_thread(action)
+            else:
+                result = await asyncio.to_thread(action, payload)
+        except ValueError as exc:
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=400,
+            )
+        except RuntimeError as exc:
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=409,
+            )
+        except Exception as exc:
+            print(f"[API] batch error: {exc}")
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=500,
+            )
+        return JSONResponse({"ok": True, "batch": result})
+
     @app.get("/api/cameras")
     async def get_cameras():
         with server.lock:
@@ -86,6 +108,7 @@ def setup_api_routes(app, server):
                 "active_camera": server.active_camera_role,
                 "thresholds_revision": server.thresholds_revision,
                 "archive": server.archive_status_payload(),
+                "batch": server.batch_status_payload(),
             })
 
     @app.get("/api/mode")
@@ -204,16 +227,40 @@ def setup_api_routes(app, server):
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
         return JSONResponse({"ok": True, "archive": result})
 
+    # Менеджер партий: оператор, номер партии и учёт корпусов в её составе.
+
+    @app.get("/api/batch")
+    async def api_get_batch():
+        return JSONResponse(
+            await asyncio.to_thread(server.batch_status_payload)
+        )
+
+    @app.post("/api/batch/open")
+    async def api_open_batch(payload: dict | None = None):
+        """Начать новую партию или продолжить открытую (batch_id)."""
+        body = payload or {}
+        if body.get("batch_id") is not None and not isinstance(
+            body.get("batch_id"), str
+        ):
+            raise HTTPException(400, "Некорректный идентификатор партии")
+        if not isinstance(body.get("operator", ""), str):
+            raise HTTPException(400, "Некорректное ФИО оператора")
+        if not isinstance(body.get("label", ""), str):
+            raise HTTPException(400, "Некорректный номер партии")
+        return await _batch_action(server.open_batch, body)
+
+    @app.post("/api/batch/finish")
+    async def api_finish_batch():
+        """Завершить партию: манифест CLOSED, отправка, ZIP."""
+        return await _batch_action(server.finish_batch, None)
+
     @app.post("/api/start")
     async def api_start():
         print("[API] /api/start called")
         archive_ready, archive_error = server.archive_ready_for_start()
         if not archive_ready:
             return JSONResponse(
-                {
-                    "ok": False,
-                    "error": "Архив недоступен: " + (archive_error or "проверьте папку"),
-                },
+                {"ok": False, "error": archive_error or "Учёт недоступен"},
                 status_code=409,
             )
         return await invoke("ПУСК", server.on_start)

@@ -160,6 +160,7 @@ class CycleStatusMixin:
         jog_error = snapshot["jog_error"]
         exit_requested = snapshot["exit_requested"]
         has_parts = snapshot["has_parts"]
+        batch_open = snapshot["batch_open"]
 
         idle = state_name in ("IDLE", "STOPPED")
         # Общее условие «линия стоит пустой и ничем не занята»: от него
@@ -178,7 +179,9 @@ class CycleStatusMixin:
         )
 
         controls = {
-            "start": line_ready,
+            # Пуск возможен только в открытую партию: учёт корпусов ведётся
+            # в ней, без партии писать результаты некуда.
+            "start": line_ready and batch_open,
             "stop": state_name in ("RUNNING", "PAUSED") and not operation_busy,
             "pause": (
                 state_name == "RUNNING"
@@ -265,6 +268,7 @@ class CycleStatusMixin:
             "jog_busy": bool(jog_snapshot.get("busy", False)),
             "jog_error": jog_snapshot.get("error") or self.live.error,
             "has_parts": bool(parts_snapshot),
+            "batch_open": self._batch_ready(),
         })
 
         return {
@@ -283,6 +287,7 @@ class CycleStatusMixin:
             "process": dict(self._process),
             "diagnostic_allowed": diagnostic_allowed,
             "diagnostic_busy": operation_busy,
+            "batch_open": self._batch_ready(),
             "controls": controls,
             "selected_analysis": {
                 "active": self._selected_analysis_active,
