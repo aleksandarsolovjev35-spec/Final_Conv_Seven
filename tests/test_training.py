@@ -248,6 +248,122 @@ class TrainingCollectorTest(unittest.TestCase):
 
 
 class TrainingServerTest(unittest.TestCase):
+    def test_app_serves_ui_and_static_assets_before_session(self):
+        with tempfile.TemporaryDirectory() as root:
+            collector = TrainingCollector(
+                TrainingConfig(
+                    root_folder=root,
+                    camera_roles=("CAM_A",),
+                    defect_classes=("contact",),
+                ),
+                frame_source=FakeFrameSource(),
+            )
+            client = TestClient(create_app(collector))
+
+            page = client.get("/")
+            config = client.get("/api/training/config")
+            script = client.get("/static/training.js?v=test")
+            stylesheet = client.get("/static/training.css?v=test")
+            self.assertEqual(page.status_code, 200)
+            self.assertIn("id=\"finish-polygon\"", page.text)
+            self.assertIn(">ГОТОВО<", page.text)
+            self.assertEqual(config.status_code, 200)
+            self.assertEqual(config.json()["yolo_task"], "segment")
+            self.assertEqual(script.status_code, 200)
+            self.assertIn("draftPoints", script.text)
+            self.assertEqual(stylesheet.status_code, 200)
+
+    def test_annotations_api_rejects_invalid_polygon_then_completes_frame(self):
+        with tempfile.TemporaryDirectory() as root:
+            collector = TrainingCollector(
+                TrainingConfig(
+                    root_folder=root,
+                    camera_roles=("CAM_A",),
+                    defect_classes=("contact",),
+                    validation_ratio=0.0,
+                ),
+                frame_source=FakeFrameSource(),
+            )
+            client = TestClient(create_app(collector))
+            client.post("/api/training/session", json={"dataset_name": "api"})
+            client.post("/api/training/parts", json={})
+            frame = client.post("/api/training/capture").json()["frame"]
+
+            invalid = client.post(
+                "/api/training/annotations",
+                json={
+                    "image_id": frame["image_id"],
+                    "annotations": [
+                        {"class_name": "contact", "points": [[1, 1], [2, 2]]}
+                    ],
+                },
+            )
+            self.assertEqual(invalid.status_code, 400)
+            self.assertIsNotNone(client.get("/api/training/state").json()["current_frame"])
+
+            valid = client.post(
+                "/api/training/annotations",
+                json={
+                    "image_id": frame["image_id"],
+                    "annotations": [
+                        {
+                            "class_name": "contact",
+                            "points": [[2, 2], [35, 3], [25, 25]],
+                        }
+                    ],
+                },
+            )
+            self.assertEqual(valid.status_code, 200)
+            saved = valid.json()["frame"]
+            self.assertEqual(saved["status"], "annotated")
+            self.assertEqual(client.get(saved["original_url"]).status_code, 200)
+            self.assertEqual(client.get(saved["annotated_url"]).status_code, 200)
+
+            self.assertEqual(client.post("/api/training/parts/finish").status_code, 200)
+            result = client.post("/api/training/session/finish")
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json()["yolo"]["task"], "segment")
+            labels = list(Path(root).glob("api_*/labels/*.txt"))
+            self.assertEqual(len(labels), 1)
+            self.assertEqual(len(labels[0].read_text().split()), 7)
+
+    def test_annotations_api_keeps_legacy_bbox_payload(self):
+        with tempfile.TemporaryDirectory() as root:
+            collector = TrainingCollector(
+                TrainingConfig(
+                    root_folder=root,
+                    camera_roles=("CAM_A",),
+                    defect_classes=("contact",),
+                    validation_ratio=0.0,
+                ),
+                frame_source=FakeFrameSource(),
+            )
+            client = TestClient(create_app(collector))
+            client.post("/api/training/session", json={"dataset_name": "legacy"})
+            client.post("/api/training/parts", json={})
+            frame = client.post("/api/training/capture").json()["frame"]
+            response = client.post(
+                "/api/training/annotations",
+                json={
+                    "image_id": frame["image_id"],
+                    "boxes": [
+                        {
+                            "class_name": "contact",
+                            "x": 2,
+                            "y": 3,
+                            "width": 20,
+                            "height": 15,
+                        }
+                    ],
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(client.post("/api/training/parts/finish").status_code, 200)
+            self.assertEqual(client.post("/api/training/session/finish").status_code, 200)
+            labels = list(Path(root).glob("legacy_*/labels/*.txt"))
+            self.assertEqual(len(labels), 1)
+            self.assertEqual(len(labels[0].read_text().split()), 9)
+
     def test_annotations_api_accepts_polygon_payload_and_exports_segmentation(self):
         with tempfile.TemporaryDirectory() as root:
             source = FakeFrameSource()
