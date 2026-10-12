@@ -186,6 +186,11 @@ class FrameRecord:
     original: str
     annotated: str | None = None
     label: str | None = None
+    # Удобные копии внутри папки конкретной детали. Глобальные пути выше
+    # остаются для YOLO-экспорта и не меняют нумерацию кадров.
+    detail_original: str | None = None
+    detail_annotated: str | None = None
+    detail_label: str | None = None
     status: str = "pending"
     annotations: list[BoundingBox] = field(default_factory=list)
     captured_at: str = ""
@@ -209,6 +214,9 @@ class FrameRecord:
             "original": self.original,
             "annotated": self.annotated,
             "label": self.label,
+            "detail_original": self.detail_original,
+            "detail_annotated": self.detail_annotated,
+            "detail_label": self.detail_label,
             "status": self.status,
             "has_defect": self.has_defect,
             "annotations": [item.to_dict() for item in self.annotations],
@@ -223,6 +231,7 @@ class TrainingDatasetStore:
     Каталог намеренно плоско читается и без этого Python-модуля:
 
     ``images/`` — оригиналы, ``annotated/`` — копии с прямоугольниками,
+    ``details/part_0001/`` — пары original/annotated по каждой камере,
     ``labels/`` — YOLO txt, ``manifest.jsonl`` — таблица соответствий.
     ``yolo/`` после завершения содержит готовую структуру train/val.
     """
@@ -262,11 +271,13 @@ class TrainingDatasetStore:
         self.images_folder = self.session_folder / "images"
         self.annotated_folder = self.session_folder / "annotated"
         self.labels_folder = self.session_folder / "labels"
+        self.details_folder = self.session_folder / "details"
         self.yolo_folder = self.session_folder / "yolo"
         for folder in (
             self.images_folder,
             self.annotated_folder,
             self.labels_folder,
+            self.details_folder,
         ):
             folder.mkdir(parents=True, exist_ok=True)
 
@@ -350,6 +361,12 @@ class TrainingDatasetStore:
             stem = f"frame_{image_id:06d}_{_safe_name(role)}"
             original_path = self.images_folder / f"{stem}.jpg"
             _write_jpeg(original_path, array, self.config.jpeg_quality)
+            # В папке детали лежат понятные оператору пары файлов по камерам:
+            # ROLE_original.jpg и ROLE_annotated.jpg.
+            detail_folder = self.details_folder / f"part_{int(part_id):04d}"
+            detail_folder.mkdir(parents=True, exist_ok=True)
+            detail_original_path = detail_folder / f"{_safe_name(role)}_original.jpg"
+            _write_jpeg(detail_original_path, array, self.config.jpeg_quality)
             captured_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
             record = FrameRecord(
                 image_id=image_id,
@@ -360,6 +377,10 @@ class TrainingDatasetStore:
                 width=int(width),
                 height=int(height),
                 original=_relative_path(original_path, self.session_folder),
+                detail_original=_relative_path(
+                    detail_original_path,
+                    self.session_folder,
+                ),
                 captured_at=captured_at,
             )
             self._frames[image_id] = record
@@ -412,6 +433,19 @@ class TrainingDatasetStore:
             annotated_path = self.annotated_folder / original_path.name
             _write_jpeg(annotated_path, marked, self.config.jpeg_quality)
 
+            detail_folder = self.details_folder / f"part_{record.part_id:04d}"
+            detail_annotated_path = (
+                detail_folder / f"{_safe_name(record.camera_role)}_annotated.jpg"
+            )
+            _write_jpeg(
+                detail_annotated_path,
+                marked,
+                self.config.jpeg_quality,
+            )
+            detail_label_path = (
+                detail_folder / f"{_safe_name(record.camera_role)}.txt"
+            )
+
             label_path = self.labels_folder / f"{original_path.stem}.txt"
             lines = annotation_to_yolo_lines(
                 boxes,
@@ -419,11 +453,21 @@ class TrainingDatasetStore:
                 image_height=record.height,
                 class_names=self.config.defect_classes,
             )
-            _write_text(label_path, "\n".join(lines) + ("\n" if lines else ""))
+            label_content = "\n".join(lines) + ("\n" if lines else "")
+            _write_text(label_path, label_content)
+            _write_text(detail_label_path, label_content)
 
             record.annotations = boxes
             record.annotated = _relative_path(annotated_path, self.session_folder)
             record.label = _relative_path(label_path, self.session_folder)
+            record.detail_annotated = _relative_path(
+                detail_annotated_path,
+                self.session_folder,
+            )
+            record.detail_label = _relative_path(
+                detail_label_path,
+                self.session_folder,
+            )
             record.status = "annotated"
             record.annotated_at = datetime.now(timezone.utc).isoformat(
                 timespec="milliseconds"
@@ -453,6 +497,9 @@ class TrainingDatasetStore:
             "original": record.original,
             "annotated": record.annotated,
             "label": record.label,
+            "detail_original": record.detail_original,
+            "detail_annotated": record.detail_annotated,
+            "detail_label": record.detail_label,
         }.get(kind)
         if not relative:
             raise CollectorError(f"Кадр #{image_id} ещё не имеет файла {kind}")
@@ -498,6 +545,7 @@ class TrainingDatasetStore:
                 "session_id": self.session_id,
                 "root_folder": str(self.root_folder),
                 "session_folder": str(self.session_folder),
+                "details_folder": str(self.details_folder),
                 "started_at": self.started_at,
                 "finished_at": self.finished_at,
                 "camera_roles": list(self.config.camera_roles),
@@ -584,6 +632,28 @@ class TrainingCollector:
             self.current_part_id = None
             self.current_frame_id = None
             return self.snapshot()
+
+    def add_defect_class(self, class_name: str) -> list[str]:
+        """Добавить элемент в палитру текущей сессии."""
+        with self._lock:
+            self._require_session()
+            name = str(class_name or "").strip()
+            if not name:
+                raise ValidationError("Название элемента не может быть пустым")
+            if name in self.config.defect_classes:
+                raise ValidationError(f"Элемент уже есть в палитре: {name}")
+            classes = _normalise_classes((*self.config.defect_classes, name))
+            self.config = TrainingConfig(
+                root_folder=self.config.root_folder,
+                camera_roles=self.config.camera_roles,
+                defect_classes=classes,
+                jpeg_quality=self.config.jpeg_quality,
+                validation_ratio=self.config.validation_ratio,
+            )
+            self.store.config = self.config
+            self.store._write_classes()
+            self.store._write_state()
+            return list(classes)
 
     def begin_part(self, label: str | None = None) -> dict[str, Any]:
         with self._lock:
@@ -862,6 +932,9 @@ def _copy_record(record: FrameRecord | None) -> FrameRecord | None:
         original=record.original,
         annotated=record.annotated,
         label=record.label,
+        detail_original=record.detail_original,
+        detail_annotated=record.detail_annotated,
+        detail_label=record.detail_label,
         status=record.status,
         annotations=list(record.annotations),
         captured_at=record.captured_at,

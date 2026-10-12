@@ -12,7 +12,9 @@
         finishSession: $('finish-session'), workflowMessage: $('workflow-message'), cameraTitle: $('camera-title'),
         frameId: $('frame-id'), wrap: $('canvas-wrap'), emptyState: $('empty-state'), image: $('frame-image'),
         canvas: $('annotation-canvas'), frameRole: $('frame-role'), frameSize: $('frame-size'),
-        annotationHelp: $('annotation-help'), classSelect: $('defect-class'), noDefect: $('no-defect'),
+        annotationHelp: $('annotation-help'), palette: $('element-palette'),
+        newElement: $('new-element'), addElement: $('add-element'),
+        classSelect: $('defect-class'), noDefect: $('no-defect'),
         clearBox: $('clear-box'), save: $('save-annotation'), nextCamera: $('next-camera'),
         annotationMessage: $('annotation-message'), resultText: $('result-text'), resultYaml: $('result-yaml'),
     };
@@ -20,7 +22,7 @@
     let config = null;
     let state = null;
     let currentFrame = null;
-    let selectedBox = null;
+    let annotations = [];
     let noDefectSelected = false;
     let drawing = false;
     let drawStart = null;
@@ -61,16 +63,54 @@
     }
 
     function fillClasses(names) {
+        const selected = els.classSelect.value;
         els.classSelect.replaceChildren();
         const placeholder = document.createElement('option');
         placeholder.value = '';
-        placeholder.textContent = 'Выберите дефект…';
+        placeholder.textContent = 'Выберите элемент…';
         els.classSelect.appendChild(placeholder);
         (names || []).forEach((name) => {
             const option = document.createElement('option');
             option.value = name;
             option.textContent = name;
             els.classSelect.appendChild(option);
+        });
+        if ([...(names || [])].includes(selected)) els.classSelect.value = selected;
+        renderPalette(names || []);
+    }
+
+    function renderPalette(names) {
+        if (!els.palette) return;
+        els.palette.replaceChildren();
+        (names || []).forEach((name) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'palette-item';
+            button.dataset.element = name;
+            button.textContent = name;
+            button.disabled = !currentFrame;
+            button.addEventListener('click', () => selectElement(name));
+            els.palette.appendChild(button);
+        });
+        updatePaletteSelection();
+    }
+
+    function selectElement(name) {
+        els.classSelect.value = name || '';
+        noDefectSelected = false;
+        els.noDefect.classList.remove('selected');
+        updatePaletteSelection();
+        if (annotations.length) redrawBox();
+    }
+
+    function updatePaletteSelection() {
+        if (!els.palette) return;
+        [...els.palette.querySelectorAll('.palette-item')].forEach((button) => {
+            button.classList.toggle(
+                'active',
+                button.dataset.element === els.classSelect.value,
+            );
+            button.disabled = !currentFrame;
         });
     }
 
@@ -111,12 +151,15 @@
             els.noDefect.disabled = true;
             els.clearBox.disabled = true;
             els.classSelect.disabled = true;
+            els.newElement.disabled = !state.active;
+            els.addElement.disabled = !state.active;
         }
+        updatePaletteSelection();
     }
 
     function resetFrame() {
         currentFrame = null;
-        selectedBox = null;
+        annotations = [];
         noDefectSelected = false;
         drawing = false;
         drawStart = null;
@@ -137,12 +180,15 @@
         els.clearBox.disabled = true;
         els.save.disabled = true;
         els.nextCamera.disabled = true;
+        els.newElement.disabled = !(state && state.active);
+        els.addElement.disabled = !(state && state.active);
         els.canvas.style.pointerEvents = 'none';
+        updatePaletteSelection();
     }
 
     function showFrame(frame, annotated = false) {
         currentFrame = frame;
-        selectedBox = null;
+        annotations = [];
         noDefectSelected = false;
         els.wrap.classList.remove('empty');
         els.emptyState.classList.add('hidden');
@@ -167,7 +213,10 @@
         els.clearBox.disabled = annotated;
         els.save.disabled = annotated;
         els.nextCamera.disabled = !annotated;
+        els.newElement.disabled = annotated || !(state && state.active);
+        els.addElement.disabled = annotated || !(state && state.active);
         els.canvas.getContext('2d').clearRect(0, 0, els.canvas.width, els.canvas.height);
+        updatePaletteSelection();
     }
 
     function canvasPoint(event) {
@@ -181,25 +230,39 @@
     function redrawBox(preview = null) {
         const ctx = els.canvas.getContext('2d');
         ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
-        const box = preview || selectedBox;
-        if (!box) return;
-        const x = Math.min(box.x, box.x + box.width);
-        const y = Math.min(box.y, box.y + box.height);
-        const width = Math.abs(box.width);
-        const height = Math.abs(box.height);
-        if (width < 1 || height < 1) return;
-        ctx.fillStyle = 'rgba(46, 214, 192, .12)';
-        ctx.fillRect(x, y, width, height);
-        ctx.strokeStyle = '#2ed6c0';
-        ctx.lineWidth = Math.max(2, els.canvas.width / 600);
-        ctx.strokeRect(x, y, width, height);
-        ctx.fillStyle = '#2ed6c0';
-        ctx.font = `${Math.max(14, els.canvas.width / 75)}px Segoe UI, Arial`;
-        ctx.fillText(els.classSelect.value || 'область', x + 5, Math.max(18, y - 7));
+        const boxes = annotations.slice();
+        if (preview) boxes.push({
+            ...preview,
+            class_name: els.classSelect.value || 'элемент',
+        });
+        boxes.forEach((box, index) => {
+            const x = Math.min(box.x, box.x + box.width);
+            const y = Math.min(box.y, box.y + box.height);
+            const width = Math.abs(box.width);
+            const height = Math.abs(box.height);
+            if (width < 1 || height < 1) return;
+            const hue = (index * 67) % 360;
+            ctx.fillStyle = `hsla(${hue}, 80%, 55%, .14)`;
+            ctx.fillRect(x, y, width, height);
+            ctx.strokeStyle = `hsl(${hue}, 80%, 62%)`;
+            ctx.lineWidth = Math.max(2, els.canvas.width / 600);
+            ctx.strokeRect(x, y, width, height);
+            ctx.fillStyle = `hsl(${hue}, 80%, 70%)`;
+            ctx.font = `${Math.max(14, els.canvas.width / 75)}px Segoe UI, Arial`;
+            ctx.fillText(
+                box.class_name || 'элемент',
+                x + 5,
+                Math.max(18, y - 7),
+            );
+        });
     }
 
     els.canvas.addEventListener('pointerdown', (event) => {
         if (!currentFrame || els.save.disabled || noDefectSelected) return;
+        if (!els.classSelect.value) {
+            setMessage(els.annotationMessage, 'Сначала выберите элемент в палитре.', 'error');
+            return;
+        }
         event.preventDefault();
         els.canvas.setPointerCapture(event.pointerId);
         drawing = true;
@@ -218,13 +281,14 @@
         const point = canvasPoint(event);
         const candidate = {x: drawStart.x, y: drawStart.y, width: point.x - drawStart.x, height: point.y - drawStart.y};
         if (Math.abs(candidate.width) >= 3 && Math.abs(candidate.height) >= 3) {
-            selectedBox = candidate;
+            annotations.push({
+                ...candidate,
+                class_name: els.classSelect.value,
+            });
             noDefectSelected = false;
-            els.classSelect.disabled = false;
             els.noDefect.classList.remove('selected');
             redrawBox();
         } else {
-            selectedBox = null;
             redrawBox();
         }
     });
@@ -232,21 +296,51 @@
     els.classSelect.addEventListener('change', () => {
         noDefectSelected = false;
         els.noDefect.classList.remove('selected');
-        if (selectedBox) redrawBox();
+        updatePaletteSelection();
+        redrawBox();
     });
     els.noDefect.addEventListener('click', () => {
         noDefectSelected = true;
-        selectedBox = null;
+        annotations = [];
         els.classSelect.value = '';
         els.noDefect.classList.add('selected');
+        updatePaletteSelection();
         redrawBox();
     });
     els.clearBox.addEventListener('click', () => {
-        selectedBox = null;
+        annotations = [];
         noDefectSelected = false;
         els.classSelect.value = '';
         els.noDefect.classList.remove('selected');
+        updatePaletteSelection();
         redrawBox();
+    });
+
+    els.addElement.addEventListener('click', async () => {
+        const name = els.newElement.value.trim();
+        if (!name) {
+            setMessage(els.annotationMessage, 'Введите название элемента палитры.', 'error');
+            return;
+        }
+        els.addElement.disabled = true;
+        try {
+            const result = await api('/api/training/classes', {
+                method: 'POST',
+                body: JSON.stringify({class_name: name}),
+            });
+            fillClasses(result.defect_classes || []);
+            selectElement(name);
+            els.newElement.value = '';
+            setMessage(els.annotationMessage, `Элемент «${name}» добавлен в палитру.`, 'ok');
+        } catch (error) {
+            setMessage(els.annotationMessage, error.message, 'error');
+        } finally {
+            els.addElement.disabled = !(state && state.active);
+        }
+    });
+
+    els.newElement.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') els.addElement.click();
     });
 
     async function loadCapture() {
@@ -297,18 +391,21 @@
 
     els.save.addEventListener('click', async () => {
         if (!currentFrame) return;
-        const defectClass = els.classSelect.value;
-        if (!noDefectSelected && (!defectClass || !selectedBox)) {
-            setMessage(els.annotationMessage, 'Выберите вид дефекта и обведите его область. Если дефекта нет — нажмите «Дефекта нет».', 'error');
+        if (!noDefectSelected && !annotations.length) {
+            setMessage(els.annotationMessage, 'Выберите элемент и обведите хотя бы одну область. Если дефекта нет — нажмите «Дефекта нет».', 'error');
             return;
         }
         els.save.disabled = true;
+        const wasNoDefect = noDefectSelected;
         try {
-            const payload = {image_id: currentFrame.image_id, defect_class: noDefectSelected ? null : defectClass, boxes: noDefectSelected ? [] : [selectedBox]};
+            const payload = {
+                image_id: currentFrame.image_id,
+                boxes: wasNoDefect ? [] : annotations,
+            };
             const result = await api('/api/training/annotations', {method: 'POST', body: JSON.stringify(payload)});
             renderState(result.state);
             showFrame(result.frame, true);
-            setMessage(els.annotationMessage, noDefectSelected ? 'Кадр сохранён как отрицательный пример.' : 'Разметка сохранена: оригинал и изображение с областью записаны.', 'ok');
+            setMessage(els.annotationMessage, wasNoDefect ? 'Кадр сохранён как отрицательный пример.' : 'Разметка сохранена: оригинал и изображение с областями записаны.', 'ok');
             setMessage(els.workflowMessage, result.state.next_role ? `Готово. Следующая камера: ${result.state.next_role}.` : 'Все камеры детали готовы. Завершите деталь.', 'ok');
         } catch (error) {
             els.save.disabled = false;

@@ -93,6 +93,27 @@ def create_app(
             return _error_response(exc, 409)
         return JSONResponse(_state_with_urls(item))
 
+    @app.post("/api/training/classes")
+    async def add_class(payload: dict[str, Any] | None = None):
+        payload = payload or {}
+        item = current_collector()
+        try:
+            classes = await asyncio.to_thread(
+                item.add_defect_class,
+                _optional_text(payload.get("class_name")),
+            )
+        except ValidationError as exc:
+            return _error_response(exc, 400)
+        except CollectorError as exc:
+            return _error_response(exc, 409)
+        return JSONResponse(
+            {
+                "ok": True,
+                "defect_classes": classes,
+                "state": _state_with_urls(item),
+            }
+        )
+
     @app.post("/api/training/parts")
     async def start_part(payload: dict[str, Any] | None = None):
         payload = payload or {}
@@ -224,8 +245,13 @@ def create_app(
 
     @app.get("/api/training/images/{image_id}/{kind}")
     async def get_image(image_id: int, kind: str):
-        if kind not in ("original", "annotated"):
-            raise HTTPException(400, "kind должен быть original или annotated")
+        if kind not in (
+            "original",
+            "annotated",
+            "detail_original",
+            "detail_annotated",
+        ):
+            raise HTTPException(400, "Недопустимый тип изображения")
         item = current_collector()
         try:
             path = await asyncio.to_thread(item.image_path, image_id, kind)

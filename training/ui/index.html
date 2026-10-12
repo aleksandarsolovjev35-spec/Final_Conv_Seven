@@ -101,16 +101,28 @@
                     <span id="frame-size">— × —</span>
                     <span id="annotation-help">Потяните мышью по дефекту, чтобы обвести область</span>
                 </div>
+                <div class="palette-panel">
+                    <div class="palette-heading">
+                        <span class="field-label">ПАЛИТРА ЭЛЕМЕНТОВ</span>
+                        <span class="palette-hint">Выберите элемент и обведите одну или несколько областей</span>
+                    </div>
+                    <div id="element-palette" class="element-palette"></div>
+                    <div class="palette-add-row">
+                        <input id="new-element" type="text" maxlength="50"
+                               placeholder="например, contact или omission" disabled>
+                        <button id="add-element" class="button neutral" disabled>ДОБАВИТЬ ЭЛЕМЕНТ</button>
+                    </div>
+                </div>
                 <div class="annotation-controls">
                     <label class="field defect-field">
-                        <span>Вид дефекта</span>
+                        <span>Выбранный элемент</span>
                         <select id="defect-class" disabled></select>
                     </label>
                     <button id="no-defect" class="button neutral" disabled>ДЕФЕКТА НЕТ</button>
-                    <button id="clear-box" class="button neutral" disabled>ОЧИСТИТЬ ОБЛАСТЬ</button>
+                    <button id="clear-box" class="button neutral" disabled>ОЧИСТИТЬ ОБЛАСТИ</button>
                 </div>
                 <div class="actions capture-actions">
-                    <button id="save-annotation" class="button primary" disabled>СОХРАНИТЬ РАЗМЕТКУ</button>
+                    <button id="save-annotation" class="button primary" disabled>ГОТОВО</button>
                     <button id="next-camera" class="button secondary" disabled>СЛЕДУЮЩАЯ КАМЕРА</button>
                 </div>
                 <div id="annotation-message" class="inline-message"></div>

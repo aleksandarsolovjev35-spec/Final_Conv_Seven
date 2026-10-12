@@ -67,6 +67,16 @@ class TrainingCollectorTest(unittest.TestCase):
             self.assertEqual(len(originals), 2)
             self.assertEqual(len(marked), 2)
             self.assertEqual(len(labels), 2)
+            detail = session / "details" / "part_0001"
+            self.assertEqual(
+                sorted(path.name for path in detail.glob("*.jpg")),
+                [
+                    "CAM_A_annotated.jpg",
+                    "CAM_A_original.jpg",
+                    "CAM_B_annotated.jpg",
+                    "CAM_B_original.jpg",
+                ],
+            )
             self.assertEqual(
                 (session / "labels/frame_000001_CAM_A.txt").read_text().split(),
                 ["0", "0.208333", "0.406250", "0.250000", "0.312500"],
@@ -95,6 +105,37 @@ class TrainingCollectorTest(unittest.TestCase):
             collector.skip_current()
             with self.assertRaises(CollectorError):
                 collector.finish_part()
+
+    def test_one_frame_can_contain_multiple_palette_elements(self):
+        with tempfile.TemporaryDirectory() as root:
+            collector, _ = self.make_collector(root)
+            collector.start_session("palette")
+            collector.begin_part()
+            collector.capture_next()
+            record = collector.annotate_current(
+                boxes=[
+                    {
+                        "class_name": "scratch",
+                        "x": 10,
+                        "y": 10,
+                        "width": 20,
+                        "height": 20,
+                    },
+                    {
+                        "class_name": "glass",
+                        "x": 60,
+                        "y": 30,
+                        "width": 20,
+                        "height": 20,
+                    },
+                ]
+            )
+            self.assertEqual(
+                [item.class_name for item in record.annotations],
+                ["scratch", "glass"],
+            )
+            label = Path(collector.store.session_folder / record.label).read_text()
+            self.assertEqual(len(label.strip().splitlines()), 2)
 
     def test_no_defect_keeps_empty_yolo_label(self):
         with tempfile.TemporaryDirectory() as root:

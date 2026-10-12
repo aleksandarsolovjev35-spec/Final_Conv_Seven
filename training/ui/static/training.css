@@ -105,7 +105,15 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
 .frame-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; min-height: 39px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .07em; }
 .frame-meta span:first-child { color: var(--accent-2); }
 #annotation-help { margin-left: auto; font-weight: 500; letter-spacing: 0; }
-.annotation-controls { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 10px; align-items: end; border-top: 1px solid var(--line); padding-top: 15px; }
+.palette-panel { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 15px; }
+.palette-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.palette-hint { color: var(--muted); font-size: 11px; }
+.element-palette { display: flex; flex-wrap: wrap; gap: 8px; min-height: 36px; }
+.palette-item { border: 1px solid #3a5260; border-radius: 8px; background: #14232c; color: #d7e4e8; padding: 8px 11px; font-size: 11px; font-weight: 800; cursor: pointer; }
+.palette-item:hover { border-color: var(--accent-2); }
+.palette-item.active { border-color: var(--accent); background: rgba(46, 214, 192, .16); color: var(--accent); }
+.palette-add-row { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 8px; }
+.annotation-controls { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 10px; align-items: end; padding-top: 5px; }
 .capture-actions { margin-top: 15px; }
 .capture-actions .primary { min-width: 205px; }
 
