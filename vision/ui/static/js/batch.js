@@ -407,11 +407,24 @@ function selectedBatchRow() {
     ) || null;
 }
 
+// Открытая партия как цель ПУСКА и как запасной набор полей.
+function activeBatchTarget() {
+    const active = batchData.batch || {};
+    return {
+        kind: 'active',
+        label: String(active.label || active.batch_id || ''),
+        path: String(active.folder || ''),
+    };
+}
+
 // Цель ПУСКА — то, что описывают поля карточки:
 //   selected — выбранная незавершённая партия: её ПУСК и продолжит;
 //   manual   — номер и путь, которые ввёл оператор (путь — по шаблону);
-//   active   — открытая партия: поля её повторяют;
 //   template — ничего не выбрано и не введено: новая партия по шаблону.
+//
+// Открытой партии среди целей нет: пока её не выбрали в списке, поля
+// показывают следующий номер по шаблону, и ПУСК начнёт новую партию —
+// прежняя останется открытой. Продолжают открытую партию выбором строки.
 function batchStartTarget() {
     const selected = selectedBatchRow();
     if (selected) {
@@ -431,15 +444,16 @@ function batchStartTarget() {
         const path = batchPathDirty && batchPathValue()
             ? batchPathValue()
             : batchDefaultFolder(label);
-        return {kind: typed || batchPathDirty ? 'manual' : 'template', label, path};
-    }
-    if (batchActive()) {
-        const active = batchData.batch || {};
         return {
-            kind: 'active',
-            label: String(active.label || active.batch_id || ''),
-            path: String(active.folder || ''),
+            kind: typed || batchPathDirty ? 'manual' : 'template',
+            label,
+            path,
         };
+    }
+    if (!template && batchActive()) {
+        // Шаблона нет (менеджер партий ещё не дал номер): показываем
+        // открытую партию, чтобы поля не оставались пустыми.
+        return activeBatchTarget();
     }
     return {
         kind: 'template',
@@ -537,7 +551,9 @@ function batchStartPayload() {
     return payload;
 }
 
-// Подсказка под полями: что именно сделает ПУСК.
+// Подсказка под полями: что именно сделает ПУСК. Пока партия открыта,
+// подсказка всегда называет её: поля показывают цель ПУСКА, а не текущий
+// учёт, и расхождение должно быть видно оператору.
 function updateBatchOpenHint() {
     if (!els.batchStatus) return;
     if (!batchManagerAvailable() || !operatorAssigned()) return;
@@ -553,8 +569,10 @@ function updateBatchOpenHint() {
             return;
         }
         if (!intent) {
-            // Выбранная партия и открытая совпали — предупреждать не о чем.
-            setBatchStatus('');
+            setBatchStatus(
+                `Выбрана партия ${target.label}: она уже открыта — ПУСК `
+                + 'продолжит учёт в ней',
+            );
             return;
         }
         setBatchStatus(
@@ -570,9 +588,17 @@ function updateBatchOpenHint() {
             : `ПУСК начнёт партию ${target.label} в папке ${target.path}`);
         return;
     }
+    if (active) {
+        setBatchStatus(
+            `Учёт идёт в партию ${activeBatchTarget().label}: ПУСК начнёт `
+            + `партию ${target.label} в папке ${target.path}, а эта `
+            + 'останется открытой. Продолжить её — выбрать в списке',
+            'warn',
+        );
+        return;
+    }
     setBatchStatus(
-        `ПУСК начнёт партию ${target.label} в папке ${target.path}: `
-        + 'прежняя партия останется открытой',
+        `ПУСК начнёт партию ${target.label} в папке ${target.path}`,
         'warn',
     );
 }
@@ -622,8 +648,9 @@ function updateBatchHint() {
     if (!els.batchActiveHint) return;
     let hint = 'Учёт корпусов ведётся в этой партии';
     if (batchActive() && batchData.can_finish === true) {
-        hint = 'Партия закрывается кнопкой «ЗАВЕРШИТЬ ПАРТИЮ» '
-            + 'на остановленной линии; другую партию можно выбрать списком';
+        hint = 'Продолжить эту партию — выбрать её в списке и нажать ПУСК; '
+            + 'закрывается она кнопкой «ЗАВЕРШИТЬ ПАРТИЮ» на остановленной '
+            + 'линии';
     } else if (batchActive() && batchData.can_finish !== true) {
         if (state.lineState !== 'IDLE' && state.lineState !== 'STOPPED') {
             hint = 'Завершение — после полной остановки линии';
