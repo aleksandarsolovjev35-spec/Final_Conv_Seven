@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -111,6 +112,94 @@ class TrainingCollectorTest(unittest.TestCase):
             self.assertIn("task: segment", (session / "yolo/dataset.yaml").read_text())
             self.assertEqual(result["yolo"]["train_count"], 2)
             self.assertEqual(result["yolo"]["validation_count"], 0)
+
+    def test_capture_and_annotation_persist_all_files_and_metadata(self):
+        with tempfile.TemporaryDirectory() as root:
+            collector, _ = self.make_collector(root)
+            collector.start_session("persistence")
+            collector.begin_part(label="operator-check")
+
+            pending = collector.capture_next()
+            session = Path(collector.store.session_folder)
+            original_path = session / pending.original
+            detail_folder = session / "details" / "part_0001"
+            self.assertTrue(original_path.exists())
+            self.assertTrue(
+                (detail_folder / "CAM_A_original.jpg").exists()
+            )
+            self.assertIsNone(pending.annotated)
+            self.assertIsNone(pending.label)
+            original_bytes = original_path.read_bytes()
+            manifest_pending = [
+                json.loads(line)
+                for line in (session / "manifest.jsonl").read_text().splitlines()
+            ]
+            self.assertEqual(manifest_pending[0]["status"], "pending")
+
+            saved = collector.annotate_current(
+                annotations=[
+                    {
+                        "class_name": "scratch",
+                        "points": [[10, 10], [45, 12], [35, 35]],
+                    },
+                    {
+                        "class_name": "glass",
+                        "points": [[60, 30], [90, 30], [85, 55]],
+                    },
+                ]
+            )
+            self.assertEqual(original_path.read_bytes(), original_bytes)
+            for relative in (
+                saved.annotated,
+                saved.label,
+                saved.detail_annotated,
+                saved.detail_label,
+            ):
+                self.assertIsNotNone(relative)
+                self.assertTrue((session / relative).exists())
+            self.assertEqual(saved.status, "annotated")
+            self.assertEqual(
+                [item.class_name for item in saved.annotations],
+                ["scratch", "glass"],
+            )
+            self.assertTrue(
+                (detail_folder / "CAM_A_annotated.jpg").stat().st_size > 0
+            )
+            self.assertTrue(
+                (detail_folder / "CAM_A.txt").read_text().strip()
+            )
+
+            second = collector.capture_next()
+            collector.skip_current()
+            collector.finish_part()
+            result = collector.finish_session()
+            self.assertTrue(result["finished_at"])
+
+            manifest = [
+                json.loads(line)
+                for line in (session / "manifest.jsonl").read_text().splitlines()
+            ]
+            self.assertEqual([row["status"] for row in manifest], ["annotated", "annotated"])
+            self.assertEqual(
+                [item["class"] for item in manifest[0]["annotations"]],
+                ["scratch", "glass"],
+            )
+            self.assertEqual(manifest[1]["image_id"], second.image_id)
+            self.assertEqual(
+                json.loads((session / "session.json").read_text())["finished_at"],
+                result["finished_at"],
+            )
+            classes = json.loads((session / "classes.json").read_text())
+            self.assertEqual(classes["yolo_task"], "segment")
+            self.assertEqual(classes["classes"], ["scratch", "glass"])
+            self.assertEqual(
+                json.loads((session / "session.json").read_text())["parts"][0]["status"],
+                "finished",
+            )
+            self.assertEqual(len(list((session / "yolo/images/train").glob("*.jpg"))), 2)
+            self.assertEqual(len(list((session / "yolo/labels/train").glob("*.txt"))), 2)
+            self.assertTrue((session / "yolo/dataset.yaml").exists())
+            self.assertTrue((session / "yolo/split.json").exists())
 
     def test_legacy_bbox_is_exported_as_four_point_polygon(self):
         with tempfile.TemporaryDirectory() as root:
