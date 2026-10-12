@@ -25,8 +25,10 @@ let batchPathDirty = false;
 // Выбранная незавершённая партия: нажатие на строку списка подставляет её
 // номер и путь, а ПУСК открывает, продолжает или переключает её.
 let selectedBatchId = null;
-// Партия, номер и путь которой сейчас показаны в полях карточки.
+// Партия, номер и путь которой сейчас показаны в полях карточки, и подпись
+// показанного набора: по ней поля перерисовываются только при изменениях.
 let batchFieldsBatchId = null;
+let batchFieldsSignature = null;
 // Выбор вкладки оператором и фактически показанное лицо зоны. По умолчанию
 // открыта «ПАРТИЯ» — вход в программу ведёт к работе с партией; «ПОРОГИ» —
 // только по явному нажатию. Опрос статуса выбор не перетирает.
@@ -267,15 +269,18 @@ function renderBatchOpenList(open) {
 // ПУСК уходит с batch_id — так продолжается именно выбранная партия.
 function selectBatch(item) {
     if (!item || item.available === false) return;
+    // Повторное нажатие снимает выбор: поля возвращаются к шаблону.
+    if (selectedBatchId === item.batch_id) {
+        clearBatchSelection();
+        syncBatchFields();
+        updateBatchPanelControls();
+        return;
+    }
     selectedBatchId = item.batch_id;
-    batchLabelTouched = true;
+    batchLabelTouched = false;
     batchPathDirty = false;
-    if (els.batchLabelInput) {
-        els.batchLabelInput.value = item.label || item.batch_id;
-    }
-    if (els.batchPathInput) {
-        els.batchPathInput.value = item.folder || '';
-    }
+    batchFieldsSignature = null;
+    syncBatchFields();
     setBatchStatus('');
     renderBatchOpenList(batchData && batchData.open);
     updateBatchPanelControls();
@@ -285,6 +290,7 @@ function selectBatch(item) {
 function clearBatchSelection() {
     if (!selectedBatchId) return;
     selectedBatchId = null;
+    batchFieldsSignature = null;
     if (batchData) renderBatchOpenList(batchData.open);
 }
 
@@ -382,95 +388,140 @@ function batchDefaultFolder(label) {
     return `${root}/${date}/${name}`;
 }
 
-// Путь подставляется сам, пока оператор его не правил: у открытой партии
-// это её папка, у выбранной — папка из реестра, иначе путь по умолчанию от
-// корня хранения. Так номер и путь не расходятся: сменив номер, оператор
-// получает папку нового номера, а не папку прежней партии.
-function syncBatchPath() {
-    if (batchPathDirty || !els.batchPathInput) return;
-    const label = batchLabelValue();
-    if (batchActive()) {
-        const active = batchData.batch;
-        if (label === String(active.label || active.batch_id || '')) {
-            els.batchPathInput.value = active.folder
-                || batchDefaultFolder(label);
-            return;
-        }
-    }
-    if (selectedBatchId) {
-        const item = (batchData.open || []).find(
-            row => row.batch_id === selectedBatchId,
-        );
-        if (item) {
-            els.batchPathInput.value = item.folder || '';
-            return;
-        }
-    }
-    const folder = batchDefaultFolder(label);
-    if (folder) els.batchPathInput.value = folder;
+// ─── Что описывают поля карточки ─────────────────────────────
+
+// Номер партии по шаблону: дата и порядковый номер за день. Его предлагает
+// менеджер партий, поэтому после открытой или закрытой партии шаблон сам
+// переезжает на следующий номер.
+function batchTemplateLabel() {
+    return String((batchData && batchData.suggestion) || '');
 }
 
-// Поля карточки показывают открытую партию: её номер и путь попадают туда,
-// как только партия открылась или учёт переключился. Дальше оператор правит
-// их сам — так выбирают другую партию, не закрывая текущую.
-function syncBatchFieldsToActive() {
+// Выбранная строка списка незавершённых партий: её номер и путь берутся из
+// реестра, а не из шаблона.
+function selectedBatchRow() {
+    if (!selectedBatchId) return null;
+    const rows = (batchData && batchData.open) || [];
+    return rows.find(
+        row => row.batch_id === selectedBatchId && row.available !== false,
+    ) || null;
+}
+
+// Цель ПУСКА — то, что описывают поля карточки:
+//   selected — выбранная незавершённая партия: её ПУСК и продолжит;
+//   manual   — номер и путь, которые ввёл оператор (путь — по шаблону);
+//   active   — открытая партия: поля её повторяют;
+//   template — ничего не выбрано и не введено: новая партия по шаблону.
+function batchStartTarget() {
+    const selected = selectedBatchRow();
+    if (selected) {
+        return {
+            kind: 'selected',
+            label: String(selected.label || selected.batch_id || ''),
+            path: String(selected.folder || ''),
+            batch_id: selected.batch_id,
+        };
+    }
+    const template = batchTemplateLabel();
+    if (batchLabelTouched || batchPathDirty) {
+        // Номер сменился — путь ведётся по шаблону для этого номера, пока
+        // оператор не правил путь сам. Пустое поле — снова шаблон.
+        const typed = batchLabelValue();
+        const label = typed || template;
+        const path = batchPathDirty && batchPathValue()
+            ? batchPathValue()
+            : batchDefaultFolder(label);
+        return {kind: typed || batchPathDirty ? 'manual' : 'template', label, path};
+    }
+    if (batchActive()) {
+        const active = batchData.batch || {};
+        return {
+            kind: 'active',
+            label: String(active.label || active.batch_id || ''),
+            path: String(active.folder || ''),
+        };
+    }
+    return {
+        kind: 'template',
+        label: template,
+        path: batchDefaultFolder(template),
+    };
+}
+
+// Партия открылась или учёт переключился: дальше поля ведёт карточка, а не
+// ввод оператора, а выбранной считается сама открытая партия.
+function adoptActiveBatch() {
     const id = activeBatchId();
     if (id === batchFieldsBatchId) return;
     batchFieldsBatchId = id;
-    if (!id) return;
-    const active = batchData.batch || {};
-    batchLabelTouched = true;
+    batchLabelTouched = false;
     batchPathDirty = false;
-    selectedBatchId = null;
-    if (els.batchLabelInput) {
-        els.batchLabelInput.value = active.label || active.batch_id || '';
-    }
-    if (els.batchPathInput) {
-        els.batchPathInput.value = active.folder
-            || batchDefaultFolder(active.label || '');
-    }
+    batchFieldsSignature = null;
+    if (id) selectedBatchId = null;
 }
 
-// Что именно сделает ПУСК с учётом: открытие, продолжение или переключение
-// на другую партию. Пусто — ПУСК просто продолжает открытую партию.
+// Выбранная партия исчезла из списка (её закрыли): выбор снимается, и поля
+// снова показывают шаблон.
+function dropStaleBatchSelection() {
+    if (!selectedBatchId || selectedBatchRow()) return;
+    selectedBatchId = null;
+    batchFieldsSignature = null;
+}
+
+// Поля всегда показывают цель ПУСКА: выбранную партию, набор оператора,
+// открытую партию или шаблон. Пока оператор вводит свой номер, его текст не
+// переписывается — подстраивается только путь по шаблону.
+function syncBatchFields() {
+    if (!els.batchLabelInput || !els.batchPathInput) return;
+    const template = batchTemplateLabel();
+    if (els.batchLabelInput.placeholder !== template) {
+        els.batchLabelInput.placeholder = template;
+    }
+    const target = batchStartTarget();
+    const signature = [target.kind, target.label, target.path].join('~');
+    const changed = signature !== batchFieldsSignature;
+    batchFieldsSignature = signature;
+    if (batchLabelTouched) {
+        // Номер вводит оператор: его текст не переписываем, а путь
+        // подстраиваем под номер, пока оператор не правил путь сам.
+        if (!batchPathDirty && target.path) {
+            els.batchPathInput.value = target.path;
+        }
+        return;
+    }
+    if (!changed) return;
+    els.batchLabelInput.value = target.label;
+    els.batchPathInput.value = target.path;
+}
+
+// Что именно сделает ПУСК: открытие, продолжение или переключение на другую
+// партию. Пусто — ПУСК просто продолжает открытую партию.
 function batchSwitchIntent() {
     if (!batchActive()) return null;
     const active = batchData.batch || {};
     const activeId = String(active.batch_id || '');
     const activeLabel = String(active.label || active.batch_id || '');
     const activeFolder = String(active.folder || '');
-    const label = batchLabelValue();
-    const path = batchPathValue();
-    if (selectedBatchId && selectedBatchId !== activeId) {
-        const item = (batchData.open || []).find(
-            row => row.batch_id === selectedBatchId,
-        );
-        return {
-            kind: 'batch',
-            label: (item && (item.label || item.batch_id))
-                || label || selectedBatchId,
-            path: (item && item.folder) || path,
-        };
+    const target = batchStartTarget();
+    if (target.kind === 'selected') {
+        if (target.batch_id === activeId) return null;
+        return {kind: 'selected', label: target.label};
     }
-    if (!label || label === activeLabel) {
-        if (label && path && path !== activeFolder) {
-            return {kind: 'folder', label, path};
+    if (target.kind === 'manual' || target.kind === 'template') {
+        if (target.label === activeLabel && target.path === activeFolder) {
+            return null;
         }
-        return null;
+        return {kind: 'new', label: target.label, path: target.path};
     }
-    return {kind: 'label', label, path};
+    return null;
 }
 
 // Причина, по которой ПУСК сейчас не может открыть или переключить партию.
-// Пусто — можно пускать (партия открыта или номер введён/выбран).
+// Номер партии не спрашивается: пустое поле — это шаблон, а не ошибка.
 function batchStartBlockedReason() {
     if (!batchManagerAvailable()) return '';
     if (!operatorAssigned()) return 'Сначала войдите в программу';
-    const intent = batchSwitchIntent();
-    if (!batchActive() && !selectedBatchId && !batchLabelValue()) {
-        return 'Укажите номер партии: ПУСК начнёт учёт';
-    }
-    if ((!batchActive() || intent) && !batchEditableNow()) {
+    if ((!batchActive() || batchSwitchIntent()) && !batchEditableNow()) {
         return 'Партия открывается на остановленной линии';
     }
     return '';
@@ -480,59 +531,49 @@ function batchStartBlockedReason() {
 // backend открывает партию, продолжает её или переключает учёт.
 function batchStartPayload() {
     if (!batchManagerAvailable()) return null;
-    const payload = {label: batchLabelValue(), path: batchPathValue()};
-    if (selectedBatchId) payload.batch_id = selectedBatchId;
+    const target = batchStartTarget();
+    const payload = {label: target.label, path: target.path};
+    if (target.batch_id) payload.batch_id = target.batch_id;
     return payload;
 }
 
 // Подсказка под полями: что именно сделает ПУСК.
 function updateBatchOpenHint() {
     if (!els.batchStatus) return;
-    if (!batchManagerAvailable()) return;
-    if (!operatorAssigned()) return;
+    if (!batchManagerAvailable() || !operatorAssigned()) return;
+    const target = batchStartTarget();
     const intent = batchSwitchIntent();
-    if (intent) {
-        const tail = 'прежняя партия останется открытой';
-        if (intent.kind === 'folder') {
+    const active = batchActive();
+    if (target.kind === 'selected') {
+        if (!active) {
             setBatchStatus(
-                `ПУСК начнёт партию ${intent.label} в папке ${intent.path}`,
+                `Выбрана партия ${target.label}: ПУСК продолжит её`,
                 'warn',
             );
-        } else if (intent.kind === 'batch') {
-            setBatchStatus(
-                `Выбрана партия ${intent.label}: ПУСК переключит учёт на неё, `
-                + tail,
-                'warn',
-            );
-        } else {
-            setBatchStatus(
-                `ПУСК переключит учёт на партию ${intent.label}: ${tail}`,
-                'warn',
-            );
+            return;
         }
-        return;
-    }
-    if (batchActive()) {
-        setBatchStatus('');
-        return;
-    }
-    const label = batchLabelValue();
-    const path = batchPathValue();
-    if (selectedBatchId) {
+        if (!intent) {
+            // Выбранная партия и открытая совпали — предупреждать не о чем.
+            setBatchStatus('');
+            return;
+        }
         setBatchStatus(
-            `Выбрана партия ${label || selectedBatchId}: ПУСК продолжит её`,
+            `Выбрана партия ${target.label}: ПУСК переключит учёт на неё, `
+            + 'прежняя партия останется открытой',
             'warn',
         );
         return;
     }
-    if (!label) {
-        setBatchStatus('Укажите номер партии: ПУСК начнёт учёт в новой партии');
+    if (!intent) {
+        setBatchStatus(active
+            ? ''
+            : `ПУСК начнёт партию ${target.label} в папке ${target.path}`);
         return;
     }
     setBatchStatus(
-        path
-            ? `ПУСК начнёт партию ${label} в папке ${path}`
-            : `ПУСК начнёт партию ${label} в папке по умолчанию`,
+        `ПУСК начнёт партию ${target.label} в папке ${target.path}: `
+        + 'прежняя партия останется открытой',
+        'warn',
     );
 }
 
@@ -607,12 +648,9 @@ function renderBatchFooter() {
 
 function renderBatchPanel() {
     if (!els.batchPanel) return;
-    if (els.batchLabelInput && !batchLabelTouched) {
-        els.batchLabelInput.value = String(batchData.suggestion || '');
-        batchLabelTouched = !!els.batchLabelInput.value;
-    }
-    syncBatchFieldsToActive();
-    syncBatchPath();
+    adoptActiveBatch();
+    dropStaleBatchSelection();
+    syncBatchFields();
     renderBatchOpenList(batchData.open);
     if (batchActive()) renderBatchInfo(batchData.batch);
     updateBatchPanelControls();
@@ -636,6 +674,7 @@ function batchDataSignature(data) {
         data.can_finish,
         batch.batch_id,
         batch.label,
+        data.suggestion,
         (batch.counts || {}).total,
         (batch.counts || {}).good,
         (batch.counts || {}).bad,
@@ -728,6 +767,7 @@ async function finishBatch() {
         batchLabelTouched = false;
         batchPathDirty = false;
         batchFieldsBatchId = null;
+        batchFieldsSignature = null;
         applyBatchPayload(result.batch);
         setBatchStatus('Партия завершена и отправлена в архив');
         return result.batch;
@@ -747,11 +787,12 @@ function setupBatchControls() {
     if (els.batchLabelInput) {
         els.batchLabelInput.addEventListener('input', () => {
             batchLabelTouched = true;
-            // Номер сменился — путь снова ведётся автоматически: у другой
-            // партии своя папка, прежняя здесь была бы ошибкой.
+            // Номер сменился — путь снова ведётся по шаблону для этого
+            // номера: папка прежней партии здесь была бы ошибкой.
             batchPathDirty = false;
+            batchFieldsSignature = null;
             clearBatchSelection();
-            syncBatchPath();
+            syncBatchFields();
             updateBatchPanelControls();
         });
         els.batchLabelInput.addEventListener('keydown', event => {
@@ -761,6 +802,7 @@ function setupBatchControls() {
     if (els.batchPathInput) {
         els.batchPathInput.addEventListener('input', () => {
             batchPathDirty = true;
+            batchFieldsSignature = null;
             clearBatchSelection();
             updateBatchPanelControls();
         });
@@ -785,4 +827,5 @@ if (typeof window !== 'undefined') {
     window.setupBatchControls = setupBatchControls;
     window.setDeckFace = setDeckFace;
     window.batchSwitchIntent = batchSwitchIntent;
+    window.batchStartTarget = batchStartTarget;
 }
