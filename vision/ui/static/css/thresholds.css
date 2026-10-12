@@ -5,11 +5,11 @@
     display: flex;
     flex-direction: column;
     gap: 5px;
-    /* Гибкая высота: заполняет место сервисной зоны правой колонки.
-       Ручное управление лентой всегда опущено ниже. */
+    /* Гибкая высота: заполняет место сервисной зоны правой колонки —
+       ровно до ручного управления, которое идёт сразу под ней. */
     flex: 1 1 auto;
     min-height: 180px;
-    max-height: 560px;
+    max-height: none;
     height: auto;
     overflow: hidden;
     background: var(--panel);
