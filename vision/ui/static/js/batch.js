@@ -1,11 +1,12 @@
 // batch.js — менеджер партий: номер партии и учёт корпусов.
 //
 // Сначала оператор входит в программу по ФИО и паролю (operator.js), и
-// только после этого доступна вкладка «ПАРТИЯ» — она открыта по умолчанию:
-// карточка держит номер партии и пуск учёта, а ФИО оператора показано
-// плашкой над вкладками и в карточке не повторяется. Пока партия не открыта,
-// пуск линии заблокирован (controls.start приходит с backend). Второе лицо
-// сервисной зоны — пороги (по нажатию вкладки).
+// только после этого доступна вкладка «ПАРТИЯ» — она открыта по умолчанию.
+// Карточка держит номер и путь партии, а открывает партию сама кнопка ПУСК:
+// номер и путь уходят вместе с запросом пуска. Незавершённые партии в списке
+// выбираются нажатием — ПУСК продолжает выбранную. ФИО оператора показано
+// плашкой над вкладками и в карточке не повторяется. Второе лицо сервисной
+// зоны — пороги (по нажатию вкладки).
 'use strict';
 
 const BATCH_FINISH_CONFIRM_MS = 5000;
@@ -17,6 +18,11 @@ let batchBusy = false;
 let batchFinishArmed = false;
 let batchFinishTimer = null;
 let batchLabelTouched = false;
+let batchPathTouched = false;
+// Выбранная незавершённая партия: нажатие на строку списка подставляет её
+// номер и путь, а ПУСК продолжает именно её.
+let selectedBatchId = null;
+let batchExitResolve = null;
 // Выбор вкладки оператором и фактически показанное лицо зоны. По умолчанию
 // открыта «ПАРТИЯ» — вход в программу ведёт к работе с партией; «ПОРОГИ» —
 // только по явному нажатию. Опрос статуса выбор не перетирает.
@@ -49,12 +55,6 @@ function batchStatusText() {
     return operator
         ? `ПАРТИЯ ${batch.label || batch.batch_id} · ${operator}`
         : `ПАРТИЯ ${batch.label || batch.batch_id}`;
-}
-
-// Пуск линии доступен только в открытую партию: backend присылает
-// controls.start = false, здесь добавляем только пояснение к кнопке.
-function batchBlocksStart() {
-    return batchManagerAvailable() && !batchActive();
 }
 
 // Оператор для партии берётся из сессии входа: карточка его только
@@ -219,21 +219,59 @@ function renderBatchOpenList(open) {
         text.appendChild(title);
         text.appendChild(meta);
 
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'btn btn-sm batch-open-continue';
-        button.textContent = 'ПРОДОЛЖИТЬ';
-        button.disabled = true;
-        button.addEventListener('click', () => continueBatch(item));
-        if (item.available === false) {
-            button.textContent = 'НЕТ ПАПКИ';
-            button.disabled = true;
-            button.title = 'Папка партии не найдена в архиве';
+        // Строка списка — сам выбор: нажатие подставляет номер и путь
+        // партии в поля карточки, а ПУСК продолжает её.
+        const missing = item.available === false;
+        const mark = document.createElement('span');
+        mark.className = 'batch-open-mark';
+        mark.textContent = missing
+            ? 'НЕТ ПАПКИ'
+            : (item.batch_id === selectedBatchId ? '●' : '○');
+        if (missing) {
+            row.classList.add('is-missing');
+            row.title = 'Папка партии не найдена: продолжить нечем';
+        } else {
+            row.classList.toggle('is-selected', item.batch_id === selectedBatchId);
+            row.tabIndex = 0;
+            row.setAttribute('role', 'button');
+            row.title = 'Нажмите, чтобы выбрать партию, затем ПУСК';
+            row.addEventListener('click', () => selectBatch(item));
+            row.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    selectBatch(item);
+                }
+            });
         }
         row.appendChild(text);
-        row.appendChild(button);
+        row.appendChild(mark);
         container.appendChild(row);
     });
+}
+
+// Выбор незавершённой партии: номер и путь берутся из реестра партий, а
+// ПУСК уходит с batch_id — так продолжается именно выбранная партия.
+function selectBatch(item) {
+    if (!item || item.available === false) return;
+    selectedBatchId = item.batch_id;
+    batchLabelTouched = true;
+    batchPathTouched = true;
+    if (els.batchLabelInput) {
+        els.batchLabelInput.value = item.label || item.batch_id;
+    }
+    if (els.batchPathInput) {
+        els.batchPathInput.value = item.folder || '';
+    }
+    setBatchStatus('');
+    renderBatchOpenList(batchData && batchData.open);
+    updateBatchPanelControls();
+}
+
+// Правка номера или пути означает новую партию: выбор снимается.
+function clearBatchSelection() {
+    if (!selectedBatchId) return;
+    selectedBatchId = null;
+    if (batchData) renderBatchOpenList(batchData.open);
 }
 
 function renderBatchInfo(batch) {
@@ -246,6 +284,7 @@ function renderBatchInfo(batch) {
     const rows = [
         ['НОМЕР ПАРТИИ', batch.label || batch.batch_id],
         ['КОД ПАРТИИ', batch.batch_id || '—'],
+        ['ПАПКА', batch.folder || 'по умолчанию'],
         ['НАЧАЛАСЬ', String(batch.started_at || '—').replace('T', ' ')],
     ];
     rows.forEach(([label, value]) => {
@@ -287,18 +326,104 @@ function renderBatchInfo(batch) {
     info.appendChild(grid);
 }
 
-// Строки карточки: номер партии и пуск учёта. Цветная полоса слева ведёт
+// Строки карточки: номер партии и путь партии. Цветная полоса слева ведёт
 // оператора к следующему действию (оператор смены — плашкой над вкладками).
 function updateBatchSteps() {
-    const label = els.batchLabelInput
-        ? String(els.batchLabelInput.value || '').trim() : '';
-    const labelDone = label.length > 0;
+    const label = batchLabelValue();
+    const path = String(els.batchPathInput && els.batchPathInput.value || '').trim();
     if (els.batchStepLabel) {
-        els.batchStepLabel.dataset.state = labelDone ? 'done' : 'active';
+        els.batchStepLabel.dataset.state = label ? 'done' : 'active';
     }
-    if (els.batchStepStart) {
-        els.batchStepStart.dataset.state = labelDone ? 'active' : 'todo';
+    if (els.batchStepPath) {
+        els.batchStepPath.dataset.state = label ? (path ? 'done' : 'active') : 'todo';
     }
+}
+
+function batchLabelValue() {
+    return els.batchLabelInput
+        ? String(els.batchLabelInput.value || '').trim() : '';
+}
+
+function batchPathValue() {
+    return els.batchPathInput
+        ? String(els.batchPathInput.value || '').trim() : '';
+}
+
+// Копия серверного safe_component: путь по умолчанию в поле совпадает с
+// папкой, которую менеджер партий создал бы сам.
+function batchSafeComponent(text) {
+    return String(text || '').trim()
+        .replace(/[^0-9A-Za-zА-Яа-яЁё._-]+/g, '_')
+        .replace(/_{2,}/g, '_')
+        .replace(/^[._]+/, '')
+        .replace(/[._]+$/, '')
+        .slice(0, 36);
+}
+
+function batchDefaultFolder(label) {
+    const root = String((batchData && batchData.root_path) || '').replace(/[\\/]+$/, '');
+    const date = String((batchData && batchData.date) || '');
+    const name = batchSafeComponent(label) || 'partiya';
+    if (!root || !date) return String((batchData && batchData.default_folder) || '');
+    return `${root}/${date}/${name}`;
+}
+
+// Путь подставляется сам, пока оператор его не правил: он всегда видит, в
+// какую папку попадёт партия, и может заменить её на свою.
+function syncBatchDefaultPath() {
+    if (batchPathTouched || !els.batchPathInput) return;
+    const folder = batchDefaultFolder(batchLabelValue());
+    if (folder) els.batchPathInput.value = folder;
+}
+
+// Причина, по которой ПУСК сейчас не может открыть партию. Пусто — можно
+// пускать (партия уже открыта или номер введён/выбран).
+function batchStartBlockedReason() {
+    if (!batchManagerAvailable() || batchActive()) return '';
+    if (!operatorAssigned()) return 'Сначала войдите в программу';
+    if (selectedBatchId) return '';
+    if (!batchLabelValue()) return 'Укажите номер партии: ПУСК начнёт учёт';
+    if (!batchEditableNow()) {
+        return 'Партия открывается на остановленной линии';
+    }
+    return '';
+}
+
+// Часть запроса ПУСКА, которая открывает партию: номер, путь и выбранная
+// незавершённая партия. Пусто — партия уже открыта или менеджер недоступен.
+function batchStartPayload() {
+    if (!batchManagerAvailable() || batchActive()) return null;
+    const payload = {label: batchLabelValue(), path: batchPathValue()};
+    if (selectedBatchId) payload.batch_id = selectedBatchId;
+    return payload;
+}
+
+// Подсказка под полями: что именно сделает ПУСК.
+function updateBatchOpenHint() {
+    if (!els.batchStatus) return;
+    if (!batchManagerAvailable() || batchActive()) {
+        if (batchActive()) setBatchStatus('');
+        return;
+    }
+    if (!operatorAssigned()) return;
+    const label = batchLabelValue();
+    const path = batchPathValue();
+    if (selectedBatchId) {
+        setBatchStatus(
+            `Выбрана партия ${label || selectedBatchId}: ПУСК продолжит её`,
+            'warn',
+        );
+        return;
+    }
+    if (!label) {
+        setBatchStatus('Укажите номер партии: ПУСК начнёт учёт в новой партии');
+        return;
+    }
+    setBatchStatus(
+        path
+            ? `ПУСК начнёт партию ${label} в папке ${path}`
+            : `ПУСК начнёт партию ${label} в папке по умолчанию`,
+    );
 }
 
 function updateBatchPanelControls() {
@@ -318,9 +443,6 @@ function updateBatchPanelControls() {
     if (els.batchActiveFace) {
         els.batchActiveFace.classList.toggle('is-hidden', !active);
     }
-    if (els.batchStart) {
-        els.batchStart.disabled = !editable || active || !batchFormFilled();
-    }
     updateBatchSteps();
     if (els.batchFinish) {
         const canFinish = editable
@@ -333,25 +455,25 @@ function updateBatchPanelControls() {
             : 'ЗАВЕРШИТЬ ПАРТИЮ';
     }
     if (els.batchOpenList) {
-        els.batchOpenList.querySelectorAll('.batch-open-continue')
-            .forEach(button => {
-                if (button.textContent === 'НЕТ ПАПКИ') return;
-                button.disabled = !editable || batchBusy;
-            });
+        els.batchOpenList.querySelectorAll('.batch-open-row').forEach(row => {
+            const missing = row.classList.contains('is-missing');
+            row.classList.toggle(
+                'is-locked', missing || !editable || batchBusy,
+            );
+        });
     }
     if (els.batchLabelInput) els.batchLabelInput.disabled = !editable || active;
-    if (els.btnStart && !active && !state.offline) {
-        els.btnStart.title = batchBlocksStart()
-            ? 'Сначала начните партию в карточке «ПАРТИЯ»'
-            : '';
-    }
+    if (els.batchPathInput) els.batchPathInput.disabled = !editable || active;
+    updateBatchOpenHint();
     updateBatchHint();
 }
 
 function updateBatchHint() {
     if (!els.batchActiveHint) return;
     let hint = 'Учёт корпусов ведётся в этой партии';
-    if (batchActive() && batchData.can_finish !== true) {
+    if (batchActive() && batchData.can_finish === true) {
+        hint = 'Партия закрывается кнопкой «ЗАКРЫТЬ ПАРТИЮ» на остановленной линии';
+    } else if (batchActive() && batchData.can_finish !== true) {
         if (state.lineState !== 'IDLE' && state.lineState !== 'STOPPED') {
             hint = 'Завершение — после полной остановки линии';
         } else {
@@ -359,12 +481,6 @@ function updateBatchHint() {
         }
     }
     setIfChanged(els.batchActiveHint, hint);
-}
-
-function batchFormFilled() {
-    const label = els.batchLabelInput
-        ? String(els.batchLabelInput.value || '').trim() : '';
-    return batchOperatorValue().length >= 3 && label.length > 0;
 }
 
 function renderBatchFooter() {
@@ -385,6 +501,7 @@ function renderBatchPanel() {
         els.batchLabelInput.value = String(batchData.suggestion || '');
         batchLabelTouched = !!els.batchLabelInput.value;
     }
+    syncBatchDefaultPath();
     if (batchActive()) {
         renderBatchInfo(batchData.batch);
         setBatchStatus('');
@@ -403,7 +520,7 @@ function batchDataSignature(data) {
     }
     const batch = data.batch || {};
     const open = (data.open || []).map(item => [
-        item.batch_id, item.status, item.available,
+        item.batch_id, item.status, item.available, item.folder,
         (item.counts || {}).total,
     ].join(':'));
     return [
@@ -456,61 +573,14 @@ async function fetchBatch() {
 
 // ─── Действия оператора ──────────────────────────────────────
 
-async function submitBatchOpen(payload, message) {
-    batchBusy = true;
-    updateBatchPanelControls();
-    setBatchStatus(message);
-    try {
-        const result = await apiPostJson('/api/batch/open', payload, true);
-        if (!result || result.ok !== true || !result.batch) {
-            setBatchStatus('Не удалось открыть партию', 'error');
-            return null;
-        }
-        setBatchStatus('');
-        applyBatchPayload(result.batch);
-        return result.batch;
-    } finally {
-        batchBusy = false;
-        updateBatchPanelControls();
-        updateServiceDeck();
+// Ошибка запроса ПУСКА: backend объясняет, чего не хватает (номер партии,
+// партия не открыта, линия занята) — текст показывается в карточке.
+function showBatchRequestError(result) {
+    const error = (result && result.error) || 'Не удалось открыть партию';
+    setBatchStatus(error, 'error');
+    if (els.batchLabelInput && /номер партии/i.test(error)) {
+        els.batchLabelInput.focus();
     }
-}
-
-async function startBatch() {
-    if (batchBusy) return null;
-    if (batchActive()) return null;
-    if (!operatorAssigned()) {
-        setBatchStatus('Сначала войдите в программу', 'error');
-        return null;
-    }
-    if (!batchFormFilled()) {
-        setBatchStatus('Укажите номер партии', 'error');
-        if (els.batchLabelInput) els.batchLabelInput.focus();
-        return null;
-    }
-    if (!batchEditableNow()) {
-        setBatchStatus('Партия открывается на остановленной линии', 'warn');
-        return null;
-    }
-    return submitBatchOpen({
-        label: String(els.batchLabelInput.value || '').trim(),
-    }, 'Открытие партии…');
-}
-
-async function continueBatch(item) {
-    if (batchBusy) return null;
-    if (!operatorAssigned()) {
-        setBatchStatus('Сначала войдите в программу', 'error');
-        return null;
-    }
-    if (!batchEditableNow()) {
-        setBatchStatus('Продолжить партию можно на остановленной линии', 'warn');
-        return null;
-    }
-    return submitBatchOpen({
-        label: item.label || item.batch_id,
-        batch_id: item.batch_id,
-    }, 'Продолжение партии…');
 }
 
 function disarmBatchFinish() {
@@ -522,15 +592,16 @@ function disarmBatchFinish() {
     updateBatchPanelControls();
 }
 
-async function finishBatch() {
+async function finishBatch(force = false) {
     if (batchBusy || !batchActive()) return null;
     if (!batchEditableNow() || batchData.can_finish !== true) {
         setBatchActiveStatus('Завершение доступно после полной остановки', 'warn');
         return null;
     }
     // Завершение партии необратимо (манифест CLOSED, отправка, ZIP),
-    // поэтому второе нажатие подтверждает действие.
-    if (!batchFinishArmed) {
+    // поэтому второе нажатие подтверждает действие. Из диалога выхода
+    // (force) подтверждением служит сама кнопка «ЗАКРЫТЬ ПАРТИЮ И ВЫЙТИ».
+    if (!force && !batchFinishArmed) {
         batchFinishArmed = true;
         setBatchActiveStatus('Нажмите «ПОДТВЕРДИТЬ ЗАВЕРШЕНИЕ»', 'warn');
         updateBatchPanelControls();
@@ -559,24 +630,98 @@ async function finishBatch() {
     }
 }
 
+// ─── Выход с открытой партией ────────────────────────────────
+
+// Партия переживает выход из программы, но её можно закрыть сразу: вопрос
+// задаётся только тогда, когда партия открыта и её действительно можно
+// завершить (остановленная линия и пустая лента).
+function batchExitNeeded() {
+    return !!(
+        batchActive()
+        && batchManagerAvailable()
+        && batchData.can_finish === true
+    );
+}
+
+function batchExitQuestion() {
+    const batch = (batchData && batchData.batch) || {};
+    const label = batch.label || batch.batch_id || '';
+    const counts = batch.counts || {};
+    return `Партия ${label}: учтено корпусов ${counts.total || 0}. `
+        + 'Закрыть её перед выходом из программы?';
+}
+
+function askBatchExit() {
+    return new Promise(resolve => {
+        if (!els.batchExitModal) {
+            resolve('keep');
+            return;
+        }
+        batchExitResolve = resolve;
+        setIfChanged(els.batchExitText, batchExitQuestion());
+        els.batchExitModal.classList.remove('is-hidden');
+        if (els.batchExitClose) els.batchExitClose.focus();
+    });
+}
+
+function answerBatchExit(answer) {
+    if (els.batchExitModal) els.batchExitModal.classList.add('is-hidden');
+    const resolve = batchExitResolve;
+    batchExitResolve = null;
+    if (resolve) resolve(answer);
+}
+
+function batchExitDialogVisible() {
+    return !!(
+        els.batchExitModal
+        && !els.batchExitModal.classList.contains('is-hidden')
+    );
+}
+
+// Хук для кнопки ВЫХОД: true — выходить, false — остаться в программе.
+async function requestExitWithBatch() {
+    if (!batchExitNeeded()) return true;
+    const answer = await askBatchExit();
+    if (answer === 'cancel') return false;
+    if (answer === 'close') {
+        const closed = await finishBatch(true);
+        if (!closed) return false;
+    }
+    return true;
+}
+
 // ─── Инициализация ───────────────────────────────────────────
 
 function setupBatchControls() {
-    if (els.batchStart) {
-        els.batchStart.addEventListener('click', () => { startBatch(); });
-    }
     if (els.batchFinish) {
         els.batchFinish.addEventListener('click', () => { finishBatch(); });
     }
     if (els.batchLabelInput) {
         els.batchLabelInput.addEventListener('input', () => {
             batchLabelTouched = true;
+            clearBatchSelection();
+            syncBatchDefaultPath();
             updateBatchPanelControls();
         });
         els.batchLabelInput.addEventListener('keydown', event => {
-            if (event.key === 'Enter') startBatch();
+            if (event.key === 'Enter') requestImmediateStatus();
         });
     }
+    if (els.batchPathInput) {
+        els.batchPathInput.addEventListener('input', () => {
+            batchPathTouched = true;
+            clearBatchSelection();
+            updateBatchPanelControls();
+        });
+    }
+    [
+        [els.batchExitClose, 'close'],
+        [els.batchExitKeep, 'keep'],
+        [els.batchExitCancel, 'cancel'],
+    ].forEach(([button, answer]) => {
+        if (!button) return;
+        button.addEventListener('click', () => answerBatchExit(answer));
+    });
     [els.deckTabBatch, els.deckTabThresholds].forEach(tab => {
         if (!tab) return;
         tab.addEventListener('click', () => {
@@ -596,4 +741,7 @@ if (typeof window !== 'undefined') {
     window.updateBatchStatus = updateBatchStatus;
     window.setupBatchControls = setupBatchControls;
     window.setDeckFace = setDeckFace;
+    window.requestExitWithBatch = requestExitWithBatch;
+    window.batchExitDialogVisible = batchExitDialogVisible;
+    window.answerBatchExit = answerBatchExit;
 }

@@ -30,7 +30,7 @@
    Семантический цвет задаётся модификаторами:
      .btn-ok / .btn-warn / .btn-bad / .btn-accent  (+ синонимы .btn-start,
      .btn-pause, .btn-resume, .btn-stop, .btn-exit, .btn-archive-save,
-     .btn-thresholds-save, .btn-archive-settings — сохранены для JS/разметки).
+     .btn-thresholds-save — сохранены для JS/разметки).
 
    Размер и контекст — модификаторами:
      .btn-sm      компактная;
@@ -141,13 +141,6 @@
 }
 
 .btn-accent,
-.btn-archive-settings {
-    --btn-color:  var(--accent);
-    --btn-border: var(--accent);
-    --btn-invert: var(--accent);
-    --btn-focus:  var(--accent);
-}
-
 /* ─── Размеры и контекст ────────────────────────────────────────── */
 
 .btn-sm {
@@ -188,8 +181,8 @@
 /* ─── Сервисная группа футера ──────────────────────────────────
    Настройки хранения партий — сервисное действие: вынесены из ряда
    кнопок ПУСК/СТОП/ВЫХОД в правый край футера и отделены вертикальным
-   разделителем. Кнопка активна только когда линия остановлена (см.
-   archiveSettingsEditable). */
+   разделителем. Здесь же показана текущая партия (footer-batch, batch.js):
+   папку партии задаёт карточка «ПАРТИЯ», отдельного окна архива нет. */
 .footer-archive {
     flex: 0 0 auto;
     display: flex;

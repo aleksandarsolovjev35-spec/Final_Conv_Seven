@@ -79,6 +79,7 @@ const state = {
     uiRevealed:          false,
 
     jogActive:           false,
+    lastApiError:        '', 
     jogBusy:             false,
     jogTogglePending:    false,
     jogHoldDirection:    null,
@@ -156,22 +157,6 @@ const els = {
 
     jogPanel:         $('jog-panel'),
 
-    archiveSettingsOpen: $('archive-settings-open'),
-    archiveSettingsGroup: $('archive-settings-group'),
-    archiveSettingsModal: $('archive-settings-modal'),
-    archiveSettingsBackdrop: document.querySelector('.archive-settings-backdrop'),
-    archiveSettingsClose: $('archive-settings-close'),
-    archiveSettingsCancel: $('archive-settings-cancel'),
-    archivePickFolder: $('archive-pick-folder'),
-    archiveSettingsSave: $('archive-settings-save'),
-    archiveRootPath: $('archive-root-path'),
-    archiveSettingsValidation: $('archive-settings-validation'),
-    archiveSettingsStatus: $('archive-settings-status'),
-    archiveBatchId: $('archive-batch-id'),
-    archiveBatchOperator: $('archive-batch-operator'),
-    archiveBatchGood: $('archive-batch-good'),
-    archiveBatchBad: $('archive-batch-bad'),
-    archiveBatchCleanup: $('archive-batch-cleanup'),
 
     btnStart:         $('btn-start'),
     btnPause:         $('btn-pause'),
@@ -202,10 +187,15 @@ const els = {
     batchOpenFace:        $('batch-open-face'),
     batchActiveFace:      $('batch-active-face'),
     batchStepLabel:       $('batch-step-label'),
-    batchStepStart:       $('batch-step-start'),
+    batchStepPath:        $('batch-step-path'),
     batchLabelInput:      $('batch-label-input'),
+    batchPathInput:       $('batch-path-input'),
     batchStatus:          $('batch-status'),
-    batchStart:           $('batch-start'),
+    batchExitModal:       $('batch-exit-modal'),
+    batchExitText:        $('batch-exit-text'),
+    batchExitClose:       $('batch-exit-close'),
+    batchExitKeep:        $('batch-exit-keep'),
+    batchExitCancel:      $('batch-exit-cancel'),
     batchOpenList:        $('batch-open-list'),
     batchActiveInfo:      $('batch-active-info'),
     batchActiveStatus:    $('batch-active-status'),
@@ -324,10 +314,14 @@ async function api(path, options = {}, controlFeedback = false) {
             const message = payload && payload.error ? payload.error : `${res.status}`;
             throw new Error(message);
         }
+        state.lastApiError = '';
         return payload;
     } catch (err) {
         console.warn(`[API] ${path}:`, err.message);
-        if (controlFeedback) showControlError(err.message || `Ошибка запроса ${path}`);
+        // Последняя ошибка запроса: её показывает карточка партии, когда
+        // ПУСК отклонён (номер партии, партия не открыта и т. п.).
+        state.lastApiError = err.message || `Ошибка запроса ${path}`;
+        if (controlFeedback) showControlError(state.lastApiError);
         return null;
     }
 }

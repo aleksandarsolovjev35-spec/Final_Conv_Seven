@@ -121,6 +121,7 @@ class PartArchive:
         date_folder: str | None = None,
         operator: str = "",
         label: str = "",
+        batch_folder: str | None = None,
     ):
         self.root_folder = normalise_root(root_folder)
 
@@ -128,6 +129,15 @@ class PartArchive:
             batch_id = datetime.now().strftime("batch_%Y%m%d_%H%M%S")
         self.batch_id = self._safe_name(batch_id)
         self.date_folder = safe_date_folder(date_folder)
+        # Путь партии задаёт оператор (поле «ПУТЬ ПАРТИИ» в карточке): папка
+        # партии может лежать вне корня архива. Пусто — папка собирается как
+        # <корень>/<дата>/<код партии>.
+        self._batch_folder = (
+            os.path.abspath(os.path.expandvars(os.path.expanduser(
+                str(batch_folder).strip()
+            )))
+            if str(batch_folder or "").strip() else None
+        )
         # Оператор и номер партии — обязательная часть учёта: они попадают
         # и в манифест партии, и в meta.json каждой детали.
         self.operator = self.normalise_operator(operator)
@@ -154,6 +164,8 @@ class PartArchive:
 
     @property
     def batch_folder(self) -> str:
+        if self._batch_folder:
+            return self._batch_folder
         return os.path.join(self.root_folder, self.date_folder, self.batch_id)
 
     @property
@@ -208,6 +220,7 @@ class PartArchive:
         date_folder: str,
         operator: str = "",
         label: str = "",
+        batch_folder: str | None = None,
     ) -> "PartArchive":
         """Восстановить открытую партию для продолжения учёта.
 
@@ -221,6 +234,7 @@ class PartArchive:
             date_folder=date_folder,
             operator=operator,
             label=label,
+            batch_folder=batch_folder,
         )
         archive._restore_manifest()
         return archive

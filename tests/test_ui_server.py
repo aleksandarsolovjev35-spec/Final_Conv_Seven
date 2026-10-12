@@ -826,13 +826,42 @@ class BatchUiServerTest(OperatorSessionMixin, unittest.TestCase):
 
     # ---------- гейт пуска ----------
 
-    def test_start_requires_open_batch(self):
-        ok, message = self.server.archive_ready_for_start()
-        self.assertFalse(ok)
-        self.assertEqual(message, NO_BATCH_MESSAGE)
+    def test_start_without_label_409(self):
+        """Пуск без номера партии: открывать нечего."""
         response = self.client.post("/api/start")
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.json()["error"], NO_BATCH_MESSAGE)
+        self.assertFalse(self.manager.active)
+
+    def test_start_opens_batch_from_card(self):
+        """Партию открывает ПУСК по номеру и пути из карточки."""
+        self.server.on_start = mock.Mock(return_value=True)
+        folder = os.path.join(self.tmp.name, "orders", "П-7")
+        response = self.client.post(
+            "/api/start", json={"label": "П-7", "path": folder},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.server.on_start.assert_called_once()
+        self.assertTrue(self.manager.active)
+        self.assertEqual(self.manager.batch_folder, os.path.abspath(folder))
+        info = self.manager.batch_info()
+        self.assertEqual(info["label"], "П-7")
+        self.assertEqual(info["operator"], OPERATOR)
+
+    def test_start_continues_selected_batch(self):
+        """Выбранная незавершённая партия продолжается тем же ПУСКОМ."""
+        self.server.on_start = mock.Mock(return_value=True)
+        self.open_batch(label="П-1")
+        batch_id = self.manager.batch_id
+        # Перезапуск программы: партия осталась открытой на диске.
+        self.manager.prepare_shutdown()
+        self.manager._current = None
+
+        response = self.client.post(
+            "/api/start", json={"batch_id": batch_id},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.manager.batch_id, batch_id)
 
     def test_start_allowed_with_open_batch(self):
         self.server.on_start = mock.Mock(return_value=True)
@@ -1021,12 +1050,21 @@ class OperatorUiServerTest(OperatorSessionMixin, unittest.TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.json()["error"], NO_OPERATOR_MESSAGE)
 
-    def test_start_needs_operator_then_batch(self):
+    def test_start_needs_operator_then_label(self):
+        """Сначала оператор, затем номер партии: пуск открывает партию."""
         self.assertEqual(self.login().status_code, 200)
-        ok, message = self.server.archive_ready_for_start()
-        self.assertFalse(ok)
-        self.assertEqual(message, NO_BATCH_MESSAGE)
-        self.client.post("/api/batch/open", json={"label": "П-1"})
+        self.server.on_start = mock.Mock(return_value=True)
+        # Номер не указан: пуск отклонён, партия не открыта.
+        response = self.client.post("/api/start")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error"], NO_BATCH_MESSAGE)
+        # Номер указан: пуск открывает партию и запускает линию.
+        response = self.client.post("/api/start", json={"label": "П-2"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(self.server.batch_manager.active)
+        self.assertEqual(
+            self.server.batch_manager.batch_info()["label"], "П-2",
+        )
         ok, message = self.server.archive_ready_for_start()
         self.assertTrue(ok)
         self.assertIsNone(message)

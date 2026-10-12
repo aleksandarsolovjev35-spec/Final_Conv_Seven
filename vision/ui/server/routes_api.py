@@ -292,6 +292,8 @@ def setup_api_routes(app, server):
             raise HTTPException(400, "Некорректный идентификатор партии")
         if not isinstance(body.get("label", ""), str):
             raise HTTPException(400, "Некорректный номер партии")
+        if not isinstance(body.get("path", ""), str):
+            raise HTTPException(400, "Некорректный путь партии")
         return await _batch_action(server.open_batch, body)
 
     @app.post("/api/batch/finish")
@@ -300,8 +302,20 @@ def setup_api_routes(app, server):
         return await _batch_action(server.finish_batch, None)
 
     @app.post("/api/start")
-    async def api_start():
+    async def api_start(payload: dict | None = None):
         print("[API] /api/start called")
+        # Партию открывает ПУСК: номер, путь и выбранная незавершённая
+        # партия приходят из карточки партии.
+        try:
+            await asyncio.to_thread(server.prepare_start_batch, payload)
+        except ValueError as exc:
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=400,
+            )
+        except RuntimeError as exc:
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=409,
+            )
         archive_ready, archive_error = server.archive_ready_for_start()
         if not archive_ready:
             return JSONResponse(

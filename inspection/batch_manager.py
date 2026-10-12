@@ -56,11 +56,15 @@ REGISTRY_FILE = "batches.json"
 
 OPERATOR_MIN_LENGTH = 3
 LABEL_MAX_LENGTH = 40
+# Имя папки партии по умолчанию и код партии собираются из одного и того же
+# сжатого номера, поэтому подсказка в карточке совпадает с реальным путём.
+FOLDER_NAME_LIMIT = 36
 RECENT_LIMIT = 5
 
-# Сообщение, которое HMI показывает вместо кнопки ПУСК. Оператор берётся
-# из сессии входа, поэтому в карточке партии остаётся только её номер.
-NO_BATCH_MESSAGE = "Партия не открыта: начните партию"
+# Сообщение, которое HMI показывает, когда пуск сделан без номера партии.
+# Партию открывает сама кнопка ПУСК: оператор вводит номер (и путь) в
+# карточке партии и пускает линию. Оператор берётся из сессии входа.
+NO_BATCH_MESSAGE = "Укажите номер партии: ПУСК начнёт учёт в новой партии"
 
 
 def _empty_counts() -> dict:
@@ -143,6 +147,19 @@ class BatchManager:
         )
         return f"{datetime.now().strftime('%d.%m.%Y')}-{used + 1}"
 
+    def today_folder(self) -> str:
+        """Каталог даты партий (``YYYY-MM-DD`` в корне хранения)."""
+        return datetime.now().strftime("%Y-%m-%d")
+
+    def default_folder(self, label: str = "") -> str:
+        """Путь партии по умолчанию: ``<корень>/<дата>/<номер>``.
+
+        По этому пути собирается папка новой партии, если оператор не задал
+        свой путь в поле «ПУТЬ ПАРТИИ».
+        """
+        value = safe_component(label, limit=FOLDER_NAME_LIMIT) or "partiya"
+        return os.path.join(self.root_folder, self.today_folder(), value)
+
     def batch_info(self) -> dict | None:
         """Карточка открытой партии для HMI."""
         current = self._current
@@ -164,11 +181,14 @@ class BatchManager:
     def status_payload(self) -> dict:
         """Полное состояние менеджера партий: его читает карточка HMI."""
         with self._lock:
+            suggestion = self.suggest_label()
             return {
                 "root_path": self.root_folder,
+                "date": self.today_folder(),
+                "default_folder": self.default_folder(suggestion),
                 "active": self.active,
                 "batch": self.batch_info(),
-                "suggestion": self.suggest_label(),
+                "suggestion": suggestion,
                 "open": self._summaries(STATUS_OPEN),
                 "recent": self._summaries(STATUS_CLOSED)[-RECENT_LIMIT:],
             }
@@ -181,12 +201,15 @@ class BatchManager:
         label: str = "",
         operator: str = "",
         batch_id: str | None = None,
+        folder: str = "",
     ) -> dict:
         """Начать новую партию или продолжить открытую.
 
-        ``batch_id`` задан — продолжение существующей партии (её номер и
-        счётчики берутся из манифеста), иначе создаётся новая партия с
-        введённым номером.
+        ``batch_id`` задан — продолжение существующей партии (её номер,
+        путь и счётчики берутся из реестра и манифеста), иначе создаётся
+        новая партия с введённым номером. ``folder`` — «ПУТЬ ПАРТИИ» из
+        карточки: папка, в которую пишется партия; пусто — путь по
+        умолчанию от корня хранения.
         """
         operator = PartArchive.normalise_operator(operator)
         self._validate_operator(operator)
@@ -202,14 +225,21 @@ class BatchManager:
                     raise ValueError("Партия не найдена в реестре архива")
                 if entry.get("status") != STATUS_OPEN:
                     raise RuntimeError("Партия уже завершена")
+                # Путь продолжения берётся из реестра: партия пишется туда,
+                # куда её открыли, даже если корень хранения изменился.
+                resume_folder = str(
+                    folder or entry.get("folder") or ""
+                ).strip()
                 archive = PartArchive.resume(
                     self.root_folder,
                     batch_id=entry["batch_id"],
                     date_folder=entry.get("date"),
                     operator=operator,
                     label=entry.get("label") or entry["batch_id"],
+                    batch_folder=resume_folder or None,
                 )
                 entry["operator"] = operator
+                entry["folder"] = archive.batch_folder
                 entry["resumed_at"] = self._now()
                 entry["updated_at"] = self._now()
                 archive.open_manifest()
@@ -217,12 +247,20 @@ class BatchManager:
                 action = f"продолжена ({archive.display_label})"
             else:
                 label = self._validate_label(label)
+                batch_id = self._unique_batch_id(label)
+                date_folder = datetime.now().strftime("%Y-%m-%d")
                 archive = PartArchive(
                     self.root_folder,
-                    batch_id=self._unique_batch_id(label),
-                    date_folder=datetime.now().strftime("%Y-%m-%d"),
+                    batch_id=batch_id,
+                    date_folder=date_folder,
                     operator=operator,
                     label=label,
+                    batch_folder=self._validated_folder(
+                        folder or os.path.join(
+                            self.root_folder, date_folder,
+                            self._folder_name(batch_id),
+                        ),
+                    ),
                 )
                 self._registry["batches"].append({
                     "batch_id": archive.batch_id,
@@ -231,6 +269,7 @@ class BatchManager:
                     "started_by": operator,
                     "status": STATUS_OPEN,
                     "date": archive.date_folder,
+                    "folder": archive.batch_folder,
                     "started_at": archive.batch_started_at,
                     "updated_at": archive.batch_started_at,
                     "closed_at": None,
@@ -420,6 +459,25 @@ class BatchManager:
         batch_id = self.batch_id
         return self._find_entry(batch_id) if batch_id else None
 
+    @staticmethod
+    def _validated_folder(folder: str) -> str:
+        """Проверить «ПУТЬ ПАРТИИ»: папка создаётся и должна быть доступна."""
+        try:
+            return validate_root(folder)["path"]
+        except ValueError as exc:
+            raise ValueError(f"Папка партии недоступна: {exc}") from exc
+
+    def _entry_folder(self, item: dict) -> str:
+        """Папка партии по записи реестра (со старым форматом без пути)."""
+        folder = str(item.get("folder") or "").strip()
+        if folder:
+            return folder
+        return os.path.join(
+            self.root_folder,
+            str(item.get("date") or ""),
+            str(item.get("batch_id") or ""),
+        )
+
     def _find_entry(self, batch_id) -> dict | None:
         for item in self._registry["batches"]:
             if item.get("batch_id") == batch_id:
@@ -432,12 +490,13 @@ class BatchManager:
             if item.get("status") != status:
                 continue
             batch_id = str(item.get("batch_id") or "")
-            folder = os.path.join(
-                self.root_folder, str(item.get("date") or ""), batch_id,
-            )
+            folder = self._entry_folder(item)
             summary = {
                 "batch_id": batch_id,
                 "label": item.get("label") or batch_id,
+                # Путь партии: его подставляет карточка при выборе
+                # незавершённой партии и по нему же продолжает учёт.
+                "folder": folder,
                 "operator": item.get("operator") or "",
                 "status": status,
                 "date": item.get("date"),
@@ -476,8 +535,13 @@ class BatchManager:
             )
         return value
 
+    def _folder_name(self, batch_id: str) -> str:
+        """Имя папки партии по её коду: ``batch_П-1`` → ``П-1``."""
+        prefix = "batch_"
+        return batch_id[len(prefix):] if batch_id.startswith(prefix) else batch_id
+
     def _unique_batch_id(self, label: str) -> str:
-        base = f"batch_{safe_component(label, limit=36) or 'partiya'}"
+        base = f"batch_{safe_component(label, limit=FOLDER_NAME_LIMIT) or 'partiya'}"
         candidate = base
         index = 2
         existing = {item.get("batch_id") for item in self._registry["batches"]}
@@ -531,6 +595,9 @@ class BatchManager:
                     else STATUS_CLOSED
                 ),
                 "date": str(item.get("date") or "").strip(),
+                # Путь партии задаёт оператор: он же берётся при
+                # продолжении, даже если корень хранения изменился.
+                "folder": str(item.get("folder") or "").strip(),
                 "started_at": str(item.get("started_at") or "").strip(),
                 "updated_at": str(item.get("updated_at") or "").strip(),
                 "closed_at": item.get("closed_at"),

@@ -11,14 +11,13 @@
     <link rel="stylesheet" href="/static/css/history-strip.css?v=48">
     <link rel="stylesheet" href="/static/css/stats.css?v=52">
     <link rel="stylesheet" href="/static/css/jog.css?v=37">
-    <link rel="stylesheet" href="/static/css/controls.css?v=40">
+    <link rel="stylesheet" href="/static/css/controls.css?v=41">
     <link rel="stylesheet" href="/static/css/gallery.css?v=35">
     <link rel="stylesheet" href="/static/css/process.css?v=58">
     <link rel="stylesheet" href="/static/css/motion.css?v=41">
     <link rel="stylesheet" href="/static/css/thresholds.css?v=26">
-    <link rel="stylesheet" href="/static/css/archive.css?v=7">
     <link rel="stylesheet" href="/static/css/panel-deck.css?v=11">
-    <link rel="stylesheet" href="/static/css/batch.css?v=7">
+    <link rel="stylesheet" href="/static/css/batch.css?v=8">
     <link rel="stylesheet" href="/static/css/operator.css?v=4">
 </head>
 <body>
@@ -250,10 +249,12 @@
                             МЕНЕДЖЕР ПАРТИЙ НЕДОСТУПЕН
                         </div>
 
-                        <!-- Нет открытой партии: номер партии и пуск учёта.
-                             Оператор смены показан плашкой над вкладками —
-                             здесь он не дублируется. Ниже — выбор
-                             незавершённой партии для продолжения. -->
+                        <!-- Нет открытой партии: номер и путь партии. Партию
+                             открывает ПУСК — номер берётся отсюда, путь
+                             задаёт папку партии (пусто — путь по умолчанию
+                             от корня хранения). Ниже — незавершённые партии:
+                             нажатие выбирает партию, и ПУСК продолжает её.
+                             Оператор смены показан плашкой над вкладками. -->
                         <div id="batch-open-face" class="batch-face batch-open-face">
                             <div class="batch-steps">
                                 <div id="batch-step-label" class="batch-step"
@@ -262,14 +263,16 @@
                                     <input id="batch-label-input" class="batch-input" type="text"
                                            maxlength="40" autocomplete="off" spellcheck="false">
                                 </div>
-                                <div id="batch-step-start" class="batch-step" data-state="todo">
-                                    <span id="batch-status" class="batch-status"></span>
-                                    <button id="batch-start" class="btn btn-sm btn-batch-start"
-                                            type="button" disabled>НАЧАТЬ ПАРТИЮ</button>
+                                <div id="batch-step-path" class="batch-step" data-state="todo">
+                                    <label class="batch-step-title" for="batch-path-input">ПУТЬ ПАРТИИ</label>
+                                    <input id="batch-path-input"
+                                           class="batch-input batch-path-input" type="text"
+                                           autocomplete="off" spellcheck="false">
                                 </div>
                             </div>
+                            <div id="batch-status" class="batch-status"></div>
                             <div class="batch-open">
-                                <div class="batch-open-title">НЕЗАВЕРШЁННЫЕ ПАРТИИ</div>
+                                <div class="batch-open-title">НЕЗАВЕРШЁННЫЕ ПАРТИИ · НАЖМИТЕ, ЧТОБЫ ВЫБРАТЬ</div>
                                 <div id="batch-open-list" class="batch-open-list"></div>
                             </div>
                         </div>
@@ -355,43 +358,26 @@
                 <button id="btn-stop"  class="btn btn-stop is-hidden" disabled>СТОП</button>
                 <button id="btn-exit"  class="btn btn-exit" disabled>ВЫХОД</button>
             </div>
-            <div class="footer-archive" id="archive-settings-group" data-ui-block="footer-archive">
-                <span class="footer-archive-label">АРХИВ ПАРТИЙ</span>
+            <div class="footer-archive" id="footer-batch-group"
+                 data-ui-block="footer-batch">
+                <span class="footer-archive-label">ПАРТИЯ</span>
                 <span id="footer-batch" class="footer-batch">ПАРТИЯ НЕ ОТКРЫТА</span>
-                <button id="archive-settings-open" class="btn btn-archive-settings" disabled>АРХИВ</button>
             </div>
         </footer>
     </div>
 
-    <!-- ARCHIVE SETTINGS MODAL -->
-    <div id="archive-settings-modal" class="archive-settings-modal is-hidden" data-ui-block="archive-settings">
-        <div class="archive-settings-backdrop"></div>
-        <section class="archive-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="archive-settings-title">
-            <div class="archive-settings-head">
-                <h2 id="archive-settings-title">АРХИВ ПАРТИЙ</h2>
-                <button id="archive-settings-close" class="btn btn-icon archive-settings-close" type="button" aria-label="Закрыть">&times;</button>
-            </div>
-            <div class="archive-settings-body">
-                <div class="archive-settings-row archive-settings-path-row">
-                    <label for="archive-root-path">ПАПКА ХРАНЕНИЯ</label>
-                    <div class="archive-settings-path-controls">
-                        <input id="archive-root-path" type="text" autocomplete="off" spellcheck="false" placeholder="D:\\InspectionArchive">
-                        <button id="archive-pick-folder" class="btn btn-sm" type="button">ВЫБРАТЬ</button>
-                    </div>
-                </div>
-                <div id="archive-settings-validation" class="archive-settings-validation"></div>
-                <div class="archive-settings-batch">
-                    <span>ТЕКУЩАЯ ПАРТИЯ: <b id="archive-batch-id">—</b></span>
-                    <span>ОПЕРАТОР <b id="archive-batch-operator">—</b></span>
-                    <span>ГОДНОЕ <b id="archive-batch-good">0</b></span>
-                    <span>БРАК <b id="archive-batch-bad">0</b></span>
-                    <span>ЗАЧИСТКА <b id="archive-batch-cleanup">0</b></span>
-                </div>
-            </div>
-            <div class="archive-settings-actions">
-                <span id="archive-settings-status" class="archive-settings-status"></span>
-                <button id="archive-settings-save" class="btn btn-sm btn-archive-save" type="button">СОХРАНИТЬ</button>
-                <button id="archive-settings-cancel" class="btn btn-sm" type="button">ОТМЕНА</button>
+    <!-- Диалог выхода: партия открыта — закрыть её или оставить? -->
+    <div id="batch-exit-modal" class="batch-exit-modal is-hidden" data-ui-block="batch-exit">
+        <div class="batch-exit-backdrop"></div>
+        <section class="batch-exit-dialog" role="dialog" aria-modal="true"
+                 aria-labelledby="batch-exit-title">
+            <h2 id="batch-exit-title" class="batch-exit-title">ПАРТИЯ ОТКРЫТА</h2>
+            <div id="batch-exit-text" class="batch-exit-text"></div>
+            <div class="batch-exit-actions">
+                <button id="batch-exit-close" class="btn btn-sm btn-batch-exit-close"
+                        type="button">ЗАКРЫТЬ ПАРТИЮ И ВЫЙТИ</button>
+                <button id="batch-exit-keep" class="btn btn-sm" type="button">ВЫЙТИ, ОСТАВИВ ОТКРЫТОЙ</button>
+                <button id="batch-exit-cancel" class="btn btn-sm" type="button">ОТМЕНА</button>
             </div>
         </section>
     </div>
@@ -423,18 +409,17 @@
         </div>
     </div>
 
-    <script src="/static/js/core.js?v=66"></script>
+    <script src="/static/js/core.js?v=67"></script>
     <script src="/static/js/boot.js?v=34"></script>
-    <script src="/static/js/status.js?v=65"></script>
-    <script src="/static/js/controls.js?v=37"></script>
+    <script src="/static/js/status.js?v=66"></script>
+    <script src="/static/js/controls.js?v=38"></script>
     <script src="/static/js/thresholds.js?v=22"></script>
     <script src="/static/js/cameras.js?v=44"></script>
     <script src="/static/js/jog.js?v=40"></script>
     <script src="/static/js/history.js?v=38"></script>
-    <script src="/static/js/archive.js?v=4"></script>
     <script src="/static/js/operator.js?v=3"></script>
-    <script src="/static/js/batch.js?v=8"></script>
+    <script src="/static/js/batch.js?v=10"></script>
     <script src="/static/js/panel-deck.js?v=4"></script>
-    <script src="/static/js/bootstrap.js?v=39"></script>
+    <script src="/static/js/bootstrap.js?v=40"></script>
 </body>
 </html>

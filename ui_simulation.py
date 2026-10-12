@@ -146,8 +146,9 @@ class LineSimulation:
 
     def start(self) -> bool:
         # Сначала оператор, затем партия: вход в программу открывает
-        # карточку партии, без партии пуск запрещён — как в production
-        # ProductionCycle.request_start().
+        # карточку партии, а партию открывает сам ПУСК по данным карточки
+        # (сервер вызывает это после prepare_start_batch) — как в
+        # production ProductionCycle.request_start().
         if not self._operator_ready():
             print("[OPERATOR] Оператор не назначен: пуск заблокирован")
             self._publish("NO_OPERATOR")
@@ -493,9 +494,11 @@ class LineSimulation:
                 # Production start is available while JOG is open: issuing
                 # start closes JOG and transfers control to the cycle.
                 "batch_open": self._batch_ready(),
+                # ПУСК открывает партию сам (номер и путь приходят из
+                # карточки): партия здесь не гейт, пуск без номера
+                # отклоняет обработчик ПУСКА.
                 "controls": {"start": (state in ("IDLE", "STOPPED")
-                                       and self._operator_ready()
-                                       and self._batch_ready()),
+                                       and self._operator_ready()),
                              "stop": state in ("RUNNING", "PAUSED"), "pause": state == "RUNNING",
                              "resume": state == "PAUSED", "exit": True,
                              "jog_hold": self.jog_active and state in JOG_ALLOWED_STATES,

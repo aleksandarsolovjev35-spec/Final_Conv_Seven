@@ -9,8 +9,9 @@ function setupHotkeys() {
         const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
         if (e.key === 'Escape') {
-            if (els.archiveSettingsModal && !els.archiveSettingsModal.classList.contains('is-hidden')) {
-                closeArchiveSettings();
+            if (typeof batchExitDialogVisible === 'function'
+                && batchExitDialogVisible()) {
+                if (typeof answerBatchExit === 'function') answerBatchExit('cancel');
                 e.preventDefault();
                 return;
             }
@@ -135,7 +136,6 @@ function init() {
     setupButtons();
     setupHotkeys();
     setupGallery();
-    if (typeof setupArchiveSettings === 'function') setupArchiveSettings();
     setupCameraHover();
     setupViewModeControls();
     setupJogControls();

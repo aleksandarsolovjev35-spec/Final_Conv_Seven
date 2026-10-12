@@ -78,10 +78,6 @@ async function fetchStatus() {
         }
     }
 
-    if (typeof updateArchiveStatus === 'function') {
-        updateArchiveStatus(status.archive || null);
-    }
-
     // Оператор смены: строка над вкладками и гейт вкладки «ПАРТИЯ».
     if (typeof updateOperatorStatus === 'function') {
         updateOperatorStatus(status.operator || null);
@@ -151,7 +147,6 @@ function markUiOffline() {
         els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(button => { button.disabled = true; });
     }
     if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
-    if (typeof updateArchiveStatus === 'function') updateArchiveStatus(null);
     updateStateOverlay({state: 'OFFLINE', in_line: 0});
 }
 

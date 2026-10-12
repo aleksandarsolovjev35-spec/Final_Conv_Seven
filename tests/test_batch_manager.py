@@ -284,7 +284,87 @@ class BatchManagerTest(unittest.TestCase):
         self.assertEqual(payload["recent"][-1]["batch_id"], batch_id)
         self.assertEqual(payload["recent"][-1]["status"], STATUS_CLOSED)
         self.assertEqual(payload["recent"][-1]["counts"]["cleanup"], 1)
-        self.assertEqual(payload["recent"][-1]["zip"], f"{batch_id}.zip")
+        # ZIP собирается по папке партии (её имя задаёт оператор путём).
+        self.assertEqual(
+            payload["recent"][-1]["zip"],
+            os.path.basename(batch_folder) + ".zip",
+        )
+
+    # ---------- путь партии ----------
+
+    def test_default_folder_is_root_date_label(self):
+        """Путь по умолчанию: <корень>/<дата>/<номер партии>."""
+        payload = self.manager.status_payload()
+        self.assertEqual(
+            payload["default_folder"],
+            os.path.join(
+                os.path.abspath(self.root),
+                payload["date"],
+                payload["suggestion"],
+            ),
+        )
+        # Подсказка совпадает с папкой, которую менеджер создаст сам.
+        self.manager.open_batch(
+            label=payload["suggestion"],
+            operator="Иванов Иван Иванович",
+        )
+        self.assertEqual(
+            self.manager.batch_folder,
+            os.path.join(
+                os.path.abspath(self.root),
+                payload["date"],
+                payload["suggestion"],
+            ),
+        )
+
+    def test_open_batch_uses_given_folder(self):
+        """Оператор задал путь — партия пишется ровно в эту папку."""
+        folder = os.path.join(self.tmp.name, "orders", "заказ-7")
+        payload = self.manager.open_batch(
+            label="заказ-7", operator="Иванов Иван Иванович", folder=folder,
+        )
+
+        self.assertEqual(self.manager.batch_folder, os.path.abspath(folder))
+        self.assertTrue(os.path.isdir(folder))
+        self.assertEqual(payload["batch"]["folder"], os.path.abspath(folder))
+        self.assertEqual(payload["open"][0]["folder"], os.path.abspath(folder))
+        self.store_part(part_id=1)
+        self.assertTrue(os.path.isdir(os.path.join(folder, "GOOD")))
+
+    def test_batch_folder_is_kept_after_restart(self):
+        """Продолжение партии идёт в её папку, а не в корень хранения.
+
+        Путь хранится в реестре партий, поэтому папка партии может лежать
+        и вне корня хранения: после перезапуска учёт вернётся в неё.
+        """
+        folder = os.path.join(self.tmp.name, "orders", "заказ-7")
+        self.manager.open_batch(
+            label="заказ-7", operator="Иванов Иван Иванович", folder=folder,
+        )
+        self.store_part(part_id=1)
+        batch_id = self.manager.batch_id
+        self.manager.prepare_shutdown()
+
+        restarted = BatchManager(
+            root_folder=self.root, batch_sender=self.sender,
+        )
+        restarted.open_batch(
+            operator="Петров Пётр Петрович", batch_id=batch_id,
+        )
+
+        self.assertEqual(restarted.batch_folder, os.path.abspath(folder))
+        self.assertEqual(restarted.accounting()["total"], 1)
+
+    def test_open_batch_rejects_broken_folder(self):
+        """Недоступный путь партии — ошибка данных, партия не открывается."""
+        broken = os.path.join(self.tmp.name, "file.txt")
+        with open(broken, "w", encoding="utf-8") as stream:
+            stream.write("not a folder")
+        with self.assertRaises(ValueError):
+            self.manager.open_batch(
+                label="П-9", operator="Иванов Иван Иванович", folder=broken,
+            )
+        self.assertFalse(self.manager.active)
 
     def test_finish_without_batch_is_rejected(self):
         with self.assertRaises(RuntimeError):

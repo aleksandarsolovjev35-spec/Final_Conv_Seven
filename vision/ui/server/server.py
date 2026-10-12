@@ -617,7 +617,12 @@ class UIServer:
         return settings
 
     def archive_ready_for_start(self) -> tuple[bool, str | None]:
-        """Готовность учёта к пуску: оператор вошёл, партия открыта."""
+        """Готовность учёта к пуску: оператор вошёл, хранение доступно.
+
+        Партия в этой проверке не участвует: ПУСК открывает её сам
+        (:meth:`prepare_start_batch`), а отсутствие номера — отдельная
+        причина отказа, которую возвращает ``prepare_start_batch``.
+        """
         if self.operator_store is not None and not self.operator:
             from inspection.operator_store import NO_OPERATOR_MESSAGE
 
@@ -625,11 +630,6 @@ class UIServer:
         archive = self.archive
         if archive is None:
             return False, "архив не инициализирован"
-        manager = self.batch_manager
-        if manager is not None and not manager.active:
-            from inspection.batch_manager import NO_BATCH_MESSAGE
-
-            return False, NO_BATCH_MESSAGE
         try:
             archive.validate_root(archive.root_folder)
         except ValueError as exc:
@@ -772,6 +772,9 @@ class UIServer:
                 "open": [],
                 "recent": [],
                 "suggestion": "",
+                "root_path": "",
+                "date": "",
+                "default_folder": "",
                 "editable": False,
                 "can_finish": False,
             }
@@ -815,9 +818,42 @@ class UIServer:
             batch_id=(
                 str(data["batch_id"]) if data.get("batch_id") else None
             ),
+            # «ПУТЬ ПАРТИИ»: папка, в которую пишется партия. Пусто — путь
+            # по умолчанию от корня хранения.
+            folder=str(data.get("path") or ""),
         )
         self._notify_batch_changed()
         return self.batch_status_payload()
+
+    def prepare_start_batch(self, payload: dict | None = None) -> None:
+        """Открыть партию по данным карточки перед пуском линии.
+
+        Партию открывает сама кнопка ПУСК: оператор вводит номер и путь в
+        карточке, выбирает незавершённую партию или оставляет поля пустыми —
+        тогда пуск отклоняется с понятным текстом. Если партия уже открыта,
+        запрос не трогает её: ПУСК просто продолжает работу.
+        """
+        manager = self.batch_manager
+        if manager is None or manager.active:
+            return
+        # Порядок причин отказа тот же, что и в очереди гейтов: оператор,
+        # затем номер партии.
+        if self.operator_store is not None and not self.operator:
+            from inspection.operator_store import NO_OPERATOR_MESSAGE
+
+            raise RuntimeError(NO_OPERATOR_MESSAGE)
+        data = payload if isinstance(payload, dict) else {}
+        label = str(data.get("label") or "").strip()
+        batch_id = str(data.get("batch_id") or "").strip()
+        if not label and not batch_id:
+            from inspection.batch_manager import NO_BATCH_MESSAGE
+
+            raise RuntimeError(NO_BATCH_MESSAGE)
+        self.open_batch({
+            "label": label,
+            "path": str(data.get("path") or ""),
+            "batch_id": batch_id or None,
+        })
 
     def finish_batch(self) -> dict:
         """Завершить партию: манифест, отправка аналитику, ZIP."""
