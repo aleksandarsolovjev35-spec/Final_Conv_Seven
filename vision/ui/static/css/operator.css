@@ -2,8 +2,8 @@
  *
  * Сначала оператор, затем партии: пока оператор не вошёл, HMI перекрыт
  * экраном входа (ФИО и пароль), а вкладка «ПАРТИЯ» заблокирована. После
- * входа оператор виден плашкой над вкладками сервисной зоны (ФИО), там же
- * его можно сменить. Карточка партии до первой партии — номер партии и пуск
+ * входа оператор виден плашкой над вкладками сервисной зоны (иконка и ФИО),
+ * там же его можно сменить. Карточка партии до первой партии — номер партии и пуск
  * учёта; оператора она не дублирует.
  */
 
@@ -132,7 +132,7 @@
 
 /* ─── Плашка оператора над вкладками ───────────────────────────── */
 
-/* В плашке только ФИО и «СМЕНИТЬ» — подпись «оператор» не дублируется. */
+/* В плашке иконка, ФИО и «СМЕНИТЬ» — подпись «оператор» не дублируется. */
 .operator-line {
     display: flex;
     align-items: center;
@@ -144,6 +144,28 @@
     border: 1px solid var(--border);
     border-left: 2px solid var(--accent);
     border-radius: var(--radius-sm);
+}
+
+.operator-line-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    background: var(--bg-0);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    color: var(--accent);
+}
+
+.operator-line-icon svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
 }
 
 .operator-line-name {
@@ -159,6 +181,11 @@
 
 .operator-line.is-empty {
     border-left-color: var(--bad);
+}
+
+.operator-line.is-empty .operator-line-icon {
+    border-color: var(--bad);
+    color: var(--bad);
 }
 
 .operator-line.is-empty .operator-line-name {

@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="/static/css/archive.css?v=7">
     <link rel="stylesheet" href="/static/css/panel-deck.css?v=10">
     <link rel="stylesheet" href="/static/css/batch.css?v=6">
-    <link rel="stylesheet" href="/static/css/operator.css?v=3">
+    <link rel="stylesheet" href="/static/css/operator.css?v=4">
 </head>
 <body>
 
@@ -218,11 +218,17 @@
                 <section id="service-deck" class="service-deck is-hidden"
                          data-ui-block="service-deck" data-face="batch">
                     <!-- Оператор смены виден всегда: плашкой над вкладками.
-                         В плашке только ФИО и «СМЕНИТЬ»: подпись не нужна —
+                         В плашке иконка, ФИО и «СМЕНИТЬ»: подпись не нужна —
                          карточку оператора видно и так. Смена оператора —
                          отсюда же (только на остановленной линии и после
                          завершения партии). -->
                     <div id="operator-line" class="operator-line">
+                        <span class="operator-line-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="8.4" r="3.6"></circle>
+                                <path d="M4.6 20.4 a7.6 7.6 0 0 1 14.8 0"></path>
+                            </svg>
+                        </span>
                         <span id="operator-name" class="operator-line-name">НЕ НАЗНАЧЕН</span>
                         <button id="operator-change" class="btn btn-sm operator-change"
                                 type="button" disabled>СМЕНИТЬ</button>
