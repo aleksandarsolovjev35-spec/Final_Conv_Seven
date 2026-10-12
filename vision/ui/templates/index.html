@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="/static/css/archive.css?v=7">
     <link rel="stylesheet" href="/static/css/panel-deck.css?v=10">
     <link rel="stylesheet" href="/static/css/batch.css?v=6">
-    <link rel="stylesheet" href="/static/css/operator.css?v=2">
+    <link rel="stylesheet" href="/static/css/operator.css?v=3">
 </head>
 <body>
 
@@ -217,22 +217,13 @@
                      зоны фиксирована — правая колонка HMI не прокручивается. -->
                 <section id="service-deck" class="service-deck is-hidden"
                          data-ui-block="service-deck" data-face="batch">
-                    <!-- Оператор смены виден всегда: плашкой над вкладками
-                         (ФИО и время входа). Смена оператора — оттуда же
-                         (только на остановленной линии и после завершения
-                         партии). -->
+                    <!-- Оператор смены виден всегда: плашкой над вкладками.
+                         В плашке только ФИО и «СМЕНИТЬ»: подпись не нужна —
+                         карточку оператора видно и так. Смена оператора —
+                         отсюда же (только на остановленной линии и после
+                         завершения партии). -->
                     <div id="operator-line" class="operator-line">
-                        <span class="operator-line-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24">
-                                <circle cx="12" cy="8.4" r="3.6"></circle>
-                                <path d="M4.6 20.4 a7.6 7.6 0 0 1 14.8 0"></path>
-                            </svg>
-                        </span>
-                        <span class="operator-line-text">
-                            <span class="operator-line-label">ОПЕРАТОР СМЕНЫ</span>
-                            <span id="operator-name" class="operator-line-name">НЕ НАЗНАЧЕН</span>
-                        </span>
-                        <span id="operator-since" class="operator-line-since"></span>
+                        <span id="operator-name" class="operator-line-name">НЕ НАЗНАЧЕН</span>
                         <button id="operator-change" class="btn btn-sm operator-change"
                                 type="button" disabled>СМЕНИТЬ</button>
                     </div>
@@ -426,7 +417,7 @@
         </div>
     </div>
 
-    <script src="/static/js/core.js?v=65"></script>
+    <script src="/static/js/core.js?v=66"></script>
     <script src="/static/js/boot.js?v=34"></script>
     <script src="/static/js/status.js?v=65"></script>
     <script src="/static/js/controls.js?v=37"></script>
@@ -435,7 +426,7 @@
     <script src="/static/js/jog.js?v=40"></script>
     <script src="/static/js/history.js?v=38"></script>
     <script src="/static/js/archive.js?v=4"></script>
-    <script src="/static/js/operator.js?v=2"></script>
+    <script src="/static/js/operator.js?v=3"></script>
     <script src="/static/js/batch.js?v=7"></script>
     <script src="/static/js/panel-deck.js?v=4"></script>
     <script src="/static/js/bootstrap.js?v=39"></script>

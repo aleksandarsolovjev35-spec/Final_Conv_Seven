@@ -73,10 +73,6 @@ function updateOperatorLine() {
     if (!els.operatorLine) return;
     const name = operatorName();
     setIfChanged(els.operatorName, name || 'НЕ НАЗНАЧЕН');
-    const since = name ? String(operatorData.since || '') : '';
-    if (els.operatorSince) {
-        setIfChanged(els.operatorSince, since ? `с ${since}` : '');
-    }
     els.operatorLine.classList.toggle('is-empty', !name);
     els.operatorLine.title = name
         ? `Оператор смены: ${name}`

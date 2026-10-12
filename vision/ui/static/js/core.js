@@ -193,7 +193,6 @@ const els = {
     loginSubmit:          $('login-submit'),
     operatorLine:         $('operator-line'),
     operatorName:         $('operator-name'),
-    operatorSince:        $('operator-since'),
     operatorChange:       $('operator-change'),
     operatorStatus:       $('operator-status'),
     deckTabBatch:         $('deck-tab-batch'),
