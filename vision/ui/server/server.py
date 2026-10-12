@@ -142,6 +142,13 @@ class UIServer:
         self.archive = None
         self.archive_config_path = "archive_config.json"
 
+        # Оператор смены (inspection.operator_store.OperatorStore). Вход в
+        # программу: ФИО и пароль. Пока оператор не вошёл, партию открыть
+        # нельзя, а значит и пуск линии заблокирован — учёт корпусов всегда
+        # привязан к конкретному человеку.
+        self.operator_store = None
+        self.operator: str | None = None
+
         # Кэш JPEG для pull-механики (/frame): ключ (role, mode, size)
         self._jpeg_cache: dict = {}
         self._cache_version = 0
@@ -606,7 +613,11 @@ class UIServer:
         return settings
 
     def archive_ready_for_start(self) -> tuple[bool, str | None]:
-        """Готовность учёта к пуску: партия открыта, папка доступна."""
+        """Готовность учёта к пуску: оператор вошёл, партия открыта."""
+        if self.operator_store is not None and not self.operator:
+            from inspection.operator_store import NO_OPERATOR_MESSAGE
+
+            return False, NO_OPERATOR_MESSAGE
         archive = self.archive
         if archive is None:
             return False, "архив не инициализирован"
@@ -644,6 +655,94 @@ class UIServer:
         return settings
 
     # ─── Менеджер партий ───────────────────────────────────────
+
+    # ─── Оператор смены ────────────────────────────────────────
+
+    def operator_available(self) -> bool:
+        return self.operator_store is not None
+
+    def operator_status_payload(self) -> dict:
+        """Состояние входа для экрана входа и шапки сервисной зоны."""
+        store = self.operator_store
+        if store is None:
+            return {
+                "available": False,
+                "assigned": False,
+                "operator": None,
+                "users": [],
+                "last_login": "",
+                "can_register": False,
+                "can_add_user": False,
+                "editable": False,
+                "file": None,
+                "error": None,
+            }
+        assigned = self.operator or None
+        return {
+            "available": True,
+            "assigned": bool(assigned),
+            "operator": assigned,
+            "users": store.logins(),
+            "last_login": store.last_login(),
+            "can_register": not store.has_users(),
+            "can_add_user": store.can_add_user(),
+            "editable": self.operator_editable(),
+            "file": store.path,
+            "error": store.error,
+        }
+
+    def operator_editable(self) -> bool:
+        """Сменить оператора можно на остановленной линии без открытой партии."""
+        if self.splash_active:
+            return False
+        manager = self.batch_manager
+        if manager is not None and getattr(manager, "active", False):
+            return False
+        return (self.line_status or {}).get("state") in ("IDLE", "STOPPED")
+
+    def operator_login(self, login: str, password: str) -> dict:
+        """Вход в программу: назначить оператора смены."""
+        store = self.operator_store
+        if store is None:
+            raise RuntimeError("Учёт операторов ещё не инициализирован")
+        if self.operator:
+            raise RuntimeError(
+                f"Оператор уже назначен: {self.operator}"
+            )
+        self.operator = store.authenticate(login, password)
+        print(f"[OPERATOR] Вошёл: {self.operator}")
+        self._notify_batch_changed()
+        return self.operator_status_payload()
+
+    def operator_register(self, login: str, password: str) -> dict:
+        """Первый вход: создать оператора, если список ещё пуст."""
+        store = self.operator_store
+        if store is None:
+            raise RuntimeError("Учёт операторов ещё не инициализирован")
+        if store.has_users() and not self.operator:
+            raise RuntimeError(
+                "Операторы уже заведены: войдите под своим ФИО"
+            )
+        name = store.add_user(login, password)
+        print(f"[OPERATOR] Заведён оператор: {name}")
+        if not self.operator:
+            self.operator = name
+            self._notify_batch_changed()
+        return self.operator_status_payload()
+
+    def operator_logout(self) -> dict:
+        """Смена оператора: выйти можно на остановленной линии без партии."""
+        if not self.operator:
+            raise RuntimeError("Оператор не назначен")
+        if not self.operator_editable():
+            raise RuntimeError(
+                "Сменить оператора можно на остановленной линии "
+                "и после завершения партии"
+            )
+        print(f"[OPERATOR] Вышел: {self.operator}")
+        self.operator = None
+        self._notify_batch_changed()
+        return self.operator_status_payload()
 
     def batch_editable(self) -> bool:
         """Партию открывают и завершают только на остановленной линии."""
@@ -684,6 +783,10 @@ class UIServer:
             raise RuntimeError("Менеджер партий ещё не инициализирован")
         if self.splash_active:
             raise RuntimeError("Система ещё инициализируется")
+        if self.operator_store is not None and not self.operator:
+            from inspection.operator_store import NO_OPERATOR_MESSAGE
+
+            raise RuntimeError(NO_OPERATOR_MESSAGE)
         if not self.batch_editable():
             raise RuntimeError(
                 "Партию можно открыть только на остановленной линии"
@@ -697,7 +800,9 @@ class UIServer:
         data = payload if isinstance(payload, dict) else {}
         manager.open_batch(
             label=str(data.get("label") or ""),
-            operator=str(data.get("operator") or ""),
+            # Оператор берётся из сессии: в карточке партии его больше нет,
+            # и подменить ФИО в запросе нельзя.
+            operator=str(self.operator or ""),
             batch_id=(
                 str(data["batch_id"]) if data.get("batch_id") else None
             ),

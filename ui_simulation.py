@@ -4,9 +4,10 @@ Run from the repository root:
     python ui_simulation.py --host 0.0.0.0 --port 8000
 
 It serves the same FastAPI UI as production but never opens cameras, serial
-ports, models, or pywebview. The batch logic is the production one: the
-operator opens a batch in the HMI card (ФИО + номер партии) and only then
-may press ПУСК; an unfinished batch stays open and can be continued.
+ports, models, or pywebview. The operator logic is the production one: the
+program asks for ФИО and password (the first launch creates the first
+account), the batch card is closed until then, and only an open batch lets
+ПУСК run; an unfinished batch stays open and can be continued.
 """
 from __future__ import annotations
 
@@ -20,6 +21,7 @@ import numpy as np
 
 from domain.threshold_loader import ThresholdLoader
 from inspection.batch_manager import BatchManager
+from inspection.operator_store import OperatorStore
 from vision.ui.server.server import CAMERA_ORDER, UIServer
 
 
@@ -31,6 +33,7 @@ JOG_ALLOWED_STATES = ("IDLE", "STOPPED", "PAUSED")
 PROCESS_LABELS = {
     "IDLE": "Система готова к пуску",
     "NO_BATCH": "Партия не открыта: пуск заблокирован",
+    "NO_OPERATOR": "Оператор не назначен: войдите в программу",
     "READY": "Цикл запущен",
     "INITIAL_INSPECTION": "Контроль корпуса под INPUT без движения",
     "ROUTE_PREPARE": "Подготовка маршрута распределителя",
@@ -135,9 +138,20 @@ class LineSimulation:
             return True
         return bool(manager.active)
 
+    def _operator_ready(self) -> bool:
+        """Работа с партиями — только после входа в программу."""
+        if getattr(self.server, "operator_store", None) is None:
+            return True
+        return bool(getattr(self.server, "operator", None))
+
     def start(self) -> bool:
-        # Учёт ведётся в партии: без неё пуск запрещён так же, как в
-        # production ProductionCycle.request_start().
+        # Сначала оператор, затем партия: вход в программу открывает
+        # карточку партии, без партии пуск запрещён — как в production
+        # ProductionCycle.request_start().
+        if not self._operator_ready():
+            print("[OPERATOR] Оператор не назначен: пуск заблокирован")
+            self._publish("NO_OPERATOR")
+            return False
         if not self._batch_ready():
             print("[BATCH] Партия не открыта: пуск заблокирован")
             self._publish("NO_BATCH")
@@ -405,7 +419,13 @@ class LineSimulation:
         read = getattr(manager, "accounting", None)
         if read is None:
             return
-        counters = read() or {}
+        counters = read()
+        if counters is None:
+            # Партии нет: учёт пуст, следующий корпус — первый.
+            self.counts = {key: 0 for key in self.counts}
+            self.next_id = 1
+            print("[BATCH] Партия не открыта: учёт линии начинается с нуля")
+            return
         self.counts = {
             key: int(counters.get(key) or 0) for key in self.counts
         }
@@ -474,6 +494,7 @@ class LineSimulation:
                 # start closes JOG and transfers control to the cycle.
                 "batch_open": self._batch_ready(),
                 "controls": {"start": (state in ("IDLE", "STOPPED")
+                                       and self._operator_ready()
                                        and self._batch_ready()),
                              "stop": state in ("RUNNING", "PAUSED"), "pause": state == "RUNNING",
                              "resume": state == "PAUSED", "exit": True,
@@ -694,6 +715,9 @@ def main() -> None:
     batch_manager = BatchManager(root_folder="archive/ui_simulation")
     server.batch_manager = batch_manager
     server.archive = batch_manager
+    # Вход в программу работает как в приложении: первый запуск предлагает
+    # создать оператора, дальше — ФИО и пароль из operators.json.
+    server.operator_store = OperatorStore(batch_manager.root_folder)
     simulation = LineSimulation(server)
     server.on_start = simulation.start
     server.on_stop = simulation.stop

@@ -1,10 +1,10 @@
-// batch.js — менеджер партий: ФИО оператора, номер партии и учёт корпусов.
+// batch.js — менеджер партий: номер партии и учёт корпусов.
 //
-// Логика: пока оператор не открыл партию, пуск линии заблокирован
-// (controls.start приходит с backend). Карточка «ПАРТИЯ» — первое лицо
-// сервисной зоны right-panel: оператор вводит ФИО, выбирает номер партии и
-// нажимает «НАЧАТЬ ПАРТИЮ» либо продолжает одну из незавершённых партий.
-// Второе лицо той же зоны — прежний редактор порогов.
+// Логика двух шагов: сначала оператор входит в программу по ФИО и паролю
+// (operator.js), и только после этого доступна вкладка «ПАРТИЯ» — карточка
+// со шагами 1) оператор, 2) номер партии, 3) пуск учёта. Пока партия не
+// открыта, пуск линии заблокирован (controls.start приходит с backend).
+// Второе лицо сервисной зоны — редактор порогов.
 'use strict';
 
 const BATCH_FINISH_CONFIRM_MS = 5000;
@@ -15,9 +15,12 @@ let batchFetchBusy = false;
 let batchBusy = false;
 let batchFinishArmed = false;
 let batchFinishTimer = null;
-let batchOperatorTouched = false;
 let batchLabelTouched = false;
+// Выбор оператора («ПАРТИЯ» / «ПОРОГИ») и фактически показанное лицо —
+// разные вещи: до входа партию показывать нечем (зона уходит на пороги),
+// но выбор запоминается и возвращается, как только оператор назначен.
 let deckFace = 'batch';
+let deckFaceShown = 'batch';
 
 // ─── Доступность ─────────────────────────────────────────────
 
@@ -27,6 +30,14 @@ function batchManagerAvailable() {
 
 function batchActive() {
     return !!(batchData && batchData.active === true && batchData.batch);
+}
+
+// Вкладка «ПАРТИЯ» — после назначения оператора: до входа партии не
+// ведутся, поэтому и открывать в карточке нечего.
+function batchFaceAvailable() {
+    const operator = typeof operatorAssigned === 'function'
+        ? operatorAssigned() : true;
+    return batchManagerAvailable() && operator;
 }
 
 function batchStatusText() {
@@ -43,6 +54,12 @@ function batchStatusText() {
 // controls.start = false, здесь добавляем только пояснение к кнопке.
 function batchBlocksStart() {
     return batchManagerAvailable() && !batchActive();
+}
+
+// Оператор для партии берётся из сессии входа: карточка его только
+// показывает — подменить ФИО в запросе нельзя.
+function batchOperatorValue() {
+    return typeof operatorName === 'function' ? operatorName() : '';
 }
 
 function batchBusyNow() {
@@ -84,11 +101,22 @@ function thresholdsFaceAvailable() {
 
 // ─── Колода «ПАРТИЯ» / «ПОРОГИ» ──────────────────────────────
 
-function setDeckFace(face) {
-    if (face !== 'batch' && face !== 'thresholds') return;
-    if (face === 'thresholds' && !thresholdsFaceAvailable()) face = 'batch';
-    const changed = face !== deckFace;
-    deckFace = face;
+// Лицо, которое зона может показать сейчас: выбор оператора уважается,
+// но недоступную карточку не показываем (партия — только с оператором,
+// пороги — только в ручном режиме на остановленной линии).
+function deckFaceToShow() {
+    const batchOk = batchFaceAvailable();
+    const thresholdsOk = thresholdsFaceAvailable();
+    if (deckFace === 'thresholds') {
+        return thresholdsOk ? 'thresholds' : 'batch';
+    }
+    return batchOk ? 'batch' : (thresholdsOk ? 'thresholds' : 'batch');
+}
+
+function applyDeckFace() {
+    const face = deckFaceToShow();
+    const changed = face !== deckFaceShown;
+    deckFaceShown = face;
     if (els.serviceDeck) els.serviceDeck.dataset.face = face;
     [els.deckTabBatch, els.deckTabThresholds].forEach(tab => {
         if (!tab) return;
@@ -104,10 +132,24 @@ function setDeckFace(face) {
     }
 }
 
+function setDeckFace(face) {
+    if (face !== 'batch' && face !== 'thresholds') return;
+    if (face === 'thresholds' && !thresholdsFaceAvailable()) return;
+    deckFace = face;
+    applyDeckFace();
+}
+
 function updateServiceDeck() {
     if (!els.serviceDeck) return;
     const visible = serviceDeckVisible();
     els.serviceDeck.classList.toggle('is-hidden', !visible);
+    if (els.deckTabBatch) {
+        const available = batchFaceAvailable();
+        els.deckTabBatch.disabled = !available;
+        els.deckTabBatch.title = available
+            ? 'Партия: номер и учёт корпусов'
+            : 'Вкладка доступна после входа в программу';
+    }
     if (els.deckTabThresholds) {
         const available = thresholdsFaceAvailable();
         els.deckTabThresholds.disabled = !available;
@@ -119,8 +161,8 @@ function updateServiceDeck() {
     // «ПАРТИЯ» — лицо по умолчанию (первый шаг оператора, пока партия не
     // открыта), а на «ПОРОГИ» можно переключиться в любой момент, когда
     // они доступны. Если пороги перестали быть доступны (выход из ручного
-    // режима, движение линии), setDeckFace сам вернёт карточку партии.
-    setDeckFace(deckFace);
+    // режима, движение линии), зона сама вернёт карточку партии.
+    applyDeckFace();
 }
 
 // ─── Заполнение карточки ─────────────────────────────────────
@@ -138,17 +180,6 @@ function setBatchPanelStatus(element, text, kind) {
     setIfChanged(element, text || '');
     element.classList.toggle('is-error', kind === 'error');
     element.classList.toggle('is-warn', kind === 'warn');
-}
-
-function renderBatchOperators(operators) {
-    const list = els.batchOperators;
-    if (!list) return;
-    list.innerHTML = '';
-    (operators || []).forEach(name => {
-        const option = document.createElement('option');
-        option.value = name;
-        list.appendChild(option);
-    });
 }
 
 function renderBatchOpenList(open) {
@@ -253,6 +284,31 @@ function renderBatchInfo(batch) {
     info.appendChild(grid);
 }
 
+// Шаги карточки: 1) оператор назначен при входе, 2) номер партии,
+// 3) пуск учёта. Подсветка ведёт оператора к следующему действию.
+function updateBatchSteps() {
+    const operator = batchOperatorValue();
+    if (els.batchStepOperatorName) {
+        setIfChanged(
+            els.batchStepOperatorName,
+            operator || 'НЕ НАЗНАЧЕН',
+        );
+        els.batchStepOperatorName.title = operator;
+    }
+    if (els.batchStepOperator) {
+        els.batchStepOperator.dataset.state = operator ? 'done' : 'todo';
+    }
+    const label = els.batchLabelInput
+        ? String(els.batchLabelInput.value || '').trim() : '';
+    const labelDone = label.length > 0;
+    if (els.batchStepLabel) {
+        els.batchStepLabel.dataset.state = labelDone ? 'done' : 'active';
+    }
+    if (els.batchStepStart) {
+        els.batchStepStart.dataset.state = labelDone ? 'active' : 'todo';
+    }
+}
+
 function updateBatchPanelControls() {
     const editable = batchEditableNow();
     const active = batchActive();
@@ -273,6 +329,7 @@ function updateBatchPanelControls() {
     if (els.batchStart) {
         els.batchStart.disabled = !editable || active || !batchFormFilled();
     }
+    updateBatchSteps();
     if (els.batchFinish) {
         const canFinish = editable
             && active
@@ -290,9 +347,7 @@ function updateBatchPanelControls() {
                 button.disabled = !editable || batchBusy;
             });
     }
-    if (els.batchOperator) els.batchOperator.disabled = !editable || active;
     if (els.batchLabelInput) els.batchLabelInput.disabled = !editable || active;
-    if (els.batchOperatorNew) els.batchOperatorNew.disabled = !editable || active;
     if (els.btnStart && !active && !state.offline) {
         els.btnStart.title = batchBlocksStart()
             ? 'Сначала начните партию в карточке «ПАРТИЯ»'
@@ -315,11 +370,9 @@ function updateBatchHint() {
 }
 
 function batchFormFilled() {
-    const operator = els.batchOperator
-        ? String(els.batchOperator.value || '').trim() : '';
     const label = els.batchLabelInput
         ? String(els.batchLabelInput.value || '').trim() : '';
-    return operator.length >= 3 && label.length > 0;
+    return batchOperatorValue().length >= 3 && label.length > 0;
 }
 
 function renderBatchFooter() {
@@ -336,10 +389,6 @@ function renderBatchFooter() {
 
 function renderBatchPanel() {
     if (!els.batchPanel) return;
-    if (els.batchOperator && !batchOperatorTouched) {
-        els.batchOperator.value = String(batchData.last_operator || '');
-        batchOperatorTouched = !!els.batchOperator.value;
-    }
     if (els.batchLabelInput && !batchLabelTouched) {
         els.batchLabelInput.value = String(batchData.suggestion || '');
         batchLabelTouched = !!els.batchLabelInput.value;
@@ -375,7 +424,6 @@ function batchDataSignature(data) {
         (batch.counts || {}).good,
         (batch.counts || {}).bad,
         (batch.counts || {}).cleanup,
-        (data.operators || []).join('|'),
         open.join('|'),
     ].join('~');
 }
@@ -390,7 +438,6 @@ function applyBatchPayload(data) {
         return;
     }
     const signature = batchDataSignature(batchData);
-    renderBatchOperators(batchData.operators);
     if (signature !== batchSignature) {
         batchSignature = signature;
         renderBatchPanel();
@@ -440,8 +487,13 @@ async function submitBatchOpen(payload, message) {
 async function startBatch() {
     if (batchBusy) return null;
     if (batchActive()) return null;
+    if (!operatorAssigned()) {
+        setBatchStatus('Сначала войдите в программу', 'error');
+        return null;
+    }
     if (!batchFormFilled()) {
-        setBatchStatus('Укажите ФИО оператора и номер партии', 'error');
+        setBatchStatus('Укажите номер партии', 'error');
+        if (els.batchLabelInput) els.batchLabelInput.focus();
         return null;
     }
     if (!batchEditableNow()) {
@@ -449,27 +501,21 @@ async function startBatch() {
         return null;
     }
     return submitBatchOpen({
-        operator: String(els.batchOperator.value || '').trim(),
         label: String(els.batchLabelInput.value || '').trim(),
     }, 'Открытие партии…');
 }
 
 async function continueBatch(item) {
     if (batchBusy) return null;
+    if (!operatorAssigned()) {
+        setBatchStatus('Сначала войдите в программу', 'error');
+        return null;
+    }
     if (!batchEditableNow()) {
         setBatchStatus('Продолжить партию можно на остановленной линии', 'warn');
         return null;
     }
-    const operator = String(
-        (els.batchOperator && els.batchOperator.value) || '',
-    ).trim();
-    if (operator.length < 3) {
-        setBatchStatus('Укажите ФИО оператора для продолжения партии', 'error');
-        if (els.batchOperator) els.batchOperator.focus();
-        return null;
-    }
     return submitBatchOpen({
-        operator,
         label: item.label || item.batch_id,
         batch_id: item.batch_id,
     }, 'Продолжение партии…');
@@ -510,7 +556,6 @@ async function finishBatch() {
             setBatchActiveStatus('Не удалось завершить партию', 'error');
             return null;
         }
-        batchOperatorTouched = false;
         batchLabelTouched = false;
         applyBatchPayload(result.batch);
         setBatchStatus('Партия завершена и отправлена в архив');
@@ -530,22 +575,6 @@ function setupBatchControls() {
     }
     if (els.batchFinish) {
         els.batchFinish.addEventListener('click', () => { finishBatch(); });
-    }
-    if (els.batchOperatorNew) {
-        els.batchOperatorNew.addEventListener('click', () => {
-            if (!els.batchOperator) return;
-            els.batchOperator.value = '';
-            batchOperatorTouched = true;
-            setBatchStatus('');
-            els.batchOperator.focus();
-            updateBatchPanelControls();
-        });
-    }
-    if (els.batchOperator) {
-        els.batchOperator.addEventListener('input', () => {
-            batchOperatorTouched = true;
-            updateBatchPanelControls();
-        });
     }
     if (els.batchLabelInput) {
         els.batchLabelInput.addEventListener('input', () => {

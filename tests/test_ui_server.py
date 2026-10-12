@@ -19,10 +19,15 @@ from fastapi.testclient import TestClient
 
 from domain.threshold_loader import ThresholdLoader
 from inspection.batch_manager import NO_BATCH_MESSAGE, BatchManager
+from inspection.operator_store import NO_OPERATOR_MESSAGE, OperatorStore
 from vision.ui.server.server import UIServer
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THRESHOLDS_PATH = os.path.join(REPO_ROOT, "thresholds.json")
+
+OPERATOR = "Иванов Иван Иванович"
+RESUME_OPERATOR = "Петров Пётр Петрович"
+PASSWORD = "1234"
 
 
 def make_frame(value=100):
@@ -646,7 +651,30 @@ class UIServerTest(unittest.TestCase):
         self.assertFalse(UIServer._configure_windows_event_loop_policy())
 
 
-class BatchUiServerTest(unittest.TestCase):
+class OperatorSessionMixin:
+    """Общая часть: сервер с хранилищем операторов и вход по ФИО."""
+
+    def start_operator_store(self, root_folder):
+        self.server.operator_store = OperatorStore(root_folder)
+        self.server.operator_store.add_user(OPERATOR, PASSWORD)
+
+    def login(self, login=OPERATOR, password=PASSWORD):
+        return self.client.post(
+            "/api/operator/login",
+            json={"login": login, "password": password},
+        )
+
+    def logout(self):
+        return self.client.post("/api/operator/logout")
+
+    def register(self, login, password):
+        return self.client.post(
+            "/api/operator/register",
+            json={"login": login, "password": password},
+        )
+
+
+class BatchUiServerTest(OperatorSessionMixin, unittest.TestCase):
     """Менеджер партий в UIServer: маршруты, гейт пуска и статус."""
 
     def setUp(self):
@@ -662,12 +690,14 @@ class BatchUiServerTest(unittest.TestCase):
         self.server.splash_active = False
         self.server.line_status = {"state": "IDLE", "in_line": 0}
         self.client = TestClient(self.server.app)
+        self.start_operator_store(self.manager.root_folder)
+        self.login()
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def open_batch(self, **payload):
-        body = {"operator": "Иванов Иван Иванович", "label": "П-1"}
+        body = {"label": "П-1"}
         body.update(payload)
         return self.client.post("/api/batch/open", json=body)
 
@@ -701,17 +731,24 @@ class BatchUiServerTest(unittest.TestCase):
         payload = response.json()
         self.assertTrue(payload["ok"])
         self.assertTrue(payload["batch"]["active"])
+        # Оператор берётся из сессии входа, а не из тела запроса.
         self.assertEqual(
-            payload["batch"]["batch"]["operator"], "Иванов Иван Иванович",
+            payload["batch"]["batch"]["operator"], OPERATOR,
         )
         self.assertTrue(payload["batch"]["can_finish"])
 
     def test_open_batch_validation_400(self):
-        response = self.open_batch(operator="Ив")
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("ФИО", response.json()["error"])
         response = self.open_batch(label="")
         self.assertEqual(response.status_code, 400)
+        self.assertIn("номер", response.json()["error"])
+
+    def test_open_batch_ignores_operator_in_body(self):
+        """ФИО в запросе больше не подменяет оператора смены."""
+        response = self.open_batch(operator="Петров Пётр Петрович")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["batch"]["batch"]["operator"], OPERATOR,
+        )
 
     def test_open_batch_twice_409(self):
         self.assertEqual(self.open_batch().status_code, 200)
@@ -741,11 +778,30 @@ class BatchUiServerTest(unittest.TestCase):
         )
         self.server.batch_manager = self.manager
         self.server.archive = self.manager
-        response = self.open_batch(batch_id=batch_id, operator="Петров Пётр Петрович")
+        response = self.open_batch(batch_id=batch_id)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
-            response.json()["batch"]["batch"]["operator"],
-            "Петров Пётр Петрович",
+            response.json()["batch"]["batch"]["operator"], OPERATOR,
+        )
+
+    def test_continue_open_batch_after_operator_change(self):
+        """Партию продолжает тот, кто вошёл сейчас; начавший — в истории."""
+        self.assertEqual(self.open_batch().status_code, 200)
+        batch_id = self.manager.batch_id
+        self.manager.prepare_shutdown()
+        self.manager = BatchManager(
+            root_folder=self.manager.root_folder,
+            batch_sender=lambda folder: True,
+        )
+        self.server.batch_manager = self.manager
+        self.server.archive = self.manager
+        self.server.operator_store.add_user(RESUME_OPERATOR, PASSWORD)
+        self.assertEqual(self.logout().status_code, 200)
+        self.assertEqual(self.login(RESUME_OPERATOR).status_code, 200)
+        response = self.open_batch(batch_id=batch_id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["batch"]["batch"]["operator"], RESUME_OPERATOR,
         )
 
     # ---------- завершение ----------
@@ -793,6 +849,193 @@ class BatchUiServerTest(unittest.TestCase):
         hook.assert_called_once()
         self.client.post("/api/batch/finish")
         self.assertEqual(hook.call_count, 2)
+
+
+class OperatorUiServerTest(OperatorSessionMixin, unittest.TestCase):
+    """Вход в программу: ФИО и пароль, гейт вкладки «ПАРТИЯ»."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.server = UIServer()
+        self.root = os.path.join(self.tmp.name, "archive")
+        self.manager = BatchManager(
+            root_folder=self.root,
+            batch_sender=lambda folder: True,
+        )
+        self.server.batch_manager = self.manager
+        self.server.archive = self.manager
+        self.server.splash_active = False
+        self.server.line_status = {"state": "IDLE", "in_line": 0}
+        self.client = TestClient(self.server.app)
+        self.start_operator_store(self.root)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    # ---------- состояние ----------
+
+    def test_status_without_store(self):
+        self.server.operator_store = None
+        payload = self.server.operator_status_payload()
+        self.assertFalse(payload["available"])
+        self.assertFalse(payload["assigned"])
+        self.assertIsNone(payload["operator"])
+
+    def test_get_operator_route(self):
+        payload = self.client.get("/api/operator").json()
+        self.assertTrue(payload["available"])
+        self.assertFalse(payload["assigned"])
+        self.assertEqual(payload["users"], [OPERATOR])
+        self.assertFalse(payload["can_register"])
+        self.assertTrue(payload["can_add_user"])
+
+    def test_status_route_includes_operator(self):
+        payload = self.client.get("/api/status").json()
+        self.assertIn("operator", payload)
+        self.assertFalse(payload["operator"]["assigned"])
+
+    # ---------- вход ----------
+
+    def test_login_route(self):
+        response = self.login()
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["operator"]["assigned"])
+        self.assertEqual(payload["operator"]["operator"], OPERATOR)
+
+    def test_login_accepts_case_and_spaces(self):
+        response = self.login("  иванов иван иванович  ")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["operator"]["operator"], OPERATOR,
+        )
+
+    def test_login_wrong_password_400(self):
+        response = self.login(password="0000")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "Неверный пароль")
+        self.assertIsNone(self.server.operator)
+
+    def test_login_unknown_operator_400(self):
+        response = self.login("Сидоров Сидор Сидорович")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("не найден", response.json()["error"])
+
+    def test_login_twice_409(self):
+        self.assertEqual(self.login().status_code, 200)
+        response = self.login()
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("уже назначен", response.json()["error"])
+
+    def test_login_bad_payload_400(self):
+        response = self.client.post("/api/operator/login", json={})
+        self.assertEqual(response.status_code, 400)
+
+    # ---------- регистрация и смена ----------
+
+    def test_register_first_operator(self):
+        store = self.server.operator_store
+        store.remove_user(OPERATOR)
+        response = self.register("Смирнов Илья Петрович", "1234")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["operator"]["assigned"])
+        self.assertEqual(
+            payload["operator"]["operator"], "Смирнов Илья Петрович",
+        )
+
+    def test_register_existing_list_409(self):
+        response = self.register("Смирнов Илья Петрович", "1234")
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("войдите", response.json()["error"])
+
+    def test_logged_operator_adds_colleague(self):
+        """Вошедший оператор заводит коллегу, не меняя свою сессию."""
+        self.assertEqual(self.login().status_code, 200)
+        response = self.register("Смирнов Илья Петрович", "1234")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()["operator"]
+        self.assertEqual(payload["operator"], OPERATOR)
+        self.assertEqual(len(payload["users"]), 2)
+        self.assertEqual(self.server.operator, OPERATOR)
+
+    def test_register_short_password_400(self):
+        store = self.server.operator_store
+        store.remove_user(OPERATOR)
+        response = self.register("Смирнов Илья Петрович", "12")
+        self.assertEqual(response.status_code, 400)
+
+    def test_logout_route(self):
+        self.login()
+        response = self.logout()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["operator"]["assigned"])
+        self.assertIsNone(self.server.operator)
+
+    def test_logout_without_operator_409(self):
+        response = self.logout()
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("не назначен", response.json()["error"])
+
+    def test_logout_blocked_by_open_batch(self):
+        self.login()
+        self.client.post("/api/batch/open", json={"label": "П-1"})
+        response = self.logout()
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(self.server.operator, OPERATOR)
+        self.assertFalse(self.server.operator_status_payload()["editable"])
+
+    def test_logout_blocked_on_running_line(self):
+        self.login()
+        self.server.line_status = {"state": "RUNNING", "in_line": 1}
+        response = self.logout()
+        self.assertEqual(response.status_code, 409)
+
+    def test_switch_operator(self):
+        self.login()
+        self.server.operator_store.add_user(RESUME_OPERATOR, PASSWORD)
+        self.assertEqual(self.logout().status_code, 200)
+        response = self.login(RESUME_OPERATOR)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.server.operator, RESUME_OPERATOR)
+
+    # ---------- гейты ----------
+
+    def test_batch_open_requires_operator(self):
+        response = self.client.post("/api/batch/open", json={"label": "П-1"})
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error"], NO_OPERATOR_MESSAGE)
+        self.assertFalse(self.manager.active)
+
+    def test_start_requires_operator(self):
+        ok, message = self.server.archive_ready_for_start()
+        self.assertFalse(ok)
+        self.assertEqual(message, NO_OPERATOR_MESSAGE)
+        response = self.client.post("/api/start")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error"], NO_OPERATOR_MESSAGE)
+
+    def test_start_needs_operator_then_batch(self):
+        self.assertEqual(self.login().status_code, 200)
+        ok, message = self.server.archive_ready_for_start()
+        self.assertFalse(ok)
+        self.assertEqual(message, NO_BATCH_MESSAGE)
+        self.client.post("/api/batch/open", json={"label": "П-1"})
+        ok, message = self.server.archive_ready_for_start()
+        self.assertTrue(ok)
+        self.assertIsNone(message)
+
+    def test_persistent_login_after_restart(self):
+        """Учётки переживают перезапуск программы."""
+        self.assertEqual(self.login().status_code, 200)
+        self.server.operator = None
+        self.server.operator_store = OperatorStore(self.root)
+        response = self.login()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["operator"]["operator"], OPERATOR,
+        )
 
 
 if __name__ == "__main__":

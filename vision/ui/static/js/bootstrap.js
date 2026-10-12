@@ -140,6 +140,7 @@ function init() {
     setupViewModeControls();
     setupJogControls();
     setupThresholdsControls();
+    if (typeof setupOperatorControls === 'function') setupOperatorControls();
     if (typeof setupBatchControls === 'function') setupBatchControls();
 
     fetchBoot();

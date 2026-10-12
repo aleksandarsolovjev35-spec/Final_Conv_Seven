@@ -27,8 +27,8 @@ def setup_api_routes(app, server):
             )
         return JSONResponse({"ok": True})
 
-    async def _batch_action(action, payload):
-        """Действие менеджера партий: 400 — данные, 409 — состояние линии."""
+    async def _batch_action(action, payload, key: str = "batch"):
+        """Действие менеджера партий или входа: 400 — данные, 409 — состояние."""
         try:
             if payload is None:
                 result = await asyncio.to_thread(action)
@@ -43,11 +43,11 @@ def setup_api_routes(app, server):
                 {"ok": False, "error": str(exc)}, status_code=409,
             )
         except Exception as exc:
-            print(f"[API] batch error: {exc}")
+            print(f"[API] {key} error: {exc}")
             return JSONResponse(
                 {"ok": False, "error": str(exc)}, status_code=500,
             )
-        return JSONResponse({"ok": True, "batch": result})
+        return JSONResponse({"ok": True, key: result})
 
     @app.get("/api/cameras")
     async def get_cameras():
@@ -109,6 +109,7 @@ def setup_api_routes(app, server):
                 "thresholds_revision": server.thresholds_revision,
                 "archive": server.archive_status_payload(),
                 "batch": server.batch_status_payload(),
+                "operator": server.operator_status_payload(),
             })
 
     @app.get("/api/mode")
@@ -227,7 +228,53 @@ def setup_api_routes(app, server):
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
         return JSONResponse({"ok": True, "archive": result})
 
-    # Менеджер партий: оператор, номер партии и учёт корпусов в её составе.
+    # Оператор смены: вход в программу по ФИО и паролю. Пока оператор не
+    # вошёл, партия не открывается, а значит пуск линии заблокирован.
+
+    @app.get("/api/operator")
+    async def api_get_operator():
+        return JSONResponse(
+            await asyncio.to_thread(server.operator_status_payload)
+        )
+
+    @app.post("/api/operator/login")
+    async def api_operator_login(payload: dict | None = None):
+        body = payload or {}
+        login = body.get("login", "")
+        password = body.get("password", "")
+        if not isinstance(login, str) or not isinstance(password, str):
+            raise HTTPException(400, "Некорректные данные входа")
+        return await _batch_action(
+            lambda data: server.operator_login(
+                data["login"], data["password"],
+            ),
+            {"login": login, "password": password},
+            key="operator",
+        )
+
+    @app.post("/api/operator/register")
+    async def api_operator_register(payload: dict | None = None):
+        """Первый запуск: создать оператора, пока список пуст."""
+        body = payload or {}
+        login = body.get("login", "")
+        password = body.get("password", "")
+        if not isinstance(login, str) or not isinstance(password, str):
+            raise HTTPException(400, "Некорректные данные входа")
+        return await _batch_action(
+            lambda data: server.operator_register(
+                data["login"], data["password"],
+            ),
+            {"login": login, "password": password},
+            key="operator",
+        )
+
+    @app.post("/api/operator/logout")
+    async def api_operator_logout():
+        return await _batch_action(
+            server.operator_logout, None, key="operator",
+        )
+
+    # Менеджер партий: номер партии и учёт корпусов в её составе.
 
     @app.get("/api/batch")
     async def api_get_batch():
@@ -243,8 +290,6 @@ def setup_api_routes(app, server):
             body.get("batch_id"), str
         ):
             raise HTTPException(400, "Некорректный идентификатор партии")
-        if not isinstance(body.get("operator", ""), str):
-            raise HTTPException(400, "Некорректное ФИО оператора")
         if not isinstance(body.get("label", ""), str):
             raise HTTPException(400, "Некорректный номер партии")
         return await _batch_action(server.open_batch, body)

@@ -18,7 +18,8 @@
     <link rel="stylesheet" href="/static/css/thresholds.css?v=25">
     <link rel="stylesheet" href="/static/css/archive.css?v=7">
     <link rel="stylesheet" href="/static/css/panel-deck.css?v=10">
-    <link rel="stylesheet" href="/static/css/batch.css?v=3">
+    <link rel="stylesheet" href="/static/css/batch.css?v=4">
+    <link rel="stylesheet" href="/static/css/operator.css?v=1">
 </head>
 <body>
 
@@ -38,6 +39,40 @@
                 <button id="splash-exit" class="btn btn-bad splash-exit-btn">ЗАКРЫТЬ</button>
             </div>
         </div>
+    </div>
+
+    <!-- ВХОД В ПРОГРАММУ: сначала оператор (ФИО и пароль), затем партии.
+         Перекрывает HMI, пока оператор не назначен; при первом запуске
+         предлагает создать первую учётную запись. -->
+    <div id="login-screen" class="login-screen is-hidden" data-ui-block="login">
+        <div class="login-backdrop"></div>
+        <section class="login-dialog" role="dialog" aria-modal="true"
+                 aria-labelledby="login-title">
+            <h1 id="login-title" class="login-title">ВХОД В ПРОГРАММУ</h1>
+            <div id="login-subtitle" class="login-subtitle">Оператор смены</div>
+            <div class="login-field">
+                <label class="login-field-label" for="login-name">ФИО ОПЕРАТОРА</label>
+                <input id="login-name" class="login-input" type="text"
+                       list="login-users" maxlength="64" autocomplete="off"
+                       spellcheck="false" placeholder="Иванов Иван Иванович">
+                <datalist id="login-users"></datalist>
+            </div>
+            <div class="login-field">
+                <label class="login-field-label" for="login-password">ПАРОЛЬ</label>
+                <input id="login-password" class="login-input" type="password"
+                       maxlength="64" autocomplete="off">
+            </div>
+            <div id="login-password-field" class="login-field is-hidden">
+                <label class="login-field-label" for="login-password2">ПОВТОРИТЕ ПАРОЛЬ</label>
+                <input id="login-password2" class="login-input" type="password"
+                       maxlength="64" autocomplete="off">
+            </div>
+            <div id="login-error" class="login-error is-hidden"></div>
+            <div id="login-hint" class="login-hint"></div>
+            <div class="login-actions">
+                <button id="login-submit" class="btn btn-login" type="button">ВОЙТИ</button>
+            </div>
+        </section>
     </div>
 
     <!-- MAIN UI -->
@@ -182,6 +217,16 @@
                      колонка HMI не прокручивается. -->
                 <section id="service-deck" class="service-deck is-hidden"
                          data-ui-block="service-deck" data-face="batch">
+                    <!-- Оператор смены виден всегда: строкой над вкладками.
+                         Смена оператора — оттуда же (только на остановленной
+                         линии и после завершения партии). -->
+                    <div id="operator-line" class="operator-line">
+                        <span class="operator-line-label">ОПЕРАТОР</span>
+                        <span id="operator-name" class="operator-line-name">НЕ НАЗНАЧЕН</span>
+                        <button id="operator-change" class="btn btn-sm operator-change"
+                                type="button" disabled>СМЕНИТЬ</button>
+                    </div>
+                    <div id="operator-status" class="operator-status is-hidden"></div>
                     <div class="service-deck-tabs" role="tablist" aria-label="Сервисные карточки">
                         <button id="deck-tab-batch" class="service-deck-tab is-active" type="button"
                                 role="tab" aria-selected="true" aria-controls="batch-panel"
@@ -198,30 +243,42 @@
                             МЕНЕДЖЕР ПАРТИЙ НЕДОСТУПЕН
                         </div>
 
-                        <!-- Нет открытой партии: данные оператора и выбор
-                             партии, в учёт которой пойдут корпуса. -->
+                        <!-- Нет открытой партии: три шага оператора —
+                             1) оператор смены (назначен при входе),
+                             2) номер партии, 3) пуск учёта. Ниже — выбор
+                             незавершённой партии для продолжения. -->
                         <div id="batch-open-face" class="batch-face batch-open-face">
-                            <div class="batch-field">
-                                <label class="batch-field-label" for="batch-operator">ФИО ОПЕРАТОРА</label>
-                                <div class="batch-field-control">
-                                    <input id="batch-operator" class="batch-input" type="text"
-                                           list="batch-operators" maxlength="64" autocomplete="off"
-                                           spellcheck="false" placeholder="Иванов Иван Иванович">
-                                    <datalist id="batch-operators"></datalist>
-                                    <button id="batch-operator-new" class="btn btn-sm batch-new-operator"
-                                            type="button" title="Новый оператор: очистить поле">НОВЫЙ</button>
+                            <div class="batch-steps">
+                                <div id="batch-step-operator" class="batch-step" data-step="1"
+                                     data-state="done">
+                                    <span class="batch-step-number">1</span>
+                                    <div class="batch-step-body">
+                                        <span class="batch-step-title">ОПЕРАТОР</span>
+                                        <span id="batch-step-operator-name"
+                                              class="batch-step-value">—</span>
+                                    </div>
+                                    <span class="batch-step-mark">назначен при входе</span>
+                                </div>
+                                <div id="batch-step-label" class="batch-step" data-step="2"
+                                     data-state="active">
+                                    <span class="batch-step-number">2</span>
+                                    <div class="batch-step-body">
+                                        <label class="batch-step-title" for="batch-label-input">НОМЕР ПАРТИИ</label>
+                                        <input id="batch-label-input" class="batch-input" type="text"
+                                               maxlength="40" autocomplete="off" spellcheck="false">
+                                    </div>
+                                </div>
+                                <div id="batch-step-start" class="batch-step" data-step="3"
+                                     data-state="todo">
+                                    <span class="batch-step-number">3</span>
+                                    <div class="batch-step-body">
+                                        <span class="batch-step-title">ПУСК УЧЁТА</span>
+                                        <button id="batch-start" class="btn btn-sm btn-batch-start"
+                                                type="button" disabled>НАЧАТЬ ПАРТИЮ</button>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="batch-field">
-                                <label class="batch-field-label" for="batch-label-input">НОМЕР ПАРТИИ</label>
-                                <input id="batch-label-input" class="batch-input" type="text"
-                                       maxlength="40" autocomplete="off" spellcheck="false">
-                            </div>
-                            <div class="batch-actions">
-                                <span id="batch-status" class="batch-status"></span>
-                                <button id="batch-start" class="btn btn-sm btn-batch-start" type="button"
-                                        disabled>НАЧАТЬ ПАРТИЮ</button>
-                            </div>
+                            <div id="batch-status" class="batch-status"></div>
                             <div class="batch-open">
                                 <div class="batch-open-title">НЕЗАВЕРШЁННЫЕ ПАРТИИ</div>
                                 <div id="batch-open-list" class="batch-open-list"></div>
@@ -377,17 +434,18 @@
         </div>
     </div>
 
-    <script src="/static/js/core.js?v=62"></script>
+    <script src="/static/js/core.js?v=63"></script>
     <script src="/static/js/boot.js?v=34"></script>
-    <script src="/static/js/status.js?v=64"></script>
+    <script src="/static/js/status.js?v=65"></script>
     <script src="/static/js/controls.js?v=37"></script>
     <script src="/static/js/thresholds.js?v=22"></script>
     <script src="/static/js/cameras.js?v=44"></script>
     <script src="/static/js/jog.js?v=40"></script>
     <script src="/static/js/history.js?v=38"></script>
     <script src="/static/js/archive.js?v=4"></script>
-    <script src="/static/js/batch.js?v=4"></script>
+    <script src="/static/js/operator.js?v=1"></script>
+    <script src="/static/js/batch.js?v=5"></script>
     <script src="/static/js/panel-deck.js?v=4"></script>
-    <script src="/static/js/bootstrap.js?v=38"></script>
+    <script src="/static/js/bootstrap.js?v=39"></script>
 </body>
 </html>

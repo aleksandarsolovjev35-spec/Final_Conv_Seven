@@ -1,11 +1,10 @@
-"""Менеджер партий: оператор, номер партии и учёт корпусов в её составе.
+"""Менеджер партий: номер партии и учёт корпусов в её составе.
 
-Логика учёта перевёрнута относительно прежней схемы «запуск программы —
-запуск партии»: партию открывает оператор, указав ФИО и номер, а программа
-лишь пишет корпуса в открытую партию. Незакрытая партия остаётся на диске
-(папка + манифест ``batch.json`` со статусом ``OPEN``) и после перезапуска
-продолжается с того же места: счётчики и список деталей восстанавливаются
-из манифеста.
+Логика учёта: оператор входит в программу (``OperatorStore``), затем
+открывает партию, указав её номер, а программа лишь пишет корпуса в
+открытую партию. Незакрытая партия остаётся на диске (папка + манифест
+``batch.json`` со статусом ``OPEN``) и после перезапуска продолжается с
+того же места: счётчики и список деталей восстанавливаются из манифеста.
 
 Реестр партий хранится рядом с архивом — ``<root>/batches.json``:
 
@@ -13,8 +12,6 @@
 
     {
       "schema_version": 1,
-      "last_operator": "Иванов Иван Иванович",
-      "operators": ["Иванов Иван Иванович"],
       "batches": [
         {
           "batch_id": "batch_12.10.2026-1",
@@ -61,8 +58,9 @@ OPERATOR_MIN_LENGTH = 3
 LABEL_MAX_LENGTH = 40
 RECENT_LIMIT = 5
 
-# Сообщение, которое HMI показывает вместо кнопки ПУСК.
-NO_BATCH_MESSAGE = "Партия не открыта: укажите ФИО и начните партию"
+# Сообщение, которое HMI показывает вместо кнопки ПУСК. Оператор берётся
+# из сессии входа, поэтому в карточке партии остаётся только её номер.
+NO_BATCH_MESSAGE = "Партия не открыта: начните партию"
 
 
 def _empty_counts() -> dict:
@@ -117,14 +115,6 @@ class BatchManager:
     def registry_path(self) -> str:
         return os.path.join(self.root_folder, self.registry_file)
 
-    @property
-    def operators(self) -> list:
-        return list(self._registry["operators"])
-
-    @property
-    def last_operator(self) -> str:
-        return self._registry["last_operator"]
-
     def counts(self) -> dict:
         """Счётчики открытой партии (нули, если партия не открыта)."""
         if self._current is None:
@@ -178,8 +168,6 @@ class BatchManager:
                 "root_path": self.root_folder,
                 "active": self.active,
                 "batch": self.batch_info(),
-                "operators": self.operators,
-                "last_operator": self.last_operator,
                 "suggestion": self.suggest_label(),
                 "open": self._summaries(STATUS_OPEN),
                 "recent": self._summaries(STATUS_CLOSED)[-RECENT_LIMIT:],
@@ -253,7 +241,6 @@ class BatchManager:
                 self._current = archive
                 action = f"открыта ({label})"
 
-            self._remember_operator(operator)
             self._save_registry()
             print(
                 f"[BATCH] Партия {archive.batch_id} {action}; "
@@ -506,19 +493,9 @@ class BatchManager:
             index += 1
         return candidate
 
-    def _remember_operator(self, operator: str) -> None:
-        operators = [
-            name for name in self._registry["operators"] if name != operator
-        ]
-        operators.insert(0, operator)
-        self._registry["operators"] = operators[:20]
-        self._registry["last_operator"] = operator
-
     def _read_registry(self) -> dict:
         registry = {
             "schema_version": 1,
-            "last_operator": "",
-            "operators": [],
             "batches": [],
         }
         try:
@@ -532,15 +509,6 @@ class BatchManager:
         if not isinstance(data, dict):
             return registry
 
-        operators = [
-            PartArchive.normalise_operator(name)
-            for name in data.get("operators") or []
-            if isinstance(name, str) and name.strip()
-        ]
-        registry["operators"] = operators[:20]
-        registry["last_operator"] = PartArchive.normalise_operator(
-            data.get("last_operator") or ""
-        )
         batches = []
         for item in data.get("batches") or []:
             if not isinstance(item, dict):

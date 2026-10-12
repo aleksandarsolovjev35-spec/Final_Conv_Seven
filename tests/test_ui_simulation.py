@@ -224,6 +224,38 @@ class SimulationApiTest(unittest.TestCase):
             self.assertEqual(self.sim.state, "RUNNING")
             self.sim.close()
 
+    def test_start_requires_operator_before_batch(self):
+        """Сначала вход в программу, затем партия — как в production."""
+        import tempfile
+        from inspection.batch_manager import BatchManager
+        from inspection.operator_store import OperatorStore
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = BatchManager(root_folder=tmp)
+            store = OperatorStore(tmp, iterations=1000)
+            self.sim.server.batch_manager = manager
+            self.sim.server.archive = manager
+            self.sim.server.operator_store = store
+
+            self.assertFalse(self.sim._operator_ready())
+            self.assertFalse(self.sim.start())
+            self.assertEqual(self.sim.state, "IDLE")
+
+            self.sim.server.operator = store.add_user(
+                "Иванов Иван Иванович", "1234",
+            )
+            self.assertTrue(self.sim._operator_ready())
+            # Партии ещё нет: следующий гейт — партия, а не оператор.
+            self.assertFalse(self.sim._batch_ready())
+            self.assertFalse(self.sim.start())
+
+            manager.open_batch(
+                label="П-1", operator=self.sim.server.operator,
+            )
+            self.assertTrue(self.sim.start())
+            self.assertEqual(self.sim.state, "RUNNING")
+            self.sim.close()
+
     def test_batch_change_continues_simulated_counting(self):
         """Продолжение партии продолжает нумерацию корпусов симулятора."""
         import tempfile
@@ -254,6 +286,11 @@ class SimulationApiTest(unittest.TestCase):
         """Модель линии без менеджера партий (юнит-тесты) пуск не блокирует."""
         self.sim.server.batch_manager = None
         self.assertTrue(self.sim._batch_ready())
+
+    def test_start_without_operator_store_keeps_working(self):
+        """Без хранилища операторов (юнит-тесты) вход не требуется."""
+        self.sim.server.operator_store = None
+        self.assertTrue(self.sim._operator_ready())
 
 
 class DemoFramesTest(unittest.TestCase):

@@ -97,8 +97,6 @@ class BatchManagerTest(unittest.TestCase):
         payload = self.manager.status_payload()
         self.assertEqual(payload["batch"]["label"], "П-1")
         self.assertEqual(payload["batch"]["operator"], "Иванов Иван Иванович")
-        self.assertEqual(payload["operators"], ["Иванов Иван Иванович"])
-        self.assertEqual(payload["last_operator"], "Иванов Иван Иванович")
         self.assertEqual(len(payload["open"]), 1)
 
     def test_batch_folder_name_is_safe_component(self):

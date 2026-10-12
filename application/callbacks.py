@@ -10,6 +10,7 @@ from application.constants import (
     CYCLE_JOIN_TIMEOUT,
     GRACEFUL_EXIT_TIMEOUT,
 )
+from inspection.operator_store import OperatorStore
 
 
 class ExitCoordinator:
@@ -227,6 +228,14 @@ def bind_inspection_callbacks(runtime, services) -> ThresholdCallbacks:
     # остаётся запрещающим.
     monitor.server.batch_manager = services.batch_manager
     monitor.server.archive = services.batch_manager
+    # Операторы смены: вход в программу по ФИО и паролю. Файл лежит рядом
+    # с реестром партий, поэтому смена папки архива меняет и список
+    # операторов — до перехода на общую БД это осознанное упрощение.
+    # Дубль менеджера без корня архива (тестовые сценарии) оставляет вход
+    # выключенным: пуск тогда проверяет только партию.
+    root_folder = getattr(services.batch_manager, "root_folder", None)
+    if root_folder:
+        monitor.server.operator_store = OperatorStore(root_folder)
     monitor.server.archive_config_path = "archive_config.json"
     monitor.server.thresholds = dict(services.thresholds)
     monitor.server.threshold_labels = dict(

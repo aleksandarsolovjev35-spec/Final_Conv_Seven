@@ -82,6 +82,11 @@ async function fetchStatus() {
         updateArchiveStatus(status.archive || null);
     }
 
+    // Оператор смены: строка над вкладками и гейт вкладки «ПАРТИЯ».
+    if (typeof updateOperatorStatus === 'function') {
+        updateOperatorStatus(status.operator || null);
+    }
+
     // Менеджер партий: карточка «ПАРТИЯ» и подпись партии в футере.
     if (typeof updateBatchStatus === 'function') {
         updateBatchStatus(status.batch || null);
