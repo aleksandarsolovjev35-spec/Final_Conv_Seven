@@ -1,4 +1,4 @@
-"""Проверки независимого мастера сбора датасета."""
+"""Проверки независимого мастера сбора датасета и YOLO segmentation."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+from fastapi.testclient import TestClient
 
 from training.collector import (
     CollectorError,
@@ -14,6 +15,8 @@ from training.collector import (
     TrainingConfig,
     ValidationError,
 )
+from training.server import create_app
+from training.yolo import PolygonAnnotation, normalise_polygon
 
 
 class FakeFrameSource:
@@ -50,8 +53,17 @@ class TrainingCollectorTest(unittest.TestCase):
             first = collector.capture_next()
             self.assertEqual(first.image_id, 1)
             collector.annotate_current(
-                defect_class="scratch",
-                boxes=[{"x": 10, "y": 20, "width": 30, "height": 25}],
+                annotations=[
+                    {
+                        "class_name": "scratch",
+                        "points": [
+                            {"x": 10, "y": 20},
+                            {"x": 40, "y": 20},
+                            {"x": 40, "y": 45},
+                            {"x": 10, "y": 45},
+                        ],
+                    }
+                ],
             )
             second = collector.capture_next()
             self.assertEqual(second.image_id, 2)
@@ -79,15 +91,59 @@ class TrainingCollectorTest(unittest.TestCase):
             )
             self.assertEqual(
                 (session / "labels/frame_000001_CAM_A.txt").read_text().split(),
-                ["0", "0.208333", "0.406250", "0.250000", "0.312500"],
+                [
+                    "0",
+                    "0.083333",
+                    "0.250000",
+                    "0.333333",
+                    "0.250000",
+                    "0.333333",
+                    "0.562500",
+                    "0.083333",
+                    "0.562500",
+                ],
             )
             self.assertEqual(
                 (session / "labels/frame_000002_CAM_B.txt").read_text(),
                 "",
             )
             self.assertTrue((session / "yolo/dataset.yaml").exists())
+            self.assertIn("task: segment", (session / "yolo/dataset.yaml").read_text())
             self.assertEqual(result["yolo"]["train_count"], 2)
             self.assertEqual(result["yolo"]["validation_count"], 0)
+
+    def test_legacy_bbox_is_exported_as_four_point_polygon(self):
+        with tempfile.TemporaryDirectory() as root:
+            collector, _ = self.make_collector(root)
+            collector.start_session("legacy")
+            collector.begin_part()
+            collector.capture_next()
+            collector.annotate_current(
+                boxes=[
+                    {
+                        "class_name": "scratch",
+                        "x": 10,
+                        "y": 20,
+                        "width": 30,
+                        "height": 25,
+                    }
+                ]
+            )
+            label = Path(collector.store.session_folder / "labels/frame_000001_CAM_A.txt")
+            self.assertEqual(
+                label.read_text().split(),
+                [
+                    "0",
+                    "0.083333",
+                    "0.250000",
+                    "0.333333",
+                    "0.250000",
+                    "0.333333",
+                    "0.562500",
+                    "0.083333",
+                    "0.562500",
+                ],
+            )
 
     def test_state_machine_requires_annotation_before_next_camera(self):
         with tempfile.TemporaryDirectory() as root:
@@ -100,7 +156,12 @@ class TrainingCollectorTest(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 collector.annotate_current(
                     defect_class="unknown",
-                    boxes=[{"x": 1, "y": 1, "width": 4, "height": 4}],
+                    annotations=[
+                        {
+                            "class_name": "scratch",
+                            "points": [[1, 1], [5, 1], [5, 5]],
+                        }
+                    ],
                 )
             collector.skip_current()
             with self.assertRaises(CollectorError):
@@ -113,20 +174,14 @@ class TrainingCollectorTest(unittest.TestCase):
             collector.begin_part()
             collector.capture_next()
             record = collector.annotate_current(
-                boxes=[
+                annotations=[
                     {
                         "class_name": "scratch",
-                        "x": 10,
-                        "y": 10,
-                        "width": 20,
-                        "height": 20,
+                        "points": [[10, 10], [30, 10], [30, 30], [10, 30]],
                     },
                     {
                         "class_name": "glass",
-                        "x": 60,
-                        "y": 30,
-                        "width": 20,
-                        "height": 20,
+                        "points": [[60, 30], [80, 30], [75, 50]],
                     },
                 ]
             )
@@ -136,6 +191,42 @@ class TrainingCollectorTest(unittest.TestCase):
             )
             label = Path(collector.store.session_folder / record.label).read_text()
             self.assertEqual(len(label.strip().splitlines()), 2)
+            self.assertTrue(all(len(line.split()) >= 7 for line in label.splitlines()))
+
+    def test_polygon_is_clipped_and_closed_duplicate_is_removed(self):
+        polygon = PolygonAnnotation(
+            "scratch",
+            ((-10, -10), (50, 0), (120, 0), (120, 80), (0, 80), (-10, -10)),
+        )
+        points = normalise_polygon(polygon, image_width=120, image_height=80)
+        self.assertEqual(points[0], (0.0, 0.0))
+        self.assertEqual(points[-1], (0.0, 80.0))
+        self.assertGreater(len(points), 3)
+
+    def test_polygon_requires_three_points_and_nonzero_area(self):
+        with tempfile.TemporaryDirectory() as root:
+            collector, _ = self.make_collector(root)
+            collector.start_session("invalid")
+            collector.begin_part()
+            collector.capture_next()
+            with self.assertRaises(ValidationError):
+                collector.annotate_current(
+                    annotations=[
+                        {
+                            "class_name": "scratch",
+                            "points": [[1, 1], [5, 1]],
+                        }
+                    ]
+                )
+            with self.assertRaises(ValidationError):
+                collector.annotate_current(
+                    annotations=[
+                        {
+                            "class_name": "scratch",
+                            "points": [[1, 1], [2, 2], [3, 3]],
+                        }
+                    ]
+                )
 
     def test_no_defect_keeps_empty_yolo_label(self):
         with tempfile.TemporaryDirectory() as root:
@@ -154,6 +245,54 @@ class TrainingCollectorTest(unittest.TestCase):
                     for path in (session / "labels").glob("*.txt")
                 )
             )
+
+
+class TrainingServerTest(unittest.TestCase):
+    def test_annotations_api_accepts_polygon_payload_and_exports_segmentation(self):
+        with tempfile.TemporaryDirectory() as root:
+            source = FakeFrameSource()
+            collector = TrainingCollector(
+                TrainingConfig(
+                    root_folder=root,
+                    camera_roles=("CAM_A",),
+                    defect_classes=("contact",),
+                    validation_ratio=0.0,
+                ),
+                frame_source=source,
+            )
+            client = TestClient(create_app(collector))
+
+            self.assertEqual(client.get("/api/training/config").status_code, 200)
+            self.assertEqual(
+                client.post(
+                    "/api/training/session",
+                    json={"dataset_name": "api", "defect_classes": ["contact"]},
+                ).status_code,
+                200,
+            )
+            self.assertEqual(client.post("/api/training/parts", json={}).status_code, 200)
+            frame = client.post("/api/training/capture").json()["frame"]
+            response = client.post(
+                "/api/training/annotations",
+                json={
+                    "image_id": frame["image_id"],
+                    "annotations": [
+                        {
+                            "class_name": "contact",
+                            "points": [[2, 2], [35, 3], [25, 25]],
+                        }
+                    ],
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["frame"]["status"], "annotated")
+
+            # The API returns a finished frame and keeps the segmentation label.
+            self.assertEqual(client.post("/api/training/parts/finish").status_code, 200)
+            self.assertEqual(client.post("/api/training/session/finish").status_code, 200)
+            labels = list(Path(root).glob("api_*/labels/*.txt"))
+            self.assertEqual(len(labels), 1)
+            self.assertGreaterEqual(len(labels[0].read_text().split()), 7)
 
 
 if __name__ == "__main__":

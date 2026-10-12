@@ -113,7 +113,7 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
 .palette-item:hover { border-color: var(--accent-2); }
 .palette-item.active { border-color: var(--accent); background: rgba(46, 214, 192, .16); color: var(--accent); }
 .palette-add-row { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 8px; }
-.annotation-controls { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 10px; align-items: end; padding-top: 5px; }
+.annotation-controls { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto auto; gap: 10px; align-items: end; padding-top: 5px; }
 .capture-actions { margin-top: 15px; }
 .capture-actions .primary { min-width: 205px; }
 

@@ -14,18 +14,20 @@
         canvas: $('annotation-canvas'), frameRole: $('frame-role'), frameSize: $('frame-size'),
         annotationHelp: $('annotation-help'), palette: $('element-palette'),
         newElement: $('new-element'), addElement: $('add-element'),
-        classSelect: $('defect-class'), noDefect: $('no-defect'),
-        clearBox: $('clear-box'), save: $('save-annotation'), nextCamera: $('next-camera'),
-        annotationMessage: $('annotation-message'), resultText: $('result-text'), resultYaml: $('result-yaml'),
+        classSelect: $('defect-class'), finishPolygon: $('finish-polygon'),
+        noDefect: $('no-defect'), clearBox: $('clear-box'), save: $('save-annotation'),
+        nextCamera: $('next-camera'), annotationMessage: $('annotation-message'),
+        resultText: $('result-text'), resultYaml: $('result-yaml'),
     };
 
     let config = null;
     let state = null;
     let currentFrame = null;
     let annotations = [];
+    let draftPoints = [];
+    let draftClass = '';
+    let hoverPoint = null;
     let noDefectSelected = false;
-    let drawing = false;
-    let drawStart = null;
     let lastError = '';
 
     function setMessage(element, text, kind = '') {
@@ -47,7 +49,8 @@
     }
 
     function selectedValues(container) {
-        return [...container.querySelectorAll('input[type="checkbox"]:checked')].map((item) => item.value);
+        return [...container.querySelectorAll('input[type="checkbox"]:checked')]
+            .map((item) => item.value);
     }
 
     function fillSetup(data) {
@@ -88,19 +91,27 @@
             button.className = 'palette-item';
             button.dataset.element = name;
             button.textContent = name;
-            button.disabled = !currentFrame;
+            button.disabled = !annotationEditable();
             button.addEventListener('click', () => selectElement(name));
             els.palette.appendChild(button);
         });
         updatePaletteSelection();
     }
 
+    function annotationEditable() {
+        return Boolean(currentFrame) && !els.save.disabled;
+    }
+
     function selectElement(name) {
+        if (draftPoints.length && name !== draftClass) {
+            setMessage(els.annotationMessage, 'Сначала завершите текущую область.', 'error');
+            return;
+        }
         els.classSelect.value = name || '';
         noDefectSelected = false;
         els.noDefect.classList.remove('selected');
         updatePaletteSelection();
-        if (annotations.length) redrawBox();
+        redrawAnnotations();
     }
 
     function updatePaletteSelection() {
@@ -110,7 +121,7 @@
                 'active',
                 button.dataset.element === els.classSelect.value,
             );
-            button.disabled = !currentFrame;
+            button.disabled = !annotationEditable();
         });
     }
 
@@ -148,6 +159,7 @@
         }
         if (!currentFrame) {
             els.save.disabled = true;
+            els.finishPolygon.disabled = true;
             els.noDefect.disabled = true;
             els.clearBox.disabled = true;
             els.classSelect.disabled = true;
@@ -160,9 +172,10 @@
     function resetFrame() {
         currentFrame = null;
         annotations = [];
+        draftPoints = [];
+        draftClass = '';
+        hoverPoint = null;
         noDefectSelected = false;
-        drawing = false;
-        drawStart = null;
         els.wrap.classList.add('empty');
         els.wrap.style.aspectRatio = '16 / 9';
         els.image.removeAttribute('src');
@@ -173,9 +186,10 @@
         els.frameRole.textContent = 'КАМЕРА —';
         els.frameSize.textContent = '— × —';
         els.cameraTitle.textContent = 'Ожидание детали';
-        els.annotationHelp.textContent = 'Потяните мышью по дефекту, чтобы обвести область';
+        els.annotationHelp.textContent = 'Кликайте точки контура, затем нажмите «Завершить область»';
         els.classSelect.value = '';
         els.classSelect.disabled = true;
+        els.finishPolygon.disabled = true;
         els.noDefect.disabled = true;
         els.clearBox.disabled = true;
         els.save.disabled = true;
@@ -189,6 +203,9 @@
     function showFrame(frame, annotated = false) {
         currentFrame = frame;
         annotations = [];
+        draftPoints = [];
+        draftClass = '';
+        hoverPoint = null;
         noDefectSelected = false;
         els.wrap.classList.remove('empty');
         els.emptyState.classList.add('hidden');
@@ -198,7 +215,7 @@
             els.canvas.width = width;
             els.canvas.height = height;
             els.wrap.style.aspectRatio = `${width} / ${height}`;
-            redrawBox();
+            redrawAnnotations();
         };
         const url = (annotated && frame.annotated_url) ? frame.annotated_url : frame.original_url;
         els.image.src = `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`;
@@ -206,9 +223,12 @@
         els.frameRole.textContent = frame.camera_role || frame.role || 'КАМЕРА —';
         els.frameSize.textContent = `${frame.width} × ${frame.height}`;
         els.cameraTitle.textContent = `${frame.camera_role || frame.role} · разметка`;
-        els.annotationHelp.textContent = annotated ? 'Разметка сохранена. Можно переходить к следующей камере.' : 'Потяните мышью по дефекту, чтобы обвести область';
+        els.annotationHelp.textContent = annotated
+            ? 'Разметка сохранена. Можно переходить к следующей камере.'
+            : 'Кликайте точки контура, затем нажмите «Завершить область»';
         els.canvas.style.pointerEvents = annotated ? 'none' : 'auto';
         els.classSelect.disabled = annotated;
+        els.finishPolygon.disabled = annotated;
         els.noDefect.disabled = annotated;
         els.clearBox.disabled = annotated;
         els.save.disabled = annotated;
@@ -227,93 +247,144 @@
         };
     }
 
-    function redrawBox(preview = null) {
-        const ctx = els.canvas.getContext('2d');
-        ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
-        const boxes = annotations.slice();
-        if (preview) boxes.push({
-            ...preview,
-            class_name: els.classSelect.value || 'элемент',
+    function distance(left, right) {
+        return Math.hypot(left.x - right.x, left.y - right.y);
+    }
+
+    function drawPolygon(ctx, points, className, index, draft = false) {
+        if (!points.length) return;
+        const hue = (index * 67) % 360;
+        ctx.strokeStyle = `hsl(${hue}, 80%, 62%)`;
+        ctx.fillStyle = `hsla(${hue}, 80%, 55%, ${draft ? '.08' : '.14'})`;
+        ctx.lineWidth = Math.max(2, els.canvas.width / 600);
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        points.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
+        if (!draft && points.length >= 3) {
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.stroke();
+        points.forEach((point) => {
+            ctx.beginPath();
+            ctx.fillStyle = `hsl(${hue}, 80%, 70%)`;
+            ctx.arc(point.x, point.y, Math.max(4, els.canvas.width / 180), 0, Math.PI * 2);
+            ctx.fill();
         });
-        boxes.forEach((box, index) => {
-            const x = Math.min(box.x, box.x + box.width);
-            const y = Math.min(box.y, box.y + box.height);
-            const width = Math.abs(box.width);
-            const height = Math.abs(box.height);
-            if (width < 1 || height < 1) return;
-            const hue = (index * 67) % 360;
-            ctx.fillStyle = `hsla(${hue}, 80%, 55%, .14)`;
-            ctx.fillRect(x, y, width, height);
-            ctx.strokeStyle = `hsl(${hue}, 80%, 62%)`;
-            ctx.lineWidth = Math.max(2, els.canvas.width / 600);
-            ctx.strokeRect(x, y, width, height);
+        if (className) {
             ctx.fillStyle = `hsl(${hue}, 80%, 70%)`;
             ctx.font = `${Math.max(14, els.canvas.width / 75)}px Segoe UI, Arial`;
-            ctx.fillText(
-                box.class_name || 'элемент',
-                x + 5,
-                Math.max(18, y - 7),
-            );
+            ctx.fillText(className, points[0].x + 6, Math.max(18, points[0].y - 8));
+        }
+    }
+
+    function redrawAnnotations() {
+        const ctx = els.canvas.getContext('2d');
+        ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
+        annotations.forEach((annotation, index) => {
+            drawPolygon(ctx, annotation.points, annotation.class_name, index);
         });
+        if (draftPoints.length) {
+            const preview = draftPoints.slice();
+            if (hoverPoint) preview.push(hoverPoint);
+            drawPolygon(ctx, preview, draftClass || els.classSelect.value, annotations.length, true);
+        }
+        els.finishPolygon.disabled = !annotationEditable() || draftPoints.length < 3;
+    }
+
+    function finishCurrentPolygon() {
+        if (!draftPoints.length) {
+            setMessage(els.annotationMessage, 'Сначала поставьте точки контура.', 'error');
+            return false;
+        }
+        if (draftPoints.length < 3) {
+            setMessage(els.annotationMessage, 'Для области нужно минимум три точки.', 'error');
+            return false;
+        }
+        annotations.push({
+            class_name: draftClass || els.classSelect.value,
+            points: draftPoints.map((point) => ({x: point.x, y: point.y})),
+        });
+        draftPoints = [];
+        draftClass = '';
+        hoverPoint = null;
+        redrawAnnotations();
+        setMessage(els.annotationMessage, 'Область добавлена. Можно выбрать другой элемент.', 'ok');
+        return true;
     }
 
     els.canvas.addEventListener('pointerdown', (event) => {
-        if (!currentFrame || els.save.disabled || noDefectSelected) return;
+        if (!annotationEditable() || noDefectSelected) return;
         if (!els.classSelect.value) {
             setMessage(els.annotationMessage, 'Сначала выберите элемент в палитре.', 'error');
             return;
         }
         event.preventDefault();
-        els.canvas.setPointerCapture(event.pointerId);
-        drawing = true;
-        drawStart = canvasPoint(event);
-        redrawBox({x: drawStart.x, y: drawStart.y, width: 0, height: 0});
-    });
-    els.canvas.addEventListener('pointermove', (event) => {
-        if (!drawing) return;
-        event.preventDefault();
         const point = canvasPoint(event);
-        redrawBox({x: drawStart.x, y: drawStart.y, width: point.x - drawStart.x, height: point.y - drawStart.y});
-    });
-    els.canvas.addEventListener('pointerup', (event) => {
-        if (!drawing) return;
-        drawing = false;
-        const point = canvasPoint(event);
-        const candidate = {x: drawStart.x, y: drawStart.y, width: point.x - drawStart.x, height: point.y - drawStart.y};
-        if (Math.abs(candidate.width) >= 3 && Math.abs(candidate.height) >= 3) {
-            annotations.push({
-                ...candidate,
-                class_name: els.classSelect.value,
-            });
-            noDefectSelected = false;
-            els.noDefect.classList.remove('selected');
-            redrawBox();
-        } else {
-            redrawBox();
+        if (!draftPoints.length) draftClass = els.classSelect.value;
+        const closeDistance = Math.max(8, els.canvas.width / 100);
+        if (draftPoints.length >= 3 && distance(point, draftPoints[0]) <= closeDistance) {
+            finishCurrentPolygon();
+            return;
         }
+        draftPoints.push(point);
+        hoverPoint = null;
+        redrawAnnotations();
     });
 
+    els.canvas.addEventListener('pointermove', (event) => {
+        if (!draftPoints.length || !annotationEditable()) return;
+        hoverPoint = canvasPoint(event);
+        redrawAnnotations();
+    });
+
+    els.canvas.addEventListener('pointerleave', () => {
+        if (!hoverPoint) return;
+        hoverPoint = null;
+        redrawAnnotations();
+    });
+
+    els.canvas.addEventListener('dblclick', (event) => {
+        event.preventDefault();
+        finishCurrentPolygon();
+    });
+
+    els.finishPolygon.addEventListener('click', finishCurrentPolygon);
+
     els.classSelect.addEventListener('change', () => {
+        if (draftPoints.length && els.classSelect.value !== draftClass) {
+            els.classSelect.value = draftClass;
+            setMessage(els.annotationMessage, 'Сначала завершите текущую область.', 'error');
+            return;
+        }
         noDefectSelected = false;
         els.noDefect.classList.remove('selected');
         updatePaletteSelection();
-        redrawBox();
+        redrawAnnotations();
     });
+
     els.noDefect.addEventListener('click', () => {
-        noDefectSelected = true;
+        draftPoints = [];
+        draftClass = '';
+        hoverPoint = null;
         annotations = [];
+        noDefectSelected = true;
         els.classSelect.value = '';
         els.noDefect.classList.add('selected');
         updatePaletteSelection();
-        redrawBox();
+        redrawAnnotations();
     });
+
     els.clearBox.addEventListener('click', () => {
         annotations = [];
+        draftPoints = [];
+        draftClass = '';
+        hoverPoint = null;
         noDefectSelected = false;
         els.classSelect.value = '';
         els.noDefect.classList.remove('selected');
         updatePaletteSelection();
-        redrawBox();
+        redrawAnnotations();
     });
 
     els.addElement.addEventListener('click', async () => {
@@ -325,8 +396,7 @@
         els.addElement.disabled = true;
         try {
             const result = await api('/api/training/classes', {
-                method: 'POST',
-                body: JSON.stringify({class_name: name}),
+                method: 'POST', body: JSON.stringify({class_name: name}),
             });
             fillClasses(result.defect_classes || []);
             selectElement(name);
@@ -349,7 +419,7 @@
             const result = await api('/api/training/capture', {method: 'POST', body: '{}'});
             renderState(result.state);
             showFrame(result.frame, false);
-            setMessage(els.annotationMessage, `Кадр #${result.frame.image_id} сохранён. Теперь выберите класс и обведите область.`, 'ok');
+            setMessage(els.annotationMessage, `Кадр #${result.frame.image_id} сохранён. Выберите элемент и поставьте точки контура.`, 'ok');
         } catch (error) {
             setMessage(els.annotationMessage, error.message, 'error');
         }
@@ -359,11 +429,16 @@
         const roles = selectedValues(els.roles);
         const classes = els.classes.value.split(',').map((item) => item.trim()).filter(Boolean);
         if (!roles.length) { setMessage(els.setupMessage, 'Выберите хотя бы одну камеру.', 'error'); return; }
-        if (!classes.length) { setMessage(els.setupMessage, 'Укажите хотя бы один класс дефекта.', 'error'); return; }
+        if (!classes.length) { setMessage(els.setupMessage, 'Укажите хотя бы один элемент палитры.', 'error'); return; }
         els.create.disabled = true;
         try {
             const result = await api('/api/training/session', {
-                method: 'POST', body: JSON.stringify({dataset_name: els.datasetName.value.trim() || 'defects', camera_roles: roles, defect_classes: classes}),
+                method: 'POST',
+                body: JSON.stringify({
+                    dataset_name: els.datasetName.value.trim() || 'defects',
+                    camera_roles: roles,
+                    defect_classes: classes,
+                }),
             });
             fillClasses(result.defect_classes || classes);
             renderState(result);
@@ -391,22 +466,32 @@
 
     els.save.addEventListener('click', async () => {
         if (!currentFrame) return;
+        if (draftPoints.length) {
+            setMessage(els.annotationMessage, 'Сначала нажмите «Завершить область».', 'error');
+            return;
+        }
         if (!noDefectSelected && !annotations.length) {
-            setMessage(els.annotationMessage, 'Выберите элемент и обведите хотя бы одну область. Если дефекта нет — нажмите «Дефекта нет».', 'error');
+            setMessage(els.annotationMessage, 'Выберите элемент и обведите область. Если дефекта нет — нажмите «Дефекта нет».', 'error');
             return;
         }
         els.save.disabled = true;
         const wasNoDefect = noDefectSelected;
         try {
-            const payload = {
-                image_id: currentFrame.image_id,
-                boxes: wasNoDefect ? [] : annotations,
-            };
-            const result = await api('/api/training/annotations', {method: 'POST', body: JSON.stringify(payload)});
+            const result = await api('/api/training/annotations', {
+                method: 'POST',
+                body: JSON.stringify({
+                    image_id: currentFrame.image_id,
+                    annotations: wasNoDefect ? [] : annotations,
+                }),
+            });
             renderState(result.state);
             showFrame(result.frame, true);
-            setMessage(els.annotationMessage, wasNoDefect ? 'Кадр сохранён как отрицательный пример.' : 'Разметка сохранена: оригинал и изображение с областями записаны.', 'ok');
-            setMessage(els.workflowMessage, result.state.next_role ? `Готово. Следующая камера: ${result.state.next_role}.` : 'Все камеры детали готовы. Завершите деталь.', 'ok');
+            setMessage(els.annotationMessage, wasNoDefect
+                ? 'Кадр сохранён как отрицательный пример.'
+                : 'Готово: оригинал и изображение с polygon-областями записаны.', 'ok');
+            setMessage(els.workflowMessage, result.state.next_role
+                ? `Готово. Следующая камера: ${result.state.next_role}.`
+                : 'Все камеры детали готовы. Завершите деталь.', 'ok');
         } catch (error) {
             els.save.disabled = false;
             setMessage(els.annotationMessage, error.message, 'error');
@@ -431,18 +516,18 @@
     els.export.addEventListener('click', async () => {
         try {
             const result = await api('/api/training/export', {method: 'POST', body: '{}'});
-            setMessage(els.workflowMessage, `YOLO-экспорт обновлён: train ${result.yolo.train_count}, val ${result.yolo.validation_count}.`, 'ok');
+            setMessage(els.workflowMessage, `YOLO-${result.yolo.task || 'segment'}-экспорт обновлён: train ${result.yolo.train_count}, val ${result.yolo.validation_count}.`, 'ok');
         } catch (error) { setMessage(els.workflowMessage, error.message, 'error'); }
     });
 
     els.finishSession.addEventListener('click', async () => {
-        if (!confirm('Завершить набор и подготовить структуру YOLO?')) return;
+        if (!confirm('Завершить набор и подготовить структуру YOLO segmentation?')) return;
         try {
             const result = await api('/api/training/session/finish', {method: 'POST', body: '{}'});
             els.work.classList.add('hidden');
             els.result.classList.remove('hidden');
             const yolo = result.yolo || {};
-            els.resultText.textContent = `Изображения распределены по группам train (${yolo.train_count || 0}) и val (${yolo.validation_count || 0}). Пустые label-файлы сохранены для кадров без дефекта.`;
+            els.resultText.textContent = `Полигоны экспортированы: train (${yolo.train_count || 0}), val (${yolo.validation_count || 0}). Пустые label-файлы сохранены для кадров без дефекта.`;
             els.resultYaml.textContent = yolo.yaml_path || 'dataset.yaml создан в папке партии';
         } catch (error) { setMessage(els.workflowMessage, error.message, 'error'); }
     });
@@ -459,8 +544,6 @@
             els.connection.textContent = 'СЕРВЕР ГОТОВ';
             els.connection.classList.add('ok');
             resetFrame();
-            // После обновления страницы не теряем текущий кадр: backend
-            // держит состояние сессии в памяти до завершения мастера.
             if (existing && existing.active && existing.session) {
                 fillClasses(existing.defect_classes || data.defect_classes);
                 renderState(existing);
@@ -468,7 +551,7 @@
                 els.work.classList.remove('hidden');
                 if (existing.current_frame) {
                     showFrame(existing.current_frame, false);
-                    setMessage(els.annotationMessage, 'Сессия восстановлена. Продолжите разметку текущего кадра.', 'ok');
+                    setMessage(els.annotationMessage, 'Сессия восстановлена. Продолжите обводку точками.', 'ok');
                 } else {
                     setMessage(els.workflowMessage, 'Сессия восстановлена. Можно продолжить текущую деталь или начать новую.', 'ok');
                 }

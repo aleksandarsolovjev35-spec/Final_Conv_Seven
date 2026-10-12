@@ -21,7 +21,11 @@ from training.collector import (
     TrainingDatasetStore,
     ValidationError,
 )
-from training.yolo import YoloExport, export_yolo_dataset
+from training.yolo import (
+    PolygonAnnotation,
+    YoloExport,
+    export_yolo_dataset,
+)
 
 __all__ = [
     "DEFAULT_CAMERA_ROLES",
@@ -36,6 +40,7 @@ __all__ = [
     "TrainingDatasetCollector",
     "TrainingDatasetStore",
     "ValidationError",
+    "PolygonAnnotation",
     "YoloExport",
     "export_yolo_dataset",
 ]

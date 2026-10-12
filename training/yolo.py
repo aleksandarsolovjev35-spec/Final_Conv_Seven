@@ -1,4 +1,4 @@
-"""YOLO-совместимая разметка и экспорт собранной партии."""
+"""Полигоны разметки и экспорт собранной партии в YOLO."""
 
 from __future__ import annotations
 
@@ -14,6 +14,43 @@ import numpy as np
 
 
 @dataclass(frozen=True)
+class PolygonAnnotation:
+    """Контур одного элемента в пикселях исходного изображения."""
+
+    class_name: str
+    points: tuple[tuple[float, float], ...]
+
+    @classmethod
+    def from_payload(cls, payload: Any) -> "PolygonAnnotation":
+        if not isinstance(payload, dict):
+            raise ValueError("Полигон должен быть объектом")
+        class_name = str(
+            payload.get("class_name", payload.get("class", ""))
+        ).strip()
+        raw_points = payload.get("points")
+        if not isinstance(raw_points, (list, tuple)):
+            raise ValueError("У полигона нет списка points")
+        points = []
+        for raw_point in raw_points:
+            if isinstance(raw_point, dict):
+                points.append((float(raw_point["x"]), float(raw_point["y"])))
+            elif isinstance(raw_point, (list, tuple)) and len(raw_point) == 2:
+                points.append((float(raw_point[0]), float(raw_point[1])))
+            else:
+                raise ValueError("Точка должна содержать x и y")
+        return cls(class_name=class_name, points=tuple(points))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "class": self.class_name,
+            "points": [
+                {"x": float(x), "y": float(y)}
+                for x, y in self.points
+            ],
+        }
+
+
+@dataclass(frozen=True)
 class YoloExport:
     """Результат подготовки структуры для Ultralytics/YOLO."""
 
@@ -23,6 +60,7 @@ class YoloExport:
     validation_count: int
     skipped_count: int
     class_names: tuple[str, ...]
+    task: str = "segment"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -32,6 +70,7 @@ class YoloExport:
             "validation_count": self.validation_count,
             "skipped_count": self.skipped_count,
             "class_names": list(self.class_names),
+            "task": self.task,
         }
 
 
@@ -41,18 +80,29 @@ def normalise_box(
     image_width: int,
     image_height: int,
 ) -> tuple[float, float, float, float]:
-    """Вернуть clipped ``x1, y1, x2, y2`` и проверить площадь.
-
-    Координаты UI могут выйти за границы картинки на несколько пикселей, а
-    при рисовании мышью ширина/высота иногда отрицательны. Нормализация
-    делает такие случаи безопасными, но не принимает область нулевой площади.
-    """
+    """Вернуть clipped ``x1, y1, x2, y2`` для legacy bounding box."""
     try:
-        x = float(box.x)
-        y = float(box.y)
-        width = float(box.width)
-        height = float(box.height)
-    except (AttributeError, TypeError, ValueError) as exc:
+        if isinstance(box, dict):
+            if all(key in box for key in ("x", "y")) and (
+                "width" in box or "w" in box
+            ) and ("height" in box or "h" in box):
+                x = float(box["x"])
+                y = float(box["y"])
+                width = float(box.get("width", box.get("w")))
+                height = float(box.get("height", box.get("h")))
+            else:
+                raw_bbox = box.get("bbox")
+                if not isinstance(raw_bbox, (list, tuple)) or len(raw_bbox) != 4:
+                    raise KeyError("x, y, width, height")
+                x1, y1, x2, y2 = (float(value) for value in raw_bbox)
+                x, y = x1, y1
+                width, height = x2 - x1, y2 - y1
+        else:
+            x = float(box.x)
+            y = float(box.y)
+            width = float(box.width)
+            height = float(box.height)
+    except (AttributeError, KeyError, TypeError, ValueError) as exc:
         raise ValueError("Некорректная bounding box") from exc
     if not all(np.isfinite(value) for value in (x, y, width, height)):
         raise ValueError("Координаты bounding box должны быть конечными")
@@ -69,32 +119,117 @@ def normalise_box(
     return x1, y1, x2, y2
 
 
+def normalise_polygon(
+    polygon: Any,
+    *,
+    image_width: int,
+    image_height: int,
+) -> tuple[tuple[float, float], ...]:
+    """Проверить и обрезать polygon в пикселях исходного изображения."""
+    if isinstance(polygon, dict):
+        raw_points = polygon.get("points")
+    else:
+        raw_points = getattr(polygon, "points", None)
+    if raw_points is None:
+        x1, y1, x2, y2 = normalise_box(
+            polygon,
+            image_width=image_width,
+            image_height=image_height,
+        )
+        raw_points = ((x1, y1), (x2, y1), (x2, y2), (x1, y2))
+    if not isinstance(raw_points, (list, tuple)):
+        raise ValueError("У полигона должен быть список points")
+    raw_points = list(raw_points)
+
+    if len(raw_points) >= 2 and _same_point(raw_points[0], raw_points[-1]):
+        raw_points = raw_points[:-1]
+    if len(raw_points) < 3:
+        raise ValueError("Область должна содержать минимум три точки")
+    if image_width <= 0 or image_height <= 0:
+        raise ValueError("Размер изображения должен быть положительным")
+
+    points = []
+    for raw_point in raw_points:
+        try:
+            if isinstance(raw_point, dict):
+                x = float(raw_point["x"])
+                y = float(raw_point["y"])
+            else:
+                x = float(raw_point[0])
+                y = float(raw_point[1])
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise ValueError("Каждая точка должна содержать x и y") from exc
+        if not np.isfinite(x) or not np.isfinite(y):
+            raise ValueError("Координаты точки должны быть конечными")
+        points.append(
+            (
+                max(0.0, min(float(image_width), x)),
+                max(0.0, min(float(image_height), y)),
+            )
+        )
+
+    # Повторяющиеся соседние точки ломают полигон и не несут информации.
+    compact = []
+    for point in points:
+        if not compact or not _same_point(compact[-1], point):
+            compact.append(point)
+    if len(compact) >= 2 and _same_point(compact[0], compact[-1]):
+        compact.pop()
+    if len(compact) < 3 or _polygon_area(compact) < 1.0:
+        raise ValueError("Площадь области слишком мала")
+    return tuple(compact)
+
+
 def annotation_to_yolo_lines(
     annotations: Sequence[Any],
     *,
     image_width: int,
     image_height: int,
     class_names: Sequence[str],
+    task: str = "segment",
 ) -> list[str]:
-    """Преобразовать пиксельные прямоугольники в строки YOLO."""
+    """Преобразовать полигоны в строки YOLO segmentation.
+
+    ``BoundingBox`` остаётся поддерживаемым legacy-входом и превращается в
+    прямоугольный polygon. Режим ``detect`` оставлен для внешних интеграций,
+    но мастер по умолчанию экспортирует именно segmentation-разметку.
+    """
+    if task not in ("segment", "detect"):
+        raise ValueError("task должен быть segment или detect")
     indices = {name: index for index, name in enumerate(class_names)}
     lines = []
-    for box in annotations:
-        class_name = str(getattr(box, "class_name", "")).strip()
+    for annotation in annotations:
+        class_name = _annotation_class_name(annotation)
         if class_name not in indices:
             raise ValueError(f"Неизвестный класс YOLO: {class_name}")
-        x1, y1, x2, y2 = normalise_box(
-            box,
+        points = normalise_polygon(
+            annotation,
             image_width=image_width,
             image_height=image_height,
         )
-        center_x = ((x1 + x2) / 2.0) / image_width
-        center_y = ((y1 + y2) / 2.0) / image_height
-        width = (x2 - x1) / image_width
-        height = (y2 - y1) / image_height
+        if task == "detect":
+            x_values = [point[0] for point in points]
+            y_values = [point[1] for point in points]
+            x1, x2 = min(x_values), max(x_values)
+            y1, y2 = min(y_values), max(y_values)
+            values = (
+                (x1 + x2) / 2.0 / image_width,
+                (y1 + y2) / 2.0 / image_height,
+                (x2 - x1) / image_width,
+                (y2 - y1) / image_height,
+            )
+        else:
+            values = tuple(
+                coordinate / size
+                for point in points
+                for coordinate, size in (
+                    (point[0], image_width),
+                    (point[1], image_height),
+                )
+            )
         lines.append(
-            f"{indices[class_name]} {center_x:.6f} {center_y:.6f} "
-            f"{width:.6f} {height:.6f}"
+            f"{indices[class_name]} "
+            + " ".join(f"{value:.6f}" for value in values)
         )
     return lines
 
@@ -106,28 +241,31 @@ def draw_annotations(
     image_width: int,
     image_height: int,
 ) -> np.ndarray:
-    """Создать отдельную копию кадра с прямоугольниками и подписями."""
+    """Создать отдельную копию кадра с polygon-контурами и подписями."""
     marked = np.ascontiguousarray(image.copy())
-    for index, box in enumerate(annotations):
-        x1, y1, x2, y2 = normalise_box(
-            box,
+    for index, annotation in enumerate(annotations):
+        points = normalise_polygon(
+            annotation,
             image_width=image_width,
             image_height=image_height,
         )
-        # Палитра повторяется для нескольких областей, но не меняет исходник.
         color = (
             int((37 * (index + 1)) % 255),
             int((97 * (index + 1)) % 255),
             int((173 * (index + 1)) % 255),
         )
-        left, top, right, bottom = (
-            int(round(x1)),
-            int(round(y1)),
-            int(round(x2)),
-            int(round(y2)),
+        polygon = np.asarray(
+            [[int(round(x)), int(round(y))] for x, y in points],
+            dtype=np.int32,
         )
-        cv2.rectangle(marked, (left, top), (right, bottom), color, 3)
-        label = str(getattr(box, "class_name", "defect"))
+        overlay = marked.copy()
+        cv2.fillPoly(overlay, [polygon], color)
+        marked = cv2.addWeighted(overlay, 0.22, marked, 0.78, 0)
+        cv2.polylines(marked, [polygon], isClosed=True, color=color, thickness=3)
+
+        label = _annotation_class_name(annotation) or "defect"
+        left = int(min(point[0] for point in points))
+        top = int(min(point[1] for point in points))
         (text_width, text_height), baseline = cv2.getTextSize(
             label,
             cv2.FONT_HERSHEY_SIMPLEX,
@@ -162,20 +300,16 @@ def export_yolo_dataset(
     validation_ratio: float | None = None,
     seed: int = 42,
 ) -> YoloExport:
-    """Скопировать все размеченные кадры в ``yolo/images`` и ``labels``.
-
-    Разбиение выполняется по детали, а не по отдельному кадру: семь камер
-    одной детали не попадут одновременно в train и val. Для одного корпуса
-    validation указывает на train, потому что Ultralytics всё равно требует
-    поле ``val`` в yaml, а искусственное дублирование в другую папку не даёт
-    честной проверки качества.
-    """
+    """Скопировать размеченные кадры в готовую train/val-структуру YOLO."""
     class_names = tuple(store.config.defect_classes)
+    task = getattr(store.config, "yolo_task", "segment")
     ratio = (
         store.config.validation_ratio
         if validation_ratio is None
         else float(validation_ratio)
     )
+    if task not in ("segment", "detect"):
+        raise ValueError("task должен быть segment или detect")
     if not 0.0 <= ratio < 1.0:
         raise ValueError("validation_ratio должен быть в диапазоне [0, 1)")
 
@@ -251,6 +385,7 @@ def export_yolo_dataset(
     val_path = "yolo/images/val" if validation_parts else "yolo/images/train"
     yaml_lines = [
         f"path: {json.dumps(dataset_root, ensure_ascii=False)}",
+        f"task: {task}",
         "train: yolo/images/train",
         f"val: {val_path}",
         "names:",
@@ -262,12 +397,13 @@ def export_yolo_dataset(
     _write_text(yaml_path, "\n".join(yaml_lines) + "\n")
     _write_json(
         yolo_root / "classes.json",
-        {"names": list(class_names), "nc": len(class_names)},
+        {"names": list(class_names), "nc": len(class_names), "task": task},
     )
     _write_json(
         yolo_root / "split.json",
         {
             "seed": seed,
+            "task": task,
             "validation_ratio": ratio,
             "validation_parts": sorted(validation_parts),
             "items": split_rows,
@@ -280,6 +416,44 @@ def export_yolo_dataset(
         validation_count=validation_count,
         skipped_count=skipped_count,
         class_names=class_names,
+        task=task,
+    )
+
+
+def _annotation_class_name(annotation: Any) -> str:
+    if isinstance(annotation, dict):
+        return str(
+            annotation.get("class_name", annotation.get("class", ""))
+        ).strip()
+    return str(getattr(annotation, "class_name", "")).strip()
+
+
+def _same_point(left: Any, right: Any) -> bool:
+    try:
+        if isinstance(left, dict):
+            left_values = (left["x"], left["y"])
+        else:
+            left_values = (left[0], left[1])
+        if isinstance(right, dict):
+            right_values = (right["x"], right["y"])
+        else:
+            right_values = (right[0], right[1])
+        return (
+            float(left_values[0]) == float(right_values[0])
+            and float(left_values[1]) == float(right_values[1])
+        )
+    except (IndexError, KeyError, TypeError, ValueError):
+        return False
+
+
+def _polygon_area(points: Sequence[tuple[float, float]]) -> float:
+    return abs(
+        sum(
+            points[index][0] * points[(index + 1) % len(points)][1]
+            - points[(index + 1) % len(points)][0] * points[index][1]
+            for index in range(len(points))
+        )
+        / 2.0
     )
 
 

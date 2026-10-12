@@ -68,6 +68,7 @@ def create_app(
             {
                 "camera_roles": list(item.config.camera_roles),
                 "defect_classes": list(item.config.defect_classes),
+                "yolo_task": item.config.yolo_task,
                 "root_folder": str(item.config.root_folder),
             }
         )
@@ -145,12 +146,23 @@ def create_app(
     async def save_annotation(payload: dict[str, Any] | None = None):
         payload = payload or {}
         item = current_collector()
-        boxes = payload.get("boxes")
-        if boxes is None and payload.get("bbox") is not None:
-            boxes = [{"bbox": payload.get("bbox")}]
-        if boxes is not None and not isinstance(boxes, list):
+        regions = payload.get("annotations")
+        if regions is None:
+            regions = payload.get("polygons")
+        if regions is None:
+            regions = payload.get("boxes")
+        if regions is None and payload.get("bbox") is not None:
+            regions = [{"bbox": payload.get("bbox")}]
+        if regions is not None and not isinstance(regions, list):
+            field_name = (
+                "annotations"
+                if payload.get("annotations") is not None
+                else "polygons"
+                if payload.get("polygons") is not None
+                else "boxes"
+            )
             return _error_response(
-                ValidationError("boxes должен быть списком областей"),
+                ValidationError(f"{field_name} должен быть списком областей"),
                 400,
             )
         # image_id принимается для понятного контракта API, но разметка всегда
@@ -166,7 +178,7 @@ def create_app(
             record = await asyncio.to_thread(
                 item.annotate_current,
                 defect_class=_optional_text(payload.get("defect_class")),
-                boxes=boxes or (),
+                annotations=regions or (),
             )
         except ValidationError as exc:
             return _error_response(exc, 400)

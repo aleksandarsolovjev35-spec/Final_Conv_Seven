@@ -23,9 +23,10 @@ import cv2
 import numpy as np
 
 from training.yolo import (
+    PolygonAnnotation,
     annotation_to_yolo_lines,
     draw_annotations,
-    normalise_box,
+    normalise_polygon,
 )
 
 
@@ -96,6 +97,7 @@ class TrainingConfig:
     defect_classes: tuple[str, ...] = DEFAULT_DEFECT_CLASSES
     jpeg_quality: int = 98
     validation_ratio: float = 0.2
+    yolo_task: str = "segment"
 
     def __post_init__(self) -> None:
         root = str(self.root_folder).strip()
@@ -109,11 +111,15 @@ class TrainingConfig:
         ratio = float(self.validation_ratio)
         if not 0.0 <= ratio < 1.0:
             raise ValidationError("validation_ratio должен быть в диапазоне [0, 1)")
+        task = str(self.yolo_task or "segment").strip().lower()
+        if task not in ("segment", "detect"):
+            raise ValidationError("yolo_task должен быть segment или detect")
         object.__setattr__(self, "root_folder", root)
         object.__setattr__(self, "camera_roles", roles)
         object.__setattr__(self, "defect_classes", classes)
         object.__setattr__(self, "jpeg_quality", quality)
         object.__setattr__(self, "validation_ratio", ratio)
+        object.__setattr__(self, "yolo_task", task)
 
 
 @dataclass(frozen=True)
@@ -192,7 +198,7 @@ class FrameRecord:
     detail_annotated: str | None = None
     detail_label: str | None = None
     status: str = "pending"
-    annotations: list[BoundingBox] = field(default_factory=list)
+    annotations: list[Any] = field(default_factory=list)
     captured_at: str = ""
     annotated_at: str | None = None
 
@@ -230,7 +236,7 @@ class TrainingDatasetStore:
 
     Каталог намеренно плоско читается и без этого Python-модуля:
 
-    ``images/`` — оригиналы, ``annotated/`` — копии с прямоугольниками,
+    ``images/`` — оригиналы, ``annotated/`` — копии с polygon-контурами,
     ``details/part_0001/`` — пары original/annotated по каждой камере,
     ``labels/`` — YOLO txt, ``manifest.jsonl`` — таблица соответствий.
     ``yolo/`` после завершения содержит готовую структуру train/val.
@@ -392,7 +398,7 @@ class TrainingDatasetStore:
     def annotate_frame(
         self,
         image_id: int,
-        annotations: Sequence[BoundingBox],
+        annotations: Sequence[Any],
     ) -> FrameRecord:
         """Сохранить overlay и txt для уже сохранённого оригинала."""
         with self._lock:
@@ -408,7 +414,7 @@ class TrainingDatasetStore:
                         f"Неизвестный класс дефекта: {box.class_name}"
                     )
                 try:
-                    normalise_box(
+                    normalise_polygon(
                         box,
                         image_width=record.width,
                         image_height=record.height,
@@ -452,6 +458,7 @@ class TrainingDatasetStore:
                 image_width=record.width,
                 image_height=record.height,
                 class_names=self.config.defect_classes,
+                task=self.config.yolo_task,
             )
             label_content = "\n".join(lines) + ("\n" if lines else "")
             _write_text(label_path, label_content)
@@ -550,6 +557,7 @@ class TrainingDatasetStore:
                 "finished_at": self.finished_at,
                 "camera_roles": list(self.config.camera_roles),
                 "defect_classes": list(self.config.defect_classes),
+                "yolo_task": self.config.yolo_task,
                 "frame_count": len(self._frames),
                 "part_count": len(self._parts),
                 "parts": [dict(item) for item in self._parts.values()],
@@ -562,6 +570,7 @@ class TrainingDatasetStore:
                 "schema_version": self.SCHEMA_VERSION,
                 "classes": list(self.config.defect_classes),
                 "camera_roles": list(self.config.camera_roles),
+                "yolo_task": self.config.yolo_task,
             },
         )
 
@@ -626,6 +635,7 @@ class TrainingCollector:
                 ),
                 jpeg_quality=self.config.jpeg_quality,
                 validation_ratio=self.config.validation_ratio,
+                yolo_task=self.config.yolo_task,
             )
             self.config = config
             self.store = TrainingDatasetStore(config, dataset_name=dataset_name)
@@ -649,6 +659,7 @@ class TrainingCollector:
                 defect_classes=classes,
                 jpeg_quality=self.config.jpeg_quality,
                 validation_ratio=self.config.validation_ratio,
+                yolo_task=self.config.yolo_task,
             )
             self.store.config = self.config
             self.store._write_classes()
@@ -709,12 +720,21 @@ class TrainingCollector:
         *,
         defect_class: str | None = None,
         boxes: Sequence[BoundingBox | dict[str, Any]] | None = None,
+        polygons: Sequence[PolygonAnnotation | dict[str, Any]] | None = None,
+        annotations: Sequence[Any] | None = None,
     ) -> FrameRecord:
         with self._lock:
             self._require_session()
             if self.current_frame_id is None:
                 raise CollectorError("Нет кадра, ожидающего разметки")
-            parsed = self._parse_annotations(defect_class, boxes)
+            regions = (
+                annotations
+                if annotations is not None
+                else polygons
+                if polygons is not None
+                else boxes
+            )
+            parsed = self._parse_annotations(defect_class, regions)
             record = self.store.annotate_frame(self.current_frame_id, parsed)
             self.current_frame_id = None
             return record
@@ -828,41 +848,43 @@ class TrainingCollector:
     def _parse_annotations(
         self,
         defect_class: str | None,
-        boxes: Sequence[BoundingBox | dict[str, Any]] | None,
-    ) -> list[BoundingBox]:
+        regions: Sequence[Any] | None,
+    ) -> list[Any]:
         selected = str(defect_class or "").strip()
         if selected and selected not in self.config.defect_classes:
             raise ValidationError(f"Неизвестный класс дефекта: {selected}")
-        parsed = [
-            item if isinstance(item, BoundingBox) else BoundingBox.from_payload(item)
-            for item in (boxes or ())
-        ]
+
+        parsed = []
+        for item in regions or ():
+            try:
+                if isinstance(item, (BoundingBox, PolygonAnnotation)):
+                    parsed.append(item)
+                elif isinstance(item, dict) and "points" in item:
+                    parsed.append(PolygonAnnotation.from_payload(item))
+                else:
+                    # Legacy API: bbox {x, y, width, height} тоже принимается
+                    # и превращается в прямоугольный polygon при экспорте.
+                    parsed.append(BoundingBox.from_payload(item))
+            except (TypeError, ValueError, KeyError, IndexError) as exc:
+                raise ValidationError(f"Некорректная область: {exc}") from exc
+
         if selected:
-            # UI отправляет один class + одну область. Для удобства API также
-            # разрешает несколько прямоугольников одного класса.
             if not parsed:
                 raise ValidationError(
-                    "Для выбранного дефекта нужно обвести хотя бы одну область"
+                    "Для выбранного элемента нужно обвести хотя бы одну область"
                 )
             parsed = [
-                BoundingBox(
-                    selected,
-                    item.x,
-                    item.y,
-                    item.width,
-                    item.height,
-                )
+                _with_class_name(selected, item)
                 for item in parsed
             ]
-        elif parsed:
-            # Сценарий пакетной интеграции может прислать класс на каждый box.
-            for item in parsed:
-                if not item.class_name:
-                    raise ValidationError("У области не указан класс дефекта")
-                if item.class_name not in self.config.defect_classes:
-                    raise ValidationError(
-                        f"Неизвестный класс дефекта: {item.class_name}"
-                    )
+
+        for item in parsed:
+            if not item.class_name:
+                raise ValidationError("У области не указан элемент палитры")
+            if item.class_name not in self.config.defect_classes:
+                raise ValidationError(
+                    f"Неизвестный класс дефекта: {item.class_name}"
+                )
         return parsed
 
     def _require_session(self) -> None:
@@ -873,6 +895,18 @@ class TrainingCollector:
 
 
 TrainingDatasetCollector = TrainingCollector
+
+
+def _with_class_name(class_name: str, annotation: Any) -> Any:
+    if isinstance(annotation, PolygonAnnotation):
+        return PolygonAnnotation(class_name, annotation.points)
+    return BoundingBox(
+        class_name,
+        annotation.x,
+        annotation.y,
+        annotation.width,
+        annotation.height,
+    )
 
 
 def _normalise_roles(values: Sequence[str] | None) -> tuple[str, ...]:
