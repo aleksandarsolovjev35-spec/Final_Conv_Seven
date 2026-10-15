@@ -199,5 +199,55 @@ class ParallelInspectionContractTest(unittest.TestCase):
         self.assertIn("PARALLEL_ANALYSIS", simulation)
 
 
+class PanelDeckContractTest(unittest.TestCase):
+    """Смена лица правой панели — сдвиг листа, без 3D-переворота."""
+
+    @staticmethod
+    def _without_comments(source: str) -> str:
+        source = re.sub(r"/\*[\s\S]*?\*/", "", source)
+        return re.sub(r"^\s*//.*$", "", source, flags=re.M)
+
+    def setUp(self):
+        self.script = read(STATIC_JS / "panel-deck.js")
+        self.stylesheet = read(STATIC_CSS / "panel-deck.css")
+
+    def test_no_3d_flip_left(self):
+        for name, source in (
+            ("panel-deck.js", self.script),
+            ("panel-deck.css", self.stylesheet),
+        ):
+            code = self._without_comments(source)
+            for fragment in ("rotateY", "perspective(", "backface-visibility"):
+                self.assertNotIn(
+                    fragment, code,
+                    f"{name}: переворот панели вернулся ({fragment})",
+                )
+
+    def test_face_change_is_a_slide(self):
+        for css_class in ("deck-out", "deck-in", "deck-settle"):
+            self.assertIn(f".stats-panel.{css_class}", self.stylesheet)
+        self.assertIn("--deck-shift-dir", self.stylesheet)
+        self.assertIn("--deck-shift-dir", self.script)
+
+    def test_same_face_is_not_animated(self):
+        """RUNNING ↔ PAUSED — одно лицо: панель не дёргается."""
+        shift = function_body(self.script, "shiftPanelTo")
+        self.assertLess(
+            shift.index("if (face === _panelFace)"),
+            shift.index("_panelShifting = true"),
+            "повторное лицо обязано выходить до запуска сдвига",
+        )
+
+    def test_queued_face_is_played_after_current(self):
+        shift = function_body(self.script, "shiftPanelTo")
+        self.assertIn("_panelQueuedFace = face", shift)
+        self.assertIn("shiftPanelTo(queued)", shift)
+
+    def test_template_serves_current_versions(self):
+        html = read(TEMPLATE)
+        self.assertIn("/static/js/panel-deck.js?v=5", html)
+        self.assertIn("/static/css/panel-deck.css?v=12", html)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -82,6 +82,7 @@ async function main() {
     routes.set('POST /api/exit', {ok: true});
     routes.set('POST /api/start', {ok: true});
     routes.set('POST /api/batch/finish', {ok: true, batch: batchPayload()});
+    routes.set('POST /api/line/jog', {ok: true});
     window.eval('state.splashActive = false; state.offline = false;');
     window.setupButtons();
     window.setupOperatorControls();
@@ -294,7 +295,113 @@ async function main() {
             return doc.getElementById('footer-batch').textContent === 'ПАРТИЯ НЕ ОТКРЫТА';
         })());
 
-    // ─── 8. CSS: компоновка и метки ───────────────────────────
+    // ─── 8. Смена лица правой панели: сдвиг листа, без 3D ──────
+    const deckScript = read('vision/ui/static/js/panel-deck.js');
+    const deckCss = read('vision/ui/static/css/panel-deck.css');
+    // Комментарии не считаем: в них как раз сказано, что переворот убран,
+    // и упоминание старого приёма не должно ронять проверку.
+    const withoutComments = text => text
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    check('в панели нет 3D-переворота: ни rotateY, ни perspective, ни backface',
+        !/rotateY|perspective\(|backface-visibility/.test(withoutComments(deckCss))
+        && !/rotateY|perspective\(|backface-visibility/.test(withoutComments(deckScript)));
+    check('смена лица описана сдвигом: классы deck-out / deck-in / deck-settle',
+        /\.stats-panel\.deck-out\b/.test(deckCss)
+        && /\.stats-panel\.deck-in\b/.test(deckCss)
+        && /\.stats-panel\.deck-settle\b/.test(deckCss));
+    check('направление сдвига приходит переменной, а не жёстким знаком',
+        /--deck-shift-dir/.test(deckCss) && /--deck-shift-dir/.test(deckScript));
+    check('в уменьшенном движении смена лица мгновенная',
+        /prefers-reduced-motion: reduce[\s\S]*deck-out[\s\S]*transition-duration: 1ms/
+            .test(deckCss));
+
+    const panel = doc.getElementById('stats-panel');
+    const faces = () => panel.dataset.face;
+    const shiftClasses = () => Array.from(panel.classList)
+        .filter(item => item.startsWith('deck-') || item === 'panel-shifting');
+    // Ждём, пока панель встанет на место: сдвигов в очереди может быть
+    // несколько, поэтому фиксированная пауза тут не годится.
+    const waitPanelIdle = async (limit = 40) => {
+        for (let i = 0; i < limit; i += 1) {
+            if (shiftClasses().length === 0) return true;
+            await sleep(50);
+        }
+        return shiftClasses().length === 0;
+    };
+
+    window.updatePanelFace(lineStatus('IDLE'));
+    await sleep(10);
+    check('на остановленной линии лицо «готовность» и классы чисты',
+        faces() === 'ready' && shiftClasses().length === 0,
+        `${faces()} / ${shiftClasses().join(',') || '—'}`);
+
+    window.updatePanelFace(lineStatus('RUNNING', {
+        controls: {start: false, stop: true, pause: true, resume: false, exit: false},
+        jog: {active: false, can_enter: false, busy: false},
+    }));
+    check('смена лица началась уходом панели, старое лицо ещё на месте',
+        shiftClasses().includes('panel-shifting')
+        && shiftClasses().includes('deck-out')
+        && faces() === 'ready',
+        `${faces()} / ${shiftClasses().join(',') || '—'}`);
+    check('направление сдвига — вперёд по порядку лиц',
+        panel.style.getPropertyValue('--deck-shift-dir') === '1',
+        panel.style.getPropertyValue('--deck-shift-dir'));
+    check('ручное управление в работе под шторкой',
+        panel.classList.contains('jog-locked'));
+    await sleep(150);
+    check('лицо подменяется на уходе, новое въезжает сбоку',
+        faces() === 'production'
+        && shiftClasses().includes('deck-settle')
+        && !shiftClasses().includes('deck-out'),
+        `${faces()} / ${shiftClasses().join(',') || '—'}`);
+    check('долго ждать нечего: панель встаёт на место',
+        await waitPanelIdle());
+    check('после смены лица никаких следов анимации',
+        shiftClasses().length === 0
+        && panel.style.getPropertyValue('--deck-shift-dir') === ''
+        && panel.style.getPropertyValue('--panel-deck-duration') === '',
+        `${shiftClasses().join(',') || '—'} / «${panel.style.cssText}»`);
+    check('шторка ходит за время сдвига, а не дольше',
+        /panel-shifting \.jog-shutter[\s\S]*--panel-deck-duration/.test(deckCss));
+
+    // Авария и возврат из неё: лицо меняется в обе стороны, панель не
+    // застревает между лицами.
+    window.updatePanelFace(lineStatus('FAULT', {fault_reason: 'Обрыв связи с камерой'}));
+    await waitPanelIdle();
+    check('авария сменила лицо и объясняет причину',
+        faces() === 'fault'
+        && doc.getElementById('fault-reason').textContent === 'Обрыв связи с камерой'
+        && shiftClasses().length === 0,
+        `${faces()} / «${doc.getElementById('fault-reason').textContent}»`);
+    check('на лице аварии обычные блоки скрыты разметкой',
+        deckCss.includes('.stats-panel[data-face="fault"] .service-deck'));
+    window.updatePanelFace(lineStatus('IDLE'));
+    await waitPanelIdle();
+    check('возврат из аварии: лицо «готовность», панель ровно',
+        faces() === 'ready' && shiftClasses().length === 0,
+        `${faces()} / ${shiftClasses().join(',') || '—'}`);
+    check('шторка вернулась: ручное управление доступно',
+        !panel.classList.contains('jog-locked'));
+
+    // Быстрая смена состояний: пока идёт смена лица, приходят ещё две.
+    window.updatePanelFace(lineStatus('RUNNING', {
+        controls: {start: false, stop: true, pause: true, resume: false, exit: false},
+    }));
+    window.updatePanelFace(lineStatus('FAULT', {fault_reason: 'Стоп по кнопке'}));
+    window.updatePanelFace(lineStatus('IDLE'));
+    check('частые смены состояний не оставляют панель между лицами',
+        await waitPanelIdle(),
+        faces() === 'ready' && shiftClasses().length === 0,
+        `${faces()} / ${shiftClasses().join(',') || '—'}`);
+    check('лицо по состоянию линии определяется без переворота',
+        window.panelFaceForState('RUNNING') === 'production'
+        && window.panelFaceForState('IDLE') === 'ready'
+        && window.panelFaceForState('FAULT') === 'fault'
+        && window.panelFaceForState('') === 'ready');
+
+    // ─── 9. CSS: компоновка и метки ───────────────────────────
     const css = read('vision/ui/static/css/batch.css');
     check('в CSS есть стиль строки открытой партии',
         /\.batch-open-row\.is-open/.test(css));

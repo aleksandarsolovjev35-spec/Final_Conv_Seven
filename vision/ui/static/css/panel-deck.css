@@ -1,4 +1,4 @@
-/* panel-deck.css — варианты правой панели с переворотом (rotateY).
+/* panel-deck.css — лица правой панели и смена лица сдвигом листа.
  *
  * Правая панель — «колода лиц». Одновременно видно одно лицо:
  *   ready       — ПОДГОТОВКА (IDLE / STOPPED): карточка партии со
@@ -7,28 +7,60 @@
  *                 карточка партии, ручное управление под шторкой;
  *   fault       — АВАРИЯ (FAULT): причина аварии и корпуса на линии.
  *
- * Переворот выполняется панелью самой по себе (self-perspective): JS
- * анимирует rotateY 0° → 90°, на ребре меняет data-face, затем
- * доворачивает -90° → 0°. Задняя сторона не показывается.
+ * Смена лица — сдвиг листа, без 3D: панель коротко уходит по горизонтали
+ * в сторону движения (класс deck-out), на этом кадре JS меняет data-face,
+ * и новое лицо въезжает с противоположной стороны (deck-in → deck-settle,
+ * затем классы снимаются). Никакого rotateY и perspective: прежний
+ * переворот крутил панель вокруг вертикальной оси и полсекунды держал её
+ * нечитаемой, хотя по содержанию ready и production совпадают — крутить
+ * было нечего. Сдвиг и прозрачность анимирует композитор, весь ход —
+ * 240 мс вместо 560.
  */
 
 .stats-panel {
+    /* Сдвиг отсчитывается от центра: лист уходит вбок сам, а не
+       разъезжается от края. */
     transform-origin: center center;
-    backface-visibility: hidden;
 }
 
-/* Во время переворота панель не ловит клики. */
-.stats-panel.panel-flipping {
+/* Во время смены лица панель не ловит клики. */
+.stats-panel.panel-shifting {
     pointer-events: none;
-    will-change: transform;
+    will-change: transform, opacity;
 }
 
-/* При смене лица шторка проходит весь путь ровно за время полного
-   переворота. На RUNNING ↔ PAUSED лицо не меняется и остаётся её обычная
-   короткая анимация 320 мс. */
-.stats-panel.panel-flipping .jog-shutter {
-    transition-duration: var(--panel-flip-duration, 560ms);
-    transition-timing-function: cubic-bezier(0.36, 0.07, 0.19, 0.97);
+/* Направление сдвига задаёт JS: 1 — вперёд по порядку лиц
+   (готовность → работа → авария), -1 — назад. */
+.stats-panel.deck-out {
+    transition:
+        transform 90ms var(--ease),
+        opacity 90ms var(--ease);
+    transform: translateX(calc(var(--deck-shift-dir, 1) * -9px));
+    opacity: 0.2;
+}
+
+/* Кадр подмены лица: новое лицо уже стоит в стороне от места и без
+   перехода — иначе оно бы «доехало» от старого сдвига. */
+.stats-panel.deck-in {
+    transition: none;
+    transform: translateX(calc(var(--deck-shift-dir, 1) * 14px));
+    opacity: 0.2;
+}
+
+.stats-panel.deck-settle {
+    transition:
+        transform 150ms var(--ease),
+        opacity 150ms var(--ease);
+    transform: translateX(0);
+    opacity: 1;
+}
+
+/* При смене лица шторка ручного управления проходит весь путь ровно за
+   время сдвига: обе механики начинаются и заканчиваются вместе. На
+   RUNNING ↔ PAUSED лицо не меняется и остаётся её обычная анимация. */
+.stats-panel.panel-shifting .jog-shutter {
+    transition-duration: var(--panel-deck-duration, 240ms);
+    transition-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 /* ─── Лицо «ПРОИЗВОДСТВО» ─────────────────────────────────────── */
@@ -245,6 +277,16 @@
 @media (prefers-reduced-motion: reduce) {
     .jog-shutter {
         transition-duration: 1ms;
+    }
+    /* Смена лица остаётся мгновенной подменой: сдвига и притухания нет. */
+    .stats-panel.deck-out,
+    .stats-panel.deck-settle {
+        transition-duration: 1ms;
+    }
+    .stats-panel.deck-out,
+    .stats-panel.deck-in {
+        transform: none;
+        opacity: 1;
     }
     .stats-panel.jog-locked .jog-shutter-lock {
         animation: none;

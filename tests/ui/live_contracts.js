@@ -119,6 +119,21 @@ async function main() {
         batchJs.body.includes('batchStartTarget')
         && batchJs.body.includes('Продолжить её — выбрать в списке'));
 
+    // Панель отдаётся сдвигом листа: переворота в отданном коде нет.
+    const deck = await fetchText('/static/css/panel-deck.css');
+    check('панель отдаётся со сдвигом листа, без 3D-переворота',
+        deck.status === 200
+        && deck.body.includes('--deck-shift-dir')
+        && !/rotateY|perspective\(|backface-visibility/
+            .test(deck.body.replace(/\/\*[\s\S]*?\*\//g, '')),
+        `HTTP ${deck.status}`);
+    const deckJs = await fetchText('/static/js/panel-deck.js');
+    check('в отданном panel-deck.js нет 3D-переворота',
+        deckJs.body.includes('shiftPanelTo')
+        && !/rotateY|perspective\(|backface-visibility/
+            .test(deckJs.body.replace(/^\s*\/\/.*$/gm, '')),
+        `HTTP ${deckJs.status}`);
+
     console.log(`\nпроверок: ${total}, провалов: ${fails}`);
     process.exit(fails ? 1 : 0);
 }
