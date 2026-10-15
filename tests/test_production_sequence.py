@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import unittest
 
 from core.production_cycle import ProductionCycle
@@ -95,14 +96,23 @@ class FakeInspector:
         "SPIDER_LEFT", "SPIDER_RIGHT", "SPIDER_IN", "SPIDER_OUT", "TOP",
     )
 
-    def __init__(self, log):
+    def __init__(self, log, barrier=None, spider_error=None):
         self.log = log
+        # Барьер на две стадии: если цикл считает их не параллельно,
+        # вторая стадия не дождётся первой и барьер сломается.
+        self.barrier = barrier
+        self.spider_error = spider_error
 
     def set_progress_callback(self, callback):
         self.on_progress = callback
 
+    def _wait_peer(self):
+        if self.barrier is not None:
+            self.barrier.wait(timeout=5.0)
+
     def inspect_input(self, part_id, step, frames):
         self.log.append("inspect_input:" + ",".join(frames))
+        self._wait_peer()
         return InspectionResult(
             stage="input",
             defects=[],
@@ -112,6 +122,9 @@ class FakeInspector:
 
     def inspect_spider(self, part_id, step, frames):
         self.log.append("inspect_spider:" + ",".join(frames))
+        self._wait_peer()
+        if self.spider_error is not None:
+            raise self.spider_error
         return InspectionResult(
             stage="spider",
             defects=[],
@@ -197,7 +210,7 @@ class ProductionCyclePartsTest(unittest.TestCase):
     def test_public_api_stays_on_orchestrator(self):
         expected = (
             "request_start", "request_stop", "request_pause", "request_resume",
-            "request_exit", "request_force_exit", "distributor_diagnostic",
+            "request_exit", "request_force_exit",
             "diagnostic_check_cameras", "diagnostic_check_vision_rules",
             "enter_jog", "exit_jog", "_run_once", "_build_status",
         )
@@ -209,11 +222,13 @@ class ProductionCyclePartsTest(unittest.TestCase):
 
 
 class ProductionCycleSequenceTest(unittest.TestCase):
-    def _make_cycle(self):
+    def _make_cycle(self, barrier=None, spider_error=None):
         log = []
         conveyor = FakeConveyor(log)
         cameras = FakeCameras(log)
-        inspector = FakeInspector(log)
+        inspector = FakeInspector(
+            log, barrier=barrier, spider_error=spider_error,
+        )
         distributor = FakeDistributor(log)
         cycle = ProductionCycle(
             conveyor,
@@ -232,22 +247,35 @@ class ProductionCycleSequenceTest(unittest.TestCase):
         cycle._await_initial_inspection = False
         return cycle, log
 
-    def test_input_finishes_before_spider_capture(self):
-        cycle, log = self._make_cycle()
+    def _track_applications(self, cycle, applied):
+        """Отметить порядок, в котором решения стадий попали в учёт."""
+        original_input = cycle._apply_input_result
+        original_spider = cycle._apply_spider_result
+
+        def apply_input(part, result):
+            applied.append("input")
+            return original_input(part, result)
+
+        def apply_spider(part, result):
+            applied.append("spider")
+            return original_spider(part, result)
+
+        cycle._apply_input_result = apply_input
+        cycle._apply_spider_result = apply_spider
+
+    def test_both_positions_captured_before_parallel_analysis(self):
+        barrier = threading.Barrier(2)
+        cycle, log = self._make_cycle(barrier=barrier)
+        applied = []
+        self._track_applications(cycle, applied)
         cycle.current_step = 4
         cycle.parts.append(Part(7, 1))
 
         cycle._run_once()
 
-        inspect_input = log.index("inspect_input:INPUT_LEFT,INPUT_RIGHT")
-        first_spider_capture = log.index("capture:SPIDER_LEFT")
-        inspect_spider = log.index(
-            "inspect_spider:SPIDER_LEFT,SPIDER_RIGHT,SPIDER_IN,SPIDER_OUT,TOP"
-        )
-        self.assertLess(inspect_input, first_spider_capture)
-        self.assertLess(first_spider_capture, inspect_spider)
+        captures = [item for item in log if item.startswith("capture:")]
         self.assertEqual(
-            [item for item in log if item.startswith("capture:")],
+            captures,
             [
                 "capture:INPUT_LEFT",
                 "capture:INPUT_RIGHT",
@@ -258,9 +286,59 @@ class ProductionCycleSequenceTest(unittest.TestCase):
                 "capture:TOP",
             ],
         )
+        # Обе стадии посчитаны после кадров обеих позиций и одновременно:
+        # барьер на две стадии иначе сломался бы по таймауту.
+        self.assertIn("inspect_input:INPUT_LEFT,INPUT_RIGHT", log)
+        self.assertIn(
+            "inspect_spider:SPIDER_LEFT,SPIDER_RIGHT,SPIDER_IN,SPIDER_OUT,TOP",
+            log,
+        )
+        first_inspect = min(
+            index for index, item in enumerate(log)
+            if item.startswith("inspect_")
+        )
+        last_capture = max(
+            index for index, item in enumerate(log)
+            if item.startswith("capture:")
+        )
+        self.assertLess(last_capture, first_inspect)
+        # Записи решений идут в порядке вход → контроль, хотя счёт был
+        # параллельным.
+        self.assertEqual(applied, ["input", "spider"])
         self.assertEqual(cycle.live.events.count("pause_all"), 1)
         self.assertNotIn("resume_all", cycle.live.events)
         self.assertTrue(cycle.stages.static)
+
+    def test_single_occupied_stage_keeps_old_order(self):
+        cycle, log = self._make_cycle()
+        cycle.current_step = 4
+        cycle.parts.clear()
+
+        cycle._run_once()
+
+        self.assertEqual(
+            [item for item in log if item.startswith("capture:")],
+            ["capture:INPUT_LEFT", "capture:INPUT_RIGHT"],
+        )
+        self.assertIn("inspect_input:INPUT_LEFT,INPUT_RIGHT", log)
+        self.assertFalse(
+            any(item.startswith("capture:SPIDER") for item in log)
+        )
+
+    def test_spider_failure_keeps_input_decision(self):
+        cycle, log = self._make_cycle(
+            spider_error=RuntimeError("spider model failed"),
+        )
+        cycle.current_step = 4
+        cycle.parts.append(Part(7, 1))
+
+        with self.assertRaises(RuntimeError):
+            cycle._run_once()
+
+        # Решение входа уже записано: сбой контроля не откатывает его,
+        # а уводит шаг в FAULT — как и при последовательном проходе.
+        self.assertEqual(cycle.part_counter, 1)
+        self.assertEqual(sorted(part.id for part in cycle.parts), [1, 7])
 
     def test_live_resumes_only_on_next_motion(self):
         cycle, log = self._make_cycle()

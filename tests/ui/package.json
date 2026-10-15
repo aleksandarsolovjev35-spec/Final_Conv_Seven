@@ -1,0 +1,11 @@
+{
+  "name": "hmi-ui-checks",
+  "private": true,
+  "description": "Проверки HMI в jsdom: настоящая разметка и модули, сеть заглушена",
+  "scripts": {
+    "check": "./run_all.sh"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}

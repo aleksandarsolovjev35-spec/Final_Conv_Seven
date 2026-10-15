@@ -4,8 +4,10 @@ Run from the repository root:
     python ui_simulation.py --host 0.0.0.0 --port 8000
 
 It serves the same FastAPI UI as production but never opens cameras, serial
-ports, models, or pywebview. Use the UI buttons to start, pause, resume and
-stop the simulated conveyor.
+ports, models, or pywebview. The operator logic is the production one: the
+program asks for ФИО and password (the first launch creates the first
+account), the batch card is closed until then, and only an open batch lets
+ПУСК run; an unfinished batch stays open and can be continued.
 """
 from __future__ import annotations
 
@@ -18,7 +20,8 @@ import cv2
 import numpy as np
 
 from domain.threshold_loader import ThresholdLoader
-from inspection.part_archive import PartArchive
+from inspection.batch_manager import BatchManager
+from inspection.operator_store import OperatorStore
 from vision.ui.server.server import CAMERA_ORDER, UIServer
 
 
@@ -29,12 +32,17 @@ JOG_ALLOWED_STATES = ("IDLE", "STOPPED", "PAUSED")
 
 PROCESS_LABELS = {
     "IDLE": "Система готова к пуску",
+    "NO_BATCH": "Партия не открыта: пуск заблокирован",
+    "NO_OPERATOR": "Оператор не назначен: войдите в программу",
     "READY": "Цикл запущен",
     "INITIAL_INSPECTION": "Контроль корпуса под INPUT без движения",
     "ROUTE_PREPARE": "Подготовка маршрута распределителя",
     "MOTION": "Горизонтальное движение ленты",
     "SETTLE": "Ожидание затухания вибрации",
     "CAPTURE": "Захват стоп-кадра камеры",
+    "PARALLEL_ANALYSIS": (
+        "Вход и контроль: модели обеих позиций параллельно"
+    ),
     "INPUT_MODELS": "INPUT: запуск моделей",
     "INPUT_GEOMETRY": "INPUT: построение геометрии и измерений",
     "INPUT_DECISION": "INPUT: решение правил сформировано",
@@ -48,7 +56,6 @@ PROCESS_LABELS = {
     "STOPPING": "Остановка",
     "STOPPED": "Линия остановлена и пуста",
     "PAUSED": "Пауза линии",
-    "SELECTED_MODEL_ANALYSIS": "Анализ выбранного стоп-кадра",
     "JOG_HOLD": "JOG: удерживаемое движение ленты",
     "JOG_STOPPED": "JOG: движение ленты остановлено",
     "DISTRIBUTOR_DIAGNOSTIC": "Проверка распределителя",
@@ -107,8 +114,6 @@ class LineSimulation:
         self.conveyor_max = 340
         self.jog_active = False
         self.jog_busy = False
-        self.selected_role: str | None = None
-        self.archive_compressed = False
         self.step = 0
         self.next_id = 1
         self.slot_counter = 0
@@ -120,19 +125,41 @@ class LineSimulation:
         self._await_initial_inspection = False
         self.recent: list[dict] = []
         self.counts = {"total": 0, "good": 0, "bad": 0, "cleanup": 0}
+        # Последняя опубликованная фаза: нужна, чтобы пересобрать статус
+        # после смены партии без движения линии.
+        self._phase = "IDLE"
         self.thread = threading.Thread(target=self._run, name="ui-simulation", daemon=True)
 
-    def _open_next_archive_batch(self) -> None:
-        """A new production launch must never append to a closed ZIP batch."""
-        archive = self.server.archive
-        if archive is None or not self.archive_compressed:
-            return
-        self.server.archive = PartArchive(
-            root_folder=archive.root_folder,
-        )
-        self.archive_compressed = False
+    def _batch_ready(self) -> bool:
+        """Пуск возможен только в открытую партию (как в production).
+
+        Симулятор без подключённого менеджера (юнит-тесты модели линии)
+        пуск не блокирует — гейт проверяется отдельными тестами.
+        """
+        manager = getattr(self.server, "batch_manager", None)
+        if manager is None:
+            return True
+        return bool(manager.active)
+
+    def _operator_ready(self) -> bool:
+        """Работа с партиями — только после входа в программу."""
+        if getattr(self.server, "operator_store", None) is None:
+            return True
+        return bool(getattr(self.server, "operator", None))
 
     def start(self) -> bool:
+        # Сначала оператор, затем партия: вход в программу открывает
+        # карточку партии, а партию открывает сам ПУСК по данным карточки
+        # (сервер вызывает это после prepare_start_batch) — как в
+        # production ProductionCycle.request_start().
+        if not self._operator_ready():
+            print("[OPERATOR] Оператор не назначен: пуск заблокирован")
+            self._publish("NO_OPERATOR")
+            return False
+        if not self._batch_ready():
+            print("[BATCH] Партия не открыта: пуск заблокирован")
+            self._publish("NO_BATCH")
+            return False
         with self._lock:
             # «Замёрзшая» линия: поток остановлен ВЫХОДОМ (close), а
             # состояние осталось RUNNING/PAUSED/STOPPING.
@@ -149,7 +176,6 @@ class LineSimulation:
                     target=self._run, name="ui-simulation", daemon=True,
                 )
                 self.thread.start()
-            self._open_next_archive_batch()
             self.jog_active = False
             # A launch begins with the same special initial inspection as
             # ProductionCycle: do not advance the virtual belt first.
@@ -184,7 +210,6 @@ class LineSimulation:
             if (
                 not self.jog_active
                 or self.state not in JOG_ALLOWED_STATES
-                or self.selected_role is not None
             ):
                 return False
             self.jog_busy = True
@@ -225,51 +250,6 @@ class LineSimulation:
         with self._lock:
             self.jog_busy = False
         self._publish("JOG_STOPPED")
-        return True
-
-    def selected_analysis(self, role: str) -> bool:
-        with self._lock:
-            if self.state not in ("IDLE", "STOPPED") or role not in CAMERA_ORDER:
-                return False
-            self.selected_role = role
-        self._publish("SELECTED_MODEL_ANALYSIS")
-        return True
-
-    def release_selected_analysis(self) -> bool:
-        with self._lock:
-            self.selected_role = None
-        self._publish("IDLE")
-        return True
-
-    def distributor_diagnostic(self, command: str) -> bool:
-        with self._lock:
-            if self.state not in ("IDLE", "STOPPED"):
-                return False
-            # Ручная проверка двигает только свою заслонку: кнопки верхнего
-            # распределителя управляют DIST1, кнопки нижнего — только DIST2.
-            if command == "DIST1_HOME":
-                self.dist1_position = 0
-                self.dist1_state = "GOOD"
-                self.last_distributor_action = "DIAGNOSTIC DIST1 -> GOOD"
-            elif command == "DIST1_OPEN":
-                self.dist1_position = 340
-                self.dist1_state = "TO_DIST2"
-                self.last_distributor_action = "DIAGNOSTIC DIST1 -> DIST2"
-            elif command == "DIST2_BAD":
-                moved = self.dist2_position != 0
-                self.dist2_position = 0
-                if moved:
-                    self.dist2_state = "READY"
-                self.last_distributor_action = "DIAGNOSTIC DIST2 -> BAD"
-            elif command == "DIST2_CLEANUP":
-                moved = self.dist2_position != 340
-                self.dist2_position = 340
-                if moved:
-                    self.dist2_state = "READY"
-                self.last_distributor_action = "DIAGNOSTIC DIST2 -> CLEANUP"
-            else:
-                return False
-        self._publish("DISTRIBUTOR_DIAGNOSTIC")
         return True
 
     def camera_diagnostic(self) -> bool:
@@ -334,22 +314,15 @@ class LineSimulation:
                            "dropping": True})
         return result
 
-    def _finalize_archive_batch(self) -> None:
-        """Apply the real archive shutdown policy after graceful line drain."""
-        if self.archive_compressed:
-            return
-        archive = self.server.archive
-        if archive is None:
-            return
-        archive.compress()
-        self.archive_compressed = True
-
     def _run_camera_stages(self) -> bool:
         """Run the visible production chain in the same order as hardware.
 
-        Each occupied stage runs CAPTURE → MODELS → GEOMETRY → DECISION →
-        RECORD before the next stage starts. INPUT finishes before
-        SPIDER/TOP, matching ``ProductionCycle._inspect_occupied_stages``.
+        Frames of every occupied stage are captured first (USB reads stay
+        sequential), then MODELS → GEOMETRY → DECISION → RECORD run stage
+        by stage. Both positions occupied — the analysis phases of INPUT
+        and SPIDER interleave, mirroring the two threads of
+        ``ProductionCycle._inspect_occupied_stages``; decisions are still
+        applied in the fixed order INPUT → SPIDER/TOP.
         """
         batches: list[tuple[SimPart, tuple[str, ...]]] = []
         input_part = next((part for part in self.parts if part.position == 0), None)
@@ -372,26 +345,26 @@ class LineSimulation:
                     if self.state not in ("RUNNING", "STOPPING"):
                         return False
 
-        for part, roles in batches:
-            prefix = "INPUT" if roles == self.INPUT_STAGES else "SPIDER"
-            self._publish(f"{prefix}_MODELS", list(roles))
+        if len(batches) > 1:
+            # Обе позиции заняты: анализ идёт одновременно, поэтому фазы
+            # стадий чередуются — так же, как их публикуют два потока
+            # производственного цикла.
+            self._publish("PARALLEL_ANALYSIS", captured_roles)
             if self._stop.wait(self.CAMERA_STAGE_SECONDS):
                 return False
-            self._publish(f"{prefix}_GEOMETRY", list(roles))
-            if self._stop.wait(self.CAMERA_STAGE_SECONDS):
-                return False
-            with self._lock:
-                if roles == self.CONTROL_STAGES:
-                    self._inspect_part(part)
-            self._publish(f"{prefix}_DECISION", list(roles))
-            if self._stop.wait(self.CAMERA_STAGE_SECONDS):
-                return False
-            self._publish(
-                f"{prefix}_RESULT_RECORDED",
-                list(roles),
-            )
-            if self._stop.wait(self.CAMERA_STAGE_SECONDS):
-                return False
+
+        for phase in ("MODELS", "GEOMETRY", "DECISION", "RESULT_RECORDED"):
+            for part, roles in batches:
+                prefix = "INPUT" if roles == self.INPUT_STAGES else "SPIDER"
+                if phase == "RESULT_RECORDED" and roles == self.CONTROL_STAGES:
+                    # Решение контроля записывается последним: вход
+                    # попадает в учёт раньше, как и в производственном
+                    # цикле.
+                    with self._lock:
+                        self._inspect_part(part)
+                self._publish(f"{prefix}_{phase}", list(roles))
+                if self._stop.wait(self.CAMERA_STAGE_SECONDS):
+                    return False
 
         self._publish("ANALYSIS_REVIEW", captured_roles)
         if self._stop.wait(self.REVIEW_SECONDS):
@@ -442,73 +415,52 @@ class LineSimulation:
             })
         return raw, [SimRule(drawings=drawings)]
 
-    def _frame_analysis_report(self, kind: str, role: str | None, part_id,
-                               stage: str | None, triggered: bool,
-                               defects: list[str]) -> dict:
-        """Общий вид отчёта о замерах кадра для панели «АНАЛИЗ КАДРА»."""
-        return {
-            "available": True,
-            "kind": kind,
-            "role": role,
-            "part_id": part_id,
-            "stage": stage,
-            "rules": [{
-                "name": "part_presence", "title": "Наличие корпуса", "triggered": False,
-                "measurement_cards": [{"type": "metric", "metrics": [{"key": "simulated_confidence", "label": "Уверенность модели", "value": "0.99", "limit": "0.40", "ok": True}]}],
-            }, {
-                "name": "sinks" if triggered else "window_geometry",
-                "title": "Симулированная проверка",
-                "triggered": triggered,
-                "human_cause": ", ".join(defects) if defects else "Норма",
-                "measurement_cards": [{"type": "metric", "metrics": [{"key": "simulated_result", "label": "Результат правила", "value": "СРАБОТАЛО" if triggered else "НОРМА", "limit": "—", "ok": not triggered}]}],
-            }],
-        }
+    def sync_batch_accounting(self) -> None:
+        """Продолжить учёт открытой партии вместо старта с нуля.
 
-    def _frame_analysis_payload(self) -> dict:
-        """Замеры текущего кадра для панели «АНАЛИЗ КАДРА».
-
-        Как в реальном бэкенде, во время цикла панель следует за камерой,
-        выбранной в UI, и показывает замеры её стадии: ВХОД (корпус
-        на +0) или КОНТРОЛЬ +4 (корпус на +4). В ручном анализе
-        показывается выбранная камера.
+        Нумерация корпусов и статистика относятся к партии: новая партия
+        начинается с нуля, продолжение берёт счётчики из манифеста, поэтому
+        новые детали не затирают уже сохранённые ``part_NNNN``.
         """
-        input_part = next((part for part in self.parts if part.position == 0), None)
-        control_part = next((part for part in self.parts if part.position == 4), None)
-        active_role = self.server.active_camera_role
-
-        if self.selected_role is not None:
-            inspection = control_part
-            defects = inspection.defects if inspection else []
-            return self._frame_analysis_report(
-                kind="selected",
-                role=self.selected_role,
-                part_id=inspection.id if inspection else None,
-                stage="ДИАГНОСТИКА",
-                triggered=bool(defects),
-                defects=defects,
-            )
-
-        if active_role in self.INPUT_STAGES and input_part is not None:
-            part, role, stage = input_part, active_role, "ВХОД"
-        elif control_part is not None:
-            part, role, stage = control_part, active_role or "TOP", "КОНТРОЛЬ +4"
-        elif input_part is not None:
-            part, role, stage = input_part, "INPUT_LEFT", "ВХОД"
-        else:
-            return {"available": False}
-
-        triggered = bool(part.defects) if part.inspected else False
-        defects = part.defects or []
-        return self._frame_analysis_report(
-            kind="production",
-            role=role,
-            part_id=part.id,
-            stage=stage,
-            triggered=triggered,
-            defects=defects,
+        manager = getattr(self.server, "batch_manager", None)
+        read = getattr(manager, "accounting", None)
+        if read is None:
+            return
+        counters = read()
+        if counters is None:
+            # Партии нет: учёт пуст, следующий корпус — первый.
+            self.counts = {key: 0 for key in self.counts}
+            self.next_id = 1
+            print("[BATCH] Партия не открыта: учёт линии начинается с нуля")
+            return
+        self.counts = {
+            key: int(counters.get(key) or 0) for key in self.counts
+        }
+        self.next_id = max(
+            int(counters.get("total") or 0),
+            int(counters.get("last_part_id") or 0),
+        ) + 1
+        print(
+            f"[BATCH] Учёт линии переведён в партию: корпусов "
+            f"{self.counts['total']}, следующий корпус #{self.next_id}"
         )
 
+    def batch_changed(self) -> None:
+        """Смена партии: учёт переходит в неё, HMI обновляет статус."""
+        self.sync_batch_accounting()
+        self.refresh_status()
+
+    def refresh_status(self) -> None:
+        """Перепубликовать статус после смены партии.
+
+        Доступность ПУСК зависит от партии, а симулятор публикует кадры и
+        статус событийно: без этого ПУСК оставался бы заблокированным до
+        следующего движения линии.
+        """
+        self._publish(self._phase)
+
     def _publish(self, phase: str, inspection_roles: list[str] | None = None) -> None:
+        self._phase = phase
         with self._lock:
             state = self.state
             line_parts = self._line_parts()
@@ -520,12 +472,14 @@ class LineSimulation:
                     active_roles = list(self.CONTROL_STAGES)
             inspection_static = phase in {
                 "INITIAL_INSPECTION", "CAPTURE", "ANALYSIS", "PUBLISH", "ANALYSIS_REVIEW",
+                "PARALLEL_ANALYSIS",
                 "INPUT_MODELS", "INPUT_GEOMETRY", "INPUT_DECISION",
                 "INPUT_RESULT_RECORDED", "SPIDER_MODELS", "SPIDER_GEOMETRY",
                 "SPIDER_DECISION", "SPIDER_RESULT_RECORDED",
             }
             capture_roles = active_roles if phase in {
-                "CAPTURE", "ANALYSIS_REVIEW", "INPUT_MODELS", "INPUT_GEOMETRY",
+                "CAPTURE", "ANALYSIS_REVIEW", "PARALLEL_ANALYSIS",
+                "INPUT_MODELS", "INPUT_GEOMETRY",
                 "INPUT_DECISION", "INPUT_RESULT_RECORDED", "SPIDER_MODELS",
                 "SPIDER_GEOMETRY", "SPIDER_DECISION", "SPIDER_RESULT_RECORDED",
             } else []
@@ -547,15 +501,17 @@ class LineSimulation:
                 "last_distributor_action": self.last_distributor_action,
                 # Production start is available while JOG is open: issuing
                 # start closes JOG and transfers control to the cycle.
-                "controls": {"start": state in ("IDLE", "STOPPED") and self.selected_role is None,
+                "batch_open": self._batch_ready(),
+                # ПУСК открывает партию сам (номер и путь приходят из
+                # карточки): партия здесь не гейт, пуск без номера
+                # отклоняет обработчик ПУСКА.
+                "controls": {"start": (state in ("IDLE", "STOPPED")
+                                       and self._operator_ready()),
                              "stop": state in ("RUNNING", "PAUSED"), "pause": state == "RUNNING",
                              "resume": state == "PAUSED", "exit": True,
-                             "jog_hold": self.jog_active and state in JOG_ALLOWED_STATES and self.selected_role is None,
-                             "selected_model_analysis": state in ("IDLE", "STOPPED") and self.selected_role is None,
-                             "selected_model_release": self.selected_role is not None,
-                             "distributor_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None,
-                             "camera_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None,
-                             "vision_rule_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None},
+                             "jog_hold": self.jog_active and state in JOG_ALLOWED_STATES,
+                             "camera_diagnostic": state in ("IDLE", "STOPPED"),
+                             "vision_rule_diagnostic": state in ("IDLE", "STOPPED")},
                 "process": {"phase": phase,
                             "label": PROCESS_LABELS.get(phase, phase.replace("_", " ")),
                             "step": self.step,
@@ -565,14 +521,12 @@ class LineSimulation:
                             "conveyor": {"speed": 18000,
                                          "position": self.conveyor_position,
                                          "max": self.conveyor_max}},
-                "selected_analysis": {"active": self.selected_role is not None, "role": self.selected_role},
-                "diagnostic_allowed": state in ("IDLE", "STOPPED") and self.selected_role is None,
+                "diagnostic_allowed": state in ("IDLE", "STOPPED"),
                 "diagnostic_busy": False,
-                "frame_analysis": self._frame_analysis_payload(),
                 "live": {"running": True,
-                         "static": self.selected_role is not None or inspection_static,
-                         "streaming": self.selected_role is None and not inspection_static,
-                         "static_roles": [self.selected_role] if self.selected_role else (active_roles if inspection_static else []),
+                         "static": inspection_static,
+                         "streaming": not inspection_static,
+                         "static_roles": active_roles if inspection_static else [],
                          "all_roles_static": False, "fps": 25},
                 "jog": {"active": self.jog_active, "busy": self.jog_busy, "can_enter": state in JOG_ALLOWED_STATES,
                         "live_fps": 25},
@@ -639,7 +593,8 @@ class LineSimulation:
                 self._wake.clear()
                 continue
             if current == "STOPPING" and not self.parts and self.egress is None:
-                self._finalize_archive_batch()
+                # Партия не закрывается автоматически: её завершает
+                # оператор кнопкой в карточке «ПАРТИЯ».
                 with self._lock:
                     self.state = "STOPPED"
                 self._publish("STOPPED")
@@ -766,9 +721,14 @@ def main() -> None:
     args = parser.parse_args()
 
     server = UIServer()
-    # The real archive implementation writes only into ignored sandbox data.
-    # Its settings dialog and validation therefore behave exactly as in the app.
-    server.archive = PartArchive(root_folder="archive/ui_simulation")
+    # The real batch manager writes only into ignored sandbox data. Its
+    # operator/batch card and settings dialog behave exactly as in the app.
+    batch_manager = BatchManager(root_folder="archive/ui_simulation")
+    server.batch_manager = batch_manager
+    server.archive = batch_manager
+    # Вход в программу работает как в приложении: первый запуск предлагает
+    # создать оператора, дальше — ФИО и пароль из operators.json.
+    server.operator_store = OperatorStore(batch_manager.root_folder)
     simulation = LineSimulation(server)
     server.on_start = simulation.start
     server.on_stop = simulation.stop
@@ -780,11 +740,9 @@ def main() -> None:
     server.on_jog_hold_start = simulation.jog_hold_start
     server.on_jog_hold_heartbeat = simulation.jog_hold_heartbeat
     server.on_jog_hold_release = simulation.jog_hold_release
-    server.on_distributor_diagnostic = simulation.distributor_diagnostic
     server.on_camera_diagnostic = simulation.camera_diagnostic
     server.on_vision_rule_diagnostic = simulation.vision_rule_diagnostic
-    server.on_selected_model_analysis = simulation.selected_analysis
-    server.on_selected_model_release = simulation.release_selected_analysis
+    server.on_batch_changed = simulation.batch_changed
     configure_simulated_thresholds(server)
     server.update(frames=demo_frames())
     # Имитируем camera_mapping.json: роль -> физический Camera ID. Маппинг

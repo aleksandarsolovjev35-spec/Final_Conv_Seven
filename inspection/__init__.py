@@ -1,6 +1,12 @@
 """Inspection components with lazy imports."""
 
-__all__ = ["InspectionResult", "Inspector", "DebugRecorder", "PartArchive"]
+__all__ = [
+    "InspectionResult",
+    "Inspector",
+    "DebugRecorder",
+    "PartArchive",
+    "BatchManager",
+]
 
 
 def __getattr__(name):
@@ -16,4 +22,7 @@ def __getattr__(name):
     if name == "PartArchive":
         from inspection.part_archive import PartArchive
         return PartArchive
+    if name == "BatchManager":
+        from inspection.batch_manager import BatchManager
+        return BatchManager
     raise AttributeError(name)

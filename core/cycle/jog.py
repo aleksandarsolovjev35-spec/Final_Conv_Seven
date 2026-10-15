@@ -69,7 +69,6 @@ class CycleJogMixin:
                 or self.jog is None
                 or self.state not in self.JOG_ALLOWED_STATES
                 or self.exit_requested
-                or self._selected_analysis_active
             ):
                 return False
             accepted = self.jog.start_hold(direction)

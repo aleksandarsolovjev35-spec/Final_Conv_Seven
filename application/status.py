@@ -36,26 +36,14 @@ def make_idle_status(distributor) -> dict:
             "stop": False,
             "exit": True,
             "jog_hold": False,
-            "selected_model_analysis": False,
-            "selected_model_release": False,
-            "distributor_diagnostic": False,
             "camera_diagnostic": False,
             "vision_rule_diagnostic": False,
-        },
-        "selected_analysis": {
-            "active": False,
-            "role": None,
         },
         "live": {
             "running": False,
             "streaming": False,
             "static": False,
             "fps": 0.0,
-        },
-        "frame_analysis": {
-            "available": False,
-            "kind": None,
-            "rules": [],
         },
         "jog": {
             "active": False,

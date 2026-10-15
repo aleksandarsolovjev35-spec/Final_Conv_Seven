@@ -5,6 +5,7 @@ REVIEW → PUBLISH, плюс пауза и выброс корпуса на +7.
 """
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from core.state_machine import State
 from domain.part import (
@@ -28,6 +29,10 @@ class CycleStepMixin:
     def _run_once(self):
         """Один шаг линии: движение, затухание, съёмка, анализ, публикация.
 
+        Инспекция двух занятых позиций (вход и контроль) считается
+        параллельно: кадры снимаются подряд, модели и правила — в двух
+        потоках, записи — в порядке вход → контроль.
+
         Владелец камер меняется только на границах фаз, поэтому кадры для
         defect rules физически не могут быть сняты во время движения.
         """
@@ -42,9 +47,11 @@ class CycleStepMixin:
         self._last_vision_results = {}
         self._last_rule_results = []
 
-        # Абсолютная последовательность: сначала механика, затем каждая
-        # занятая стадия целиком (кадр → модели → геометрия → решение →
-        # запись). INPUT всегда заканчивается до старта SPIDER/TOP.
+        # Сначала механика, затем инспекция. Занята одна позиция — она
+        # проходит целиком (кадр → модели → геометрия → решение →
+        # запись). Заняты обе (вход и контроль) — кадры снимаются подряд
+        # в одном блоке заморозки, а анализ обеих стадий идёт параллельно;
+        # записи применяются в порядке INPUT → SPIDER.
         pending_id = self._stage_motion()
         self._stage_settle(pending_id)
         self._check_pause_barrier()
@@ -130,13 +137,25 @@ class CycleStepMixin:
         return stages
 
     def _inspect_occupied_stages(self, accept_input_for_this_step: bool):
-        """Каждая занятая стадия: свой кадр, свои модели, своё решение.
+        """Инспекция занятых стадий шага.
 
-        Live заморожен на весь блок. Следующая стадия не начинается,
-        пока предыдущая не записала результат.
+        Занята одна позиция — прежний строгий порядок: кадр → модели →
+        геометрия → решение → запись. Заняты обе (корпус на входе и
+        корпус на контроле) — кадры обеих позиций снимаются подряд в
+        одном блоке заморозки, а модели, геометрия и правила считаются
+        параллельно; решения и записи применяются в том же порядке:
+        сначала вход, затем контроль.
+
+        Live заморожен на весь блок.
         """
-        display_frames = {}
         stages = self._occupied_inspection_stages(accept_input_for_this_step)
+        if len(stages) > 1:
+            return self._inspect_stages_parallel(stages)
+        return self._inspect_stages_sequential(stages)
+
+    def _inspect_stages_sequential(self, stages):
+        """Стадии по одной: каждая целиком до старта следующей."""
+        display_frames = {}
         if not stages:
             self.stages.enter_capture(())
             self.stages.enter_analysis()
@@ -150,13 +169,13 @@ class CycleStepMixin:
                     "INPUT_ANALYSIS",
                     "Вход: модели и правила по свежему кадру",
                 )
-                result = self._process_input_stage(frames)
+                result = self._run_input_stage(frames)
             elif name == "SPIDER":
                 self._set_process(
                     "SPIDER_CHECK",
                     "Проверка корпуса на +4: свежий кадр",
                 )
-                result = self._run_spider_inspection(frames)
+                result = self._run_spider_stage(frames)
             else:
                 raise RuntimeError(f"Неизвестная стадия инспекции: {name}")
             if result is not None:
@@ -164,6 +183,127 @@ class CycleStepMixin:
                 self._refresh_monitor(display_frames)
             self._check_motion_cancelled()
         return display_frames
+
+    def _inspect_stages_parallel(self, stages):
+        """Вход и контроль одновременно: кадры подряд, анализ в два потока.
+
+        Лента на инспекционном блоке стоит, поэтому кадры обеих позиций
+        снимаются один за другим (USB-чтения всё равно последовательны),
+        а модели, геометрия и правила входа и контроля считаются в двух
+        потоках — стадии не ждут друг друга. Общее состояние цикла
+        (Part, счётчики, архив) меняет только поток шага: результаты
+        применяются после анализа и в фиксированном порядке вход →
+        контроль.
+        """
+        roles = tuple(dict.fromkeys(
+            role for _name, stage_roles in stages for role in stage_roles
+        ))
+        self._inspection_display_roles = tuple(dict.fromkeys(
+            (*self._inspection_display_roles, *roles)
+        ))
+        self.stages.enter_capture(roles)
+        self._set_process(
+            "CAMERA_CAPTURE",
+            f"Захват камер обеих позиций: {', '.join(roles)}",
+            capture_roles=roles,
+        )
+        frames = {}
+        for _name, stage_roles in stages:
+            frames.update(self._capture_stage_frames(tuple(stage_roles)))
+        self._check_motion_cancelled()
+        self._refresh_monitor(frames)
+        self.stages.enter_analysis()
+
+        input_part = self._begin_input_stage()
+        spider_part = self._find_spider_part()
+        if spider_part is not None:
+            self._set_process(
+                "SPIDER_ANALYSIS",
+                f"Контроль корпуса #{spider_part.id}",
+                part_id=spider_part.id,
+            )
+        self._set_process(
+            "PARALLEL_ANALYSIS",
+            "Вход и контроль: модели и правила обеих позиций параллельно",
+        )
+
+        stage_frames = {
+            name: {role: frames[role] for role in stage_roles}
+            for name, stage_roles in stages
+        }
+        input_result, spider_result = self._analyze_stages_parallel(
+            input_part,
+            spider_part,
+            stage_frames,
+        )
+
+        display_frames = {}
+        if input_result is not None:
+            self._apply_input_result(input_part, input_result)
+            display_frames.update(input_result.raw_frames or {})
+        if spider_result is not None:
+            self._apply_spider_result(spider_part, spider_result)
+            display_frames.update(spider_result.raw_frames or {})
+        if display_frames:
+            self._refresh_monitor(display_frames)
+        self._check_motion_cancelled()
+        return display_frames
+
+    def _analyze_stages_parallel(self, input_part, spider_part, stage_frames):
+        """Модели и правила входа и контроля в двух потоках.
+
+        Потоки только считают: Part, счётчики и архив остаются у потока
+        шага. Порядок обработки ошибок прежний — сбой входа отменяет
+        корпус, сбой контроля оставляет результат входа записанным.
+        """
+        input_error = None
+        spider_error = None
+        input_result = None
+        spider_result = None
+        pool = ThreadPoolExecutor(
+            max_workers=2,
+            thread_name_prefix="inspection",
+        )
+        try:
+            input_future = pool.submit(
+                self.inspector.inspect_input,
+                part_id=input_part.id,
+                step=self.current_step,
+                frames=stage_frames["INPUT"],
+            )
+            spider_future = None
+            if spider_part is not None:
+                spider_future = pool.submit(
+                    self.inspector.inspect_spider,
+                    part_id=spider_part.id,
+                    step=self.current_step,
+                    frames=stage_frames["SPIDER"],
+                )
+            try:
+                input_result = input_future.result()
+            except Exception as exc:                       # noqa: BLE001
+                input_error = exc
+            if spider_future is not None:
+                try:
+                    spider_result = spider_future.result()
+                except Exception as exc:                   # noqa: BLE001
+                    spider_error = exc
+        finally:
+            pool.shutdown(wait=True)
+
+        if input_error is not None:
+            # Сбой инспекции не оставляет неучтённый корпус в очереди:
+            # FAULT — терминальное состояние, учёт строится с нуля.
+            self.parts.remove(input_part)
+            raise input_error
+        if spider_error is not None:
+            # Результат входа уже готов: он записывается, как и при
+            # последовательном проходе, а сбой контроля уводит шаг в FAULT.
+            if input_result is not None:
+                self._apply_input_result(input_part, input_result)
+                self._refresh_monitor(input_result.raw_frames or {})
+            raise spider_error
+        return input_result, spider_result
 
     def _stage_capture(self, roles):
         """CAPTURE: последовательный frozen snapshot одной стадии."""
@@ -182,9 +322,19 @@ class CycleStepMixin:
         )
         if not roles:
             return {}
+        frames = self._capture_stage_frames(roles)
+        # Exclusive-блок не отпускаем: live не должен затирать стоп-кадр
+        # во время моделей, геометрии и ревью.
+        self._refresh_monitor(frames)
+        return frames
 
-        # Драйвер может отдать старый кадр из буфера после движения.
-        # Дренируем и читаем роли этой стадии строго по одной.
+    def _capture_stage_frames(self, roles):
+        """Кадры стадии: драйверный буфер сбрасывается перед чтением.
+
+        Драйвер может отдать старый кадр из буфера после движения,
+        поэтому роли стадии дренируются и читаются строго по одной.
+        """
+        roles = tuple(roles)
         self.cameras.drain_buffers(roles)
         frames = self.cameras.capture_roles(roles)
         if set(frames) != set(roles):
@@ -193,9 +343,6 @@ class CycleStepMixin:
                 f"получены {sorted(frames)}"
             )
         self._check_motion_cancelled()
-        # Exclusive-блок не отпускаем: live не должен затирать стоп-кадр
-        # во время моделей, геометрии и ревью.
-        self._refresh_monitor(frames)
         return frames
 
     def _stage_review(self, display_frames):
@@ -313,28 +460,31 @@ class CycleStepMixin:
 
     # INPUT
 
-    def _process_input_stage(self, frames):
-        """Обработать INPUT по свежему кадру."""
+    def _begin_input_stage(self):
+        """Корпус входит в учёт до запуска моделей.
 
+        Корпус физически стоит на +0 с момента остановки ленты, поэтому
+        попадает в учёт ДО запуска моделей: HMI видит его в зоне входа на
+        весь анализ (и дальше — пока идёт SPIDER), а не «внезапно» на +1
+        после следующего хода. Модель позиций не меняется: step_created
+        прежний — тот же шаг, на котором лента остановила корпус на +0.
+        """
         candidate_id = self.part_counter + 1
-
-        # Корпус физически стоит на +0 с момента остановки ленты, поэтому
-        # попадает в учёт ДО запуска моделей: HMI видит его в зоне входа на
-        # весь анализ (и дальше — пока идёт SPIDER), а не «внезапно» на +1
-        # после следующего хода. Модель позиций не меняется: step_created
-        # прежний — тот же шаг, на котором лента остановила корпус на +0.
         part = Part(candidate_id, self.current_step)
         self.parts.append(part)
-
         self._set_process(
             "INPUT_ANALYSIS",
             f"Вход: анализ кандидата #{candidate_id}",
             part_id=candidate_id,
         )
+        return part
 
+    def _run_input_stage(self, frames):
+        """INPUT одной стадией: анализ по кадру и запись решения."""
+        part = self._begin_input_stage()
         try:
             result = self.inspector.inspect_input(
-                part_id=candidate_id,
+                part_id=part.id,
                 step=self.current_step,
                 frames=frames,
             )
@@ -343,13 +493,17 @@ class CycleStepMixin:
             # FAULT — терминальное состояние, учёт строится с нуля.
             self.parts.remove(part)
             raise
+        self._apply_input_result(part, result)
+        return result
+
+    def _apply_input_result(self, part, result):
+        """Записать решение INPUT в учёт: только поток шага."""
         if result.is_empty_tray:
             # Пустой лоток остаётся нейтральным: Part и архив не создаются.
             self.parts.remove(part)
-            self._record_frame_analysis("INPUT", None, result)
             self.empty_count += 1
-            # Очищаем детекции для входных камер, чтобы не рисовать прямоугольники
-            # на пустом лотке.
+            # Очищаем детекции для входных камер, чтобы не рисовать
+            # прямоугольники на пустом лотке.
             for role in self.inspector.INPUT_ROLES:
                 self._last_vision_results[role] = []
             self._last_rule_results.extend(result.rule_results or [])
@@ -361,7 +515,7 @@ class CycleStepMixin:
                 f"[EMPTY] Пустой лоток на step {self.current_step} "
                 f"(total empty: {self.empty_count})"
             )
-            return result
+            return
 
         self.part_counter += 1
         for defect in result.defects:
@@ -369,7 +523,6 @@ class CycleStepMixin:
         # Результат правила становится состоянием Part только после того,
         # как модели и геометрия отработали для этого же набора кадров.
         part.mark_input_done()
-        self._record_frame_analysis("INPUT", part.id, result)
         print(f"[INPUT] Деталь #{part.id}")
 
         self._last_vision_results.update(result.vision_results or {})
@@ -386,52 +539,58 @@ class CycleStepMixin:
             f"[INPUT] Деталь #{part.id} "
             f"дефекты: {result.defects or ['none']}"
         )
-        return result
 
     # SPIDER/TOP
 
-    def _run_spider_inspection(self, frames):
+    def _find_spider_part(self):
+        """Корпус на позиции контроля (+4) в этом шаге, если он есть."""
         for part in self.parts:
-            if (part.step_created + self.OFFSET_SPIDER
-                    != self.current_step):
-                continue
-
-            self._set_process(
-                "SPIDER_ANALYSIS",
-                f"Контроль корпуса #{part.id}",
-                part_id=part.id,
-            )
-            result = self.inspector.inspect_spider(
-                part_id=part.id,
-                step=self.current_step,
-                frames=frames,
-            )
-            for defect in result.defects:
-                part.add_spider_defect(defect)
-            # После SPIDER это уже окончательное решение Part: обе стадии
-            # прошли модели и геометрию, поэтому маршрут можно зафиксировать.
-            part.mark_spider_done()
-            self._record_frame_analysis("SPIDER", part.id, result)
-
-            self._last_vision_results.update(result.vision_results or {})
-            self._last_rule_results.extend(result.rule_results or [])
-            self._store_stage_frames(part.id, result)
-            self._set_process(
-                "SPIDER_RESULT_RECORDED",
-                "SPIDER/TOP: окончательное решение записано",
-                part_id=part.id,
-            )
-
-            print(
-                f"[SPIDER] Деталь #{part.id} "
-                f"дефекты: {result.defects or ['none']} "
-                f"категория={part.route_category}"
-            )
-            return result
-        # На позиции +4 в этом шаге детали нет: старый результат другой
-        # детали показывать нельзя.
-        self._frame_analysis_groups["SPIDER"] = self._empty_frame_analysis_entry()
+            if part.step_created + self.OFFSET_SPIDER == self.current_step:
+                return part
+        # На позиции +4 в этом шаге детали нет.
         return None
+
+    def _run_spider_stage(self, frames):
+        """SPIDER/TOP одной стадией: анализ по кадру и решение корпуса."""
+        part = self._find_spider_part()
+        if part is None:
+            return None
+        self._set_process(
+            "SPIDER_ANALYSIS",
+            f"Контроль корпуса #{part.id}",
+            part_id=part.id,
+        )
+        result = self.inspector.inspect_spider(
+            part_id=part.id,
+            step=self.current_step,
+            frames=frames,
+        )
+        self._apply_spider_result(part, result)
+        return result
+
+    def _apply_spider_result(self, part, result):
+        """Записать решение контроля в учёт: только поток шага."""
+        for defect in result.defects:
+            part.add_spider_defect(defect)
+        # После SPIDER это уже окончательное решение Part: обе стадии
+        # прошли модели и геометрию, поэтому маршрут можно зафиксировать.
+        part.mark_spider_done()
+
+        self._last_vision_results.update(result.vision_results or {})
+        self._last_rule_results.extend(result.rule_results or [])
+
+        self._store_stage_frames(part.id, result)
+        self._set_process(
+            "SPIDER_RESULT_RECORDED",
+            "SPIDER/TOP: окончательное решение записано",
+            part_id=part.id,
+        )
+
+        print(
+            f"[SPIDER] Деталь #{part.id} "
+            f"дефекты: {result.defects or ['none']} "
+            f"категория={part.route_category}"
+        )
 
     # Распределитель
 

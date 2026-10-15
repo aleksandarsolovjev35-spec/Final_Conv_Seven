@@ -47,11 +47,8 @@ class LiveMonitor:
         self.pause_callback  = None
         self.resume_callback = None
         self.exit_callback   = exit_callback
-        self.distributor_diagnostic_callback = None
         self.camera_diagnostic_callback = None
         self.vision_rule_diagnostic_callback = None
-        self.selected_model_analysis_callback = None
-        self.selected_model_release_callback = None
         self.active_camera_callback = None
 
         # JOG callbacks
@@ -142,24 +139,11 @@ class LiveMonitor:
         self.server.on_exit = (
             lambda: self._invoke(self.exit_callback)
         )
-        self.server.on_distributor_diagnostic = (
-            lambda command: self._invoke_args(
-                self.distributor_diagnostic_callback, command,
-            )
-        )
         self.server.on_camera_diagnostic = (
             lambda: self._invoke(self.camera_diagnostic_callback)
         )
         self.server.on_vision_rule_diagnostic = (
             lambda: self._invoke(self.vision_rule_diagnostic_callback)
-        )
-        self.server.on_selected_model_analysis = (
-            lambda role: self._invoke_args(
-                self.selected_model_analysis_callback, role,
-            )
-        )
-        self.server.on_selected_model_release = (
-            lambda: self._invoke(self.selected_model_release_callback)
         )
         self.server.on_active_camera_changed = (
             lambda role: self._invoke_args(

@@ -119,43 +119,17 @@ class SimulationApiTest(unittest.TestCase):
         self.assertEqual(self.sim.state, "PAUSED")
         self.sim.close()
 
-    def test_selected_analysis(self):
-        self.assertFalse(self.sim.selected_analysis("NOPE"))
-        self.assertTrue(self.sim.selected_analysis("TOP"))
-        self.assertEqual(self.sim.selected_role, "TOP")
-        # Другая роль в IDLE просто переназначает выбор.
-        self.assertTrue(self.sim.selected_analysis("INPUT_LEFT"))
-        self.assertEqual(self.sim.selected_role, "INPUT_LEFT")
-        self.assertTrue(self.sim.release_selected_analysis())
-        self.assertIsNone(self.sim.selected_role)
-
     def test_diagnostics(self):
-        self.assertTrue(self.sim.distributor_diagnostic("DIST1_HOME"))
+        # Ручная диагностика распределителя и анализ кадра из HMI убраны:
+        # в модели линии остались общие проверки камер и правил.
         self.assertTrue(self.sim.camera_diagnostic())
         self.assertTrue(self.sim.vision_rule_diagnostic())
 
-    def test_distributor_diagnostic_moves_only_own_blade(self):
-        # Кнопки верхнего распределителя двигают только DIST1.
-        self.assertTrue(self.sim.distributor_diagnostic("DIST1_OPEN"))
-        self.assertEqual(self.sim.dist1_position, 340)
-        self.assertEqual(self.sim.dist1_state, "TO_DIST2")
-        self.assertEqual(self.sim.dist2_position, 0)
-        # Кнопки нижнего двигают только DIST2 и не трогают DIST1.
-        self.assertTrue(self.sim.distributor_diagnostic("DIST2_CLEANUP"))
-        self.assertEqual(self.sim.dist2_position, 340)
-        self.assertEqual(self.sim.dist1_position, 340)
-        self.assertTrue(self.sim.distributor_diagnostic("DIST2_BAD"))
-        self.assertEqual(self.sim.dist2_position, 0)
-        self.assertEqual(self.sim.dist1_position, 340)
-        self.assertTrue(self.sim.distributor_diagnostic("DIST1_HOME"))
-        self.assertEqual(self.sim.dist1_position, 0)
-        self.assertEqual(self.sim.dist1_state, "GOOD")
-
-    def test_distributor_diagnostic_rejected_while_running(self):
-        self.sim.start()
-        self.assertFalse(self.sim.distributor_diagnostic("DIST1_OPEN"))
-        self.assertEqual(self.sim.dist1_position, 0)
-        self.sim.close()
+    def test_selected_analysis_mode_is_gone(self):
+        for name in ("selected_analysis", "release_selected_analysis",
+                     "distributor_diagnostic"):
+            self.assertFalse(hasattr(self.sim, name), name)
+        self.assertNotIn("selected_role", vars(self.sim))
 
     def test_close(self):
         self.assertTrue(self.sim.close())
@@ -201,40 +175,6 @@ class SimulationApiTest(unittest.TestCase):
         raw, rules = self.sim._virtual_overlay_data(["TOP"], line)
         self.assertEqual(raw["TOP"][0]["class"], "glass")
 
-    def test_frame_analysis_payload(self):
-        self.assertFalse(self.sim._frame_analysis_payload()["available"])
-        self.sim.selected_role = "TOP"
-        payload = self.sim._frame_analysis_payload()
-        self.assertTrue(payload["available"])
-        self.assertEqual(payload["kind"], "selected")
-        self.sim.parts = [SimPart(1, position=4, defects=["X"])]
-        payload = self.sim._frame_analysis_payload()
-        self.assertTrue(payload["rules"][1]["triggered"])
-
-    def test_frame_analysis_follows_stage(self):
-        # ВХОД: выбранная входная камера и корпус на +0.
-        self.server.active_camera_role = "INPUT_LEFT"
-        self.sim.parts = [SimPart(1, position=0)]
-        payload = self.sim._frame_analysis_payload()
-        self.assertTrue(payload["available"])
-        self.assertEqual(payload["kind"], "production")
-        self.assertEqual(payload["stage"], "ВХОД")
-        self.assertEqual(payload["role"], "INPUT_LEFT")
-        self.assertEqual(payload["part_id"], 1)
-        self.assertFalse(payload["rules"][1]["triggered"])
-        # КОНТРОЛЬ +4: корпус прошёл контроль, замеры с вердиктом.
-        self.server.active_camera_role = "TOP"
-        inspected = SimPart(1, position=4, defects=["СИМУЛИРОВАННЫЙ ДЕФЕКТ ГЕОМЕТРИИ"], inspected=True)
-        self.sim.parts = [inspected]
-        payload = self.sim._frame_analysis_payload()
-        self.assertTrue(payload["available"])
-        self.assertEqual(payload["stage"], "КОНТРОЛЬ +4")
-        self.assertEqual(payload["role"], "TOP")
-        self.assertTrue(payload["rules"][1]["triggered"])
-        # Пустая линия — панель закрыта.
-        self.sim.parts = []
-        self.assertFalse(self.sim._frame_analysis_payload()["available"])
-
     def test_publish_updates_server(self):
         self.sim.start()
         self.sim._publish("MOTION")
@@ -264,16 +204,93 @@ class SimulationApiTest(unittest.TestCase):
         self.assertIsNone(self.sim.egress)
         self.assertEqual(self.sim.recent[0]["id"], 1)
 
-    def test_open_next_archive_batch(self):
-        self.sim.server.archive = None
-        self.sim._open_next_archive_batch()  # не падает
-        self.sim.archive_compressed = False
-        self.sim._open_next_archive_batch()
+    def test_start_requires_open_batch(self):
+        """Симулятор повторяет production-гейт: пуск только в партию."""
+        import tempfile
+        from inspection.batch_manager import BatchManager
 
-    def test_finalize_archive_batch_without_archive(self):
-        self.sim.server.archive = None
-        self.sim._finalize_archive_batch()
-        self.assertFalse(self.sim.archive_compressed)
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = BatchManager(root_folder=tmp)
+            self.sim.server.batch_manager = manager
+            self.sim.server.archive = manager
+
+            self.assertFalse(self.sim.start())
+            self.assertEqual(self.sim.state, "IDLE")
+            self.assertFalse(self.sim._batch_ready())
+
+            manager.open_batch(label="П-1", operator="Иванов Иван Иванович")
+            self.assertTrue(self.sim._batch_ready())
+            self.assertTrue(self.sim.start())
+            self.assertEqual(self.sim.state, "RUNNING")
+            self.sim.close()
+
+    def test_start_requires_operator_before_batch(self):
+        """Сначала вход в программу, затем партия — как в production."""
+        import tempfile
+        from inspection.batch_manager import BatchManager
+        from inspection.operator_store import OperatorStore
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = BatchManager(root_folder=tmp)
+            store = OperatorStore(tmp, iterations=1000)
+            self.sim.server.batch_manager = manager
+            self.sim.server.archive = manager
+            self.sim.server.operator_store = store
+
+            self.assertFalse(self.sim._operator_ready())
+            self.assertFalse(self.sim.start())
+            self.assertEqual(self.sim.state, "IDLE")
+
+            self.sim.server.operator = store.add_user(
+                "Иванов Иван Иванович", "1234",
+            )
+            self.assertTrue(self.sim._operator_ready())
+            # Партии ещё нет: следующий гейт — партия, а не оператор.
+            self.assertFalse(self.sim._batch_ready())
+            self.assertFalse(self.sim.start())
+
+            manager.open_batch(
+                label="П-1", operator=self.sim.server.operator,
+            )
+            self.assertTrue(self.sim.start())
+            self.assertEqual(self.sim.state, "RUNNING")
+            self.sim.close()
+
+    def test_batch_change_continues_simulated_counting(self):
+        """Продолжение партии продолжает нумерацию корпусов симулятора."""
+        import tempfile
+        from inspection.batch_manager import BatchManager
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = BatchManager(
+                root_folder=tmp, batch_sender=lambda folder: True,
+            )
+            self.sim.server.batch_manager = manager
+            self.sim.server.archive = manager
+            manager.open_batch(label="П-1", operator="Иванов Иван Иванович")
+            manager.finalize(1, "GOOD", "ok", [], 1)
+            manager.finalize(2, "BAD", "no", [], 2)
+
+            self.sim.batch_changed()
+            self.assertEqual(self.sim.counts["total"], 2)
+            self.assertEqual(self.sim.counts["good"], 1)
+            self.assertEqual(self.sim.next_id, 3)
+
+            # Завершение партии обнуляет учёт: следующая партия с нуля.
+            manager.finish_batch()
+            self.sim.batch_changed()
+            self.assertEqual(self.sim.counts["total"], 0)
+            self.assertEqual(self.sim.next_id, 1)
+
+    def test_start_without_batch_manager_keeps_working(self):
+        """Модель линии без менеджера партий (юнит-тесты) пуск не блокирует."""
+        self.sim.server.batch_manager = None
+        self.assertTrue(self.sim._batch_ready())
+
+    def test_start_without_operator_store_keeps_working(self):
+        """Без хранилища операторов (юнит-тесты) вход не требуется."""
+        self.sim.server.operator_store = None
+        self.assertTrue(self.sim._operator_ready())
 
 
 class DemoFramesTest(unittest.TestCase):

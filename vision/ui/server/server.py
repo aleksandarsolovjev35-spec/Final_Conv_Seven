@@ -3,6 +3,7 @@ import os
 import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -61,26 +62,6 @@ CAMERA_ORDER = [
     "TOP",
 ]
 
-# Правило отчёта -> группа порогов (RULE_GROUPS в thresholds.json). Нужна
-# только для ручных названий порогов (_label.*): по полному имени параметра
-# подставляется пользовательское название вместо встроенного перевода.
-RULE_THRESHOLD_GROUPS = {
-    "part_presence": "input_part_presence",
-    "window_geometry": "input_window_geometry",
-    "window_sinks": "input_window_sinks",
-    "contacts_long": "spider_contacts_long",
-    "contacts_short": "spider_contacts_short",
-    "long_omission": "spider_long_omission",
-    "short_omission": "spider_short_omission",
-    "black_spots_omission": "black_spots_omission",
-    "top_contacts": "top_contacts",
-    "top_platform": "top_platform",
-    "platform_contacts_overlap": "top_platform_overlap",
-    "sinks": "top_sinks",
-    "glass": "top_glass",
-    "glass_on_contacts": "top_glass",
-}
-
 
 class UIServer:
 
@@ -122,11 +103,8 @@ class UIServer:
         self.on_pause:  callable | None = None
         self.on_resume: callable | None = None
         self.on_exit:   callable | None = None
-        self.on_distributor_diagnostic: callable | None = None
         self.on_camera_diagnostic: callable | None = None
         self.on_vision_rule_diagnostic: callable | None = None
-        self.on_selected_model_analysis: callable | None = None
-        self.on_selected_model_release: callable | None = None
 
         self.on_jog_enter: callable | None = None
         self.on_jog_exit: callable | None = None
@@ -154,8 +132,26 @@ class UIServer:
         # пересоздать DecisionEngine и вернуть итоговый dict.
         self.on_thresholds_reload: callable | None = None
 
+        # Менеджер партий (inspection.batch_manager.BatchManager): он же
+        # владелец архива. Пока оператор не открыл партию, писать корпуса
+        # некуда, поэтому пуск линии заблокирован (line_status.controls.start).
+        self.batch_manager = None
+        # Уведомление о смене партии: доступность ПУСК зависит от партии,
+        # поэтому владелец статуса линии пересобирает его сразу, не ожидая
+        # следующего производственного шага.
+        self.on_batch_changed = None
         self.archive = None
         self.archive_config_path = "archive_config.json"
+
+        # Оператор смены (inspection.operator_store.OperatorStore). Вход в
+        # программу: ФИО и пароль. Пока оператор не вошёл, партию открыть
+        # нельзя, а значит и пуск линии заблокирован — учёт корпусов всегда
+        # привязан к конкретному человеку.
+        self.operator_store = None
+        self.operator: str | None = None
+        # Время входа оператора смены: плашка над вкладками показывает, с
+        # какого часа человек работает.
+        self.operator_since: str = ""
 
         # Кэш JPEG для pull-механики (/frame): ключ (role, mode, size)
         self._jpeg_cache: dict = {}
@@ -327,7 +323,6 @@ class UIServer:
                     rules_overlay_changed = True
             if line_status is not None:
                 self.line_status = line_status
-                self._apply_custom_threshold_labels(line_status)
             if recent_parts is not None:
                 self.recent_parts = list(recent_parts)
             if should_invalidate:
@@ -350,47 +345,6 @@ class UIServer:
                 if stream_overlay_changed:
                     self._latest_stream_jpeg.clear()
                 self._cache_version += 1
-
-    def _apply_custom_threshold_labels(self, line_status: dict) -> None:
-        """Подставить ручные названия порогов (_label.*) в анализ кадра.
-
-        Каждое правило несёт ``measurement_cards`` — замеры текущего кадра
-        с ключами метрик. Для метрик, у которых есть ручное название в
-        thresholds.json (``_label.<параметр>``), заменяем встроенный перевод
-        на пользовательский, как и в панели «Пороги правил».
-        """
-        custom_labels = dict(self.threshold_labels or {})
-        if not custom_labels:
-            return
-        frame_analysis = (line_status or {}).get("frame_analysis")
-        rules = (
-            frame_analysis.get("rules")
-            if isinstance(frame_analysis, dict) else None
-        )
-        if not isinstance(rules, list):
-            return
-        for rule in rules:
-            if not isinstance(rule, dict):
-                continue
-            group_id = RULE_THRESHOLD_GROUPS.get(rule.get("name"))
-            if not group_id:
-                continue
-            for card in rule.get("measurement_cards") or []:
-                if not isinstance(card, dict):
-                    continue
-                role = card.get("role")
-                if not role:
-                    continue
-                for metric in card.get("metrics") or []:
-                    if not isinstance(metric, dict):
-                        continue
-                    key = metric.get("key")
-                    if not key:
-                        continue
-                    full_key = f"{group_id}_{key}"
-                    custom = custom_labels.get(f"{role}.{full_key}")
-                    if custom:
-                        metric["label"] = custom
 
     def set_camera_roles(self, roles) -> None:
         """Опубликовать роли открытых камер без обязательного чтения кадров.
@@ -663,6 +617,16 @@ class UIServer:
         return settings
 
     def archive_ready_for_start(self) -> tuple[bool, str | None]:
+        """Готовность учёта к пуску: оператор вошёл, хранение доступно.
+
+        Партия в этой проверке не участвует: ПУСК открывает её сам
+        (:meth:`prepare_start_batch`), а отсутствие номера — отдельная
+        причина отказа, которую возвращает ``prepare_start_batch``.
+        """
+        if self.operator_store is not None and not self.operator:
+            from inspection.operator_store import NO_OPERATOR_MESSAGE
+
+            return False, NO_OPERATOR_MESSAGE
         archive = self.archive
         if archive is None:
             return False, "архив не инициализирован"
@@ -693,6 +657,280 @@ class UIServer:
         settings["available"] = True
         settings["editable"] = self.archive_editable()
         return settings
+
+    # ─── Менеджер партий ───────────────────────────────────────
+
+    # ─── Оператор смены ────────────────────────────────────────
+
+    def operator_available(self) -> bool:
+        return self.operator_store is not None
+
+    def operator_status_payload(self) -> dict:
+        """Состояние входа для экрана входа и шапки сервисной зоны."""
+        store = self.operator_store
+        if store is None:
+            return {
+                "available": False,
+                "assigned": False,
+                "operator": None,
+                "since": "",
+                "users": [],
+                "last_login": "",
+                "can_register": False,
+                "can_add_user": False,
+                "editable": False,
+                "file": None,
+                "error": None,
+            }
+        assigned = self.operator or None
+        return {
+            "available": True,
+            "assigned": bool(assigned),
+            "operator": assigned,
+            "since": self.operator_since if assigned else "",
+            "users": store.logins(),
+            "last_login": store.last_login(),
+            "can_register": not store.has_users(),
+            "can_add_user": store.can_add_user(),
+            "editable": self.operator_editable(),
+            "file": store.path,
+            "error": store.error,
+        }
+
+    def operator_editable(self) -> bool:
+        """Сменить оператора можно на остановленной линии без открытой партии."""
+        if self.splash_active:
+            return False
+        manager = self.batch_manager
+        if manager is not None and getattr(manager, "active", False):
+            return False
+        return (self.line_status or {}).get("state") in ("IDLE", "STOPPED")
+
+    def operator_login(self, login: str, password: str) -> dict:
+        """Вход в программу: назначить оператора смены."""
+        store = self.operator_store
+        if store is None:
+            raise RuntimeError("Учёт операторов ещё не инициализирован")
+        if self.operator:
+            raise RuntimeError(
+                f"Оператор уже назначен: {self.operator}"
+            )
+        self.operator = store.authenticate(login, password)
+        self.operator_since = datetime.now().strftime("%H:%M")
+        print(f"[OPERATOR] Вошёл: {self.operator} (с {self.operator_since})")
+        self._notify_batch_changed()
+        return self.operator_status_payload()
+
+    def operator_register(self, login: str, password: str) -> dict:
+        """Первый вход: создать оператора, если список ещё пуст."""
+        store = self.operator_store
+        if store is None:
+            raise RuntimeError("Учёт операторов ещё не инициализирован")
+        if store.has_users() and not self.operator:
+            raise RuntimeError(
+                "Операторы уже заведены: войдите под своим ФИО"
+            )
+        name = store.add_user(login, password)
+        print(f"[OPERATOR] Заведён оператор: {name}")
+        if not self.operator:
+            self.operator = name
+            self.operator_since = datetime.now().strftime("%H:%M")
+            self._notify_batch_changed()
+        return self.operator_status_payload()
+
+    def operator_logout(self) -> dict:
+        """Смена оператора: выйти можно на остановленной линии без партии."""
+        if not self.operator:
+            raise RuntimeError("Оператор не назначен")
+        if not self.operator_editable():
+            raise RuntimeError(
+                "Сменить оператора можно на остановленной линии "
+                "и после завершения партии"
+            )
+        print(f"[OPERATOR] Вышел: {self.operator}")
+        self.operator = None
+        self.operator_since = ""
+        self._notify_batch_changed()
+        return self.operator_status_payload()
+
+    def batch_editable(self) -> bool:
+        """Партию открывают и завершают только на остановленной линии."""
+        if self.splash_active or self.batch_manager is None:
+            return False
+        line_state = (self.line_status or {}).get("state")
+        return line_state in ("IDLE", "STOPPED")
+
+    def batch_status_payload(self) -> dict:
+        """Состояние менеджера партий для карточки HMI."""
+        manager = self.batch_manager
+        if manager is None:
+            return {
+                "available": False,
+                "active": False,
+                "batch": None,
+                "operators": [],
+                "open": [],
+                "recent": [],
+                "suggestion": "",
+                "root_path": "",
+                "date": "",
+                "default_folder": "",
+                "editable": False,
+                "can_finish": False,
+            }
+        payload = manager.status_payload()
+        payload["available"] = True
+        payload["editable"] = self.batch_editable()
+        payload["can_finish"] = bool(
+            payload.get("active")
+            and payload["editable"]
+            and int((self.line_status or {}).get("in_line") or 0) == 0
+        )
+        return payload
+
+    def open_batch(self, payload: dict) -> dict:
+        """Начать новую партию, продолжить открытую или переключиться."""
+        manager = self.batch_manager
+        if manager is None:
+            raise RuntimeError("Менеджер партий ещё не инициализирован")
+        if self.splash_active:
+            raise RuntimeError("Система ещё инициализируется")
+        if self.operator_store is not None and not self.operator:
+            from inspection.operator_store import NO_OPERATOR_MESSAGE
+
+            raise RuntimeError(NO_OPERATOR_MESSAGE)
+        if not self.batch_editable():
+            raise RuntimeError(
+                "Партию можно открыть только на остановленной линии"
+            )
+        # Корпуса на линии ещё принадлежат прежней партии: сначала линия
+        # должна опустеть, иначе новый учёт начнётся с чужой нумерации.
+        if int((self.line_status or {}).get("in_line") or 0) > 0:
+            raise RuntimeError(
+                "На линии остались корпуса: партия открывается на пустой линии"
+            )
+        data = payload if isinstance(payload, dict) else {}
+        request = {
+            "label": str(data.get("label") or ""),
+            # Оператор берётся из сессии: в карточке партии его больше нет,
+            # и подменить ФИО в запросе нельзя.
+            "operator": str(self.operator or ""),
+            "batch_id": (
+                str(data["batch_id"]) if data.get("batch_id") else None
+            ),
+            # «ПУТЬ ПАРТИИ»: папка, в которую пишется партия. Пусто — путь
+            # по умолчанию от корня хранения.
+            "folder": str(data.get("path") or ""),
+        }
+        # Партия уже открыта — не завершаем её, а переключаем учёт: так
+        # оператор ведёт список партий и возвращается к любой из них.
+        if manager.active:
+            manager.switch_batch(**request)
+        else:
+            manager.open_batch(**request)
+        self._notify_batch_changed()
+        return self.batch_status_payload()
+
+    def prepare_start_batch(self, payload: dict | None = None) -> None:
+        """Открыть партию по данным карточки перед пуском линии.
+
+        Партию открывает сама кнопка ПУСК: оператор вводит номер и путь в
+        карточке, выбирает незавершённую партию или оставляет поля пустыми —
+        тогда пуск отклоняется с понятным текстом. Если партия уже открыта и
+        в карточке выбрана другая, учёт переключается на неё: прежняя партия
+        остаётся открытой и ждёт продолжения.
+        """
+        manager = self.batch_manager
+        if manager is None:
+            return
+        # Порядок причин отказа тот же, что и в очереди гейтов: оператор,
+        # затем номер партии.
+        if self.operator_store is not None and not self.operator:
+            from inspection.operator_store import NO_OPERATOR_MESSAGE
+
+            raise RuntimeError(NO_OPERATOR_MESSAGE)
+        data = payload if isinstance(payload, dict) else {}
+        label = str(data.get("label") or "").strip()
+        batch_id = str(data.get("batch_id") or "").strip()
+        path = str(data.get("path") or "").strip()
+        if manager.active:
+            # Партия открыта: если в карточке выбрана другая, учёт
+            # переключается на неё, а прежняя остаётся открытой.
+            if not self._batch_switch_needed(
+                label=label, batch_id=batch_id, path=path,
+            ):
+                return
+            if not self.batch_editable():
+                raise RuntimeError(
+                    "Партия переключается на остановленной линии"
+                )
+            if int((self.line_status or {}).get("in_line") or 0) > 0:
+                raise RuntimeError(
+                    "На линии остались корпуса: партия переключается "
+                    "на пустой линии"
+                )
+            manager.switch_batch(
+                label=label,
+                operator=str(self.operator or ""),
+                batch_id=batch_id or None,
+                folder=path,
+            )
+            self._notify_batch_changed()
+            return
+        if not label and not batch_id:
+            from inspection.batch_manager import NO_BATCH_MESSAGE
+
+            raise RuntimeError(NO_BATCH_MESSAGE)
+        self.open_batch({"label": label, "path": path, "batch_id": batch_id or None})
+
+    def _batch_switch_needed(
+        self, *, label: str, batch_id: str, path: str,
+    ) -> bool:
+        """Нужно ли переключить учёт по данным карточки партии.
+
+        Пусто — ПУСК просто продолжает открытую партию. Условия те же, что
+        и в ``BatchManager.switch_batch``: другая выбранная партия, другой
+        номер или тот же номер в другой папке.
+        """
+        manager = self.batch_manager
+        info = (manager.batch_info() or {}) if manager is not None else {}
+        if batch_id:
+            return batch_id != str(info.get("batch_id") or "")
+        if not label:
+            return False
+        if label != str(info.get("label") or ""):
+            return True
+        folder = str(info.get("folder") or "")
+        return bool(path) and path != folder
+
+    def finish_batch(self) -> dict:
+        """Завершить партию: манифест, отправка аналитику, ZIP."""
+        manager = self.batch_manager
+        if manager is None:
+            raise RuntimeError("Менеджер партий ещё не инициализирован")
+        if not manager.active:
+            raise RuntimeError("Партия не открыта")
+        if not self.batch_editable():
+            raise RuntimeError(
+                "Партию можно завершить только на остановленной линии"
+            )
+        if int((self.line_status or {}).get("in_line") or 0) > 0:
+            raise RuntimeError(
+                "На линии остались корпуса: завершите партию после остановки"
+            )
+        manager.finish_batch()
+        self._notify_batch_changed()
+        return self.batch_status_payload()
+
+    def _notify_batch_changed(self) -> None:
+        """Пересобрать статус линии: controls.start зависит от партии."""
+        callback = self.on_batch_changed
+        if callback is None:
+            return
+        try:
+            callback()
+        except Exception as exc:
+            print(f"[BATCH] Обновление статуса линии не удалось: {exc}")
 
     def boot_step_start(self, key, message=None):
         with self.lock:

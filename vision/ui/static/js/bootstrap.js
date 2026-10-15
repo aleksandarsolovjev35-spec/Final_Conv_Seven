@@ -9,12 +9,6 @@ function setupHotkeys() {
         const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
         if (e.key === 'Escape') {
-            if (els.archiveSettingsModal && !els.archiveSettingsModal.classList.contains('is-hidden')) {
-                closeArchiveSettings();
-                e.preventDefault();
-                return;
-            }
-
             const fullscreen = document.querySelector('.gallery-fullscreen');
             if (fullscreen) {
                 fullscreen.remove();
@@ -135,13 +129,12 @@ function init() {
     setupButtons();
     setupHotkeys();
     setupGallery();
-    if (typeof setupArchiveSettings === 'function') setupArchiveSettings();
     setupCameraHover();
     setupViewModeControls();
     setupJogControls();
-    setupDistributorDiagnostics();
-    setupSelectedFrameAnalysis();
     setupThresholdsControls();
+    if (typeof setupOperatorControls === 'function') setupOperatorControls();
+    if (typeof setupBatchControls === 'function') setupBatchControls();
 
     fetchBoot();
     state.bootInterval = setInterval(fetchBoot, BOOT_INTERVAL);
@@ -150,7 +143,6 @@ function init() {
 
     setInterval(fetchCameras, 2000);
     setInterval(refreshPreviewStrip, PREVIEW_INTERVAL);
-    setInterval(updateUptime, UPTIME_INTERVAL);
 }
 
 if (document.readyState === 'loading') {

@@ -216,11 +216,6 @@ class RequestStartTest(unittest.TestCase):
         cycle.request_stop()
         cycle.live.stop()
 
-    def test_start_while_analysis_active(self):
-        cycle = make_cycle()
-        cycle._selected_analysis_active = True
-        self.assertFalse(cycle.request_start())
-
     def test_start_with_live_error(self):
         cycle = make_cycle()
         cycle.live.error = "camera down"
@@ -252,17 +247,6 @@ class RequestStartTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "park failed"):
             cycle.request_start()
         self.assertEqual(cycle.state, "FAULT")
-
-    def test_start_clears_selected_diagnostics(self):
-        from core.cycle.diagnostics import make_diagnostics
-        cycle = make_cycle()
-        cycle._diagnostics = make_diagnostics(
-            "PASSED", "SELECTED_MODEL", "x",
-        )
-        cycle.request_start()
-        self.assertEqual(cycle._diagnostics["kind"], None)
-        cycle.request_stop()
-        cycle.live.stop()
 
 
 class PauseResumeTest(unittest.TestCase):

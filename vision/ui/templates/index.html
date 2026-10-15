@@ -5,20 +5,20 @@
 <head>
     <meta charset="UTF-8">
     <title>Роботехнический комплекс конвейерного типа 7</title>
-    <link rel="stylesheet" href="/static/css/base.css?v=37">
-    <link rel="stylesheet" href="/static/css/blocks.css?v=29">
-    <link rel="stylesheet" href="/static/css/camera.css?v=41">
-    <link rel="stylesheet" href="/static/css/axis.css?v=33">
-    <link rel="stylesheet" href="/static/css/history-strip.css?v=47">
-    <link rel="stylesheet" href="/static/css/stats.css?v=50">
-    <link rel="stylesheet" href="/static/css/jog.css?v=36">
-    <link rel="stylesheet" href="/static/css/controls.css?v=38">
-    <link rel="stylesheet" href="/static/css/gallery.css?v=34">
-    <link rel="stylesheet" href="/static/css/process.css?v=56">
-    <link rel="stylesheet" href="/static/css/motion.css?v=39">
-    <link rel="stylesheet" href="/static/css/thresholds.css?v=24">
-    <link rel="stylesheet" href="/static/css/archive.css?v=6">
-    <link rel="stylesheet" href="/static/css/panel-deck.css?v=7">
+    <link rel="stylesheet" href="/static/css/base.css?v=38">
+    <link rel="stylesheet" href="/static/css/blocks.css?v=31">
+    <link rel="stylesheet" href="/static/css/camera.css?v=42">
+    <link rel="stylesheet" href="/static/css/history-strip.css?v=48">
+    <link rel="stylesheet" href="/static/css/stats.css?v=52">
+    <link rel="stylesheet" href="/static/css/jog.css?v=37">
+    <link rel="stylesheet" href="/static/css/controls.css?v=41">
+    <link rel="stylesheet" href="/static/css/gallery.css?v=35">
+    <link rel="stylesheet" href="/static/css/process.css?v=58">
+    <link rel="stylesheet" href="/static/css/motion.css?v=41">
+    <link rel="stylesheet" href="/static/css/thresholds.css?v=26">
+    <link rel="stylesheet" href="/static/css/panel-deck.css?v=12">
+    <link rel="stylesheet" href="/static/css/batch.css?v=9">
+    <link rel="stylesheet" href="/static/css/operator.css?v=4">
 </head>
 <body>
 
@@ -40,6 +40,40 @@
         </div>
     </div>
 
+    <!-- ВХОД В ПРОГРАММУ: сначала оператор (ФИО и пароль), затем партии.
+         Перекрывает HMI, пока оператор не назначен; при первом запуске
+         предлагает создать первую учётную запись. -->
+    <div id="login-screen" class="login-screen is-hidden" data-ui-block="login">
+        <div class="login-backdrop"></div>
+        <section class="login-dialog" role="dialog" aria-modal="true"
+                 aria-labelledby="login-title">
+            <h1 id="login-title" class="login-title">ВХОД В ПРОГРАММУ</h1>
+            <div id="login-subtitle" class="login-subtitle">Оператор смены</div>
+            <div class="login-field">
+                <label class="login-field-label" for="login-name">ФИО ОПЕРАТОРА</label>
+                <input id="login-name" class="login-input" type="text"
+                       list="login-users" maxlength="64" autocomplete="off"
+                       spellcheck="false" placeholder="Иванов Иван Иванович">
+                <datalist id="login-users"></datalist>
+            </div>
+            <div class="login-field">
+                <label class="login-field-label" for="login-password">ПАРОЛЬ</label>
+                <input id="login-password" class="login-input" type="password"
+                       maxlength="64" autocomplete="off">
+            </div>
+            <div id="login-password-field" class="login-field is-hidden">
+                <label class="login-field-label" for="login-password2">ПОВТОРИТЕ ПАРОЛЬ</label>
+                <input id="login-password2" class="login-input" type="password"
+                       maxlength="64" autocomplete="off">
+            </div>
+            <div id="login-error" class="login-error is-hidden"></div>
+            <div id="login-hint" class="login-hint"></div>
+            <div class="login-actions">
+                <button id="login-submit" class="btn btn-login" type="button">ВОЙТИ</button>
+            </div>
+        </section>
+    </div>
+
     <!-- MAIN UI -->
     <div id="main" class="main is-hidden">
 
@@ -53,7 +87,6 @@
                     <div class="camera-live-controls" data-ui-block="camera-controls">
                         <button id="view-mode-toggle" class="btn btn-overlay btn-accent is-faded" disabled
                                 aria-label="Переключить вид: правила или модели">ПРАВИЛА</button>
-                        <button id="analyze-selected-frame" class="btn btn-overlay btn-accent" disabled>АНАЛИЗ КАДРА</button>
                     </div>
                     <div id="camera-overlay" class="camera-overlay is-hidden"></div>
                 </div>
@@ -173,90 +206,113 @@
                     <div class="fault-face-hint">Устраните причину и перезапустите линию</div>
                 </section>
 
-                <section id="stats-summary" class="stats-summary ui-collapse" data-ui-block="cycle-stats">
-                    <div class="accordion-header" aria-label="Статистика рабочего цикла">
-                        <span>СТАТИСТИКА РАБОЧЕГО ЦИКЛА</span>
+
+
+                <!-- Сервисная зона правой колонки: две альтернативные
+                     карточки на одном месте. «ПАРТИЯ» — менеджер партий:
+                     номер партии, продолжение незавершённой партии и её
+                     завершение (вкладка открыта по умолчанию). «ПОРОГИ» —
+                     прежний редактор порогов правил. Зона тянется вниз до
+                     ручного управления: блоки граничат друг с другом. -->
+                <section id="service-deck" class="service-deck is-hidden"
+                         data-ui-block="service-deck" data-face="batch">
+                    <!-- Оператор смены виден всегда: плашкой над вкладками.
+                         В плашке иконка, ФИО и «СМЕНИТЬ»: подпись не нужна —
+                         карточку оператора видно и так. Смена оператора —
+                         отсюда же (только на остановленной линии и после
+                         завершения партии). -->
+                    <div id="operator-line" class="operator-line">
+                        <span class="operator-line-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="8.4" r="3.6"></circle>
+                                <path d="M4.6 20.4 a7.6 7.6 0 0 1 14.8 0"></path>
+                            </svg>
+                        </span>
+                        <span id="operator-name" class="operator-line-name">НЕ НАЗНАЧЕН</span>
+                        <button id="operator-change" class="btn btn-sm operator-change"
+                                type="button" disabled>СМЕНИТЬ</button>
                     </div>
-                    <div id="stats-body" class="stats-body ui-collapse is-collapsed">
-                        <div class="stats-row stats-half"><span class="stats-label">Всего корпусов</span><span id="stat-total" class="stats-value">0</span></div>
-                        <div class="stats-row stats-half"><span class="stats-label">На линии</span><span id="stat-inline" class="stats-value">0 / 8</span></div>
-                        <div class="stats-row stats-third"><span class="stats-label">Годные</span><span id="stat-good" class="stats-value good">0</span></div>
-                        <div class="stats-row stats-third"><span class="stats-label">Брак</span><span id="stat-bad" class="stats-value bad">0</span></div>
-                        <div class="stats-row stats-third"><span class="stats-label">На зачистку</span><span id="stat-cleanup" class="stats-value warn">0</span></div>
-                        <div class="stats-row stats-half"><span class="stats-label">Шаг</span><span id="metric-step" class="stats-value">0</span></div>
-                        <div class="stats-row stats-half"><span class="stats-label">Время работы</span><span id="metric-uptime" class="stats-value">00:00:00</span></div>
+                    <div id="operator-status" class="operator-status is-hidden"></div>
+                    <div class="service-deck-tabs" role="tablist" aria-label="Сервисные карточки">
+                        <button id="deck-tab-batch" class="service-deck-tab is-active" type="button"
+                                role="tab" aria-selected="true" aria-controls="batch-panel"
+                                data-deck-face="batch">ПАРТИЯ</button>
+                        <button id="deck-tab-thresholds" class="service-deck-tab" type="button"
+                                role="tab" aria-selected="false" aria-controls="thresholds-panel"
+                                data-deck-face="thresholds">ПОРОГИ</button>
                     </div>
+
+                    <!-- Карточка «ПАРТИЯ»: учёт ведётся в открытой партии. -->
+                    <section id="batch-panel" class="batch-panel" data-ui-block="batch"
+                             aria-label="Менеджер партий">
+                        <div id="batch-unavailable" class="batch-unavailable is-hidden">
+                            МЕНЕДЖЕР ПАРТИЙ НЕДОСТУПЕН
+                        </div>
+
+                        <!-- Список партий: номер и путь партии, ниже —
+                             незавершённые партии. Нажатие на строку выбирает
+                             партию, а ПУСК открывает, продолжает или
+                             переключает учёт: открытая партия при этом
+                             остаётся открытой и ждёт продолжения. Оператор
+                             смены показан плашкой над вкладками. -->
+                        <div id="batch-open-face" class="batch-face batch-open-face">
+                            <div class="batch-steps">
+                                <div id="batch-step-label" class="batch-step"
+                                     data-state="active">
+                                    <label class="batch-step-title" for="batch-label-input">НОМЕР ПАРТИИ</label>
+                                    <input id="batch-label-input" class="batch-input" type="text"
+                                           maxlength="40" autocomplete="off" spellcheck="false">
+                                </div>
+                                <div id="batch-step-path" class="batch-step" data-state="todo">
+                                    <label class="batch-step-title" for="batch-path-input">ПУТЬ ПАРТИИ</label>
+                                    <input id="batch-path-input"
+                                           class="batch-input batch-path-input" type="text"
+                                           autocomplete="off" spellcheck="false">
+                                </div>
+                            </div>
+                            <div id="batch-status" class="batch-status"></div>
+                            <div class="batch-open">
+                                <div class="batch-open-title">НЕЗАВЕРШЁННЫЕ ПАРТИИ · НАЖМИТЕ, ЧТОБЫ ВЫБРАТЬ</div>
+                                <div id="batch-open-list" class="batch-open-list"></div>
+                            </div>
+                        </div>
+
+                        <!-- Партия открыта: в её учёт пишутся корпуса. Блок
+                             стоит под списком и не мешает выбрать другую
+                             партию — текущая останется открытой. -->
+                        <div id="batch-active-face" class="batch-face batch-active-face is-hidden">
+                            <div id="batch-active-info" class="batch-info"></div>
+                            <div class="batch-actions">
+                                <span id="batch-active-status" class="batch-status"></span>
+                                <button id="batch-finish" class="btn btn-sm btn-batch-finish" type="button"
+                                        disabled>ЗАВЕРШИТЬ ПАРТИЮ</button>
+                            </div>
+                            <div id="batch-active-hint" class="batch-hint"></div>
+                        </div>
+                    </section>
+
+                    <!-- Пороги правил выбранной (главной) камеры: каждое
+                         правило — отдельная карточка; значения задаются
+                         числовыми полями. Одновременно видна одна карточка;
+                         переключение — вкладками-заголовками. У каждой
+                         карточки свой вертикальный ползунок (дорожка +
+                         бегунок): виден только при переполнении строк и
+                         показывает положение в списке. Редактирование —
+                         только до пуска и после полной остановки. -->
+                    <section id="thresholds-panel" class="thresholds-panel is-hidden"
+                             data-ui-block="thresholds" aria-label="Пороги правил">
+                        <div class="thresholds-head">
+                            <span class="thresholds-title">ПОРОГИ ПРАВИЛ</span>
+                        </div>
+                        <div id="thresholds-body" class="thresholds-body"></div>
+                        <div class="thresholds-actions">
+                            <span id="thresholds-status" class="thresholds-status"></span>
+                            <button id="thresholds-save" class="btn btn-sm btn-thresholds-save" disabled>СОХРАНИТЬ</button>
+                            <button id="thresholds-reset" class="btn btn-sm" disabled>ОТМЕНИТЬ</button>
+                        </div>
+                    </section>
                 </section>
 
-                <section id="distributor-diagnostics" class="distributor-panel ui-collapse" data-ui-block="distributor">
-                    <div class="distributor-head">
-                        <span class="distributor-title">РАСПРЕДЕЛИТЕЛЬ</span>
-                    </div>
-                    <div class="blade-card">
-                        <div class="blade-track">
-                            <div id="dist1-blade" class="blade-marker"></div>
-                        </div>
-                        <div class="blade-track-labels" aria-hidden="true">
-                            <span>ГОДНО</span>
-                            <span>БРАК</span>
-                        </div>
-                        <div class="diagnostic-grid blade-diagnostic-grid ui-collapse">
-                            <button class="btn btn-sm" data-distributor-command="DIST1_HOME" disabled>ГОДНО</button>
-                            <button class="btn btn-sm" data-distributor-command="DIST1_OPEN" disabled>БРАК</button>
-                        </div>
-                    </div>
-                    <div class="blade-card">
-                        <div class="blade-track">
-                            <div id="dist2-blade" class="blade-marker"></div>
-                        </div>
-                        <div class="blade-track-labels" aria-hidden="true">
-                            <span>БРАК</span>
-                            <span>ЗАЧИСТКА</span>
-                        </div>
-                        <div class="diagnostic-grid blade-diagnostic-grid ui-collapse">
-                            <button class="btn btn-sm" data-distributor-command="DIST2_BAD" disabled>БРАК</button>
-                            <button class="btn btn-sm" data-distributor-command="DIST2_CLEANUP" disabled>ЗАЧИСТКА</button>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Пороги правил выбранной (главной) камеры: над кнопками
-                     ручного управления лентой. Высота блока фиксирована —
-                     правая колонка HMI не прокручивается. Каждое правило —
-                     отдельная карточка; значения задаются числовыми полями.
-                     Одновременно видна одна карточка; переключение —
-                     вкладками-заголовками. У каждой карточки свой
-                     вертикальный ползунок (дорожка + бегунок): виден только
-                     при переполнении строк и показывает положение в списке.
-                     Редактирование — только до пуска
-                     и после полной остановки. -->
-                <section id="thresholds-panel" class="thresholds-panel is-hidden"
-                         data-ui-block="thresholds" aria-label="Пороги правил">
-                    <div class="thresholds-head">
-                        <span class="thresholds-title">ПОРОГИ ПРАВИЛ</span>
-                    </div>
-                    <div id="thresholds-body" class="thresholds-body"></div>
-                    <div class="thresholds-actions">
-                        <span id="thresholds-status" class="thresholds-status"></span>
-                        <button id="thresholds-save" class="btn btn-sm btn-thresholds-save" disabled>СОХРАНИТЬ</button>
-                        <button id="thresholds-reset" class="btn btn-sm" disabled>ОТМЕНИТЬ</button>
-                    </div>
-                </section>
-
-                <section id="frame-analysis-panel" class="frame-analysis-panel-new ui-collapse is-collapsed" data-ui-block="frame-analysis">
-                    <div class="fa-new-head">
-                        <span id="fa-new-verdict" class="fa-new-verdict">—</span>
-                        <span id="fa-new-context" class="fa-new-context"></span>
-                    </div>
-                    <div id="fa-new-body" class="fa-new-body">
-                        <div id="fa-new-scroll" class="fa-new-scroll">
-                            <div id="fa-new-tbody" class="fa-new-tbody"></div>
-                        </div>
-                        <div id="fa-new-scroll-track" class="fa-new-scroll-track is-idle" role="scrollbar" aria-label="Прокрутка анализа кадра" aria-controls="fa-new-scroll" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-disabled="true" title="Прокрутка анализа кадра" tabindex="0">
-                            <div id="fa-new-scroll-thumb" class="fa-new-scroll-thumb"></div>
-                        </div>
-                    </div>
-                </section>
 
                 <div class="jog-deck">
                     <section id="jog-panel" class="jog-panel jog-panel-embedded ui-collapse" data-ui-block="jog">
@@ -304,43 +360,12 @@
                 <button id="btn-stop"  class="btn btn-stop is-hidden" disabled>СТОП</button>
                 <button id="btn-exit"  class="btn btn-exit" disabled>ВЫХОД</button>
             </div>
-            <div class="footer-archive" id="archive-settings-group" data-ui-block="footer-archive">
-                <span class="footer-archive-label">АРХИВ ПАРТИЙ</span>
-                <button id="archive-settings-open" class="btn btn-archive-settings" disabled>АРХИВ</button>
+            <div class="footer-archive" id="footer-batch-group"
+                 data-ui-block="footer-batch">
+                <span class="footer-archive-label">ПАРТИЯ</span>
+                <span id="footer-batch" class="footer-batch">ПАРТИЯ НЕ ОТКРЫТА</span>
             </div>
         </footer>
-    </div>
-
-    <!-- ARCHIVE SETTINGS MODAL -->
-    <div id="archive-settings-modal" class="archive-settings-modal is-hidden" data-ui-block="archive-settings">
-        <div class="archive-settings-backdrop"></div>
-        <section class="archive-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="archive-settings-title">
-            <div class="archive-settings-head">
-                <h2 id="archive-settings-title">АРХИВ ПАРТИЙ</h2>
-                <button id="archive-settings-close" class="btn btn-icon archive-settings-close" type="button" aria-label="Закрыть">&times;</button>
-            </div>
-            <div class="archive-settings-body">
-                <div class="archive-settings-row archive-settings-path-row">
-                    <label for="archive-root-path">ПАПКА ХРАНЕНИЯ</label>
-                    <div class="archive-settings-path-controls">
-                        <input id="archive-root-path" type="text" autocomplete="off" spellcheck="false" placeholder="D:\\InspectionArchive">
-                        <button id="archive-pick-folder" class="btn btn-sm" type="button">ВЫБРАТЬ</button>
-                    </div>
-                </div>
-                <div id="archive-settings-validation" class="archive-settings-validation"></div>
-                <div class="archive-settings-batch">
-                    <span>ТЕКУЩАЯ ПАРТИЯ: <b id="archive-batch-id">—</b></span>
-                    <span>ГОДНОЕ <b id="archive-batch-good">0</b></span>
-                    <span>БРАК <b id="archive-batch-bad">0</b></span>
-                    <span>ЗАЧИСТКА <b id="archive-batch-cleanup">0</b></span>
-                </div>
-            </div>
-            <div class="archive-settings-actions">
-                <span id="archive-settings-status" class="archive-settings-status"></span>
-                <button id="archive-settings-save" class="btn btn-sm btn-archive-save" type="button">СОХРАНИТЬ</button>
-                <button id="archive-settings-cancel" class="btn btn-sm" type="button">ОТМЕНА</button>
-            </div>
-        </section>
     </div>
 
     <!-- GALLERY MODAL -->
@@ -370,18 +395,17 @@
         </div>
     </div>
 
-    <script src="/static/js/core.js?v=59"></script>
-    <script src="/static/js/boot.js?v=33"></script>
-    <script src="/static/js/diagnostics.js?v=51"></script>
-    <script src="/static/js/status.js?v=61"></script>
-    <script src="/static/js/controls.js?v=35"></script>
-    <script src="/static/js/thresholds.js?v=20"></script>
-    <script src="/static/js/cameras.js?v=42"></script>
-    <script src="/static/js/frame-analysis.js?v=14"></script>
-    <script src="/static/js/jog.js?v=37"></script>
-    <script src="/static/js/history.js?v=37"></script>
-    <script src="/static/js/archive.js?v=2"></script>
-    <script src="/static/js/panel-deck.js?v=3"></script>
-    <script src="/static/js/bootstrap.js?v=35"></script>
+    <script src="/static/js/core.js?v=68"></script>
+    <script src="/static/js/boot.js?v=34"></script>
+    <script src="/static/js/status.js?v=67"></script>
+    <script src="/static/js/controls.js?v=39"></script>
+    <script src="/static/js/thresholds.js?v=22"></script>
+    <script src="/static/js/cameras.js?v=44"></script>
+    <script src="/static/js/jog.js?v=40"></script>
+    <script src="/static/js/history.js?v=38"></script>
+    <script src="/static/js/operator.js?v=3"></script>
+    <script src="/static/js/batch.js?v=14"></script>
+    <script src="/static/js/panel-deck.js?v=5"></script>
+    <script src="/static/js/bootstrap.js?v=41"></script>
 </body>
 </html>

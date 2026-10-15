@@ -21,9 +21,9 @@ from hardware.distributor import Distributor
 from hardware.jog_controller import JogController
 from hardware.port_discovery import find_controller
 from hardware.serial_transport import SerialTransport
+from inspection.batch_manager import BatchManager
 from inspection.debug_recorder import DebugRecorder
 from inspection.inspector import Inspector
-from inspection.part_archive import PartArchive
 from vision.camera_manager import CameraManager
 from vision.vision_cluster import VisionCluster
 
@@ -43,7 +43,10 @@ class InspectionServices:
     thresholds: dict
     decision: Any
     inspector: Any
-    archive: Any
+    # Менеджер партий: он же архивный контракт для производственного цикла
+    # (finalize/store_frames/get_part_info), но запись идёт только в партию,
+    # которую открыл оператор.
+    batch_manager: Any
 
 
 @dataclass(frozen=True)
@@ -82,7 +85,7 @@ class ProductionSystemFactory:
             recorder=recorder,
         )
         archive_config = load_archive_config()
-        archive = PartArchive(
+        archive = BatchManager(
             root_folder=archive_config["root_path"],
         )
         return InspectionServices(
@@ -90,7 +93,7 @@ class ProductionSystemFactory:
             thresholds=thresholds,
             decision=decision,
             inspector=inspector,
-            archive=archive,
+            batch_manager=archive,
         )
 
     def discover_controller(

@@ -27,6 +27,28 @@ def setup_api_routes(app, server):
             )
         return JSONResponse({"ok": True})
 
+    async def _batch_action(action, payload, key: str = "batch"):
+        """Действие менеджера партий или входа: 400 — данные, 409 — состояние."""
+        try:
+            if payload is None:
+                result = await asyncio.to_thread(action)
+            else:
+                result = await asyncio.to_thread(action, payload)
+        except ValueError as exc:
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=400,
+            )
+        except RuntimeError as exc:
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=409,
+            )
+        except Exception as exc:
+            print(f"[API] {key} error: {exc}")
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=500,
+            )
+        return JSONResponse({"ok": True, key: result})
+
     @app.get("/api/cameras")
     async def get_cameras():
         with server.lock:
@@ -86,6 +108,8 @@ def setup_api_routes(app, server):
                 "active_camera": server.active_camera_role,
                 "thresholds_revision": server.thresholds_revision,
                 "archive": server.archive_status_payload(),
+                "batch": server.batch_status_payload(),
+                "operator": server.operator_status_payload(),
             })
 
     @app.get("/api/mode")
@@ -204,16 +228,98 @@ def setup_api_routes(app, server):
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
         return JSONResponse({"ok": True, "archive": result})
 
+    # Оператор смены: вход в программу по ФИО и паролю. Пока оператор не
+    # вошёл, партия не открывается, а значит пуск линии заблокирован.
+
+    @app.get("/api/operator")
+    async def api_get_operator():
+        return JSONResponse(
+            await asyncio.to_thread(server.operator_status_payload)
+        )
+
+    @app.post("/api/operator/login")
+    async def api_operator_login(payload: dict | None = None):
+        body = payload or {}
+        login = body.get("login", "")
+        password = body.get("password", "")
+        if not isinstance(login, str) or not isinstance(password, str):
+            raise HTTPException(400, "Некорректные данные входа")
+        return await _batch_action(
+            lambda data: server.operator_login(
+                data["login"], data["password"],
+            ),
+            {"login": login, "password": password},
+            key="operator",
+        )
+
+    @app.post("/api/operator/register")
+    async def api_operator_register(payload: dict | None = None):
+        """Первый запуск: создать оператора, пока список пуст."""
+        body = payload or {}
+        login = body.get("login", "")
+        password = body.get("password", "")
+        if not isinstance(login, str) or not isinstance(password, str):
+            raise HTTPException(400, "Некорректные данные входа")
+        return await _batch_action(
+            lambda data: server.operator_register(
+                data["login"], data["password"],
+            ),
+            {"login": login, "password": password},
+            key="operator",
+        )
+
+    @app.post("/api/operator/logout")
+    async def api_operator_logout():
+        return await _batch_action(
+            server.operator_logout, None, key="operator",
+        )
+
+    # Менеджер партий: номер партии и учёт корпусов в её составе.
+
+    @app.get("/api/batch")
+    async def api_get_batch():
+        return JSONResponse(
+            await asyncio.to_thread(server.batch_status_payload)
+        )
+
+    @app.post("/api/batch/open")
+    async def api_open_batch(payload: dict | None = None):
+        """Начать новую партию или продолжить открытую (batch_id)."""
+        body = payload or {}
+        if body.get("batch_id") is not None and not isinstance(
+            body.get("batch_id"), str
+        ):
+            raise HTTPException(400, "Некорректный идентификатор партии")
+        if not isinstance(body.get("label", ""), str):
+            raise HTTPException(400, "Некорректный номер партии")
+        if not isinstance(body.get("path", ""), str):
+            raise HTTPException(400, "Некорректный путь партии")
+        return await _batch_action(server.open_batch, body)
+
+    @app.post("/api/batch/finish")
+    async def api_finish_batch():
+        """Завершить партию: манифест CLOSED, отправка, ZIP."""
+        return await _batch_action(server.finish_batch, None)
+
     @app.post("/api/start")
-    async def api_start():
+    async def api_start(payload: dict | None = None):
         print("[API] /api/start called")
+        # Партию открывает ПУСК: номер, путь и выбранная незавершённая
+        # партия приходят из карточки партии.
+        try:
+            await asyncio.to_thread(server.prepare_start_batch, payload)
+        except ValueError as exc:
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=400,
+            )
+        except RuntimeError as exc:
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=409,
+            )
         archive_ready, archive_error = server.archive_ready_for_start()
         if not archive_ready:
             return JSONResponse(
-                {
-                    "ok": False,
-                    "error": "Архив недоступен: " + (archive_error or "проверьте папку"),
-                },
+                {"ok": False, "error": archive_error or "Учёт недоступен"},
                 status_code=409,
             )
         return await invoke("ПУСК", server.on_start)
@@ -250,37 +356,6 @@ def setup_api_routes(app, server):
         return await invoke(
             "ПРОВЕРКА МОДЕЛЕЙ И ПРАВИЛ",
             server.on_vision_rule_diagnostic,
-        )
-
-    @app.post("/api/diagnostics/selected/release")
-    async def api_diagnostic_selected_release():
-        return await invoke(
-            "ВОЗВРАТ К ПОТОКУ",
-            server.on_selected_model_release,
-        )
-
-    @app.post("/api/diagnostics/selected/{role}")
-    async def api_diagnostic_selected_model(role: str):
-        return await invoke(
-            "АНАЛИЗ КАДРА",
-            server.on_selected_model_analysis,
-            role,
-        )
-
-    @app.post("/api/distributor/diagnostic/{command}")
-    async def api_distributor_diagnostic(command: str):
-        allowed = {
-            "DIST1_HOME",
-            "DIST1_OPEN",
-            "DIST2_BAD",
-            "DIST2_CLEANUP",
-        }
-        if command not in allowed:
-            raise HTTPException(400, "Недопустимая команда распределителя")
-        return await invoke(
-            "ПРОВЕРКА РАСПРЕДЕЛИТЕЛЯ",
-            server.on_distributor_diagnostic,
-            command,
         )
 
     # JOG

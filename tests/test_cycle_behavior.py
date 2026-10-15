@@ -371,13 +371,6 @@ class CycleBehaviorTest(unittest.TestCase):
         cycle.request_start()
         self.assertFalse(cycle.enter_jog())
 
-    def test_distributor_diagnostic_only_when_idle_and_empty(self):
-        cycle, log = make_cycle()
-        self.assertTrue(cycle.distributor_diagnostic("DIST1_HOME"))
-        cycle.request_start()
-        cycle._run_once()
-        self.assertFalse(cycle.distributor_diagnostic("DIST1_HOME"))
-
     def test_status_controls_match_state(self):
         cycle, log = make_cycle(with_jog=True, with_monitor=True)
         status = cycle._build_status()
@@ -388,6 +381,88 @@ class CycleBehaviorTest(unittest.TestCase):
         self.assertFalse(status["controls"]["start"])
         self.assertTrue(status["controls"]["stop"])
         self.assertTrue(status["controls"]["pause"])
+
+    def test_start_requires_open_batch(self):
+        """Без открытой партии пуск запрещён: учёт корпусов некуда вести."""
+        cycle, log = make_cycle(with_monitor=True)
+        # Менеджер партий сообщает, что партия ещё не открыта.
+        cycle.archive.active = False
+        status = cycle._build_status()
+        self.assertFalse(status["controls"]["start"])
+        self.assertFalse(status["batch_open"])
+        self.assertFalse(cycle.request_start())
+        self.assertEqual(cycle.state, "IDLE")
+        self.assertEqual(cycle._process["phase"], "NO_BATCH")
+        self.assertNotIn("park", log)
+
+        cycle.archive.active = True
+        self.assertEqual(cycle._build_status()["batch_open"], True)
+        self.assertTrue(cycle.request_start())
+        self.assertEqual(cycle.state, "RUNNING")
+
+    def test_batch_change_continues_counting_in_resumed_batch(self):
+        """Нумерация корпусов продолжается в партии, а не с единицы.
+
+        Иначе первая деталь нового сеанса перезаписала бы сохранённый
+        ``part_0001`` уже учтённой партии.
+        """
+        import os
+        import tempfile
+
+        import numpy as np
+
+        from inspection.batch_manager import BatchManager
+
+        cycle, _log = make_cycle()
+        frame = np.zeros((8, 8, 3), dtype=np.uint8)
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = BatchManager(
+                root_folder=os.path.join(tmp, "archive"),
+                batch_sender=lambda folder: True,
+            )
+            cycle.archive = manager
+            # Партия не открыта: учёт линии пуст.
+            self.assertTrue(cycle.sync_batch_accounting())
+            self.assertEqual(cycle.part_counter, 0)
+            self.assertEqual(cycle.good_count, 0)
+
+            manager.open_batch(label="П-1", operator="Иванов Иван Иванович")
+            self.assertTrue(cycle.sync_batch_accounting())
+            for part_id in (1, 2):
+                manager.store_frames(part_id, {"TOP": frame}, {"TOP": frame})
+                manager.finalize(part_id, "GOOD", "ok", [], part_id)
+            manager.prepare_shutdown()
+
+            # Новый запуск программы: партия продолжена, счётчики её.
+            restarted = BatchManager(
+                root_folder=manager.root_folder,
+                batch_sender=lambda folder: True,
+            )
+            restarted.open_batch(
+                operator="Петров Пётр Петрович",
+                batch_id=manager.batch_id,
+            )
+            cycle.archive = restarted
+            cycle.good_count = 0
+            cycle.part_counter = 0
+            self.assertTrue(cycle.sync_batch_accounting())
+            self.assertEqual(cycle.part_counter, 2)
+            self.assertEqual(cycle.good_count, 2)
+
+            self.assertTrue(cycle.request_start())
+            cycle._run_once()
+            self.assertEqual(cycle.parts[-1].id, 3)
+            folder = restarted.finalize(3, "BAD", "no", [], 1)
+            self.assertTrue(folder.endswith("part_0003"))
+            self.assertTrue(os.path.isdir(os.path.join(
+                restarted.batch_folder, "GOOD", "part_0001",
+            )))
+
+    def test_archive_without_batch_manager_keeps_start_available(self):
+        """Архив без менеджера партий (тестовые дубли) пуск не блокирует."""
+        cycle, _log = make_cycle()
+        self.assertFalse(hasattr(cycle.archive, "active"))
+        self.assertTrue(cycle._batch_ready())
 
     def test_monitor_error_does_not_fault_step(self):
         cycle, log = make_cycle(with_monitor=True)

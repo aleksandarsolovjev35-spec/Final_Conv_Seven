@@ -10,6 +10,7 @@ from application.constants import (
     CYCLE_JOIN_TIMEOUT,
     GRACEFUL_EXIT_TIMEOUT,
 )
+from inspection.operator_store import OperatorStore
 
 
 class ExitCoordinator:
@@ -222,7 +223,19 @@ def bind_inspection_callbacks(runtime, services) -> ThresholdCallbacks:
     """Публикует архив/пороги в UI и возвращает владельца callbacks."""
 
     monitor = runtime.monitor
-    monitor.server.archive = services.archive
+    # Менеджер партий — владелец архива: HMI открывает/завершает партию
+    # через его методы, а line_status.controls.start без открытой партии
+    # остаётся запрещающим.
+    monitor.server.batch_manager = services.batch_manager
+    monitor.server.archive = services.batch_manager
+    # Операторы смены: вход в программу по ФИО и паролю. Файл лежит рядом
+    # с реестром партий, поэтому смена папки архива меняет и список
+    # операторов — до перехода на общую БД это осознанное упрощение.
+    # Дубль менеджера без корня архива (тестовые сценарии) оставляет вход
+    # выключенным: пуск тогда проверяет только партию.
+    root_folder = getattr(services.batch_manager, "root_folder", None)
+    if root_folder:
+        monitor.server.operator_store = OperatorStore(root_folder)
     monitor.server.archive_config_path = "archive_config.json"
     monitor.server.thresholds = dict(services.thresholds)
     monitor.server.threshold_labels = dict(
@@ -251,18 +264,20 @@ def bind_cycle_callbacks(
     monitor.pause_callback = cycle.request_pause
     monitor.resume_callback = cycle.request_resume
     monitor.exit_callback = exit_callback
-    monitor.distributor_diagnostic_callback = cycle.distributor_diagnostic
     monitor.camera_diagnostic_callback = cycle.diagnostic_check_cameras
     monitor.vision_rule_diagnostic_callback = (
         cycle.diagnostic_check_vision_rules
     )
-    monitor.selected_model_analysis_callback = (
-        cycle.diagnostic_analyze_selected_camera
-    )
-    monitor.selected_model_release_callback = (
-        cycle.diagnostic_release_selected_camera
-    )
     monitor.active_camera_callback = lambda _role: cycle._refresh_monitor()
+
+    # Смена партии переводит учёт в новую партию (нумерация и статистика
+    # продолжаются с её счётчиков) и меняет доступность ПУСК: статус линии
+    # пересобирается сразу, а не на следующем шаге цикла.
+    def _on_batch_changed():
+        cycle.sync_batch_accounting()
+        cycle._refresh_monitor()
+
+    monitor.server.on_batch_changed = _on_batch_changed
 
     monitor.jog_enter_callback = cycle.enter_jog
     monitor.jog_exit_callback = cycle.exit_jog

@@ -5,7 +5,11 @@ from __future__ import annotations
 from types import SimpleNamespace
 import unittest
 
-from application.callbacks import ExitCoordinator, ThresholdCallbacks
+from application.callbacks import (
+    ExitCoordinator,
+    ThresholdCallbacks,
+    bind_cycle_callbacks,
+)
 from application.lifecycle import ProductionApplication
 from application.runtime import RuntimeState
 from application.shutdown import ShutdownManager
@@ -80,6 +84,7 @@ class FakeServer:
     def __init__(self, events):
         self.events = events
         self.boot_current = None
+        self.batch_manager = None
         self.archive = None
         self.archive_config_path = None
         self.thresholds = None
@@ -162,11 +167,8 @@ class FakeCycle:
     def request_stop(self): pass
     def request_pause(self): pass
     def request_resume(self): pass
-    def distributor_diagnostic(self): pass
     def diagnostic_check_cameras(self): pass
     def diagnostic_check_vision_rules(self): pass
-    def diagnostic_analyze_selected_camera(self): pass
-    def diagnostic_release_selected_camera(self): pass
 
     def enter_jog(self):
         self.events.append("jog.enter")
@@ -219,13 +221,15 @@ class FakeFactory:
         self.events.append("inspection")
         decision = SimpleNamespace(rules=[object()], thresholds={"TOP.x": 1})
         inspector = SimpleNamespace(decision=decision)
-        archive = SimpleNamespace()
+        # Менеджер партий — он же владелец архива: HMI получает его
+        # в monitor.server.batch_manager и monitor.server.archive.
+        manager = SimpleNamespace()
         return SimpleNamespace(
             threshold_loader=SimpleNamespace(labels={"TOP.x": "X"}),
             thresholds={"TOP.x": 1},
             decision=decision,
             inspector=inspector,
-            archive=archive,
+            batch_manager=manager,
         )
 
     def discover_controller(self, *, baudrate, preferred_port):
@@ -301,16 +305,9 @@ class ApplicationStartupTest(unittest.TestCase):
             "stop_callback": "request_stop",
             "pause_callback": "request_pause",
             "resume_callback": "request_resume",
-            "distributor_diagnostic_callback": "distributor_diagnostic",
             "camera_diagnostic_callback": "diagnostic_check_cameras",
             "vision_rule_diagnostic_callback": (
                 "diagnostic_check_vision_rules"
-            ),
-            "selected_model_analysis_callback": (
-                "diagnostic_analyze_selected_camera"
-            ),
-            "selected_model_release_callback": (
-                "diagnostic_release_selected_camera"
             ),
             "jog_enter_callback": "enter_jog",
             "jog_exit_callback": "exit_jog",
@@ -639,6 +636,38 @@ class ExitAndShutdownTest(unittest.TestCase):
         )
         manager.shutdown()
 
+        self.assertIn("cameras.release", events)
+        self.assertIn("serial.close", events)
+
+    def test_shutdown_keeps_open_batch_for_continuation(self):
+        """Незакрытая партия при выходе не закрывается и не сжимается."""
+        events = []
+        monitor = FakeMonitor(events)
+        runtime = RuntimeState(monitor=monitor)
+        runtime.cycle = FakeCycle(events)
+        runtime.cameras = SimpleNamespace(
+            release=lambda: events.append("cameras.release")
+        )
+        runtime.transport = FakeTransport(events)
+        runtime.archive = SimpleNamespace(
+            root_folder="archive",
+            prepare_shutdown=lambda: events.append("batch.prepare_shutdown"),
+            close_manifest=lambda: events.append("manifest.close"),
+            compress=lambda: events.append("archive.compress"),
+        )
+        manager = ShutdownManager(
+            runtime,
+            thread_factory=ImmediateThread,
+            batch_sender=lambda root: events.append("json.send"),
+        )
+
+        manager.shutdown()
+
+        self.assertIn("batch.prepare_shutdown", events)
+        self.assertNotIn("manifest.close", events)
+        self.assertNotIn("json.send", events)
+        self.assertNotIn("archive.compress", events)
+        # Ресурсы всё равно освобождаются после подготовки партии.
         self.assertIn("cameras.release", events)
         self.assertIn("serial.close", events)
 
@@ -1028,6 +1057,45 @@ class ApplicationRunnerTest(unittest.TestCase):
 
         self.assertEqual(events[0], ("server.start", "127.0.0.1", 8000))
         self.assertIn("server.stop", events)
+
+
+class BatchCallbackBindingTest(unittest.TestCase):
+    """Смена партии из HMI: учёт линии переходит в партию и статус обновлён."""
+
+    def make_cycle(self):
+        events = []
+        names = (
+            "request_start", "request_stop", "request_pause", "request_resume",
+            "diagnostic_check_cameras", "diagnostic_check_vision_rules",
+            "enter_jog", "exit_jog",
+            "jog_hold_start", "jog_hold_heartbeat", "jog_hold_release",
+        )
+        cycle = SimpleNamespace(
+            **{name: (lambda *args: None) for name in names}
+        )
+        cycle.sync_batch_accounting = lambda: events.append("sync")
+        cycle._refresh_monitor = lambda: events.append("status")
+        return cycle, events
+
+    def test_batch_change_syncs_accounting_and_refreshes_status(self):
+        cycle, events = self.make_cycle()
+        monitor = SimpleNamespace(server=SimpleNamespace())
+        bind_cycle_callbacks(
+            monitor, cycle, exit_callback=lambda: events.append("exit"),
+        )
+
+        monitor.server.on_batch_changed()
+
+        self.assertEqual(events, ["sync", "status"])
+
+    def test_monitor_without_server_hook_does_not_break_binding(self):
+        cycle, _events = self.make_cycle()
+        monitor = SimpleNamespace(server=SimpleNamespace())
+        bind_cycle_callbacks(
+            monitor, cycle, exit_callback=lambda: None,
+        )
+        self.assertTrue(callable(monitor.server.on_batch_changed))
+        self.assertTrue(callable(monitor.jog_hold_release_callback))
 
 
 if __name__ == "__main__":

@@ -12,7 +12,6 @@ const STATUS_INTERVAL_MOTION = 60;
 const STATUS_INTERVAL_IDLE   = 500;
 const STATUS_OFFLINE_AFTER   = 1500;
 const PREVIEW_INTERVAL       = 180;
-const UPTIME_INTERVAL      = 1000;
 const MAIN_CAM_MIN_GAP     = 16;
 const LIVE_CAM_MIN_GAP     = 1000 / 30;
 
@@ -80,6 +79,7 @@ const state = {
     uiRevealed:          false,
 
     jogActive:           false,
+    lastApiError:        '', 
     jogBusy:             false,
     jogTogglePending:    false,
     jogHoldDirection:    null,
@@ -87,19 +87,13 @@ const state = {
     jogHeartbeatBusy:    false,
     jogReleasePending:   false,
     jogStartPromise:     null,
-    distributorDiagnosticPending: false,
-    distributorDiagnosticBackendBusy: false,
-
-    selectedAnalysisActive: false,
-    selectedAnalysisRole:   null,
-    selectedAnalysisPending: false,
 
     liveFps:              0.0,
     // Backend сообщает целевой режим, но изображение меняется асинхронно.
     // Бейдж использует displayedFrameKind — режим кадра, уже загруженного в
     // главное окно, а не только состояние камеры на сервере.
     liveStreaming:        false,
-    displayedFrameKind:   null, // 'live' | 'static' | 'analysis' | null
+    displayedFrameKind:   null, // 'live' | 'static' | null
     pendingDisplayKind:   null,
     pendingDisplaySeq:    0,
     controlPending:       false,
@@ -116,11 +110,10 @@ const state = {
     mainCamMode:          'pull',
     mainCamStreamRole:    null,
     mainCamStreamView:    null,
-    mainCamAnalysisKey:   null,
     livePullTimer:        null,
 
-    pendingAnalysisVersion: null,
-    pendingFlushTimer:      null,
+    pendingStaticVersion: null,
+    pendingStaticTimer:      null,
     lastLineStatus:         null,
 };
 
@@ -144,34 +137,19 @@ const els = {
 
     main:             $('main'),
 
-    metricStep:       $('metric-step'),
-    metricUptime:     $('metric-uptime'),
-
     previewStrip:     $('preview-strip'),
     cameraLabel:      $('camera-label'),
     modeBadge:        $('mode-badge'),
     mainCamera:       $('main-camera'),
     cameraOverlay:    $('camera-overlay'),
     viewModeToggle:   $('view-mode-toggle'),
-    analyzeSelectedFrame: $('analyze-selected-frame'),
     cameraContainer:  null,
 
-    dist1Blade:       $('dist1-blade'),
-    dist2Blade:       $('dist2-blade'),
-    distributorDiagnostics: $('distributor-diagnostics'),
-    controlError:      $('control-error'),
-
-    statsSummary:         $('stats-summary'),
-    statsBody:            $('stats-body'),
+    controlError:     $('control-error'),
 
     historyCards:     $('history-cards'),
     statsPanel:       $('stats-panel'),
 
-    statTotal:        $('stat-total'),
-    statGood:         $('stat-good'),
-    statBad:          $('stat-bad'),
-    statCleanup:      $('stat-cleanup'),
-    statInline:       $('stat-inline'),
     lineCells:        $('line-cells'),
     processPhaseLabel: $('process-phase-label'),
     processPhaseStep: $('process-phase-step'),
@@ -179,29 +157,46 @@ const els = {
 
     jogPanel:         $('jog-panel'),
 
-    frameAnalysisPanel: $('frame-analysis-panel'),
-
-    archiveSettingsOpen: $('archive-settings-open'),
-    archiveSettingsGroup: $('archive-settings-group'),
-    archiveSettingsModal: $('archive-settings-modal'),
-    archiveSettingsBackdrop: document.querySelector('.archive-settings-backdrop'),
-    archiveSettingsClose: $('archive-settings-close'),
-    archiveSettingsCancel: $('archive-settings-cancel'),
-    archivePickFolder: $('archive-pick-folder'),
-    archiveSettingsSave: $('archive-settings-save'),
-    archiveRootPath: $('archive-root-path'),
-    archiveSettingsValidation: $('archive-settings-validation'),
-    archiveSettingsStatus: $('archive-settings-status'),
-    archiveBatchId: $('archive-batch-id'),
-    archiveBatchGood: $('archive-batch-good'),
-    archiveBatchBad: $('archive-batch-bad'),
-    archiveBatchCleanup: $('archive-batch-cleanup'),
 
     btnStart:         $('btn-start'),
     btnPause:         $('btn-pause'),
     btnResume:        $('btn-resume'),
     btnStop:          $('btn-stop'),
     btnExit:          $('btn-exit'),
+
+    serviceDeck:          $('service-deck'),
+    // Вход в программу: экран входа и плашка оператора над вкладками.
+    loginScreen:          $('login-screen'),
+    loginSubtitle:        $('login-subtitle'),
+    loginName:            $('login-name'),
+    loginUsers:           $('login-users'),
+    loginPassword:        $('login-password'),
+    loginPasswordField:   $('login-password-field'),
+    loginPassword2:       $('login-password2'),
+    loginError:           $('login-error'),
+    loginHint:            $('login-hint'),
+    loginSubmit:          $('login-submit'),
+    operatorLine:         $('operator-line'),
+    operatorName:         $('operator-name'),
+    operatorChange:       $('operator-change'),
+    operatorStatus:       $('operator-status'),
+    deckTabBatch:         $('deck-tab-batch'),
+    deckTabThresholds:    $('deck-tab-thresholds'),
+    batchPanel:           $('batch-panel'),
+    batchUnavailable:     $('batch-unavailable'),
+    batchOpenFace:        $('batch-open-face'),
+    batchActiveFace:      $('batch-active-face'),
+    batchStepLabel:       $('batch-step-label'),
+    batchStepPath:        $('batch-step-path'),
+    batchLabelInput:      $('batch-label-input'),
+    batchPathInput:       $('batch-path-input'),
+    batchStatus:          $('batch-status'),
+    batchOpenList:        $('batch-open-list'),
+    batchActiveInfo:      $('batch-active-info'),
+    batchActiveStatus:    $('batch-active-status'),
+    batchFinish:          $('batch-finish'),
+    batchActiveHint:      $('batch-active-hint'),
+    footerBatch:          $('footer-batch'),
 
     thresholdsPanel:      $('thresholds-panel'),
     thresholdsBody:       $('thresholds-body'),
@@ -277,8 +272,8 @@ mainBuffer.addEventListener('load', () => {
     }
     mainBufferLoading = false;
 
-    if (requestIsCurrent && state.pendingAnalysisVersion !== null && typeof flushPendingAnalysis === 'function') {
-        flushPendingAnalysis();
+    if (requestIsCurrent && state.pendingStaticVersion !== null && typeof flushPendingStatic === 'function') {
+        flushPendingStatic();
     }
 
     if (state.mainCamMode === 'live-pull' && typeof scheduleNextLiveFrame === 'function') {
@@ -314,10 +309,14 @@ async function api(path, options = {}, controlFeedback = false) {
             const message = payload && payload.error ? payload.error : `${res.status}`;
             throw new Error(message);
         }
+        state.lastApiError = '';
         return payload;
     } catch (err) {
         console.warn(`[API] ${path}:`, err.message);
-        if (controlFeedback) showControlError(err.message || `Ошибка запроса ${path}`);
+        // Последняя ошибка запроса: её показывает карточка партии, когда
+        // ПУСК отклонён (номер партии, партия не открыта и т. п.).
+        state.lastApiError = err.message || `Ошибка запроса ${path}`;
+        if (controlFeedback) showControlError(state.lastApiError);
         return null;
     }
 }
@@ -419,7 +418,7 @@ async function sendActiveCameraIfChanged(role) {
 
 function getStatusInterval() {
     const s = state.lineState;
-    if (state.controlPending || state.distributorDiagnosticPending || state.distributorDiagnosticBackendBusy) return STATUS_INTERVAL_MOTION;
+    if (state.controlPending) return STATUS_INTERVAL_MOTION;
     if (s === 'RUNNING' || s === 'PAUSED' || s === 'STOPPING') return STATUS_INTERVAL_FAST;
     if (state.serverExitRequested) return STATUS_INTERVAL_FAST;
     if (state.jogActive) return STATUS_INTERVAL_FAST;

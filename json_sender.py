@@ -5,8 +5,11 @@
     архив партии ──> локальная очередь ──> сетевой диск Z:
                      Protocols\\json         <партия>\\batch.json
 
-1. При завершении программы (или вручную) ``batch.json`` каждой партии
-   копируется в локальную очередь -- даже если ПК аналитика выключен.
+1. При завершении партии (кнопка «ЗАВЕРШИТЬ ПАРТИЮ» в HMI, ручной запуск
+   или совместимый выход из программы) ``batch.json`` каждой завершённой
+   партии копируется в локальную очередь -- даже если ПК аналитика
+   выключен. Манифесты открытых партий не отправляются: партия уходит
+   аналитику только после завершения оператором.
 2. Если сетевой диск доступен, файлы уезжают на него в папку партии.
 3. При каждом старте программы очередь догружается
    (:func:`sync_local_queue`), поэтому партии не теряются, сколько бы
@@ -24,6 +27,7 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import shutil
 from pathlib import Path
@@ -37,7 +41,13 @@ BATCHES_ROOT = Path(r"C:\Users\user\Desktop\conveyor_three\archive")
 TARGET_JSON_NAME = "batch.json"
 
 # Локальная папка-очередь: переживает выключенный ПК аналитика.
-LOCAL_QUEUE_DIR = Path(r"C:\Users\User\Desktop\Protocols\json")
+if os.name == "nt":
+    LOCAL_QUEUE_DIR = Path(r"C:\Users\User\Desktop\Protocols\json")
+else:
+    # Рабочий путь этого модуля -- Windows-стенд. На других хостах
+    # (разработка и тесты) Windows-путь смысла не имеет: относительный
+    # путь не даёт создать в рабочей копии папку с именем «C:\Users\…».
+    LOCAL_QUEUE_DIR = Path("json_queue")
 
 # Сетевой диск ПК аналитика.
 REMOTE_ROOT = Path("Z:/")
@@ -161,7 +171,7 @@ def scan_and_send_all_batches(
     queue_dir: Path | str = LOCAL_QUEUE_DIR,
     remote_root: Path | str = REMOTE_ROOT,
 ) -> int:
-    """Поставить в очередь и отправить ``batch.json`` всех партий архива.
+    """Поставить в очередь и отправить ``batch.json`` закрытых партий.
 
     Рекурсивно ищет папки ``batch_*`` (включая подпапки по датам; ZIP
     прошлых партий игнорируются), ставит их манифесты в локальную очередь,
@@ -169,6 +179,10 @@ def scan_and_send_all_batches(
     прошлых запусков. Может запускаться вручную. Возвращает число
     доставленных файлов: недоступность ПК аналитика не ошибка, копии
     остаются в очереди и уйдут при следующем старте программы.
+
+    Манифесты со статусом ``OPEN`` пропускаются: партия, которую оператор
+    ещё ведёт (и продолжит после перезапуска программы), аналитику не
+    отправляется -- только завершённая.
     """
     root = Path(batches_root) if batches_root is not None else BATCHES_ROOT
     if not root.is_dir():
@@ -179,11 +193,33 @@ def scan_and_send_all_batches(
     )
     for batch_dir in batch_dirs:
         json_path = batch_dir / TARGET_JSON_NAME
-        if json_path.exists():
-            copy_json_to_local_queue(batch_dir, json_path, queue_dir)
-        else:
+        if not json_path.exists():
             print(f"[JSON] В партии нет {TARGET_JSON_NAME}: {batch_dir}")
+            continue
+        if not manifest_is_closed(json_path):
+            print(f"[JSON] Партия ещё не завершена, пропуск: {batch_dir}")
+            continue
+        copy_json_to_local_queue(batch_dir, json_path, queue_dir)
     return sync_local_queue(queue_dir=queue_dir, remote_root=remote_root)
+
+
+def manifest_is_closed(json_path) -> bool:
+    """Манифест закрытой партии (``status: CLOSED``).
+
+    Манифесты без явного статуса считаются пригодными к отправке:
+    так ведут себя batch.json прежних версий и ручные копии.
+    """
+    try:
+        with open(json_path, encoding="utf-8") as stream:
+            data = json.load(stream)
+    except (OSError, ValueError):
+        return False
+    if not isinstance(data, dict):
+        return False
+    status = data.get("status")
+    if status is None:
+        return True
+    return str(status).upper() == "CLOSED"
 
 
 def _atomic_copy(src: Path, dst: Path) -> None:

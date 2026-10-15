@@ -38,8 +38,6 @@ function updateJogState(jog) {
             btn.disabled = (
                 !state.jogActive
                 || state.backendControls.jog_hold !== true
-                || state.distributorDiagnosticBackendBusy
-                || state.distributorDiagnosticPending
                 || (state.jogBusy && !sameDirection)
             );
             btn.classList.toggle(
@@ -65,6 +63,9 @@ function updateJogState(jog) {
     if (wasActive !== state.jogActive) {
         updateViewModeControls();
         applyMainCameraSource();
+        // Пороги — вкладка сервисной зоны и доступны только в ручном
+        // режиме: сообщаем об этом сразу, не ожидая очередного опроса.
+        if (typeof updateServiceDeck === 'function') updateServiceDeck();
     }
 }
 
@@ -72,8 +73,6 @@ function showJogPanel(active) {
     if (!els.jogPanel || !els.statsPanel) return;
     const visible = (
         JOG_ALLOWED_STATES.includes(state.lineState)
-        && !state.selectedAnalysisActive
-        && !state.selectedAnalysisPending
     );
     const pauseHandoff = visible && !active && state.lineState === 'PAUSED';
     els.statsPanel.classList.remove('is-hidden');
@@ -92,16 +91,7 @@ function showJogPanel(active) {
 
 function applyLiveBadge(active) {
     if (!els.modeBadge) return;
-    els.modeBadge.classList.remove(
-        'is-faded', 'mode-live', 'mode-analysis', 'mode-static',
-    );
-    // Даже «АНАЛИЗ» появляется только когда соответствующий кадр уже
-    // заменил изображение в окне: до этого остаётся бейдж предыдущего кадра.
-    if (state.displayedFrameKind === 'analysis') {
-        els.modeBadge.textContent = 'АНАЛИЗ';
-        els.modeBadge.classList.add('mode-analysis');
-        return;
-    }
+    els.modeBadge.classList.remove('is-faded', 'mode-live', 'mode-static');
     // Статус линии описывает желаемый источник, но img переключается позже.
     // Не меняем надпись заранее: во время загрузки нового кадра она должна
     // описывать предыдущий, ещё действительно видимый кадр.
@@ -179,8 +169,6 @@ async function beginJogHold(direction, btn) {
         || state.jogBusy
         || state.offline
         || state.backendControls.jog_hold !== true
-        || state.distributorDiagnosticPending
-        || state.distributorDiagnosticBackendBusy
     ) return;
     if (direction !== '+' && direction !== '-') return;
     if (state.jogHoldDirection) return;
@@ -191,21 +179,12 @@ async function beginJogHold(direction, btn) {
         ...state.backendControls,
         start: false,
         exit: false,
-        distributor_diagnostic: false,
-        camera_diagnostic: false,
-        vision_rule_diagnostic: false,
     };
     applyButtonsForState(
         state.lineState,
         state.serverExitRequested,
         state.backendControls,
     );
-    if (els.distributorDiagnostics) {
-        els.distributorDiagnostics.querySelectorAll('button').forEach(
-            diagnosticButton => { diagnosticButton.disabled = true; }
-        );
-    }
-    disableSelectedAnalysisButton();
     btn.classList.add('jog-active');
     clearControlError();
 
@@ -305,8 +284,6 @@ function clearJogHoldLocalState() {
             btn.disabled = (
                 !state.jogActive
                 || state.backendControls.jog_hold !== true
-                || state.distributorDiagnosticBackendBusy
-                || state.distributorDiagnosticPending
             );
         });
     }

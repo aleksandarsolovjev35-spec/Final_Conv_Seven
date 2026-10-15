@@ -1,6 +1,6 @@
 """Снимок линии для HMI.
 
-Часть ``ProductionCycle``: статус, анализ кадра и публикация в монитор.
+Часть ``ProductionCycle``: статус и публикация в монитор.
 """
 
 import time
@@ -8,56 +8,6 @@ import time
 
 class CycleStatusMixin:
     """Телеметрия и публикация кадров/статуса в UI."""
-
-    # Анализ кадра по группам камер (ВХОД / КОНТРОЛЬ +4)
-
-    def _empty_frame_analysis_entry(self) -> dict:
-        return {
-            "part_id": None,
-            "rule_results": [],
-            "updated_at": None,
-        }
-
-    def _empty_frame_analysis_groups(self) -> dict:
-        return {
-            group: self._empty_frame_analysis_entry()
-            for group in self.FRAME_ANALYSIS_GROUPS
-        }
-
-    def _reset_frame_analysis(self):
-        self._frame_analysis_groups = self._empty_frame_analysis_groups()
-
-    def _record_frame_analysis(self, group: str, part_id, result):
-        """Сохранить итог стадии в клетку её группы камер.
-
-        Правая панель UI показывает анализ выбранной в UI камеры,
-        поэтому результаты хранятся раздельно для ВХОДА и КОНТРОЛЯ +4.
-        """
-        self._frame_analysis_groups[group] = {
-            "part_id": part_id,
-            "rule_results": list(getattr(result, "rule_results", None) or []),
-            "updated_at": time.time(),
-        }
-
-    def _active_frame_analysis_group(self) -> str:
-        """Группа камер, чей анализ показывать: за выбранной камерой UI."""
-        input_roles = set(self.inspector.INPUT_ROLES)
-        try:
-            role = self._get_active_camera_role()
-        except Exception:
-            role = None
-        if role in input_roles:
-            return "INPUT"
-        if role is not None:
-            return "SPIDER"
-        # Камера ещё не выбрана: последняя обновлённая группа.
-        updated = {
-            name: entry.get("updated_at") or 0
-            for name, entry in self._frame_analysis_groups.items()
-        }
-        if any(updated.values()):
-            return max(updated, key=updated.get)
-        return "INPUT"
 
     # Живой просмотр камер
 
@@ -69,60 +19,6 @@ class CycleStatusMixin:
 
     def _current_live_fps(self) -> float:
         return self.live.fps
-
-    # Monitor
-
-    def _build_frame_analysis(self, state_name: str) -> dict:
-        report = self._diagnostics
-        selected_report = report.get("kind") == "SELECTED_MODEL"
-
-        if state_name in ("RUNNING", "STOPPING"):
-            # Панель следует за камерой, выбранной в UI: анализ
-            # меняется при каждом переключении камеры в рабочем цикле.
-            # Показываются только правила и замеры этой камеры, а не
-            # всей группы (INPUT / SPIDER / TOP).
-            group = self._active_frame_analysis_group()
-            entry = self._frame_analysis_groups.get(group) or self._empty_frame_analysis_entry()
-            stage_label = "ВХОД" if group == "INPUT" else "КОНТРОЛЬ +4"
-            try:
-                active_role = self._get_active_camera_role()
-            except Exception:
-                active_role = None
-            return {
-                "available": True,
-                "kind": "CYCLE",
-                "role": active_role,
-                "stage": stage_label,
-                "part_id": entry["part_id"],
-                "rules": self._rule_report_rows(
-                    entry["rule_results"], role=active_role,
-                ),
-                "updated_at": entry["updated_at"],
-            }
-
-        if selected_report:
-            # Ручной анализ уже снимает и считает только выбранную камеру
-            # (rules_for_role + capture_single), поэтому extra-filter не нужен.
-            return {
-                "available": True,
-                "kind": "SELECTED",
-                "role": (
-                    report.get("selected_role")
-                    or self._selected_analysis_role
-                ),
-                "part_id": None,
-                "rules": [dict(item) for item in report.get("rules", [])],
-                "updated_at": report.get("updated_at"),
-            }
-
-        return {
-            "available": False,
-            "kind": None,
-            "role": None,
-            "part_id": None,
-            "rules": [],
-            "updated_at": None,
-        }
 
     def _line_parts(self, parts_snapshot: list, step_snapshot: int) -> list:
         """Позиции корпусов на ленте для мнемосхемы HMI.
@@ -160,6 +56,7 @@ class CycleStatusMixin:
         jog_error = snapshot["jog_error"]
         exit_requested = snapshot["exit_requested"]
         has_parts = snapshot["has_parts"]
+        batch_open = snapshot["batch_open"]
 
         idle = state_name in ("IDLE", "STOPPED")
         # Общее условие «линия стоит пустой и ничем не занята»: от него
@@ -170,7 +67,6 @@ class CycleStatusMixin:
             and not jog_busy
             and not jog_error
             and not operation_busy
-            and not self._selected_analysis_active
             and not exit_requested
         )
         diagnostic_allowed = (
@@ -178,7 +74,9 @@ class CycleStatusMixin:
         )
 
         controls = {
-            "start": line_ready,
+            # Пуск возможен только в открытую партию: учёт корпусов ведётся
+            # в ней, без партии писать результаты некуда.
+            "start": line_ready and batch_open,
             "stop": state_name in ("RUNNING", "PAUSED") and not operation_busy,
             "pause": (
                 state_name == "RUNNING"
@@ -202,16 +100,8 @@ class CycleStatusMixin:
                 and self.jog_active
                 and not jog_error
                 and not operation_busy
-                and not self._selected_analysis_active
                 and not exit_requested
             ),
-            "selected_model_analysis": diagnostic_allowed,
-            "selected_model_release": (
-                self._selected_analysis_active
-                and idle
-                and not operation_busy
-            ),
-            "distributor_diagnostic": diagnostic_allowed,
             "camera_diagnostic": diagnostic_allowed,
             "vision_rule_diagnostic": diagnostic_allowed,
         }
@@ -265,6 +155,7 @@ class CycleStatusMixin:
             "jog_busy": bool(jog_snapshot.get("busy", False)),
             "jog_error": jog_snapshot.get("error") or self.live.error,
             "has_parts": bool(parts_snapshot),
+            "batch_open": self._batch_ready(),
         })
 
         return {
@@ -283,13 +174,9 @@ class CycleStatusMixin:
             "process": dict(self._process),
             "diagnostic_allowed": diagnostic_allowed,
             "diagnostic_busy": operation_busy,
+            "batch_open": self._batch_ready(),
             "controls": controls,
-            "selected_analysis": {
-                "active": self._selected_analysis_active,
-                "role": self._selected_analysis_role,
-            },
             "live": self._build_live_status(),
-            "frame_analysis": self._build_frame_analysis(state_name),
             "jog": self._build_jog_status(state_name),
         }
 

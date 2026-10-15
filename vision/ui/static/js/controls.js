@@ -20,12 +20,18 @@ function applyButtonsForState(lineState, exitRequested, controls = {}) {
 
     if (els.btnStart) {
         els.btnStart.classList.toggle('is-hidden', !startVisible);
+        // Партию открывает сам ПУСК, поэтому карточка партии добавляет свою
+        // причину: номер не введён, линия занята и т. п.
+        const batchReason = (typeof batchStartBlockedReason === 'function')
+            ? batchStartBlockedReason() : '';
         els.btnStart.disabled = (
             !startVisible
             || controls.start !== true
             || pending
             || offline
+            || !!batchReason
         );
+        els.btnStart.title = batchReason;
     }
 
     if (els.btnPause) {
@@ -76,7 +82,7 @@ function flashButton(btn) {
     setTimeout(() => btn.classList.remove('btn-flash'), 250);
 }
 
-async function submitControl(path) {
+async function submitControl(path, payload) {
     if (state.controlPending || state.offline) return null;
     const isStart = path === '/api/start';
     let result = null;
@@ -92,12 +98,6 @@ async function submitControl(path) {
         state.serverExitRequested,
         state.backendControls,
     );
-    if (els.distributorDiagnostics) {
-        els.distributorDiagnostics.querySelectorAll('button').forEach(
-            button => { button.disabled = true; }
-        );
-    }
-    disableSelectedAnalysisButton();
     if (els.jogPanel) {
         if (path === '/api/start') {
             els.jogPanel.classList.add('is-collapsed');
@@ -108,7 +108,9 @@ async function submitControl(path) {
     }
     try {
         clearControlError();
-        result = await apiPost(path, true);
+        result = payload === undefined
+            ? await apiPost(path, true)
+            : await apiPostJson(path, payload, true);
         return result;
     } finally {
         state.controlPending = false;
@@ -135,7 +137,14 @@ function setupButtons() {
         if (els.btnStart.classList.contains('is-hidden')
             || els.btnStart.disabled) return;
         flashButton(els.btnStart);
-        await submitControl('/api/start');
+        // Номер, путь и выбранная незавершённая партия уходят вместе с
+        // пуском: ПУСК открывает, продолжает или переключает партию.
+        const payload = (typeof batchStartPayload === 'function')
+            ? batchStartPayload() : null;
+        const result = await submitControl('/api/start', payload || undefined);
+        if (!result && payload && typeof showBatchRequestError === 'function') {
+            showBatchRequestError({error: state.lastApiError});
+        }
     });
 
     if (els.btnPause) {
@@ -167,6 +176,8 @@ function setupButtons() {
         if (els.btnExit.classList.contains('is-hidden')
             || els.btnExit.disabled) return;
         flashButton(els.btnExit);
+        // Выход партию не закрывает: она остаётся открытой и ждёт
+        // оператора при следующем запуске программы.
         await submitControl('/api/exit');
     });
 
@@ -210,10 +221,6 @@ function updateStateOverlay(ls) {
             ? `На линии осталось корпусов: ${remaining}`
             : 'Завершение работы...';
         peekable = true;
-    } else if (state.selectedAnalysisActive) {
-        // Оператор запросил стоп-кадр выбранной камеры: не закрываем его
-        // большим состоянием IDLE/STOPPED поверх изображения.
-        mainText = '';
     } else if (lineState === 'PAUSED') {
         if (state.jogActive) {
             mainText = '';

@@ -61,7 +61,9 @@ class ProductionCycle(
 
     JOG_ALLOWED_STATES = ("IDLE", "STOPPED", "PAUSED")
 
-    FRAME_ANALYSIS_GROUPS = ("INPUT", "SPIDER")
+    # Фаза процесса, пока оператор не открыл партию: подробный текст с
+    # требованием к оператору показывает карточка «ПАРТИЯ» в HMI.
+    NO_BATCH_LABEL = "Партия не открыта: пуск заблокирован"
 
     def __init__(
         self,
@@ -118,12 +120,14 @@ class ProductionCycle(
         """Состояние шага, блокировки и телеметрия для HMI."""
         self._last_vision_results: dict = {}
         self._last_rule_results: list = []
-        self._frame_analysis_groups = self._empty_frame_analysis_groups()
 
         self._drain_start_time: float = 0
         self._fault_reason = None
         self._operation_lock = threading.Lock()
         self._cancel_motion = threading.Event()
+        # Этапы инспекции публикует и поток шага, и потоки параллельного
+        # анализа двух позиций, поэтому смена фазы в HMI сериализуется.
+        self._progress_lock = threading.RLock()
 
         # Снимки inspection остаются стоп-кадром до следующего
         # движения: live заморожен на весь инспекционный блок.
@@ -140,8 +144,6 @@ class ProductionCycle(
         # JOG
         self.jog_active: bool = False
         self._jog_lock = threading.Lock()
-        self._selected_analysis_active = False
-        self._selected_analysis_role = None
         self._shutdown = False
 
         # Пауза в рабочем цикле
@@ -208,21 +210,24 @@ class ProductionCycle(
         обработки.
         """
         prefix = str(phase or "").upper()
-        if prefix == "INPUT_PRESENT" and part_id is not None:
-            # Корпус подтверждён правилом наличия — показываем его в
-            # «Пути корпусов». Вызов синхронный (один поток цикла),
-            # поэтому статус не успеет уйти в HMI раньше разметки.
-            part = next(
-                (p for p in self.parts if p.id == part_id), None,
+        with self._progress_lock:
+            if prefix == "INPUT_PRESENT" and part_id is not None:
+                # Корпус подтверждён правилом наличия — показываем его в
+                # «Пути корпусов». Потоков может быть два (вход и
+                # контроль параллельно), поэтому смена состояния корпуса
+                # и фазы идёт под блокировкой: в HMI не попадёт статус
+                # раньше разметки.
+                part = next(
+                    (p for p in self.parts if p.id == part_id), None,
+                )
+                if part is not None:
+                    part.present = True
+            self._set_process(
+                prefix,
+                label,
+                part_id=part_id,
+                capture_roles=roles,
             )
-            if part is not None:
-                part.present = True
-        self._set_process(
-            prefix,
-            label,
-            part_id=part_id,
-            capture_roles=roles,
-        )
 
     def _on_conveyor_progress(self, status: dict):
         current = self._process
@@ -236,14 +241,68 @@ class ProductionCycle(
             conveyor_status=conveyor_info,
         )
 
+    # Партия (учёт корпусов)
+
+    def _batch_ready(self) -> bool:
+        """Открыта ли партия, в которую пойдёт учёт корпусов.
+
+        В production архивом владеет менеджер партий и отвечает через
+        ``active``. Архив без менеджера (совместимость и тестовые дубли)
+        пуск не блокирует.
+        """
+        archive = self.archive
+        if archive is None:
+            return False
+        active = getattr(archive, "active", None)
+        return True if active is None else bool(active)
+
+    def sync_batch_accounting(self) -> bool:
+        """Продолжить учёт открытой партии вместо старта с нуля.
+
+        Вызывается при смене партии. Нумерация корпусов и статистика HMI
+        относятся к партии, а не к запуску программы: новая партия
+        начинается с нуля, продолжение берёт счётчики из манифеста, поэтому
+        новые детали не затирают уже сохранённые ``part_NNNN``. Архив без
+        менеджера партий (совместимость и тестовые дубли) учёт не меняет.
+        """
+        archive = self.archive
+        read = getattr(archive, "accounting", None)
+        if read is None:
+            return False
+        try:
+            counters = read()
+        except Exception as exc:
+            print(f"[BATCH] Учёт партии не прочитан: {exc}")
+            return False
+        if counters is None:
+            # Партии нет (ещё не открыта или уже завершена): учёт линии
+            # пуст, иначе новая партия начиналась бы с чужих счётчиков.
+            self.part_counter = 0
+            self.good_count = 0
+            self.bad_count = 0
+            self.cleanup_count = 0
+            print("[BATCH] Партия не открыта: учёт линии обнулён")
+            return True
+        self.part_counter = max(
+            int(counters.get("total") or 0),
+            int(counters.get("last_part_id") or 0),
+        )
+        self.good_count = int(counters.get("good") or 0)
+        self.bad_count = int(counters.get("bad") or 0)
+        self.cleanup_count = int(counters.get("cleanup") or 0)
+        print(
+            f"[BATCH] Учёт линии переведён в партию: корпусов "
+            f"{self.part_counter} (годно {self.good_count}, "
+            f"брак {self.bad_count}, зачистка {self.cleanup_count})"
+        )
+        return True
+
     # Public API
 
     def request_start(self):
         if not self._operation_lock.acquire(blocking=False):
             return False
         try:
-            if self._selected_analysis_active:
-                return False
             if self.live.error:
                 return False
             if self.jog is not None and self.jog.status.get("error"):
@@ -257,6 +316,12 @@ class ProductionCycle(
             if self.jog is not None and self.jog.status.get("error"):
                 return False
             if self.state not in ("IDLE", "STOPPED"):
+                return False
+            # Учёт ведётся в партии: без открытой партии пускать линию
+            # нельзя — корпуса было бы некуда записывать.
+            if not self._batch_ready():
+                print(f"[BATCH] {self.NO_BATCH_LABEL}")
+                self._set_process("NO_BATCH", self.NO_BATCH_LABEL)
                 return False
             self._cancel_motion.clear()
             self._set_process(
@@ -275,15 +340,10 @@ class ProductionCycle(
             if accepted:
                 self._drain_start_time = 0
                 self._fault_reason = None
-                self._reset_frame_analysis()
                 # Деталь могла остаться под входными камерами ещё до пуска:
                 # первый шаг выполняется без движения ленты, чтобы она
                 # попала в учёт, а не уехала дальше непроверенной.
                 self._await_initial_inspection = True
-                if self._diagnostics.get("kind") == "SELECTED_MODEL":
-                    self._diagnostics = make_diagnostics(
-                        message="Анализ кадра ещё не выполнялся",
-                    )
                 # Оператор видит поток всё время, пока линия работает;
                 # на статических этапах шага он приостанавливается.
                 self.live.start()
@@ -468,8 +528,6 @@ class ProductionCycle(
         self._cancel_motion.set()
         self._pause_requested.clear()
         self._stop_pause_frame_loop()
-        self._selected_analysis_active = False
-        self._selected_analysis_role = None
         self.stages.reset()
         self.live.reset_pause()
         self.live.stop()

@@ -110,7 +110,6 @@ function revealUi() {
             state.splashActive = false;
             applyMainCameraSource();
             // После показа UI — сразу синхронизируем скроллы
-            if (typeof faSyncScroll === 'function') requestAnimationFrame(() => faSyncScroll());
             if (typeof thresholdsSyncScroll === 'function') requestAnimationFrame(() => thresholdsSyncScroll());
         }, 400);
     }, 200);

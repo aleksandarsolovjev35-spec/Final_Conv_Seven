@@ -18,10 +18,17 @@ import numpy as np
 from fastapi.testclient import TestClient
 
 from domain.threshold_loader import ThresholdLoader
+from inspection.batch_manager import NO_BATCH_MESSAGE, BatchManager
+from inspection.part_archive import safe_component
+from inspection.operator_store import NO_OPERATOR_MESSAGE, OperatorStore
 from vision.ui.server.server import UIServer
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THRESHOLDS_PATH = os.path.join(REPO_ROOT, "thresholds.json")
+
+OPERATOR = "Иванов Иван Иванович"
+RESUME_OPERATOR = "Петров Пётр Петрович"
+PASSWORD = "1234"
 
 
 def make_frame(value=100):
@@ -471,14 +478,6 @@ class UIServerTest(unittest.TestCase):
             self.client.post("/api/diagnostics/vision-rules").status_code, 200,
         )
 
-    def test_api_distributor_diagnostic(self):
-        self.server.on_distributor_diagnostic = mock.Mock(return_value=True)
-        response = self.client.post("/api/distributor/diagnostic/DIST1_HOME")
-        self.assertEqual(response.status_code, 200)
-        self.server.on_distributor_diagnostic.assert_called_once_with(
-            "DIST1_HOME",
-        )
-
     def test_api_jog(self):
         self.server.on_jog_enter = mock.Mock(return_value=True)
         self.assertEqual(self.client.post("/api/jog/enter").status_code, 200)
@@ -651,6 +650,525 @@ class UIServerTest(unittest.TestCase):
 
     def test_configure_windows_event_loop_policy_on_linux(self):
         self.assertFalse(UIServer._configure_windows_event_loop_policy())
+
+
+class OperatorSessionMixin:
+    """Общая часть: сервер с хранилищем операторов и вход по ФИО."""
+
+    def start_operator_store(self, root_folder):
+        self.server.operator_store = OperatorStore(root_folder)
+        self.server.operator_store.add_user(OPERATOR, PASSWORD)
+
+    def login(self, login=OPERATOR, password=PASSWORD):
+        return self.client.post(
+            "/api/operator/login",
+            json={"login": login, "password": password},
+        )
+
+    def logout(self):
+        return self.client.post("/api/operator/logout")
+
+    def register(self, login, password):
+        return self.client.post(
+            "/api/operator/register",
+            json={"login": login, "password": password},
+        )
+
+
+class BatchUiServerTest(OperatorSessionMixin, unittest.TestCase):
+    """Менеджер партий в UIServer: маршруты, гейт пуска и статус."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.server = UIServer()
+        # Отправка аналитику заглушена: тест не пишет в очередь json_sender.
+        self.manager = BatchManager(
+            root_folder=os.path.join(self.tmp.name, "archive"),
+            batch_sender=lambda folder: True,
+        )
+        self.server.batch_manager = self.manager
+        self.server.archive = self.manager
+        self.server.splash_active = False
+        self.server.line_status = {"state": "IDLE", "in_line": 0}
+        self.client = TestClient(self.server.app)
+        self.start_operator_store(self.manager.root_folder)
+        self.login()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def open_batch(self, **payload):
+        body = {"label": "П-1"}
+        body.update(payload)
+        return self.client.post("/api/batch/open", json=body)
+
+    # ---------- состояние ----------
+
+    def test_batch_payload_without_manager(self):
+        self.server.batch_manager = None
+        payload = self.server.batch_status_payload()
+        self.assertFalse(payload["available"])
+        self.assertFalse(payload["active"])
+
+    def test_get_batch_route(self):
+        response = self.client.get("/api/batch")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["available"])
+        self.assertFalse(payload["active"])
+        self.assertTrue(payload["editable"])
+        self.assertTrue(payload["suggestion"])
+
+    def test_status_route_includes_batch(self):
+        payload = self.client.get("/api/status").json()
+        self.assertIn("batch", payload)
+        self.assertFalse(payload["batch"]["active"])
+
+    # ---------- открытие и продолжение ----------
+
+    def test_open_batch_route(self):
+        response = self.open_batch()
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["batch"]["active"])
+        # Оператор берётся из сессии входа, а не из тела запроса.
+        self.assertEqual(
+            payload["batch"]["batch"]["operator"], OPERATOR,
+        )
+        self.assertTrue(payload["batch"]["can_finish"])
+
+    def test_open_batch_validation_400(self):
+        response = self.open_batch(label="")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("номер", response.json()["error"])
+
+    def test_open_batch_ignores_operator_in_body(self):
+        """ФИО в запросе больше не подменяет оператора смены."""
+        response = self.open_batch(operator="Петров Пётр Петрович")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["batch"]["batch"]["operator"], OPERATOR,
+        )
+
+    def test_open_batch_switches_without_finishing(self):
+        """Второй запрос открытия переключает учёт, партию не закрывая."""
+        self.assertEqual(self.open_batch().status_code, 200)
+        first_id = self.manager.batch_id
+        response = self.open_batch(label="П-2")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()["batch"]
+        self.assertEqual(payload["batch"]["label"], "П-2")
+        self.assertNotEqual(self.manager.batch_id, first_id)
+        self.assertEqual(
+            sorted(item["label"] for item in payload["open"]),
+            ["П-1", "П-2"],
+        )
+        self.assertEqual(
+            len([item for item in payload["open"] if item["status"] == "OPEN"]),
+            2,
+        )
+
+    def test_open_batch_same_batch_changes_nothing(self):
+        self.assertEqual(self.open_batch().status_code, 200)
+        batch_id = self.manager.batch_id
+        response = self.open_batch(label="П-1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.manager.batch_id, batch_id)
+        self.assertEqual(len(response.json()["batch"]["open"]), 1)
+
+    def test_open_batch_on_running_line_409(self):
+        self.server.line_status = {"state": "RUNNING", "in_line": 1}
+        self.assertEqual(self.open_batch().status_code, 409)
+
+    def test_open_batch_with_parts_in_line_409(self):
+        """Корпуса прежней партии на линии не переходят в новый учёт."""
+        self.server.line_status = {"state": "STOPPED", "in_line": 2}
+        response = self.open_batch()
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("корпуса", response.json()["error"])
+        self.assertFalse(self.manager.active)
+
+    def test_continue_open_batch_route(self):
+        self.assertEqual(self.open_batch().status_code, 200)
+        batch_id = self.manager.batch_id
+        self.manager.prepare_shutdown()
+        self.manager = BatchManager(
+            root_folder=self.manager.root_folder,
+            batch_sender=lambda folder: True,
+        )
+        self.server.batch_manager = self.manager
+        self.server.archive = self.manager
+        response = self.open_batch(batch_id=batch_id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["batch"]["batch"]["operator"], OPERATOR,
+        )
+
+    def test_continue_open_batch_after_operator_change(self):
+        """Партию продолжает тот, кто вошёл сейчас; начавший — в истории."""
+        self.assertEqual(self.open_batch().status_code, 200)
+        batch_id = self.manager.batch_id
+        self.manager.prepare_shutdown()
+        self.manager = BatchManager(
+            root_folder=self.manager.root_folder,
+            batch_sender=lambda folder: True,
+        )
+        self.server.batch_manager = self.manager
+        self.server.archive = self.manager
+        self.server.operator_store.add_user(RESUME_OPERATOR, PASSWORD)
+        self.assertEqual(self.logout().status_code, 200)
+        self.assertEqual(self.login(RESUME_OPERATOR).status_code, 200)
+        response = self.open_batch(batch_id=batch_id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["batch"]["batch"]["operator"], RESUME_OPERATOR,
+        )
+
+    # ---------- завершение ----------
+
+    def test_finish_batch_route(self):
+        self.open_batch()
+        response = self.client.post("/api/batch/finish")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["batch"]["active"])
+
+    def test_finish_without_batch_409(self):
+        response = self.client.post("/api/batch/finish")
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("не открыта", response.json()["error"])
+
+    def test_finish_with_parts_in_line_409(self):
+        self.open_batch()
+        self.server.line_status = {"state": "STOPPED", "in_line": 2}
+        response = self.client.post("/api/batch/finish")
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("остались корпуса", response.json()["error"])
+
+    # ---------- гейт пуска ----------
+
+    def test_start_without_label_409(self):
+        """Пуск без номера партии: открывать нечего."""
+        response = self.client.post("/api/start")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error"], NO_BATCH_MESSAGE)
+        self.assertFalse(self.manager.active)
+
+    def test_start_opens_batch_from_card(self):
+        """Партию открывает ПУСК по номеру и пути из карточки."""
+        self.server.on_start = mock.Mock(return_value=True)
+        folder = os.path.join(self.tmp.name, "orders", "П-7")
+        response = self.client.post(
+            "/api/start", json={"label": "П-7", "path": folder},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.server.on_start.assert_called_once()
+        self.assertTrue(self.manager.active)
+        self.assertEqual(self.manager.batch_folder, os.path.abspath(folder))
+        info = self.manager.batch_info()
+        self.assertEqual(info["label"], "П-7")
+        self.assertEqual(info["operator"], OPERATOR)
+
+    def test_start_continues_selected_batch(self):
+        """Выбранная незавершённая партия продолжается тем же ПУСКОМ."""
+        self.server.on_start = mock.Mock(return_value=True)
+        self.open_batch(label="П-1")
+        batch_id = self.manager.batch_id
+        # Перезапуск программы: партия осталась открытой на диске.
+        self.manager.prepare_shutdown()
+        self.manager._current = None
+
+        response = self.client.post(
+            "/api/start", json={"batch_id": batch_id},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.manager.batch_id, batch_id)
+
+    def test_start_switches_to_selected_batch(self):
+        """Выбранная в списке партия переключает учёт тем же ПУСКОМ."""
+        self.server.on_start = mock.Mock(return_value=True)
+        self.assertEqual(self.open_batch().status_code, 200)
+        first_id = self.manager.batch_id
+        folder = os.path.join(self.tmp.name, "orders", "П-5")
+        self.assertEqual(
+            self.open_batch(label="П-5", path=folder).status_code, 200,
+        )
+        switched_id = self.manager.batch_id
+        self.assertNotEqual(switched_id, first_id)
+
+        # Переключение назад по выбранной партии из списка.
+        response = self.client.post(
+            "/api/start", json={"label": "П-1", "batch_id": first_id},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.manager.batch_id, first_id)
+        self.assertEqual(len(self.manager.status_payload()["open"]), 2)
+
+    def test_start_switches_by_label_from_card(self):
+        """Номер другой партии в поле — ПУСК переключает учёт на неё."""
+        self.server.on_start = mock.Mock(return_value=True)
+        self.assertEqual(self.open_batch().status_code, 200)
+        first_id = self.manager.batch_id
+        response = self.client.post(
+            "/api/start", json={"label": "П-8"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotEqual(self.manager.batch_id, first_id)
+        self.assertEqual(self.manager.status_payload()["batch"]["label"], "П-8")
+        self.assertEqual(
+            sorted(
+                item["label"]
+                for item in self.manager.status_payload()["open"]
+            ),
+            ["П-1", "П-8"],
+        )
+        self.assertEqual(first_id, "batch_" + safe_component("П-1"))
+
+    def test_start_with_card_of_open_batch_does_not_switch(self):
+        """Поля карточки повторяют открытую партию — переключения нет."""
+        self.server.on_start = mock.Mock(return_value=True)
+        self.open_batch()
+        batch_id = self.manager.batch_id
+        folder = self.manager.batch_folder
+        response = self.client.post(
+            "/api/start", json={"label": "П-1", "path": folder},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.manager.batch_id, batch_id)
+        self.assertEqual(len(self.manager.status_payload()["open"]), 1)
+
+    def test_start_switch_needs_stopped_line(self):
+        self.open_batch()
+        self.server.line_status = {"state": "RUNNING", "in_line": 1}
+        response = self.client.post("/api/start", json={"label": "П-2"})
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("остановленной", response.json()["error"])
+        self.assertEqual(self.manager.batch_id, "batch_" + safe_component("П-1"))
+
+    def test_start_switch_with_parts_in_line_409(self):
+        self.open_batch()
+        self.server.line_status = {"state": "STOPPED", "in_line": 2}
+        response = self.client.post("/api/start", json={"label": "П-2"})
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("корпуса", response.json()["error"])
+        self.assertEqual(self.manager.batch_id, "batch_" + safe_component("П-1"))
+
+    def test_start_allowed_with_open_batch(self):
+        self.server.on_start = mock.Mock(return_value=True)
+        self.open_batch()
+        ok, message = self.server.archive_ready_for_start()
+        self.assertTrue(ok)
+        self.assertIsNone(message)
+        self.assertEqual(self.client.post("/api/start").status_code, 200)
+
+    def test_batch_changed_hook_is_called(self):
+        hook = mock.Mock()
+        self.server.on_batch_changed = hook
+        self.open_batch()
+        hook.assert_called_once()
+        self.client.post("/api/batch/finish")
+        self.assertEqual(hook.call_count, 2)
+
+
+class OperatorUiServerTest(OperatorSessionMixin, unittest.TestCase):
+    """Вход в программу: ФИО и пароль, гейт вкладки «ПАРТИЯ»."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.server = UIServer()
+        self.root = os.path.join(self.tmp.name, "archive")
+        self.manager = BatchManager(
+            root_folder=self.root,
+            batch_sender=lambda folder: True,
+        )
+        self.server.batch_manager = self.manager
+        self.server.archive = self.manager
+        self.server.splash_active = False
+        self.server.line_status = {"state": "IDLE", "in_line": 0}
+        self.client = TestClient(self.server.app)
+        self.start_operator_store(self.root)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    # ---------- состояние ----------
+
+    def test_status_without_store(self):
+        self.server.operator_store = None
+        payload = self.server.operator_status_payload()
+        self.assertFalse(payload["available"])
+        self.assertFalse(payload["assigned"])
+        self.assertIsNone(payload["operator"])
+        self.assertEqual(payload["since"], "")
+
+    def test_get_operator_route(self):
+        payload = self.client.get("/api/operator").json()
+        self.assertTrue(payload["available"])
+        self.assertFalse(payload["assigned"])
+        self.assertEqual(payload["users"], [OPERATOR])
+        self.assertFalse(payload["can_register"])
+        self.assertTrue(payload["can_add_user"])
+
+    def test_status_route_includes_operator(self):
+        payload = self.client.get("/api/status").json()
+        self.assertIn("operator", payload)
+        self.assertFalse(payload["operator"]["assigned"])
+
+    # ---------- вход ----------
+
+    def test_login_route(self):
+        response = self.login()
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["operator"]["assigned"])
+        self.assertEqual(payload["operator"]["operator"], OPERATOR)
+        # Плашка над вкладками показывает, с какого времени оператор в смене.
+        self.assertRegex(payload["operator"]["since"], r"^\d{2}:\d{2}$")
+
+    def test_login_accepts_case_and_spaces(self):
+        response = self.login("  иванов иван иванович  ")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["operator"]["operator"], OPERATOR,
+        )
+
+    def test_login_wrong_password_400(self):
+        response = self.login(password="0000")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "Неверный пароль")
+        self.assertIsNone(self.server.operator)
+
+    def test_login_unknown_operator_400(self):
+        response = self.login("Сидоров Сидор Сидорович")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("не найден", response.json()["error"])
+
+    def test_login_twice_409(self):
+        self.assertEqual(self.login().status_code, 200)
+        response = self.login()
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("уже назначен", response.json()["error"])
+
+    def test_login_bad_payload_400(self):
+        response = self.client.post("/api/operator/login", json={})
+        self.assertEqual(response.status_code, 400)
+
+    # ---------- регистрация и смена ----------
+
+    def test_register_first_operator(self):
+        store = self.server.operator_store
+        store.remove_user(OPERATOR)
+        response = self.register("Смирнов Илья Петрович", "1234")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["operator"]["assigned"])
+        self.assertEqual(
+            payload["operator"]["operator"], "Смирнов Илья Петрович",
+        )
+
+    def test_register_existing_list_409(self):
+        response = self.register("Смирнов Илья Петрович", "1234")
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("войдите", response.json()["error"])
+
+    def test_logged_operator_adds_colleague(self):
+        """Вошедший оператор заводит коллегу, не меняя свою сессию."""
+        self.assertEqual(self.login().status_code, 200)
+        response = self.register("Смирнов Илья Петрович", "1234")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()["operator"]
+        self.assertEqual(payload["operator"], OPERATOR)
+        self.assertEqual(len(payload["users"]), 2)
+        self.assertEqual(self.server.operator, OPERATOR)
+
+    def test_register_short_password_400(self):
+        store = self.server.operator_store
+        store.remove_user(OPERATOR)
+        response = self.register("Смирнов Илья Петрович", "12")
+        self.assertEqual(response.status_code, 400)
+
+    def test_logout_route(self):
+        self.login()
+        response = self.logout()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["operator"]["assigned"])
+        self.assertEqual(response.json()["operator"]["since"], "")
+        self.assertIsNone(self.server.operator)
+        self.assertEqual(self.server.operator_since, "")
+
+    def test_logout_without_operator_409(self):
+        response = self.logout()
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("не назначен", response.json()["error"])
+
+    def test_logout_blocked_by_open_batch(self):
+        self.login()
+        self.client.post("/api/batch/open", json={"label": "П-1"})
+        response = self.logout()
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(self.server.operator, OPERATOR)
+        self.assertFalse(self.server.operator_status_payload()["editable"])
+
+    def test_logout_blocked_on_running_line(self):
+        self.login()
+        self.server.line_status = {"state": "RUNNING", "in_line": 1}
+        response = self.logout()
+        self.assertEqual(response.status_code, 409)
+
+    def test_switch_operator(self):
+        self.login()
+        self.server.operator_store.add_user(RESUME_OPERATOR, PASSWORD)
+        self.assertEqual(self.logout().status_code, 200)
+        response = self.login(RESUME_OPERATOR)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.server.operator, RESUME_OPERATOR)
+
+    # ---------- гейты ----------
+
+    def test_batch_open_requires_operator(self):
+        response = self.client.post("/api/batch/open", json={"label": "П-1"})
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error"], NO_OPERATOR_MESSAGE)
+        self.assertFalse(self.manager.active)
+
+    def test_start_requires_operator(self):
+        ok, message = self.server.archive_ready_for_start()
+        self.assertFalse(ok)
+        self.assertEqual(message, NO_OPERATOR_MESSAGE)
+        response = self.client.post("/api/start")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error"], NO_OPERATOR_MESSAGE)
+
+    def test_start_needs_operator_then_label(self):
+        """Сначала оператор, затем номер партии: пуск открывает партию."""
+        self.assertEqual(self.login().status_code, 200)
+        self.server.on_start = mock.Mock(return_value=True)
+        # Номер не указан: пуск отклонён, партия не открыта.
+        response = self.client.post("/api/start")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error"], NO_BATCH_MESSAGE)
+        # Номер указан: пуск открывает партию и запускает линию.
+        response = self.client.post("/api/start", json={"label": "П-2"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(self.server.batch_manager.active)
+        self.assertEqual(
+            self.server.batch_manager.batch_info()["label"], "П-2",
+        )
+        ok, message = self.server.archive_ready_for_start()
+        self.assertTrue(ok)
+        self.assertIsNone(message)
+
+    def test_persistent_login_after_restart(self):
+        """Учётки переживают перезапуск программы."""
+        self.assertEqual(self.login().status_code, 200)
+        self.server.operator = None
+        self.server.operator_store = OperatorStore(self.root)
+        response = self.login()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["operator"]["operator"], OPERATOR,
+        )
 
 
 if __name__ == "__main__":
