@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/static/css/history-strip.css?v=47">
     <link rel="stylesheet" href="/static/css/stats.css?v=50">
     <link rel="stylesheet" href="/static/css/jog.css?v=36">
-    <link rel="stylesheet" href="/static/css/controls.css?v=38">
+    <link rel="stylesheet" href="/static/css/controls.css?v=39">
     <link rel="stylesheet" href="/static/css/gallery.css?v=34">
     <link rel="stylesheet" href="/static/css/process.css?v=56">
     <link rel="stylesheet" href="/static/css/motion.css?v=39">
@@ -258,6 +258,14 @@
                     </div>
                 </section>
 
+                <div class="conveyor-speed-control">
+                    <label for="conveyor-speed">СКОРОСТЬ ЛЕНТЫ
+                        <output id="conveyor-speed-value" for="conveyor-speed">—</output>
+                    </label>
+                    <input id="conveyor-speed" type="range" min="5000" max="20000" step="100" value="20000" disabled
+                           aria-describedby="conveyor-speed-hint">
+                    <small id="conveyor-speed-hint">Шагов/с · настройка после остановки</small>
+                </div>
                 <div class="jog-deck">
                     <section id="jog-panel" class="jog-panel jog-panel-embedded ui-collapse" data-ui-block="jog">
                         <div class="jog-header">
@@ -373,8 +381,8 @@
     <script src="/static/js/core.js?v=59"></script>
     <script src="/static/js/boot.js?v=33"></script>
     <script src="/static/js/diagnostics.js?v=51"></script>
-    <script src="/static/js/status.js?v=61"></script>
-    <script src="/static/js/controls.js?v=35"></script>
+    <script src="/static/js/status.js?v=62"></script>
+    <script src="/static/js/controls.js?v=36"></script>
     <script src="/static/js/thresholds.js?v=20"></script>
     <script src="/static/js/cameras.js?v=42"></script>
     <script src="/static/js/frame-analysis.js?v=14"></script>
