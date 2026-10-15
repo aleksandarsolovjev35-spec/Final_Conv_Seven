@@ -128,7 +128,6 @@ class UIServer:
         self.on_selected_model_analysis: callable | None = None
         self.on_selected_model_release: callable | None = None
 
-        self.on_conveyor_speed: callable | None = None
         self.on_jog_enter: callable | None = None
         self.on_jog_exit: callable | None = None
         self.on_jog_hold_start: callable | None = None

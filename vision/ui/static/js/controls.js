@@ -6,8 +6,6 @@
 function applyButtonsForState(lineState, exitRequested, controls = {}) {
     const offline = state.offline || lineState === 'OFFLINE';
     const pending = state.controlPending;
-    const speedSlider = document.getElementById('conveyor-speed');
-    if (speedSlider && (offline || pending || !['IDLE', 'STOPPED'].includes(lineState))) speedSlider.disabled = true;
     const startVisible = (
         (lineState === 'IDLE' || lineState === 'STOPPED')
         && !exitRequested
@@ -123,39 +121,7 @@ async function submitControl(path) {
     }
 }
 
-let conveyorSpeedPending = false;
-let conveyorSpeedEditing = false;
-function updateConveyorSpeed(ls) {
-    const slider = document.getElementById('conveyor-speed');
-    if (!slider) return;
-    slider.disabled = !ls.speed_allowed || state.offline || state.controlPending || conveyorSpeedPending;
-    if (!conveyorSpeedEditing && !conveyorSpeedPending && Number.isFinite(ls.conveyor_speed)) {
-        slider.value = ls.conveyor_speed;
-        document.getElementById('conveyor-speed-value').textContent = ls.conveyor_speed.toLocaleString('ru-RU');
-    }
-}
-
 function setupButtons() {
-    const speedSlider = document.getElementById('conveyor-speed');
-    if (speedSlider) {
-        speedSlider.addEventListener('input', () => {
-            conveyorSpeedEditing = true;
-            document.getElementById('conveyor-speed-value').textContent = Number(speedSlider.value).toLocaleString('ru-RU');
-        });
-        speedSlider.addEventListener('change', async () => {
-            conveyorSpeedEditing = false;
-            if (speedSlider.disabled || conveyorSpeedPending || state.offline) return;
-            conveyorSpeedPending = true;
-            speedSlider.disabled = true;
-            try {
-                await apiPostJson('/api/conveyor/speed', {speed: Number(speedSlider.value)}, true);
-            } finally {
-                conveyorSpeedPending = false;
-                requestImmediateStatus();
-            }
-        });
-    }
-
     if (els.splashExit) {
         els.splashExit.addEventListener('click', async () => {
             els.splashExit.disabled = true;

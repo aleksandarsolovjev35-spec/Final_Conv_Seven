@@ -32,23 +32,6 @@ class Conveyor:
             divisions_per_movement,
         )
 
-    MIN_SPEED = 5000
-    MAX_SPEED = 20000
-
-    def set_speed(self, speed: int):
-        """Изменить скорость остановленной ленты (шагов/с)."""
-        if type(speed) is not int or not self.MIN_SPEED <= speed <= self.MAX_SPEED:
-            raise ValueError("Скорость должна быть целым числом от 5000 до 20000")
-        if self._pending_step_sequence is not None:
-            raise RuntimeError("Шаг конвейера ещё не подтверждён")
-        status = self.transport.query("I2", delay=0.1)
-        if not self._strict_stop_confirmed(status):
-            raise RuntimeError("Остановка ленты не подтверждена")
-        reply = self.transport.query(f"G5 S{speed}", delay=0.1)
-        if not re.search(rf"^G5: speed={speed}\s*$", reply or "", re.MULTILINE):
-            raise RuntimeError("Контроллер не подтвердил изменение скорости")
-        self.speed = speed
-
     def move_step(self):
         """Отправить один шаг и проверить адресованное подтверждение приёма."""
         if self._pending_step_sequence is not None:

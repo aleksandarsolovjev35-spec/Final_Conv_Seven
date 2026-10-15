@@ -283,13 +283,6 @@ def setup_api_routes(app, server):
             command,
         )
 
-    @app.post("/api/conveyor/speed")
-    async def api_conveyor_speed(payload: dict):
-        speed = payload.get("speed")
-        if type(speed) is not int or not 5000 <= speed <= 20000:
-            raise HTTPException(400, "Скорость должна быть целым числом от 5000 до 20000")
-        return await invoke("СКОРОСТЬ ЛЕНТЫ", server.on_conveyor_speed, speed)
-
     # JOG
 
     @app.post("/api/jog/enter")
