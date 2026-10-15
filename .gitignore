@@ -13,6 +13,9 @@ training_datasets/
 # Локальная очередь batch.json на не-Windows-хостах (json_sender)
 json_queue/
 
+# Зависимости UI-проверок в jsdom (tests/ui): ставятся npm install
+tests/ui/node_modules/
+
 # Данные замеров покрытия
 .coverage
 htmlcov/
