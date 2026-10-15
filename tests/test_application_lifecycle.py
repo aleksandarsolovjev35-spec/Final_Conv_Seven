@@ -168,9 +168,6 @@ class FakeCycle:
     def diagnostic_analyze_selected_camera(self): pass
     def diagnostic_release_selected_camera(self): pass
 
-    def set_conveyor_speed(self, speed):
-        return True
-
     def enter_jog(self):
         self.events.append("jog.enter")
         return True
@@ -315,7 +312,6 @@ class ApplicationStartupTest(unittest.TestCase):
             "selected_model_release_callback": (
                 "diagnostic_release_selected_camera"
             ),
-            "conveyor_speed_callback": "set_conveyor_speed",
             "jog_enter_callback": "enter_jog",
             "jog_exit_callback": "exit_jog",
             "jog_hold_start_callback": "jog_hold_start",
