@@ -7,6 +7,20 @@
 class CycleJogMixin:
     """Dead-man JOG поверх безопасных состояний линии."""
 
+    def set_conveyor_speed(self, speed: int) -> bool:
+        if not self._operation_lock.acquire(blocking=False):
+            return False
+        try:
+            if (self.state not in ("IDLE", "STOPPED") or self.exit_requested
+                    or self._shutdown or self._selected_analysis_active
+                    or (self.jog is not None and self.jog.status.get("busy"))):
+                return False
+            self.conveyor.set_speed(speed)
+        finally:
+            self._operation_lock.release()
+        self._refresh_monitor()
+        return True
+
     # JOG mode
 
     def can_enter_jog(self) -> bool:
