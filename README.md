@@ -267,6 +267,28 @@ py -3.11 -m venv .venv
 
 После установки разместите веса и проверьте конфигурационные JSON-файлы.
 
+### Стенд симуляции в Linux-окружении
+
+`ui_simulation.py` не требует ни камер, ни контроллера, ни нейросетей — ему
+нужны только FastAPI, Uvicorn и OpenCV. Для Linux-окружения (песочница,
+CI-хост) есть `tools/restore_dev_stand.sh`: он подтягивает ветку из origin,
+собирает `.venv`, ставит зависимости с headless-сборкой OpenCV, ставит jsdom
+для проверок HMI и запускает стенд.
+
+```bash
+tools/restore_dev_stand.sh              # ветка + окружение + стенд на :8000
+tools/restore_dev_stand.sh --port 8080  # другой порт
+tools/restore_dev_stand.sh --only-deps  # только собрать окружение
+tools/restore_dev_stand.sh --with-vision  # ещё и ultralytics (для приложения)
+```
+
+Почему OpenCV ставится сборкой `headless`: `opencv-python` из
+`requirements.txt` требует libGL, которого на хосте без графики нет, и
+импорт падает с `ImportError: libGL.so.1`. `opencv-python-headless` даёт тот
+же API, включая `imshow` и `VideoCapture`. Ultralytics стенду не нужен: он
+импортирует только `cv2`, `numpy`, `domain`, `inspection` и
+`vision.ui.server` — нейросети поднимает приложение целиком.
+
 ### GPU (CUDA)
 
 По умолчанию устройство выбирается автоматически (`auto`): если torch видит доступное CUDA, inference моделей идёт на GPU `0`, иначе на CPU. Переопределяется переменной окружения `VISION_DEVICE` (значения: `auto`, `cpu`, `gpu`/`cuda`, `cuda:N` или индекс `0`, `1`, ...).
