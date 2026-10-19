@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Мастер датасета YOLO</title>
-    <link rel="stylesheet" href="/static/training.css?v=1">
+    <link rel="stylesheet" href="/static/training.css?v=2">
 </head>
 <body>
     <main class="app-shell">
@@ -13,8 +13,25 @@
                 <p class="eyebrow">CONVEYER SEVEN · TRAINING</p>
                 <h1>Сбор датасета дефектов</h1>
             </div>
-            <div id="connection-state" class="connection-state">ПОДКЛЮЧЕНИЕ…</div>
+            <div class="topbar-right">
+                <div id="belt-state" class="belt-state">ЛЕНТА: —</div>
+                <div id="connection-state" class="connection-state">ПОДКЛЮЧЕНИЕ…</div>
+            </div>
         </header>
+
+        <nav class="step-bar" aria-label="Экраны мастера">
+            <button type="button" class="step-chip active" data-screen="setup">
+                <span class="step-num">1</span>НАСТРОЙКА
+            </button>
+            <span class="step-link"></span>
+            <button type="button" class="step-chip" data-screen="work">
+                <span class="step-num">2</span>РАЗМЕТКА
+            </button>
+            <span class="step-link"></span>
+            <button type="button" class="step-chip" data-screen="result">
+                <span class="step-num">3</span>ГОТОВО
+            </button>
+        </nav>
 
         <section id="setup-panel" class="panel setup-panel">
             <div class="panel-heading">
@@ -25,8 +42,9 @@
                 <span class="step-badge">НАСТРОЙКА</span>
             </div>
             <p class="hint">
-                Для каждой детали мастер по очереди покажет кадр каждой выбранной камеры.
-                Исходник сохраняется сразу, а после ответа оператора создаются overlay и YOLO-разметка.
+                Отметьте камеры в порядке показа и элементы палитры. Затем сядьте к
+                мастеру: деталь за деталью обводите дефекты, а кнопка «ДАЛЕЕ» сдвигает
+                ленту на шаг и открывает новые изображения следующей детали.
             </p>
             <div class="form-grid">
                 <label class="field field-wide">
@@ -70,9 +88,11 @@
                     </div>
                     <div id="part-progress" class="part-progress">Начните новую деталь</div>
                     <button id="new-part" class="button primary full">НОВАЯ ДЕТАЛЬ</button>
+                    <button id="next-part" class="button accent full" disabled>ДАЛЕЕ · ШАГ ЛЕНТЫ</button>
                     <button id="finish-part" class="button secondary full" disabled>ЗАВЕРШИТЬ ДЕТАЛЬ</button>
                 </div>
                 <div class="session-actions">
+                    <button id="belt-step" class="button neutral full">ШАГ ЛЕНТЫ ВРУЧНУЮ</button>
                     <button id="export-dataset" class="button secondary full" disabled>ОБНОВИТЬ YOLO-ЭКСПОРТ</button>
                     <button id="finish-session" class="button danger full" disabled>ЗАВЕРШИТЬ НАБОР</button>
                 </div>
@@ -120,7 +140,14 @@
                     </label>
                     <button id="finish-polygon" class="button secondary" disabled>ЗАВЕРШИТЬ ОБЛАСТЬ</button>
                     <button id="no-defect" class="button neutral" disabled>ДЕФЕКТА НЕТ</button>
+                    <button id="reclass-region" class="button neutral" disabled>СМЕНИТЬ ЭЛЕМЕНТ</button>
+                    <button id="delete-region" class="button neutral" disabled>УДАЛИТЬ ВЫБРАННУЮ</button>
                     <button id="clear-box" class="button neutral" disabled>ОЧИСТИТЬ ОБЛАСТИ</button>
+                </div>
+                <div class="selection-hint" id="selection-hint">
+                    Клик по области — выделить её: вершины можно тащить мышью, элемент —
+                    менять кнопкой «СМЕНИТЬ ЭЛЕМЕНТ», удалить — только выбранную без
+                    очистки остальных.
                 </div>
                 <div class="actions capture-actions">
                     <button id="save-annotation" class="button primary" disabled>ГОТОВО</button>
@@ -138,8 +165,17 @@
                 <p id="result-text" class="hint"></p>
             </div>
             <code id="result-yaml"></code>
+            <button id="new-dataset" class="button primary">СОЗДАТЬ НОВЫЙ НАБОР</button>
         </section>
+
+        <div id="motion-overlay" class="motion-overlay hidden" aria-live="polite">
+            <div class="motion-card">
+                <div class="motion-spinner"></div>
+                <strong id="motion-title">ЛЕНТА ДВИЖЕТСЯ…</strong>
+                <span id="motion-text">Шаг конвейера, ожидание новой детали</span>
+            </div>
+        </div>
     </main>
-    <script src="/static/training.js?v=1"></script>
+    <script src="/static/training.js?v=2"></script>
 </body>
 </html>

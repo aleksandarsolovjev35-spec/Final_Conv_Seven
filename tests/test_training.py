@@ -16,6 +16,7 @@ from training.collector import (
     TrainingConfig,
     ValidationError,
 )
+from training.motion import VirtualBeltStep
 from training.server import create_app
 from training.yolo import PolygonAnnotation, normalise_polygon
 
@@ -29,6 +30,22 @@ class FakeFrameSource:
         frame = np.zeros((80, 120, 3), dtype=np.uint8)
         frame[:, :] = (20, 30, 40)
         return frame
+
+
+class FakeBelt:
+    """Шаг ленты без железа: считает вызовы advance()."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def advance(self):
+        self.calls += 1
+        return {
+            "available": True,
+            "moved": True,
+            "steps": self.calls,
+            "message": f"step {self.calls}",
+        }
 
 
 class TrainingCollectorTest(unittest.TestCase):
@@ -336,6 +353,106 @@ class TrainingCollectorTest(unittest.TestCase):
             )
 
 
+class TrainingBeltAndNextPartTest(unittest.TestCase):
+    """Шаг ленты и переход «ДАЛЕЕ» к следующей детали."""
+
+    def make_collector(self, root, *, belt=None):
+        source = FakeFrameSource()
+        collector = TrainingCollector(
+            TrainingConfig(
+                root_folder=root,
+                camera_roles=("CAM_A", "CAM_B"),
+                defect_classes=("scratch",),
+                validation_ratio=0.5,
+            ),
+            frame_source=source,
+            belt=belt,
+        )
+        return collector, source
+
+    @staticmethod
+    def annotate_all_cameras(collector):
+        for _ in collector.config.camera_roles:
+            collector.capture_next()
+            collector.skip_current()
+
+    def test_next_part_moves_belt_and_opens_new_part(self):
+        with tempfile.TemporaryDirectory() as root:
+            belt = FakeBelt()
+            collector, source = self.make_collector(root, belt=belt)
+            collector.start_session("belt")
+            collector.begin_part()
+            self.annotate_all_cameras(collector)
+
+            result = collector.next_part()
+            self.assertEqual(belt.calls, 1)
+            self.assertTrue(result["belt"]["moved"])
+            self.assertEqual(result["belt"]["steps"], 1)
+            self.assertEqual(result["finished_part"]["part_id"], 1)
+            self.assertEqual(result["part"]["part_id"], 2)
+            self.assertEqual(result["frame"]["part_id"], 2)
+            self.assertEqual(result["frame"]["camera_role"], "CAM_A")
+            self.assertEqual(result["current_frame"]["image_id"], 3)
+            # Новая деталь сразу получила новый кадр первой камеры.
+            self.assertEqual(source.roles, ["CAM_A", "CAM_B", "CAM_A"])
+
+    def test_next_part_requires_saved_annotation_of_current_frame(self):
+        with tempfile.TemporaryDirectory() as root:
+            belt = FakeBelt()
+            collector, _ = self.make_collector(root, belt=belt)
+            collector.start_session("guard")
+            collector.begin_part()
+            collector.capture_next()
+            with self.assertRaises(CollectorError):
+                collector.next_part()
+            self.assertEqual(belt.calls, 0)
+
+    def test_next_part_rejects_incomplete_part_but_keeps_belt(self):
+        with tempfile.TemporaryDirectory() as root:
+            belt = FakeBelt()
+            collector, _ = self.make_collector(root, belt=belt)
+            collector.start_session("incomplete")
+            collector.begin_part()
+            collector.capture_next()
+            collector.skip_current()
+            # Вторая камера ещё не снята — деталь не завершена.
+            with self.assertRaises(CollectorError):
+                collector.next_part()
+            self.assertEqual(belt.calls, 0)
+
+    def test_next_part_without_belt_still_advances_part(self):
+        with tempfile.TemporaryDirectory() as root:
+            collector, _ = self.make_collector(root, belt=None)
+            collector.start_session("no-belt")
+            collector.begin_part()
+            self.annotate_all_cameras(collector)
+            result = collector.next_part()
+            self.assertFalse(result["belt"]["available"])
+            self.assertFalse(result["belt"]["moved"])
+            self.assertEqual(result["part"]["part_id"], 2)
+
+    def test_advance_belt_counts_steps_without_session(self):
+        with tempfile.TemporaryDirectory() as root:
+            belt = VirtualBeltStep()
+            collector, _ = self.make_collector(root, belt=belt)
+            first = collector.advance_belt()
+            second = collector.advance_belt()
+            self.assertTrue(first["moved"])
+            self.assertEqual(second["steps"], 2)
+
+    def test_next_part_can_skip_belt_explicitly(self):
+        with tempfile.TemporaryDirectory() as root:
+            belt = FakeBelt()
+            collector, _ = self.make_collector(root, belt=belt)
+            collector.start_session("skip-step")
+            collector.begin_part()
+            self.annotate_all_cameras(collector)
+            result = collector.next_part(move_belt=False)
+            self.assertEqual(belt.calls, 0)
+            self.assertFalse(result["belt"]["moved"])
+            self.assertEqual(result["part"]["part_id"], 2)
+
+
 class TrainingServerTest(unittest.TestCase):
     def test_app_serves_ui_and_static_assets_before_session(self):
         with tempfile.TemporaryDirectory() as root:
@@ -356,11 +473,25 @@ class TrainingServerTest(unittest.TestCase):
             self.assertEqual(page.status_code, 200)
             self.assertIn("id=\"finish-polygon\"", page.text)
             self.assertIn(">ГОТОВО<", page.text)
+            # Экраны мастера и шаг ленты между деталями.
+            self.assertIn("id=\"next-part\"", page.text)
+            self.assertIn("id=\"belt-step\"", page.text)
+            self.assertIn("id=\"motion-overlay\"", page.text)
+            self.assertIn("step-chip", page.text)
+            # Работа с выделенными областями без полной очистки.
+            self.assertIn("id=\"delete-region\"", page.text)
+            self.assertIn("id=\"reclass-region\"", page.text)
             self.assertEqual(config.status_code, 200)
             self.assertEqual(config.json()["yolo_task"], "segment")
             self.assertEqual(script.status_code, 200)
             self.assertIn("draftPoints", script.text)
+            self.assertIn("showScreen", script.text)
+            self.assertIn("selectedRegion", script.text)
+            openapi = client.get("/openapi.json").text
+            self.assertIn("/api/training/parts/next", openapi)
+            self.assertIn("/api/training/belt/step", openapi)
             self.assertEqual(stylesheet.status_code, 200)
+            self.assertIn("motion-overlay", stylesheet.text)
 
     def test_annotations_api_rejects_invalid_polygon_then_completes_frame(self):
         with tempfile.TemporaryDirectory() as root:
@@ -498,6 +629,93 @@ class TrainingServerTest(unittest.TestCase):
             labels = list(Path(root).glob("api_*/labels/*.txt"))
             self.assertEqual(len(labels), 1)
             self.assertGreaterEqual(len(labels[0].read_text().split()), 7)
+
+    def test_parts_next_api_moves_belt_and_returns_new_frame(self):
+        with tempfile.TemporaryDirectory() as root:
+            belt = FakeBelt()
+            collector = TrainingCollector(
+                TrainingConfig(
+                    root_folder=root,
+                    camera_roles=("CAM_A", "CAM_B"),
+                    defect_classes=("contact",),
+                    validation_ratio=0.0,
+                ),
+                frame_source=FakeFrameSource(),
+                belt=belt,
+            )
+            client = TestClient(create_app(collector))
+            client.post("/api/training/session", json={"dataset_name": "flow"})
+            client.post("/api/training/parts", json={})
+            for _ in range(2):
+                frame = client.post("/api/training/capture").json()["frame"]
+                response = client.post(
+                    "/api/training/annotations",
+                    json={"image_id": frame["image_id"], "annotations": []},
+                )
+                self.assertEqual(response.status_code, 200)
+
+            response = client.post("/api/training/parts/next", json={})
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertTrue(payload["belt"]["moved"])
+            self.assertEqual(payload["belt"]["steps"], 1)
+            self.assertEqual(payload["finished_part"]["part_id"], 1)
+            self.assertEqual(payload["part"]["part_id"], 2)
+            self.assertEqual(payload["frame"]["camera_role"], "CAM_A")
+            self.assertEqual(belt.calls, 1)
+            # У нового кадра есть ссылки на изображение.
+            self.assertTrue(payload["frame"]["original_url"].endswith("/original"))
+            self.assertEqual(client.get(payload["frame"]["original_url"]).status_code, 200)
+            self.assertIn("belt", client.get("/api/training/state").json())
+
+    def test_parts_next_api_requires_saved_frame(self):
+        with tempfile.TemporaryDirectory() as root:
+            belt = FakeBelt()
+            collector = TrainingCollector(
+                TrainingConfig(
+                    root_folder=root,
+                    camera_roles=("CAM_A",),
+                    defect_classes=("contact",),
+                ),
+                frame_source=FakeFrameSource(),
+                belt=belt,
+            )
+            client = TestClient(create_app(collector))
+            client.post("/api/training/session", json={"dataset_name": "guard"})
+            client.post("/api/training/parts", json={})
+            client.post("/api/training/capture")
+            response = client.post("/api/training/parts/next", json={})
+            self.assertEqual(response.status_code, 409)
+            self.assertEqual(belt.calls, 0)
+
+    def test_belt_step_api_reports_availability(self):
+        with tempfile.TemporaryDirectory() as root:
+            belt = FakeBelt()
+            collector = TrainingCollector(
+                TrainingConfig(
+                    root_folder=root,
+                    camera_roles=("CAM_A",),
+                    defect_classes=("contact",),
+                ),
+                frame_source=FakeFrameSource(),
+                belt=belt,
+            )
+            client = TestClient(create_app(collector))
+            response = client.post("/api/training/belt/step")
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertTrue(payload["belt"]["moved"])
+            self.assertEqual(payload["belt"]["steps"], 1)
+
+            # Без подключённой ленты шаг пропускается, но не ломает мастер.
+            bare = TrainingCollector(
+                TrainingConfig(root_folder=root, camera_roles=("CAM_A",)),
+                frame_source=FakeFrameSource(),
+            )
+            bare_client = TestClient(create_app(bare))
+            skip = bare_client.post("/api/training/belt/step").json()
+            self.assertFalse(skip["belt"]["available"])
+            self.assertFalse(skip["belt"]["moved"])
 
 
 if __name__ == "__main__":
