@@ -22,6 +22,7 @@ from typing import Any, Protocol, Sequence, runtime_checkable
 import cv2
 import numpy as np
 
+from training.motion import BeltStepSource
 from training.yolo import (
     PolygonAnnotation,
     annotation_to_yolo_lines,
@@ -594,19 +595,29 @@ class TrainingDatasetStore:
 
 
 class TrainingCollector:
-    """Последовательный мастер: деталь → камеры → разметка → YOLO."""
+    """Последовательный мастер: деталь → камеры → разметка → YOLO.
+
+    Помимо съёмки и разметки мастер умеет двигать ленту на шаг между
+    деталями: оператор завершил все камеры → «ДАЛЕЕ» → шаг ленты → новая
+    деталь и новые кадры. Источник шага передаётся через ``belt``
+    (см. ``training.motion``); без него переход к следующей детали работает
+    без физического движения.
+    """
 
     def __init__(
         self,
         config: TrainingConfig | None = None,
         *,
         frame_source: CameraFrameSource | None = None,
+        belt: BeltStepSource | None = None,
     ):
         self.config = config or TrainingConfig()
         self.frame_source = frame_source
+        self.belt = belt
         self.store: TrainingDatasetStore | None = None
         self.current_part_id: int | None = None
         self.current_frame_id: int | None = None
+        self.belt_steps = 0
         self._lock = threading.RLock()
 
     @property
@@ -746,24 +757,90 @@ class TrainingCollector:
     def finish_part(self) -> dict[str, Any]:
         with self._lock:
             self._require_session()
-            if self.current_part_id is None:
-                raise CollectorError("Нет открытой детали")
+            part = self._finish_open_part()
+            return self.snapshot(extra={"finished_part": part})
+
+    def advance_belt(self) -> dict[str, Any]:
+        """Сдвинуть ленту ровно на один шаг и дождаться остановки.
+
+        Шаг отдётся даже без сессии: оператор может подготовить позицию
+        перед съёмком первой детали. Без подключённого источника шага
+        возвращается понятный результат ``moved=False`` — рабочий процесс
+        мастера от этого не ломается.
+        """
+        with self._lock:
+            belt = self.belt
+            if belt is None:
+                return {
+                    "available": False,
+                    "moved": False,
+                    "steps": self.belt_steps,
+                    "message": "Лента не подключена: шаг пропущен",
+                }
+            try:
+                result = dict(belt.advance())
+            except Exception as exc:
+                raise CollectorError(f"Не удалось сдвинуть ленту: {exc}") from exc
+            self.belt_steps += 1
+            result.setdefault("available", True)
+            result.setdefault("moved", True)
+            result["steps"] = self.belt_steps
+            result.setdefault("message", f"Лента сдвинута на шаг #{self.belt_steps}")
+            return result
+
+    def next_part(
+        self,
+        label: str | None = None,
+        *,
+        move_belt: bool = True,
+    ) -> dict[str, Any]:
+        """Шаг «ДАЛЕЕ»: завершить деталь, сдвинуть ленту, снять следующую.
+
+        Именно этот сценарий проходит оператор: сел, выбрал камеры, обвёл
+        дефекты по всем камерам, нажал «ДАЛЕЕ» — лента двинулась на шаг,
+        началась новая деталь и сразу показаны новые изображения.
+        """
+        with self._lock:
+            self._require_session()
             if self.current_frame_id is not None:
                 raise CollectorError("Сначала сохраните разметку текущего кадра")
-            frames = [
-                item
-                for item in self.store.get_frames()
-                if item.part_id == self.current_part_id
-            ]
-            if len(frames) != len(self.config.camera_roles):
-                missing = self.config.camera_roles[len(frames):]
-                raise CollectorError(
-                    "Не сняты камеры: " + ", ".join(missing)
-                )
-            part = self.store.finish_part(self.current_part_id)
-            self.current_part_id = None
-            self.current_frame_id = None
-            return self.snapshot(extra={"finished_part": part})
+            finished_part = None
+            if self.current_part_id is not None:
+                finished_part = self._finish_open_part()
+            belt_result = self.advance_belt() if move_belt else {
+                "available": self.belt is not None,
+                "moved": False,
+                "steps": self.belt_steps,
+                "message": "Шаг ленты пропущен по запросу оператора",
+            }
+            self.begin_part(label)
+            record = self.capture_next()
+            return self.snapshot(
+                extra={
+                    "finished_part": finished_part,
+                    "belt": belt_result,
+                    "frame": record.to_dict(),
+                }
+            )
+
+    def _finish_open_part(self) -> dict[str, Any]:
+        """Завершить открытую деталь без снятия блокировки (уже под ней)."""
+        if self.current_part_id is None:
+            raise CollectorError("Нет открытой детали")
+        if self.current_frame_id is not None:
+            raise CollectorError("Сначала сохраните разметку текущего кадра")
+        frames = [
+            item
+            for item in self.store.get_frames()
+            if item.part_id == self.current_part_id
+        ]
+        if len(frames) != len(self.config.camera_roles):
+            missing = self.config.camera_roles[len(frames):]
+            raise CollectorError("Не сняты камеры: " + ", ".join(missing))
+        part = self.store.finish_part(self.current_part_id)
+        self.current_part_id = None
+        self.current_frame_id = None
+        return part
 
     def finish_session(self) -> dict[str, Any]:
         with self._lock:
@@ -790,6 +867,23 @@ class TrainingCollector:
                 return None
             return self.store.get_frame(self.current_frame_id)
 
+    def belt_payload(self) -> dict[str, Any]:
+        """Описание источника шага ленты для интерфейса."""
+        with self._lock:
+            if self.belt is None:
+                return {
+                    "available": False,
+                    "moved": False,
+                    "steps": self.belt_steps,
+                    "message": "Лента не подключена",
+                }
+            return {
+                "available": True,
+                "moved": False,
+                "steps": self.belt_steps,
+                "message": "Лента готова к шагу",
+            }
+
     def snapshot(self, *, extra: dict[str, Any] | None = None) -> dict[str, Any]:
         with self._lock:
             if self.store is None:
@@ -801,6 +895,7 @@ class TrainingCollector:
                     "next_role": None,
                     "camera_roles": list(self.config.camera_roles),
                     "defect_classes": list(self.config.defect_classes),
+                    "belt": self.belt_payload(),
                 }
             else:
                 frames = self.store.get_frames()
@@ -835,6 +930,7 @@ class TrainingCollector:
                     "next_role": next_role,
                     "camera_roles": list(self.config.camera_roles),
                     "defect_classes": list(self.config.defect_classes),
+                    "belt": self.belt_payload(),
                 }
             if extra:
                 result.update(extra)

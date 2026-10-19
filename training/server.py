@@ -226,6 +226,45 @@ def create_app(
             return _error_response(exc, 409)
         return JSONResponse(_json_safe(result))
 
+    @app.post("/api/training/parts/next")
+    async def next_part(payload: dict[str, Any] | None = None):
+        """Шаг «ДАЛЕЕ»: завершить деталь, сдвинуть ленту, снять следующую."""
+        payload = payload or {}
+        item = current_collector()
+        move_belt = payload.get("move_belt")
+        if move_belt is None:
+            move_belt = True
+        try:
+            result = await asyncio.to_thread(
+                item.next_part,
+                _optional_text(payload.get("label")),
+                move_belt=bool(move_belt),
+            )
+        except CollectorError as exc:
+            return _error_response(exc, 409)
+        except Exception as exc:
+            return _error_response(exc, 500)
+        frame = result.get("frame")
+        if isinstance(frame, dict) and frame.get("image_id") is not None:
+            result["frame"] = _record_with_urls(frame)
+        return JSONResponse(_json_safe(result))
+
+    @app.post("/api/training/belt/step")
+    async def belt_step():
+        """Один ручной шаг ленты: подготовить позицию перед съёмкой."""
+        item = current_collector()
+        try:
+            result = await asyncio.to_thread(item.advance_belt)
+        except CollectorError as exc:
+            return _error_response(exc, 409)
+        return JSONResponse(
+            {
+                "ok": True,
+                "belt": result,
+                "state": _state_with_urls(item),
+            }
+        )
+
     @app.post("/api/training/session/finish")
     async def finish_session():
         item = current_collector()
@@ -291,10 +330,11 @@ def create_app(
 
 
 def _record_with_urls(record) -> dict[str, Any]:
-    data = record.to_dict()
-    data["original_url"] = f"/api/training/images/{record.image_id}/original"
-    if record.annotated:
-        data["annotated_url"] = f"/api/training/images/{record.image_id}/annotated"
+    data = record.to_dict() if hasattr(record, "to_dict") else dict(record)
+    image_id = data.get("image_id")
+    data["original_url"] = f"/api/training/images/{image_id}/original"
+    if data.get("annotated"):
+        data["annotated_url"] = f"/api/training/images/{image_id}/annotated"
     return data
 
 

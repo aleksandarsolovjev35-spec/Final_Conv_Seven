@@ -113,7 +113,9 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
 .palette-item:hover { border-color: var(--accent-2); }
 .palette-item.active { border-color: var(--accent); background: rgba(46, 214, 192, .16); color: var(--accent); }
 .palette-add-row { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 8px; }
-.annotation-controls { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto auto; gap: 10px; align-items: end; padding-top: 5px; }
+.annotation-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; padding-top: 5px; }
+.annotation-controls .defect-field { min-width: 190px; flex: 1 1 190px; }
+.selection-hint { color: var(--muted); font-size: 11px; line-height: 1.5; border-left: 2px solid rgba(46, 214, 192, .35); padding-left: 10px; margin-top: 10px; }
 .capture-actions { margin-top: 15px; }
 .capture-actions .primary { min-width: 205px; }
 
@@ -124,19 +126,50 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
 @media (max-width: 900px) {
     .app-shell { width: min(100% - 24px, 700px); padding-top: 18px; }
     .topbar, .capture-header { display: grid; }
+    .topbar-right { justify-self: start; }
     .work-layout { grid-template-columns: 1fr; }
     .session-panel { order: 2; }
     .capture-panel { order: 1; }
-    .annotation-controls { grid-template-columns: 1fr 1fr; }
-    .defect-field { grid-column: 1 / -1; }
+    .annotation-controls .defect-field { flex-basis: 100%; }
     #annotation-help { margin-left: 0; }
 }
 
 @media (max-width: 560px) {
     .form-grid { grid-template-columns: 1fr; }
     .setup-panel, .capture-panel, .session-panel { padding: 16px; }
-    .annotation-controls { grid-template-columns: 1fr; }
+    .annotation-controls .button { flex: 1 1 100%; }
     .capture-actions .button { width: 100%; }
     .result-panel { align-items: flex-start; flex-wrap: wrap; }
     .result-panel code { max-width: 100%; width: 100%; margin-left: 0; }
 }
+
+/* Экраны мастера: переключение шагов и переходы между ними. */
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.belt-state { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .12em; padding-top: 9px; white-space: nowrap; }
+.belt-state.ok { color: var(--accent); }
+.belt-state.off { color: var(--warn); }
+
+.step-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+.step-chip { display: inline-flex; align-items: center; gap: 9px; border: 1px solid var(--line); border-radius: 999px; background: rgba(17, 26, 34, .8); color: var(--muted); padding: 9px 15px 9px 10px; font-size: 11px; font-weight: 850; letter-spacing: .12em; transition: border-color .15s, color .15s, background .15s; }
+.step-chip .step-num { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #22323c; color: var(--muted); font-size: 11px; letter-spacing: 0; }
+.step-chip.active { border-color: rgba(46, 214, 192, .65); background: rgba(46, 214, 192, .1); color: var(--accent); }
+.step-chip.active .step-num { background: var(--accent); color: #06231f; }
+.step-chip.done { color: #c4d4da; border-color: #38515f; }
+.step-link { flex: 0 0 26px; height: 1px; background: var(--line); }
+
+.screen-enter { animation: screen-in .28s ease both; }
+@keyframes screen-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+.button.accent { border-color: rgba(89, 168, 255, .7); background: #1c4a75; }
+.button.accent:hover:not(:disabled) { background: #24609a; }
+
+/* Оверлей шага ленты между деталями. */
+.motion-overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(6, 11, 15, .72); backdrop-filter: blur(3px); z-index: 60; }
+.motion-card { display: grid; justify-items: center; gap: 11px; border: 1px solid rgba(46, 214, 192, .4); border-radius: 15px; background: var(--panel); padding: 28px 34px; box-shadow: var(--shadow); }
+.motion-card strong { color: var(--accent); letter-spacing: .14em; font-size: 13px; }
+.motion-card span { color: var(--muted); font-size: 12px; }
+.motion-spinner { width: 44px; height: 44px; border-radius: 50%; border: 3px solid rgba(46, 214, 192, .25); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
