@@ -1,6 +1,6 @@
 /**
- * BELT BUILDER — Модульная сборка редактора ленты конвейера
- * Скомпоновано из модулей belt_editor/js/modules/
+ * BELT BUILDER — Редактор сборки ленты конвейера
+ * Модульная структура: State, Geometry, Actions, Render, Wires, DnD, Dock, Init
  */
 (() => {
 'use strict';
