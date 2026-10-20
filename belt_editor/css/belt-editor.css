@@ -1156,6 +1156,30 @@ body.linking {
     stroke: var(--border-strong);
     stroke-width: 2;
     opacity: 0.8;
+    transition: stroke 140ms ease, stroke-width 140ms ease, opacity 140ms ease, filter 140ms ease;
+}
+
+.wire-hitbox {
+    fill: none;
+    stroke: transparent;
+    pointer-events: stroke;
+    cursor: pointer;
+}
+
+.wire.wire-hover-delete {
+    stroke: #ff5c5c !important;
+    stroke-width: 3.5px !important;
+    filter: drop-shadow(0 0 6px rgba(255, 92, 92, 0.85));
+    opacity: 1 !important;
+}
+
+body.linking .wire,
+body.linking .wire-hitbox,
+body.node-moving .wire,
+body.node-moving .wire-hitbox,
+.panning .wire,
+.panning .wire-hitbox {
+    pointer-events: none !important;
 }
 
 .wire-live {

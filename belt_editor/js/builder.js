@@ -1132,17 +1132,59 @@ function renderWires() {
     if (!svg) { return; }
     svg.textContent = '';
     const q = function (sel) { return document.querySelector(sel); };
-    function link(from, to, color, cls) {
+    function link(from, to, color, cls, onRemove) {
         const a = sockXY(from);
         const b = sockXY(to);
         if (a && b) {
-            svg.appendChild(svgPath(bez(a, b), cls || 'wire', color));
+            const d = bez(a, b);
+            const wire = svgPath(d, cls || 'wire', color);
+            svg.appendChild(wire);
+
+            if (onRemove) {
+                const hitbox = svgPath(d, 'wire-hitbox');
+                hitbox.style.stroke = 'rgba(0,0,0,0.001)';
+                hitbox.style.strokeWidth = '16px';
+                hitbox.style.pointerEvents = 'stroke';
+                hitbox.style.cursor = 'pointer';
+
+                const titleText = 'Нажмите, чтобы удалить соединение';
+                wire.setAttribute('title', titleText);
+                hitbox.setAttribute('title', titleText);
+
+                const onHoverIn = function () { wire.classList.add('wire-hover-delete'); };
+                const onHoverOut = function () { wire.classList.remove('wire-hover-delete'); };
+                hitbox.addEventListener('mouseenter', onHoverIn);
+                hitbox.addEventListener('mouseleave', onHoverOut);
+                wire.addEventListener('mouseenter', onHoverIn);
+                wire.addEventListener('mouseleave', onHoverOut);
+
+                const stopEv = function (ev) {
+                    if (ev.button === 0) { ev.stopPropagation(); }
+                };
+                hitbox.addEventListener('mousedown', stopEv);
+                wire.addEventListener('mousedown', stopEv);
+
+                const removeFn = function (ev) {
+                    if (ev.button !== 0) { return; }
+                    if (linkDrag || movingG || (window.BeltView && document.querySelector('.panning'))) {
+                        return;
+                    }
+                    ev.stopPropagation();
+                    ev.preventDefault();
+                    onRemove();
+                };
+                hitbox.addEventListener('click', removeFn);
+                wire.addEventListener('click', removeFn);
+                svg.appendChild(hitbox);
+            }
         }
     }
     RULES.forEach(function (rule) {
         const to = q('.sock[data-drop="rule"][data-rid="' + rule.id + '"]');
         rule.models.forEach(function (mid) {
-            link(q('.sock[data-link="model:' + mid + '"]'), to);
+            link(q('.sock[data-link="model:' + mid + '"]'), to, null, null, function () {
+                togglePart(rule.id, mid);
+            });
         });
     });
     inventory.forEach(function (dev) {
@@ -1150,7 +1192,9 @@ function renderWires() {
             const rule = RULES.find(function (r) { return r.id === rid; });
             link(q('.sock[data-link="rule:' + rid + '"]'),
                 q('.sock[data-drop="cam"][data-cam="' + dev.id + '"]'),
-                rule ? rule.color : null);
+                rule ? rule.color : null, null, function () {
+                    toggleRuleOnCam(dev.id, rid);
+                });
         });
     });
     belt.positions.forEach(function (pos, i) {
@@ -1158,7 +1202,14 @@ function renderWires() {
         pos.inspection.cameras.forEach(function (cid) {
             link(q('.cam-node[data-cam="' + cid + '"] .sock[data-link="camera:'
                 + cid + '"]'),
-                q('.pos-card[data-index="' + i + '"] .sock-node'));
+                q('.pos-card[data-index="' + i + '"] .sock-node'), null, null, function () {
+                    const cIdx = pos.inspection.cameras.indexOf(cid);
+                    if (cIdx >= 0) {
+                        pos.inspection.cameras.splice(cIdx, 1);
+                        toast(camName(cid) + ' — снята с П' + i + '.');
+                        render();
+                    }
+                });
         });
     });
     belt.positions.forEach(function (pos, i) {
@@ -1167,7 +1218,11 @@ function renderWires() {
         if (!tgt) { return; }
         link(q('.pos-card[data-index="' + i + '"] .sock-line-out'),
             q('.pos-card[data-index="' + belt.positions.indexOf(tgt)
-                + '"] .sock-line-in'), null, 'wire wire-chain');
+                + '"] .sock-line-in'), null, 'wire wire-chain', function () {
+                    pos.nextUid = null;
+                    toast('Связь разорвана.');
+                    render();
+                });
     });
     if (linkDrag) {
         const fromPt = sockXY(linkDrag.from);

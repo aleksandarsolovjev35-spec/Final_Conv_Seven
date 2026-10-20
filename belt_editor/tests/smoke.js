@@ -829,6 +829,28 @@ check('хитбокс и магнитные сокеты: в CSS заданы у
             && /\.sock-hot/i.test(css)
             && /@keyframes sock-pulse/i.test(css);
     })());
+check('клик по соединению (проводу): разрывает связь',
+    (function () {
+        const hitboxes = doc.querySelectorAll('#wires .wire-hitbox');
+        if (hitboxes.length < 2) return false;
+        const wiresBefore = doc.querySelectorAll('#wires .wire').length;
+        const hitbox = hitboxes[1];
+        const hasTitle = hitbox.getAttribute('title') !== null;
+        hitbox.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+        const wiresAfter = doc.querySelectorAll('#wires .wire').length;
+        return hasTitle && wiresAfter === wiresBefore - 1;
+    })());
+check('наведение на провод: подсветка красным и курсор pointer для удаления',
+    (function () {
+        const wire = doc.querySelector('#wires .wire');
+        const hitbox = doc.querySelector('#wires .wire-hitbox');
+        if (!wire || !hitbox) return false;
+        hitbox.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }));
+        const hovered = wire.classList.contains('wire-hover-delete');
+        hitbox.dispatchEvent(new window.MouseEvent('mouseleave', { bubbles: true }));
+        const unhovered = !wire.classList.contains('wire-hover-delete');
+        return hovered && unhovered;
+    })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 
