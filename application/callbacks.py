@@ -264,6 +264,7 @@ def bind_cycle_callbacks(
     )
     monitor.active_camera_callback = lambda _role: cycle._refresh_monitor()
 
+    monitor.conveyor_speed_callback = cycle.set_conveyor_speed
     monitor.jog_enter_callback = cycle.enter_jog
     monitor.jog_exit_callback = cycle.exit_jog
     monitor.jog_hold_start_callback = cycle.jog_hold_start
