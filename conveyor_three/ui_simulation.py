@@ -100,6 +100,7 @@ class LineSimulation:
         self.last_distributor_action = "SIMULATION READY"
         # Ручной ход (JOG) двигает ЛЕНТУ, а не распределитель. Это отдельная
         # координата виртуального конвейера, ограниченная как физическая ось.
+        self.conveyor_speed = 18000
         self.conveyor_position = 0
         self.conveyor_max = 340
         self.jog_active = False
@@ -181,6 +182,17 @@ class LineSimulation:
         with self._lock:
             self.jog_active = False
             self.jog_busy = False
+        self._publish(self._rest_phase())
+        return True
+
+    def set_conveyor_speed(self, speed: int) -> bool:
+        if type(speed) is not int or not 5000 <= speed <= 20000:
+            raise ValueError("Недопустимая скорость")
+        with self._lock:
+            if (self.state not in ("IDLE", "STOPPED") or self.jog_busy
+                    or self.selected_role is not None):
+                return False
+            self.conveyor_speed = speed
         self._publish(self._rest_phase())
         return True
 
@@ -553,6 +565,11 @@ class LineSimulation:
                 "INSPECT_PRESENCE", "INSPECT_GEOMETRY", "INSPECT_DECISION",
                 "INSPECT_RESULT_RECORDED",
             } else []
+            speed_allowed = (
+                state in ("IDLE", "STOPPED")
+                and not self.jog_busy
+                and self.selected_role is None
+            )
             status = {
                 "state": state,
                 "exit_requested": False,
@@ -569,6 +586,8 @@ class LineSimulation:
                 "dist2_state": self.dist2_state, "dist2_position": self.dist2_position, "dist2_max": 340,
                 "dist2_target": "CLEANUP" if self.dist2_position else "BAD",
                 "last_distributor_action": self.last_distributor_action,
+                "conveyor_speed": self.conveyor_speed,
+                "speed_allowed": speed_allowed,
                 # Production start is available while JOG is open: issuing
                 # start closes JOG and transfers control to the cycle.
                 "controls": {"start": state in ("IDLE", "STOPPED") and self.selected_role is None,
@@ -586,7 +605,7 @@ class LineSimulation:
                             "part_id": self.egress.id if self.egress else None,
                             "capture_roles": capture_roles,
                             "inspection_roles": active_roles,
-                            "conveyor": {"speed": 18000,
+                            "conveyor": {"speed": self.conveyor_speed,
                                          "position": self.conveyor_position,
                                          "max": self.conveyor_max}},
                 "selected_analysis": {"active": self.selected_role is not None, "role": self.selected_role},
@@ -804,6 +823,7 @@ def main() -> None:
     server.on_pause = simulation.pause
     server.on_resume = simulation.resume
     server.on_exit = simulation.close
+    server.on_conveyor_speed = simulation.set_conveyor_speed
     server.on_jog_enter = simulation.enter_jog
     server.on_jog_exit = simulation.exit_jog
     server.on_jog_hold_start = simulation.jog_hold_start

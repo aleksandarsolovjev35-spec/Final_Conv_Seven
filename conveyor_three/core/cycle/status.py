@@ -262,6 +262,13 @@ class CycleStatusMixin:
             "cleanup": self.cleanup_count,
             "empty": self.empty_count,
             **self.distributor.status,
+            "conveyor_speed": int(self.conveyor.speed),
+            "speed_allowed": (
+                state_name in ("IDLE", "STOPPED")
+                and not sm_snap["exit_requested"] and not self._shutdown
+                and not operation_busy and not jog_snapshot.get("busy", False)
+                and not self._selected_analysis_active
+            ),
             "process": dict(self._process),
             "diagnostic_allowed": diagnostic_allowed,
             "diagnostic_busy": operation_busy,

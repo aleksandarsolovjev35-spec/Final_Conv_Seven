@@ -55,6 +55,7 @@ class LiveMonitor:
         self.active_camera_callback = None
 
         # JOG callbacks
+        self.conveyor_speed_callback = None
         self.jog_enter_callback = None
         self.jog_exit_callback = None
         self.jog_hold_start_callback = None
@@ -168,6 +169,9 @@ class LiveMonitor:
         )
 
         # JOG
+        self.server.on_conveyor_speed = (
+            lambda speed: self._invoke_args(self.conveyor_speed_callback, speed)
+        )
         self.server.on_jog_enter = (
             lambda: self._invoke(self.jog_enter_callback)
         )
