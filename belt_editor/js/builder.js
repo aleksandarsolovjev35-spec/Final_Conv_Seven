@@ -64,7 +64,7 @@ const RULE_COLORS = [
 ];
 
 function ruleColor(id) {
-    const r = RULES.find(function (x) { return x.id === id; });
+    const r = RULES.find(x => x.id === id);
     return r ? r.color : 'var(--text-dim)';
 }
 
@@ -78,17 +78,8 @@ const inventory = [];
     }
 })();
 
-function invCam(id) {
-    for (let i = 0; i < inventory.length; i += 1) {
-        if (inventory[i].id === id) { return inventory[i]; }
-    }
-    return null;
-}
-
-function camName(id) {
-    const cam = invCam(id);
-    return cam ? cam.name : id;
-}
+const invCam = id => inventory.find(c => c.id === id) || null;
+const camName = id => (invCam(id) || {}).name || id;
 
 /* positions: [{label, inspection: null|{cameras:[], primary:bool}, reset}]
  * — форма совпадает с belt.path.v1, чтобы лента позже ушла в runtime
@@ -127,13 +118,6 @@ function applyInvariants() {
     });
 }
 
-function findIndex(pred) {
-    for (let i = 0; i < belt.positions.length; i += 1) {
-        if (pred(belt.positions[i], i)) { return i; }
-    }
-    return -1;
-}
-
 /* ─── Геометрия холста и предотвращение наложения блоков ─────────── */
 
 function clampN(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -160,18 +144,10 @@ function getNodeDimensions(keyOrType, domNode) {
         return { w: domNode.offsetWidth, h: domNode.offsetHeight };
     }
     const k = String(keyOrType || '');
-    if (k.startsWith('pos') || k === 'position') {
-        return { w: 176, h: 96 };
-    }
-    if (k.startsWith('cam')) {
-        return { w: 148, h: 54 };
-    }
-    if (k.startsWith('rule')) {
-        return { w: 128, h: 50 };
-    }
-    if (k.startsWith('model')) {
-        return { w: 128, h: 34 };
-    }
+    if (k.startsWith('pos') || k === 'position') return { w: 176, h: 96 };
+    if (k.startsWith('cam')) return { w: 148, h: 54 };
+    if (k.startsWith('rule')) return { w: 128, h: 50 };
+    if (k.startsWith('model')) return { w: 128, h: 34 };
     return { w: 128, h: 44 };
 }
 
@@ -179,51 +155,31 @@ function getCanvasBoxes(excludeKey) {
     const boxes = [];
     const row = $('belt-row');
 
-    belt.positions.forEach(function (pos, i) {
+    belt.positions.forEach((pos, i) => {
         const key = 'pos:' + i;
-        if (key === excludeKey) { return; }
+        if (key === excludeKey) return;
         const at = pos.at || layoutSlot(i);
         const dom = row ? row.querySelector('.pos-card[data-index="' + i + '"]') : null;
         const dims = getNodeDimensions('pos', dom);
-        boxes.push({
-            key: key,
-            x: at.x,
-            y: at.y,
-            w: dims.w,
-            h: dims.h
-        });
+        boxes.push({ key, x: at.x, y: at.y, w: dims.w, h: dims.h });
     });
 
-    Object.keys(belt.places).forEach(function (key) {
-        if (key === excludeKey) { return; }
+    Object.keys(belt.places).forEach(key => {
+        if (key === excludeKey || !belt.places[key]) return;
         const at = belt.places[key];
-        if (!at) { return; }
         const dom = row ? row.querySelector('.gnode[data-gk="' + key + '"]') : null;
         const dims = getNodeDimensions(key, dom);
-        boxes.push({
-            key: key,
-            x: at.x,
-            y: at.y,
-            w: dims.w,
-            h: dims.h
-        });
+        boxes.push({ key, x: at.x, y: at.y, w: dims.w, h: dims.h });
     });
 
     return boxes;
 }
 
-function hasCollision(x, y, w, h, excludeKey, gap) {
-    const pad = gap !== undefined ? gap : 4;
-    const all = getCanvasBoxes(excludeKey);
-    for (let i = 0; i < all.length; i++) {
-        const b = all[i];
-        const overlapX = (x < b.x + b.w + pad) && (x + w + pad > b.x);
-        const overlapY = (y < b.y + b.h + pad) && (y + h + pad > b.y);
-        if (overlapX && overlapY) {
-            return true;
-        }
-    }
-    return false;
+function hasCollision(x, y, w, h, excludeKey, gap = 4) {
+    return getCanvasBoxes(excludeKey).some(b =>
+        x < b.x + b.w + gap && x + w + gap > b.x &&
+        y < b.y + b.h + gap && y + h + gap > b.y
+    );
 }
 
 /* ─── Действия ───────────────────────────────────────────────────── */
@@ -336,25 +292,20 @@ function toggleReset(i) {
 
 function bindCamera(i, camId) {
     const pos = belt.positions[i];
-    if (!pos || !camId) { return; }
+    if (!pos || !camId) return;
     if (!pos.inspection) {
-        toast('П' + i + ' — не место инспекции: камеры ставятся только'
-            + ' на места инспекции («Место инспекции» из палитры).');
+        toast('П' + i + ' — не место инспекции: камеры ставятся только на места инспекции («Место инспекции» из палитры).');
         return;
     }
-    const owner = findIndex(function (p) {
-        return p.inspection && p.inspection.cameras.indexOf(camId) !== -1;
-    });
+    const owner = belt.positions.findIndex(p => p.inspection && p.inspection.cameras.includes(camId));
     if (owner === i) {
-        pos.inspection.cameras.splice(
-            pos.inspection.cameras.indexOf(camId), 1);
+        pos.inspection.cameras.splice(pos.inspection.cameras.indexOf(camId), 1);
         toast(camName(camId) + ' — снята с П' + i + '.');
         render();
         return;
     }
     if (owner >= 0) {
-        belt.positions[owner].inspection.cameras.splice(
-            belt.positions[owner].inspection.cameras.indexOf(camId), 1);
+        belt.positions[owner].inspection.cameras.splice(belt.positions[owner].inspection.cameras.indexOf(camId), 1);
         toast(camName(camId) + ': П' + owner + ' → П' + i);
     } else {
         toast(camName(camId) + ' → П' + i);
@@ -369,20 +320,13 @@ function bindCamera(i, camId) {
 
 function removeCamera(i, j) {
     const pos = belt.positions[i];
-    if (!pos || !pos.inspection) { return; }
+    if (!pos || !pos.inspection) return;
     const id = pos.inspection.cameras.splice(j, 1)[0];
     toast(camName(id) + ' — снята с П' + i + '.');
     render();
 }
 
-function camOwner(camId) {
-    for (let i = 0; i < belt.positions.length; i += 1) {
-        const pos = belt.positions[i];
-        if (pos.inspection
-            && pos.inspection.cameras.indexOf(camId) !== -1) { return i; }
-    }
-    return -1;
-}
+const camOwner = camId => belt.positions.findIndex(p => p.inspection && p.inspection.cameras.includes(camId));
 
 function renameCamera(camId) {
     const node = $('belt-row').querySelector(
@@ -488,23 +432,18 @@ function render() {
     if (zn) { zn.dispatchEvent(new CustomEvent('belt:render')); }
 }
 
-function ruleOnCameras(rule) {
-    return inventory.filter(function (d) {
-        return d.rules.indexOf(rule.id) !== -1;
-    });
-}
+const ruleOnCameras = rule => inventory.filter(d => d.rules.includes(rule.id));
 
 /* модель — компонент правила: бросок на плитку правила, повторный — снять;
  * у правила «на камерах» последняя модель не снимается */
 function togglePart(ruleId, modelId) {
-    const rule = RULES.find(function (r) { return r.id === ruleId; });
-    const mod = MODELS.find(function (m) { return m.id === modelId; });
-    if (!rule || !mod) { return; }
+    const rule = RULES.find(r => r.id === ruleId);
+    const mod = MODELS.find(m => m.id === modelId);
+    if (!rule || !mod) return;
     const at = rule.models.indexOf(modelId);
     if (at >= 0) {
         if (rule.models.length === 1 && ruleOnCameras(rule).length > 0) {
-            toast('Правило «' + rule.name + '» стоит на камерах —'
-                + ' последнюю модель не снять.', 'err');
+            toast('Правило «' + rule.name + '» стоит на камерах — последнюю модель не снять.', 'err');
             return;
         }
         rule.models.splice(at, 1);
@@ -516,21 +455,14 @@ function togglePart(ruleId, modelId) {
     render();
 }
 
-function findPosByUid(uid) {
-    for (let i = 0; i < belt.positions.length; i += 1) {
-        if (String(belt.positions[i].uid) === String(uid)) {
-            return belt.positions[i];
-        }
-    }
-    return null;
-}
+const findPosByUid = uid => belt.positions.find(p => String(p.uid) === String(uid)) || null;
 
 /* линка коннекторов ленты: у позиции один выход; вход приёмника
  * перетягивается на себя; повторная линка разрывает; цикл запрещён */
 function linkPos(fromUid, toUid) {
     const from = findPosByUid(fromUid);
     const to = findPosByUid(toUid);
-    if (!from || !to) { return; }
+    if (!from || !to) return;
     if (from === to) {
         toast('Позиция не связывается сама с собой.', 'err');
         return;
@@ -541,8 +473,7 @@ function linkPos(fromUid, toUid) {
         render();
         return;
     }
-    let cur = to;
-    let guard = 0;
+    let cur = to, guard = 0;
     while (cur && guard <= belt.positions.length) {
         if (cur === from) {
             toast('Лента не делает цикл.', 'err');
@@ -551,24 +482,23 @@ function linkPos(fromUid, toUid) {
         cur = cur.nextUid ? findPosByUid(cur.nextUid) : null;
         guard += 1;
     }
-    belt.positions.forEach(function (pp) {
-        if (String(pp.nextUid) === String(toUid)) { pp.nextUid = null; }
+    belt.positions.forEach(pp => {
+        if (String(pp.nextUid) === String(toUid)) pp.nextUid = null;
     });
     from.nextUid = String(toUid);
-    toast('П' + belt.positions.indexOf(from) + ' → П'
-        + belt.positions.indexOf(to));
+    toast('П' + belt.positions.indexOf(from) + ' → П' + belt.positions.indexOf(to));
     render();
 }
 
 /* правило — на камеру; модели подгружаются составом правила */
 function toggleRuleOnCam(camId, ruleId) {
-    const dev = inventory.find(function (d) { return d.id === camId; });
-    const rule = RULES.find(function (r) { return r.id === ruleId; });
-    if (!dev || !rule) { return; }
+    const dev = inventory.find(d => d.id === camId);
+    const rule = RULES.find(r => r.id === ruleId);
+    if (!dev || !rule) return;
     const at = dev.rules.indexOf(ruleId);
     if (at >= 0) {
         dev.rules.splice(at, 1);
-        if (dev.thr) { delete dev.thr[ruleId]; }
+        if (dev.thr) delete dev.thr[ruleId];
         toast(dev.name + ': «' + rule.name + '» снято.');
     } else {
         if (!rule.models.length) {
@@ -576,21 +506,18 @@ function toggleRuleOnCam(camId, ruleId) {
             return;
         }
         dev.rules.push(ruleId);
-        if (!dev.thr) { dev.thr = Object.create(null); }
-        dev.thr[ruleId] = rule.thr.map(function () { return THR_DEFAULT; });
-        toast(dev.name + ': «' + rule.name + '» подключено, '
-            + rule.thr.length + ' порог(а) = ' + THR_DEFAULT.toFixed(2) + '.');
+        if (!dev.thr) dev.thr = Object.create(null);
+        dev.thr[ruleId] = rule.thr.map(() => THR_DEFAULT);
+        toast(dev.name + ': «' + rule.name + '» подключено, ' + rule.thr.length + ' порог(а) = ' + THR_DEFAULT.toFixed(2) + '.');
     }
     render();
 }
 
 function loadedModels(dev) {
     const set = Object.create(null);
-    dev.rules.forEach(function (id) {
-        const rule = RULES.find(function (r) { return r.id === id; });
-        if (rule) {
-            rule.models.forEach(function (m) { set[m] = true; });
-        }
+    dev.rules.forEach(id => {
+        const rule = RULES.find(r => r.id === id);
+        if (rule) rule.models.forEach(m => { set[m] = true; });
     });
     return Object.keys(set);
 }
@@ -861,37 +788,33 @@ function gsock(cls, link, drop, rid) {
 }
 
 function renderModelNode(mid, at) {
-    const mod = MODELS.find(function (m) { return m.id === mid; });
-    if (!mod) { return el('div', 'gnode'); }
+    const mod = MODELS.find(m => m.id === mid);
+    if (!mod) return el('div', 'gnode');
     const key = 'model:' + mid;
     const node = gnodeFrame('g-model', key, at, mod.name);
     node.dataset.model = mid;
-    node.querySelector('.pos-del').addEventListener('click', function (ev) {
+    node.querySelector('.pos-del').onclick = ev => {
         ev.stopPropagation();
         delete belt.places[key];
         render();
-    });
+    };
     node.appendChild(gsock('sock-out', key, null));
-    const rules = RULES.filter(function (r) {
-        return r.models.indexOf(mid) !== -1;
-    });
-    if (rules.length) {
-        node.appendChild(el('div', 'g-meta', 'правил: ' + rules.length));
-    }
+    const rules = RULES.filter(r => r.models.includes(mid));
+    if (rules.length) node.appendChild(el('div', 'g-meta', 'правил: ' + rules.length));
     return node;
 }
 
 function renderRuleNode(rid, at) {
-    const rule = RULES.find(function (r) { return r.id === rid; });
-    if (!rule) { return el('div', 'gnode'); }
+    const rule = RULES.find(r => r.id === rid);
+    if (!rule) return el('div', 'gnode');
     const key = 'rule:' + rid;
     const node = gnodeFrame('g-rule', key, at, rule.name);
     node.dataset.rule = rid;
-    node.querySelector('.pos-del').addEventListener('click', function (ev) {
+    node.querySelector('.pos-del').onclick = ev => {
         ev.stopPropagation();
         delete belt.places[key];
         render();
-    });
+    };
     const head = node.querySelector('.node-head');
     head.insertBefore(el('i', 'g-swatch'), head.firstChild);
     head.firstChild.style.background = rule.color;
@@ -899,24 +822,17 @@ function renderRuleNode(rid, at) {
     node.appendChild(gsock('sock-in', null, 'rule', rid));
     node.appendChild(gsock('sock-out', key, null));
     const list = el('div', 'g-models');
-    rule.models.forEach(function (mid) {
-        const mod = MODELS.find(function (m) { return m.id === mid; });
+    rule.models.forEach(mid => {
+        const mod = MODELS.find(m => m.id === mid);
         const chip = el('span', 'g-chip', mod ? mod.name : mid);
         chip.title = 'снять модель';
-        chip.addEventListener('click', function (ev) {
-            ev.stopPropagation();
-            togglePart(rid, mid);
-        });
+        chip.onclick = ev => { ev.stopPropagation(); togglePart(rid, mid); };
         list.appendChild(chip);
     });
-    if (!rule.models.length) {
-        list.appendChild(el('span', 'g-empty', '→ тяни модель сюда'));
-    }
+    if (!rule.models.length) list.appendChild(el('span', 'g-empty', '→ тяни модель сюда'));
     node.appendChild(list);
     const cams = ruleOnCameras(rule);
-    if (cams.length) {
-        node.appendChild(el('div', 'g-meta', 'кам: ' + cams.length));
-    }
+    if (cams.length) node.appendChild(el('div', 'g-meta', 'кам: ' + cams.length));
     return node;
 }
 
@@ -924,41 +840,35 @@ function renderRuleNode(rid, at) {
  * × — снять привязку, а у свободной — вернуть на стену; клик — пороги */
 function renderCamNode(camId, at) {
     const dev = invCam(camId);
-    if (!dev) { return el('div', 'gnode'); }
+    if (!dev) return el('div', 'gnode');
     const key = 'cam:' + camId;
     const owner = camOwner(camId);
-    const node = gnodeFrame('cam-node g-cam'
-        + (owner < 0 ? ' free' : ''), key, at, '');
+    const node = gnodeFrame('cam-node g-cam' + (owner < 0 ? ' free' : ''), key, at, '');
     node.dataset.cam = camId;
-    if (owner >= 0) { node.dataset.pos = String(owner); }
+    if (owner >= 0) node.dataset.pos = String(owner);
     const head = node.querySelector('.node-head');
     const cin = gsock('sock-in', null, 'cam', null);
     cin.dataset.cam = camId;
     head.insertBefore(cin, head.firstChild);
-    const del = node.querySelector('.pos-del');
-    del.addEventListener('click', function (ev) {
+    node.querySelector('.pos-del').onclick = ev => {
         ev.stopPropagation();
         if (owner >= 0) {
             const pos = belt.positions[owner];
-            const j = pos.inspection.cameras.indexOf(camId);
-            pos.inspection.cameras.splice(j, 1);
+            pos.inspection.cameras.splice(pos.inspection.cameras.indexOf(camId), 1);
             toast(camName(camId) + ' — снята с П' + owner + '.');
-            render();
         } else {
             delete belt.places[key];
             toast(camName(camId) + ' — возвращена на стену.');
-            render();
         }
-    });
+        render();
+    };
     const chip = el('span', 'chip');
     chip.dataset.cam = camId;
     chip.appendChild(el('span', 'chip-name', camName(camId)));
     if (dev.rules.length) {
-        chip.appendChild(el('span', 'chip-assets',
-            'п:' + dev.rules.length
-            + ' · м:' + loadedModels(dev).length));
+        chip.appendChild(el('span', 'chip-assets', 'п:' + dev.rules.length + ' · м:' + loadedModels(dev).length));
         const tabs = el('span', 'rule-tabs');
-        dev.rules.forEach(function (rid) {
+        dev.rules.forEach(rid => {
             const t = el('i');
             t.style.background = ruleColor(rid);
             tabs.appendChild(t);
@@ -968,16 +878,13 @@ function renderCamNode(camId, at) {
             node.classList.add('chip-open');
             chip.classList.add('chip-open');
         }
-        chip.addEventListener('click', function (ev) {
+        chip.onclick = ev => {
             ev.stopPropagation();
             openThrCam = openThrCam === camId ? null : camId;
             render();
-        });
+        };
     }
-    chip.addEventListener('dblclick', function (ev) {
-        ev.stopPropagation();
-        renameCamera(camId);
-    });
+    chip.ondblclick = ev => { ev.stopPropagation(); renameCamera(camId); };
     const body = el('div', 'node-body');
     body.appendChild(chip);
     node.appendChild(body);
@@ -1129,80 +1036,66 @@ function scheduleWires() {
 
 function renderWires() {
     const svg = $('wires');
-    if (!svg) { return; }
+    if (!svg) return;
     svg.textContent = '';
-    const q = function (sel) { return document.querySelector(sel); };
+    const q = sel => document.querySelector(sel);
+
     function link(from, to, color, cls, onRemove) {
-        const a = sockXY(from);
-        const b = sockXY(to);
-        if (a && b) {
-            const d = bez(a, b);
-            const wire = svgPath(d, cls || 'wire', color);
-            svg.appendChild(wire);
+        const a = sockXY(from), b = sockXY(to);
+        if (!a || !b) return;
+        const d = bez(a, b);
+        const wire = svgPath(d, cls || 'wire', color);
+        svg.appendChild(wire);
 
-            if (onRemove) {
-                const hitbox = svgPath(d, 'wire-hitbox');
-                hitbox.style.stroke = 'rgba(0,0,0,0.001)';
-                hitbox.style.strokeWidth = '16px';
-                hitbox.style.pointerEvents = 'stroke';
-                hitbox.style.cursor = 'pointer';
+        if (onRemove) {
+            const hitbox = svgPath(d, 'wire-hitbox');
+            hitbox.style.stroke = 'rgba(0,0,0,0.001)';
+            hitbox.style.strokeWidth = '16px';
+            hitbox.style.pointerEvents = 'stroke';
+            hitbox.style.cursor = 'pointer';
 
-                const titleText = 'Нажмите, чтобы удалить соединение';
-                wire.setAttribute('title', titleText);
-                hitbox.setAttribute('title', titleText);
+            hitbox.setAttribute('title', 'Нажмите, чтобы удалить соединение');
+            wire.setAttribute('title', 'Нажмите, чтобы удалить соединение');
 
-                const onHoverIn = function () { wire.classList.add('wire-hover-delete'); };
-                const onHoverOut = function () { wire.classList.remove('wire-hover-delete'); };
-                hitbox.addEventListener('mouseenter', onHoverIn);
-                hitbox.addEventListener('mouseleave', onHoverOut);
-                wire.addEventListener('mouseenter', onHoverIn);
-                wire.addEventListener('mouseleave', onHoverOut);
+            hitbox.addEventListener('mouseenter', () => wire.classList.add('wire-hover-delete'));
+            hitbox.addEventListener('mouseleave', () => wire.classList.remove('wire-hover-delete'));
+            wire.addEventListener('mouseenter', () => wire.classList.add('wire-hover-delete'));
+            wire.addEventListener('mouseleave', () => wire.classList.remove('wire-hover-delete'));
 
-                const stopEv = function (ev) {
-                    if (ev.button === 0) { ev.stopPropagation(); }
-                };
-                hitbox.addEventListener('mousedown', stopEv);
-                wire.addEventListener('mousedown', stopEv);
+            const stopEv = ev => { if (ev.button === 0) ev.stopPropagation(); };
+            hitbox.addEventListener('mousedown', stopEv);
+            wire.addEventListener('mousedown', stopEv);
 
-                const removeFn = function (ev) {
-                    if (ev.button !== 0) { return; }
-                    if (linkDrag || movingG || (window.BeltView && document.querySelector('.panning'))) {
-                        return;
-                    }
-                    ev.stopPropagation();
-                    ev.preventDefault();
-                    onRemove();
-                };
-                hitbox.addEventListener('click', removeFn);
-                wire.addEventListener('click', removeFn);
-                svg.appendChild(hitbox);
-            }
+            const removeFn = ev => {
+                if (ev.button !== 0 || linkDrag || movingG || (window.BeltView && document.querySelector('.panning'))) return;
+                ev.stopPropagation();
+                ev.preventDefault();
+                onRemove();
+            };
+            hitbox.addEventListener('click', removeFn);
+            wire.addEventListener('click', removeFn);
+            svg.appendChild(hitbox);
         }
     }
-    RULES.forEach(function (rule) {
+
+    RULES.forEach(rule => {
         const to = q('.sock[data-drop="rule"][data-rid="' + rule.id + '"]');
-        rule.models.forEach(function (mid) {
-            link(q('.sock[data-link="model:' + mid + '"]'), to, null, null, function () {
-                togglePart(rule.id, mid);
-            });
+        rule.models.forEach(mid => {
+            link(q('.sock[data-link="model:' + mid + '"]'), to, null, null, () => togglePart(rule.id, mid));
         });
     });
-    inventory.forEach(function (dev) {
-        dev.rules.forEach(function (rid) {
-            const rule = RULES.find(function (r) { return r.id === rid; });
-            link(q('.sock[data-link="rule:' + rid + '"]'),
-                q('.sock[data-drop="cam"][data-cam="' + dev.id + '"]'),
-                rule ? rule.color : null, null, function () {
-                    toggleRuleOnCam(dev.id, rid);
-                });
+
+    inventory.forEach(dev => {
+        dev.rules.forEach(rid => {
+            const rule = RULES.find(r => r.id === rid);
+            link(q('.sock[data-link="rule:' + rid + '"]'), q('.sock[data-drop="cam"][data-cam="' + dev.id + '"]'), rule ? rule.color : null, null, () => toggleRuleOnCam(dev.id, rid));
         });
     });
-    belt.positions.forEach(function (pos, i) {
-        if (!pos.inspection) { return; }
-        pos.inspection.cameras.forEach(function (cid) {
-            link(q('.cam-node[data-cam="' + cid + '"] .sock[data-link="camera:'
-                + cid + '"]'),
-                q('.pos-card[data-index="' + i + '"] .sock-node'), null, null, function () {
+
+    belt.positions.forEach((pos, i) => {
+        if (pos.inspection) {
+            pos.inspection.cameras.forEach(cid => {
+                link(q('.cam-node[data-cam="' + cid + '"] .sock[data-link="camera:' + cid + '"]'), q('.pos-card[data-index="' + i + '"] .sock-node'), null, null, () => {
                     const cIdx = pos.inspection.cameras.indexOf(cid);
                     if (cIdx >= 0) {
                         pos.inspection.cameras.splice(cIdx, 1);
@@ -1210,28 +1103,27 @@ function renderWires() {
                         render();
                     }
                 });
-        });
-    });
-    belt.positions.forEach(function (pos, i) {
-        if (!pos.nextUid) { return; }
-        const tgt = findPosByUid(pos.nextUid);
-        if (!tgt) { return; }
-        link(q('.pos-card[data-index="' + i + '"] .sock-line-out'),
-            q('.pos-card[data-index="' + belt.positions.indexOf(tgt)
-                + '"] .sock-line-in'), null, 'wire wire-chain', function () {
+            });
+        }
+        if (pos.nextUid) {
+            const tgt = findPosByUid(pos.nextUid);
+            if (tgt) {
+                link(q('.pos-card[data-index="' + i + '"] .sock-line-out'), q('.pos-card[data-index="' + belt.positions.indexOf(tgt) + '"] .sock-line-in'), null, 'wire wire-chain', () => {
                     pos.nextUid = null;
                     toast('Связь разорвана.');
                     render();
                 });
+            }
+        }
     });
+
     if (linkDrag) {
         const fromPt = sockXY(linkDrag.from);
         const toPt = linkDrag.snapPt || [linkDrag.x, linkDrag.y];
         if (fromPt && toPt) {
             const start = linkDrag.dir === 'out' ? fromPt : toPt;
             const end = linkDrag.dir === 'out' ? toPt : fromPt;
-            svg.appendChild(svgPath(bez(start, end),
-                'wire wire-live' + (linkDrag.hot ? ' wire-ok' : '')));
+            svg.appendChild(svgPath(bez(start, end), 'wire wire-live' + (linkDrag.hot ? ' wire-ok' : '')));
         }
     }
 }
