@@ -833,6 +833,22 @@ function renderModelNode(mid, at) {
     return node;
 }
 
+/** Отрисовка списка подключенных моделей внутри ноды правила */
+function renderRuleChips(rule) {
+    const list = el('div', 'g-models', null, rule.models.map(mid => {
+        const mod = MODELS.find(m => m.id === mid);
+        const chip = el('span', 'g-chip', mod ? mod.name : mid);
+        chip.title = 'снять модель';
+        chip.onclick = ev => {
+            ev.stopPropagation();
+            togglePart(rule.id, mid);
+        };
+        return chip;
+    }));
+    if (!rule.models.length) list.appendChild(el('span', 'g-empty', '→ тяни модель сюда'));
+    return list;
+}
+
 /**
  * Нода детекционного правила на холсте сборки
  * @param {string} rid ID правила
@@ -860,20 +876,7 @@ function renderRuleNode(rid, at) {
 
     node.appendChild(gsock('sock-in', null, 'rule', rid));
     node.appendChild(gsock('sock-out', key));
-
-    const list = el('div', 'g-models', null, rule.models.map(mid => {
-        const mod = MODELS.find(m => m.id === mid);
-        const chip = el('span', 'g-chip', mod ? mod.name : mid);
-        chip.title = 'снять модель';
-        chip.onclick = ev => {
-            ev.stopPropagation();
-            togglePart(rid, mid);
-        };
-        return chip;
-    }));
-
-    if (!rule.models.length) list.appendChild(el('span', 'g-empty', '→ тяни модель сюда'));
-    node.appendChild(list);
+    node.appendChild(renderRuleChips(rule));
 
     const cams = ruleOnCameras(rule);
     if (cams.length) node.appendChild(el('div', 'g-meta', `кам: ${cams.length}`));
@@ -1419,49 +1422,66 @@ function wireLinkEngine() {
  */
 
 
-/** Построение превью перетаскиваемого объекта */
-function buildGhostPreview(kind, id) {
-    let preview = null, ox = 64, oy = 18;
-
-    if (kind === 'position') {
+/** Фабрики построения элементов превью для различных типов объектов */
+const GHOST_BUILDERS = {
+    position() {
         const i = belt.positions.length;
-        preview = el('div', 'pos-card gnode g-pos ghost-preview', null, [
-            el('div', 'node-head', null, [
-                el('span', 'pos-index', 'П' + i),
-                el('span', 'pos-label', 'Позиция ' + i)
-            ]),
-            el('div', 'node-body', null, [
-                el('div', 'pos-badges', null, [
-                    el('span', 'badge badge-insp', i === 0 ? 'вход' : 'позиция')
+        return {
+            preview: el('div', 'pos-card gnode g-pos ghost-preview', null, [
+                el('div', 'node-head', null, [
+                    el('span', 'pos-index', 'П' + i),
+                    el('span', 'pos-label', 'Позиция ' + i)
+                ]),
+                el('div', 'node-body', null, [
+                    el('div', 'pos-badges', null, [
+                        el('span', 'badge badge-insp', i === 0 ? 'вход' : 'позиция')
+                    ])
                 ])
-            ])
-        ]);
-        ox = 88;
-        oy = 22;
-    } else if (kind === 'rule') {
+            ]),
+            ox: 88,
+            oy: 22
+        };
+    },
+    rule(id) {
         const r = RULES.find(x => x.id === id) || { name: id, color: '#c1a66a' };
         const sw = el('i', 'g-swatch');
         sw.style.background = r.color;
         const lbl = el('span', 'pos-label', r.name);
         lbl.style.color = r.color;
-        preview = el('div', 'gnode g-rule ghost-preview', null, [
-            el('div', 'node-head', null, [sw, lbl])
-        ]);
-    } else if (kind === 'model-part') {
+        return {
+            preview: el('div', 'gnode g-rule ghost-preview', null, [
+                el('div', 'node-head', null, [sw, lbl])
+            ]),
+            ox: 64,
+            oy: 18
+        };
+    },
+    'model-part'(id) {
         const m = MODELS.find(x => x.id === id) || { name: id };
-        preview = el('div', 'gnode g-model ghost-preview', null, [
-            el('div', 'node-head', null, [el('span', 'pos-label', m.name)])
-        ]);
-        oy = 16;
-    } else if (kind === 'camera') {
+        return {
+            preview: el('div', 'gnode g-model ghost-preview', null, [
+                el('div', 'node-head', null, [el('span', 'pos-label', m.name)])
+            ]),
+            ox: 64,
+            oy: 16
+        };
+    },
+    camera(id) {
         const c = invCam(id) || { name: id };
-        preview = el('div', 'gnode cam-node g-cam ghost-preview free', null, [
-            el('div', 'node-head', null, [el('span', 'pos-label', c.name || id)])
-        ]);
-        ox = 74;
+        return {
+            preview: el('div', 'gnode cam-node g-cam ghost-preview free', null, [
+                el('div', 'node-head', null, [el('span', 'pos-label', c.name || id)])
+            ]),
+            ox: 74,
+            oy: 18
+        };
     }
+};
 
-    return { preview, ox, oy };
+/** Построение превью перетаскиваемого объекта */
+function buildGhostPreview(kind, id) {
+    const builder = GHOST_BUILDERS[kind];
+    return builder ? builder(id) : { preview: null, ox: 64, oy: 18 };
 }
 
 /**
@@ -1587,6 +1607,29 @@ function handleBeltDragOver(ev) {
     }
 }
 
+/** Размещение свободной ноды правила, модели или камеры на холсте */
+function placeFreeNode(kind, cardIdx, ev) {
+    if (cardIdx >= 0) {
+        toast('Наложение блоков запрещено.', 'err');
+        dragAsset = dragCamId = null;
+        return;
+    }
+    const id = kind === 'camera' ? (dragCamId || dragAsset) : dragAsset;
+    if (id) {
+        const prefix = kind === 'model-part' ? 'model:' : (kind === 'rule' ? 'rule:' : 'cam:');
+        placeNode(prefix + id, ev);
+    }
+    dragAsset = dragCamId = null;
+}
+
+/** Применение броска инструмента (инспекция или сброс) на позицию */
+function applyToolDrop(kind, cardIdx) {
+    if (!belt.positions.length) return toast('Нет ни одной позиции.', 'err');
+    if (cardIdx < 0) return toast('Не на позицию.', 'err');
+    if (kind === 'inspect') return toggleInspection(cardIdx);
+    if (kind === 'reset') return toggleReset(cardIdx);
+}
+
 /** Обработка броска элемента на холст */
 function handleBeltDrop(ev) {
     removeCanvasGhost();
@@ -1603,25 +1646,10 @@ function handleBeltDrop(ev) {
         if (cardIdx >= 0) return toast('Наложение блоков запрещено.', 'err');
         return insertPosition(canvasPoint(ev, 176, 100));
     }
-
     if (['model-part', 'rule', 'camera'].includes(kind)) {
-        if (cardIdx >= 0) {
-            toast('Наложение блоков запрещено.', 'err');
-            dragAsset = dragCamId = null;
-            return;
-        }
-        const id = kind === 'camera' ? (dragCamId || dragAsset) : dragAsset;
-        if (id) {
-            placeNode((kind === 'model-part' ? 'model:' : (kind === 'rule' ? 'rule:' : 'cam:')) + id, ev);
-        }
-        dragAsset = dragCamId = null;
-        return;
+        return placeFreeNode(kind, cardIdx, ev);
     }
-
-    if (!belt.positions.length) return toast('Нет ни одной позиции.', 'err');
-    if (cardIdx < 0) return toast('Не на позицию.', 'err');
-    if (kind === 'inspect') return toggleInspection(cardIdx);
-    if (kind === 'reset') return toggleReset(cardIdx);
+    applyToolDrop(kind, cardIdx);
 }
 
 /**
