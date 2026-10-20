@@ -23,6 +23,7 @@ class FakeLive:
         self.paused = 0
         self.resumed = 0
         self.stopped = 0
+        self.fps = 0.0
 
     def pause(self, timeout=5.0):
         self.paused += 1
@@ -68,6 +69,13 @@ class FakeCameras:
 
 class FakeConveyor:
     speed = 20000
+
+    def __init__(self):
+        self.speed_updates = []
+
+    def set_speed(self, speed):
+        self.speed_updates.append(speed)
+        self.speed = speed
 
     def move_step(self):
         pass
@@ -196,6 +204,34 @@ def make_cycle(*, jog=None, distributor=None, monitor=None):
     # Подменяем live на дублёр: тесты публичного API не нуждаются в потоках.
     cycle.live = FakeLive()
     return cycle
+
+
+class ConveyorSpeedTest(unittest.TestCase):
+    """Скорость ленты меняется только на остановленной линии."""
+
+    def test_change_in_idle_updates_status(self):
+        cycle = make_cycle()
+        self.assertTrue(cycle.set_conveyor_speed(12000))
+        self.assertEqual(cycle.conveyor.speed_updates, [12000])
+        status = cycle._build_status()
+        self.assertEqual(status["conveyor_speed"], 12000)
+        self.assertTrue(status["speed_allowed"])
+
+    def test_change_rejected_while_running(self):
+        cycle = make_cycle()
+        self.assertTrue(cycle.request_start())
+        try:
+            self.assertFalse(cycle.set_conveyor_speed(12000))
+            self.assertEqual(cycle.conveyor.speed, 20000)
+            self.assertFalse(cycle._build_status()["speed_allowed"])
+        finally:
+            cycle.request_stop()
+            cycle.live.stop()
+
+    def test_change_rejected_while_jog_is_busy(self):
+        cycle = make_cycle(jog=FakeJog(busy=True))
+        self.assertFalse(cycle.set_conveyor_speed(12000))
+        self.assertEqual(cycle.conveyor.speed_updates, [])
 
 
 class RequestStartTest(unittest.TestCase):

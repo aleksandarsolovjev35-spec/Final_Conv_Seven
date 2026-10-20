@@ -479,6 +479,27 @@ class UIServerTest(unittest.TestCase):
             "DIST1_HOME",
         )
 
+    def test_api_conveyor_speed(self):
+        self.server.on_conveyor_speed = mock.Mock(return_value=True)
+        response = self.client.post("/api/conveyor/speed", json={"speed": 12000})
+        self.assertEqual(response.status_code, 200)
+        self.server.on_conveyor_speed.assert_called_once_with(12000)
+
+    def test_api_conveyor_speed_validates_range(self):
+        self.server.on_conveyor_speed = mock.Mock(return_value=True)
+        for payload in ({"speed": 4999}, {"speed": 20001},
+                        {"speed": True}, {"speed": "12000"}):
+            with self.subTest(payload=payload):
+                response = self.client.post(
+                    "/api/conveyor/speed", json=payload,
+                )
+                self.assertEqual(response.status_code, 400)
+        self.server.on_conveyor_speed.assert_not_called()
+
+    def test_api_conveyor_speed_503_without_callback(self):
+        response = self.client.post("/api/conveyor/speed", json={"speed": 12000})
+        self.assertEqual(response.status_code, 503)
+
     def test_api_jog(self):
         self.server.on_jog_enter = mock.Mock(return_value=True)
         self.assertEqual(self.client.post("/api/jog/enter").status_code, 200)
