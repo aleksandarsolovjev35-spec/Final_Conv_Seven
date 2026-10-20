@@ -4,9 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-<link rel="stylesheet" href="css/belt-editor.css?v=90">
+<link rel="stylesheet" href="css/belt-editor.css?v=92">
 </head>
 <body>
+<script>
+window.addEventListener('error', function (e) {
+    console.error('BeltEditor error:', e.message, e.filename, e.lineno);
+    try {
+        new Image().src = '/client-error?msg=' + encodeURIComponent(e.message + ' at ' + (e.filename || '') + ':' + e.lineno);
+    } catch (ign) {}
+});
+</script>
 
 <!-- Верхняя половина (50% высоты экрана): видеостена на всю ширину.
      Слева — основная камера, справа — обнаруженные камеры. -->
@@ -35,7 +43,7 @@
     <main class="build">
         <div class="zone-head">СБОРКА ЛЕНТЫ
             <span class="hint" id="belt-meta"></span>
-            <span class="hint">сб. 90</span>
+            <span class="hint">сб. 92</span>
         </div>
         <div class="build-body">
             <div class="belt-zone" id="belt-zone">
@@ -158,8 +166,8 @@
 
 <div id="toasts" class="toasts"></div>
 
-    <script src="js/builder.js?v=90"></script>
-    <script src="js/belt-view.js?v=90"></script>
-    <script src="js/cameras.js?v=90"></script>
+    <script src="js/cameras.js?v=92"></script>
+    <script src="js/belt-view.js?v=92"></script>
+    <script src="js/builder.js?v=92"></script>
 </body>
 </html>

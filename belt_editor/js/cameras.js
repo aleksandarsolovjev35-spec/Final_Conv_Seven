@@ -356,6 +356,9 @@ function loop(now) {
 }
 
 window.Cameras = { sync: sync, pick: pick };
+if (window.BeltBridge && window.BeltBridge.syncCameras) {
+    window.BeltBridge.syncCameras();
+}
 schedule();
 
 })();

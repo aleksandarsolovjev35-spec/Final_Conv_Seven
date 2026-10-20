@@ -815,6 +815,7 @@ function setupDragImage(ev, kind, id) {
 function removeCanvasGhost() { $('canvas-drag-ghost')?.remove(); }
 
 window.BeltBridge = {
+    syncCameras: () => { if (window.Cameras) window.Cameras.sync(cameraViews()); },
     camDragStart(id, dt, ev) {
         dragKind = 'camera'; dragCamId = dragAsset = id;
         if (dt) { dt.setData('text/plain', 'camera:' + id); dt.effectAllowed = 'copy'; }
@@ -1053,9 +1054,15 @@ function wireFolderPickers() {
         n => ['.pt', '.onnx', '.engine', '.tflite', '.weights', '.bin'].some(ext => n.endsWith(ext)), addModelFromFile);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function boot() {
     wirePalette(); wireBelt(); wireSearch(); wireThrClose(); wireLinkEngine();
     dragGNodes(); wireScrollSnap(); wireSideDock(); wireFolderPickers(); render();
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+} else {
+    boot();
+}
 
 })();
