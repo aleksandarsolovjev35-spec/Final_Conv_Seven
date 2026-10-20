@@ -391,15 +391,19 @@ function bindCamera(i, camId) {
 }
 
 /**
- * Снятие камеры с позиции
+ * Снятие камеры с позиции инспекции
  * @param {number} i Индекс позиции
- * @param {number} j Индекс камеры в массиве cameras
+ * @param {string} camId
  */
-function removeCamera(i, j) {
+function unbindCamera(i, camId) {
     const pos = belt.positions[i];
     if (!pos?.inspection) return;
-    toast(`${camName(pos.inspection.cameras.splice(j, 1)[0])} — снята с П${i}.`);
-    render();
+    const idx = pos.inspection.cameras.indexOf(camId);
+    if (idx >= 0) {
+        pos.inspection.cameras.splice(idx, 1);
+        toast(`${camName(camId)} — снята с П${i}.`);
+        render();
+    }
 }
 
 /** Индекс позиции, на которой сейчас размещена камера (или -1) */
@@ -632,71 +636,73 @@ function toggleRuleOnCam(camId, ruleId) {
 /** Список уникальных ID моделей, загруженных на камеру через правила */
 const loadedModels = dev => [...new Set(dev.rules.flatMap(id => RULES.find(r => r.id === id)?.models || []))];
 
+/** Создание плитки ассета для каталога */
+function createAssetTile(item, isRule, used) {
+    const tile = el('div', (isRule ? 'rule-tile' : 'asset') + (used ? ' asset-used' : ''));
+    tile.draggable = true;
+
+    if (isRule) {
+        tile.dataset.ruleId = item.id;
+        const sw = el('span', 'rule-swatch');
+        sw.style.background = item.color;
+        const nm = el('b', '', item.name);
+        nm.style.color = item.color;
+        tile.appendChild(sw);
+        tile.appendChild(nm);
+        if (item.models.length) tile.appendChild(el('span', 'rule-parts-count', `${item.models.length}м`));
+        if (used) tile.appendChild(el('span', 'asset-use', `кам: ${used}`));
+    } else {
+        tile.appendChild(el('b', '', item.name));
+        if (used) tile.appendChild(el('span', 'asset-use', `правил: ${used}`));
+    }
+
+    const wrapper = isRule ? el('div', 'rule-entry', null, [tile]) : tile;
+
+    tile.ondragstart = ev => {
+        dragKind = isRule ? 'rule' : 'model-part';
+        dragAsset = item.id;
+        ev.dataTransfer.setData('text/plain', (isRule ? 'rule:' : 'model:') + item.id);
+        ev.dataTransfer.effectAllowed = 'copy';
+        (isRule ? wrapper : tile).classList.add('dragging');
+        setupDragImage(ev, dragKind, item.id);
+        $('belt-zone')?.classList.add('drop-ready');
+    };
+
+    tile.ondragend = () => {
+        dragKind = dragAsset = null;
+        cleanVisuals();
+    };
+
+    return wrapper;
+}
+
+/** Отрисовка списка каталога и обновление счетчиков */
+function renderCatalogList(boxId, items, isRule, query, countId, countPrefix) {
+    const box = $(boxId);
+    if (!box) return;
+    box.textContent = '';
+
+    const list = query ? items.filter(x => x.name.toLowerCase().includes(query)) : items;
+    list.forEach(item => {
+        const used = isRule ? ruleOnCameras(item).length : RULES.filter(r => r.models.includes(item.id)).length;
+        box.appendChild(createAssetTile(item, isRule, used));
+    });
+
+    const cnt = $(countId);
+    if (cnt) {
+        const inUse = isRule
+            ? items.filter(r => ruleOnCameras(r).length > 0).length
+            : items.filter(m => RULES.some(r => r.models.includes(m.id))).length;
+        cnt.textContent = `${countPrefix}: ${inUse} / ${items.length}`;
+    }
+}
+
 /**
  * Отрисовка каталогов моделей и правил в боковой панели
  */
 function renderAssets() {
-    const renderList = (boxId, items, isRule, query, countId, countPrefix) => {
-        const box = $(boxId);
-        if (!box) return;
-        box.textContent = '';
-
-        const list = query ? items.filter(x => x.name.toLowerCase().includes(query)) : items;
-
-        list.forEach(item => {
-            const used = isRule
-                ? ruleOnCameras(item).length
-                : RULES.filter(r => r.models.includes(item.id)).length;
-
-            const tile = el('div', (isRule ? 'rule-tile' : 'asset') + (used ? ' asset-used' : ''));
-            tile.draggable = true;
-
-            if (isRule) {
-                tile.dataset.ruleId = item.id;
-                const sw = el('span', 'rule-swatch');
-                sw.style.background = item.color;
-                const nm = el('b', '', item.name);
-                nm.style.color = item.color;
-                tile.appendChild(sw);
-                tile.appendChild(nm);
-                if (item.models.length) tile.appendChild(el('span', 'rule-parts-count', `${item.models.length}м`));
-                if (used) tile.appendChild(el('span', 'asset-use', `кам: ${used}`));
-            } else {
-                tile.appendChild(el('b', '', item.name));
-                if (used) tile.appendChild(el('span', 'asset-use', `правил: ${used}`));
-            }
-
-            const wrapper = isRule ? el('div', 'rule-entry', null, [tile]) : tile;
-
-            tile.ondragstart = ev => {
-                dragKind = isRule ? 'rule' : 'model-part';
-                dragAsset = item.id;
-                ev.dataTransfer.setData('text/plain', (isRule ? 'rule:' : 'model:') + item.id);
-                ev.dataTransfer.effectAllowed = 'copy';
-                (isRule ? wrapper : tile).classList.add('dragging');
-                setupDragImage(ev, dragKind, item.id);
-                $('belt-zone')?.classList.add('drop-ready');
-            };
-
-            tile.ondragend = () => {
-                dragKind = dragAsset = null;
-                cleanVisuals();
-            };
-
-            box.appendChild(wrapper);
-        });
-
-        const cnt = $(countId);
-        if (cnt) {
-            const inUse = isRule
-                ? items.filter(r => ruleOnCameras(r).length > 0).length
-                : items.filter(m => RULES.some(r => r.models.includes(m.id))).length;
-            cnt.textContent = `${countPrefix}: ${inUse} / ${items.length}`;
-        }
-    };
-
-    renderList('asset-models', MODELS, false, modelQuery, 'model-count', 'в правилах');
-    renderList('asset-rules', RULES, true, ruleQuery, 'rule-count', 'на камерах');
+    renderCatalogList('asset-models', MODELS, false, modelQuery, 'model-count', 'в правилах');
+    renderCatalogList('asset-rules', RULES, true, ruleQuery, 'rule-count', 'на камерах');
 }
 
 /**
@@ -874,39 +880,8 @@ function renderRuleNode(rid, at) {
     return node;
 }
 
-/**
- * Нода камеры на холсте сборки
- * @param {string} camId ID камеры
- * @param {{x: number, y: number}} at
- * @returns {HTMLElement}
- */
-function renderCamNode(camId, at) {
-    const dev = invCam(camId);
-    if (!dev) return el('div', 'gnode');
-
-    const key = 'cam:' + camId;
-    const owner = camOwner(camId);
-    const node = gnodeFrame('cam-node g-cam' + (owner < 0 ? ' free' : ''), key, at, '');
-    node.dataset.cam = camId;
-    if (owner >= 0) node.dataset.pos = String(owner);
-
-    const head = node.querySelector('.node-head');
-    const cin = gsock('sock-in', null, 'cam');
-    cin.dataset.cam = camId;
-    head.insertBefore(cin, head.firstChild);
-
-    node.querySelector('.pos-del').onclick = ev => {
-        ev.stopPropagation();
-        if (owner >= 0) {
-            belt.positions[owner].inspection.cameras.splice(belt.positions[owner].inspection.cameras.indexOf(camId), 1);
-            toast(`${camName(camId)} — снята с П${owner}.`);
-        } else {
-            delete belt.places[key];
-            toast(`${camName(camId)} — возвращена на стену.`);
-        }
-        render();
-    };
-
+/** Чип камеры со списком правил и кликом открытия поповера */
+function createCamChip(camId, dev, node) {
     const chip = el('span', 'chip', null, [el('span', 'chip-name', camName(camId))]);
     chip.dataset.cam = camId;
 
@@ -933,6 +908,41 @@ function renderCamNode(camId, at) {
         renameCamera(camId);
     };
 
+    return chip;
+}
+
+/**
+ * Отрисовка ноды камеры на сборке ленты
+ * @param {string} camId
+ * @param {{x: number, y: number}} at
+ * @returns {HTMLElement}
+ */
+function renderCamNode(camId, at) {
+    const dev = invCam(camId);
+    if (!dev) return el('div', 'gnode');
+
+    const key = 'cam:' + camId;
+    const owner = camOwner(camId);
+    const node = gnodeFrame('cam-node g-cam' + (owner < 0 ? ' free' : ''), key, at, '');
+    node.dataset.cam = camId;
+    if (owner >= 0) node.dataset.pos = String(owner);
+
+    const head = node.querySelector('.node-head');
+    const cin = gsock('sock-in', null, 'cam');
+    cin.dataset.cam = camId;
+    head.insertBefore(cin, head.firstChild);
+
+    node.querySelector('.pos-del').onclick = ev => {
+        ev.stopPropagation();
+        if (owner >= 0) unbindCamera(owner, camId);
+        else {
+            delete belt.places[key];
+            toast(`${camName(camId)} — возвращена на стену.`);
+            render();
+        }
+    };
+
+    const chip = createCamChip(camId, dev, node);
     node.appendChild(el('div', 'node-body', null, [chip]));
     head.insertBefore(el('span', 'g-title', 'камера'), head.children[1]);
     node.appendChild(gsock('sock-out', 'camera:' + camId));
@@ -946,6 +956,47 @@ function renderCamNode(camId, at) {
 /** Форматирование числового порога (0.00 – 1.00) */
 const fmtThr = v => (typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(1, v)) : THR_DEFAULT).toFixed(2);
 
+/** Блок порогов одного правила внутри поповера */
+function renderThrRuleBlock(dev, rid) {
+    const rule = RULES.find(r => r.id === rid);
+    if (!rule) return null;
+    if (!dev.thr) dev.thr = Object.create(null);
+    if (!dev.thr[rid]) dev.thr[rid] = rule.thr.map(() => THR_DEFAULT);
+
+    const arr = dev.thr[rid];
+    const head = el('div', 'thr-head', null, [
+        el('b', '', rule.name),
+        el('span', 'thr-cams', `кам: ${ruleOnCameras(rule).length}`)
+    ]);
+    head.style.background = rule.color;
+
+    const blk = el('div', 'thr-blk', null, [head]);
+
+    rule.thr.forEach((pname, k) => {
+        const inp = el('input', 'thr-input');
+        inp.type = 'text';
+        inp.value = fmtThr(arr[k]);
+
+        inp.oninput = () => {
+            const v = parseFloat(inp.value.replace(',', '.'));
+            if (isFinite(v)) arr[k] = Math.max(0, Math.min(1, v));
+        };
+
+        inp.onchange = () => {
+            inp.value = fmtThr(arr[k]);
+            render();
+        };
+
+        blk.appendChild(el('div', 'thr-row', null, [
+            el('span', 'thr-name', pname),
+            el('span', 'thr-gt', '≥'),
+            inp
+        ]));
+    });
+
+    return blk;
+}
+
 /**
  * Нода-поповер параметров порогов детекции камеры
  * @param {Object} dev Камера из inventory
@@ -956,43 +1007,8 @@ function renderThrPop(dev) {
     pop.onclick = ev => ev.stopPropagation();
 
     dev.rules.forEach(rid => {
-        const rule = RULES.find(r => r.id === rid);
-        if (!rule) return;
-        if (!dev.thr) dev.thr = Object.create(null);
-        if (!dev.thr[rid]) dev.thr[rid] = rule.thr.map(() => THR_DEFAULT);
-
-        const arr = dev.thr[rid];
-        const head = el('div', 'thr-head', null, [
-            el('b', '', rule.name),
-            el('span', 'thr-cams', `кам: ${ruleOnCameras(rule).length}`)
-        ]);
-        head.style.background = rule.color;
-
-        const blk = el('div', 'thr-blk', null, [head]);
-
-        rule.thr.forEach((pname, k) => {
-            const inp = el('input', 'thr-input');
-            inp.type = 'text';
-            inp.value = fmtThr(arr[k]);
-
-            inp.oninput = () => {
-                const v = parseFloat(inp.value.replace(',', '.'));
-                if (isFinite(v)) arr[k] = Math.max(0, Math.min(1, v));
-            };
-
-            inp.onchange = () => {
-                inp.value = fmtThr(arr[k]);
-                render();
-            };
-
-            blk.appendChild(el('div', 'thr-row', null, [
-                el('span', 'thr-name', pname),
-                el('span', 'thr-gt', '≥'),
-                inp
-            ]));
-        });
-
-        pop.appendChild(blk);
+        const blk = renderThrRuleBlock(dev, rid);
+        if (blk) pop.appendChild(blk);
     });
 
     return pop;
@@ -1120,87 +1136,81 @@ function scheduleWires() {
 }
 
 /**
- * Отрисовка всех активных соединений и интерактивных хитбоксов удаления
+ * Отрисовка отдельной связи и интерактивного хитбокса удаления
  */
-function renderWires() {
-    const svg = $('wires');
-    if (!svg) return;
-    svg.textContent = '';
+function drawConnection(svg, fromSock, toSock, color, cls, onRemove) {
+    const a = sockXY(fromSock);
+    const b = sockXY(toSock);
+    if (!a || !b) return;
 
-    const q = sel => document.querySelector(sel);
+    const d = bez(a, b);
+    const wire = svgPath(d, cls || 'wire', color);
+    svg.appendChild(wire);
 
-    function link(from, to, color, cls, onRemove) {
-        const a = sockXY(from);
-        const b = sockXY(to);
-        if (!a || !b) return;
+    if (onRemove) {
+        const hit = svgPath(d, 'wire-hitbox');
+        hit.style.cssText = 'stroke:rgba(0,0,0,0.001);stroke-width:16px;pointer-events:stroke;cursor:pointer;';
+        hit.setAttribute('title', 'Нажмите, чтобы удалить соединение');
+        wire.setAttribute('title', 'Нажмите, чтобы удалить соединение');
 
-        const d = bez(a, b);
-        const wire = svgPath(d, cls || 'wire', color);
-        svg.appendChild(wire);
+        hit.onmouseenter = wire.onmouseenter = () => wire.classList.add('wire-hover-delete');
+        hit.onmouseleave = wire.onmouseleave = () => wire.classList.remove('wire-hover-delete');
 
-        if (onRemove) {
-            const hit = svgPath(d, 'wire-hitbox');
-            hit.style.cssText = 'stroke:rgba(0,0,0,0.001);stroke-width:16px;pointer-events:stroke;cursor:pointer;';
-            hit.setAttribute('title', 'Нажмите, чтобы удалить соединение');
-            wire.setAttribute('title', 'Нажмите, чтобы удалить соединение');
+        hit.onclick = wire.onclick = ev => {
+            if (ev.button !== 0 || linkDrag || movingG || document.querySelector('.panning')) return;
+            ev.stopPropagation();
+            onRemove();
+        };
 
-            hit.onmouseenter = wire.onmouseenter = () => wire.classList.add('wire-hover-delete');
-            hit.onmouseleave = wire.onmouseleave = () => wire.classList.remove('wire-hover-delete');
-
-            hit.onclick = wire.onclick = ev => {
-                if (ev.button !== 0 || linkDrag || movingG || document.querySelector('.panning')) return;
-                ev.stopPropagation();
-                onRemove();
-            };
-
-            svg.appendChild(hit);
-        }
+        svg.appendChild(hit);
     }
+}
 
-    // Связи модель → правило
+/** Отрисовка связей модель → правило */
+function renderModelWires(svg) {
     RULES.forEach(r => {
         r.models.forEach(m => {
-            link(
-                q(`.sock[data-link="model:${m}"]`),
-                q(`.sock[data-drop="rule"][data-rid="${r.id}"]`),
+            drawConnection(
+                svg,
+                document.querySelector(`.sock[data-link="model:${m}"]`),
+                document.querySelector(`.sock[data-drop="rule"][data-rid="${r.id}"]`),
                 null,
                 null,
                 () => togglePart(r.id, m)
             );
         });
     });
+}
 
-    // Связи правило → камера
+/** Отрисовка связей правило → камера */
+function renderRuleWires(svg) {
     inventory.forEach(dev => {
         dev.rules.forEach(rid => {
             const r = RULES.find(x => x.id === rid);
-            link(
-                q(`.sock[data-link="rule:${rid}"]`),
-                q(`.sock[data-drop="cam"][data-cam="${dev.id}"]`),
+            drawConnection(
+                svg,
+                document.querySelector(`.sock[data-link="rule:${rid}"]`),
+                document.querySelector(`.sock[data-drop="cam"][data-cam="${dev.id}"]`),
                 r?.color,
                 null,
                 () => toggleRuleOnCam(dev.id, rid)
             );
         });
     });
+}
 
-    // Связи камера → позиция и позиция → позиция
+/** Отрисовка связей камера → позиция и позиция → позиция */
+function renderPosWires(svg) {
     belt.positions.forEach((pos, i) => {
         if (pos.inspection) {
             pos.inspection.cameras.forEach(cid => {
-                link(
-                    q(`.cam-node[data-cam="${cid}"] .sock[data-link="camera:${cid}"]`),
-                    q(`.pos-card[data-index="${i}"] .sock-node`),
+                drawConnection(
+                    svg,
+                    document.querySelector(`.cam-node[data-cam="${cid}"] .sock[data-link="camera:${cid}"]`),
+                    document.querySelector(`.pos-card[data-index="${i}"] .sock-node`),
                     null,
                     null,
-                    () => {
-                        const idx = pos.inspection.cameras.indexOf(cid);
-                        if (idx >= 0) {
-                            pos.inspection.cameras.splice(idx, 1);
-                            toast(camName(cid) + ' — снята с П' + i + '.');
-                            render();
-                        }
-                    }
+                    () => unbindCamera(i, cid)
                 );
             });
         }
@@ -1208,9 +1218,10 @@ function renderWires() {
         if (pos.nextUid) {
             const tgt = findPosByUid(pos.nextUid);
             if (tgt) {
-                link(
-                    q(`.pos-card[data-index="${i}"] .sock-line-out`),
-                    q(`.pos-card[data-index="${belt.positions.indexOf(tgt)}"] .sock-line-in`),
+                drawConnection(
+                    svg,
+                    document.querySelector(`.pos-card[data-index="${i}"] .sock-line-out`),
+                    document.querySelector(`.pos-card[data-index="${belt.positions.indexOf(tgt)}"] .sock-line-in`),
                     null,
                     'wire wire-chain',
                     () => {
@@ -1222,16 +1233,30 @@ function renderWires() {
             }
         }
     });
+}
 
-    // Живой провод во время вытягивания связи пользователем
-    if (linkDrag) {
-        const fromPt = sockXY(linkDrag.from);
-        const toPt = linkDrag.snapPt || [linkDrag.x, linkDrag.y];
-        if (fromPt && toPt) {
-            const [start, end] = linkDrag.dir === 'out' ? [fromPt, toPt] : [toPt, fromPt];
-            svg.appendChild(svgPath(bez(start, end), 'wire wire-live' + (linkDrag.hot ? ' wire-ok' : '')));
-        }
+/** Отрисовка интерактивного вытягиваемого провода */
+function renderLiveWire(svg) {
+    if (!linkDrag) return;
+    const fromPt = sockXY(linkDrag.from);
+    const toPt = linkDrag.snapPt || [linkDrag.x, linkDrag.y];
+    if (fromPt && toPt) {
+        const [start, end] = linkDrag.dir === 'out' ? [fromPt, toPt] : [toPt, fromPt];
+        svg.appendChild(svgPath(bez(start, end), 'wire wire-live' + (linkDrag.hot ? ' wire-ok' : '')));
     }
+}
+
+/**
+ * Отрисовка всех активных соединений и интерактивных хитбоксов удаления
+ */
+function renderWires() {
+    const svg = $('wires');
+    if (!svg) return;
+    svg.textContent = '';
+    renderModelWires(svg);
+    renderRuleWires(svg);
+    renderPosWires(svg);
+    renderLiveWire(svg);
 }
 
 /**
@@ -1270,98 +1295,110 @@ function commitLink(d, t) {
 /**
  * Инициализация обработчиков мыши и клавиатуры для вытягивания связей
  */
-function wireLinkEngine() {
-    document.addEventListener('mousedown', ev => {
-        if (ev.button !== 0) return;
-        const sock = ev.target.closest?.('.sock');
-        if (!sock) return;
+/** Начало вытягивания связи от сокета */
+function startLinkDrag(ev) {
+    if (ev.button !== 0) return;
+    const sock = ev.target.closest?.('.sock');
+    if (!sock) return;
 
-        const isOut = sock.classList.contains('sock-out');
-        const kind = isOut ? (sock.dataset.link || '').split(':')[0] : sock.dataset.drop;
-        if (!LINK_WANT[kind] && !LINK_REV[kind]) return;
+    const isOut = sock.classList.contains('sock-out');
+    const kind = isOut ? (sock.dataset.link || '').split(':')[0] : sock.dataset.drop;
+    if (!LINK_WANT[kind] && !LINK_REV[kind]) return;
 
-        ev.preventDefault();
-        ev.stopPropagation();
+    ev.preventDefault();
+    ev.stopPropagation();
 
-        const zr = $('belt-zone')?.getBoundingClientRect() || { left: 0, top: 0 };
-        const id = isOut
-            ? sock.dataset.link.split(':')[1]
-            : (sock.dataset.cam || sock.dataset.rid || sock.dataset.uid || sock.dataset.idx);
+    const zr = $('belt-zone')?.getBoundingClientRect() || { left: 0, top: 0 };
+    const id = isOut
+        ? sock.dataset.link.split(':')[1]
+        : (sock.dataset.cam || sock.dataset.rid || sock.dataset.uid || sock.dataset.idx);
 
-        linkDrag = {
-            from: sock,
-            dir: isOut ? 'out' : 'in',
-            kind,
-            id,
-            x: ev.clientX - zr.left,
-            y: ev.clientY - zr.top,
-            hot: null,
-            snapPt: null
-        };
+    linkDrag = {
+        from: sock,
+        dir: isOut ? 'out' : 'in',
+        kind,
+        id,
+        x: ev.clientX - zr.left,
+        y: ev.clientY - zr.top,
+        hot: null,
+        snapPt: null
+    };
 
-        document.body.classList.add('linking');
-        markTargets(true);
-        renderWires();
-    });
+    document.body.classList.add('linking');
+    markTargets(true);
+    renderWires();
+}
 
-    window.addEventListener('mousemove', ev => {
-        if (!linkDrag) return;
+/** Перемещение курсора при протягивании связи */
+function moveLinkDrag(ev) {
+    if (!linkDrag) return;
 
-        const zr = $('belt-zone')?.getBoundingClientRect() || { left: 0, top: 0 };
-        linkDrag.x = ev.clientX - zr.left;
-        linkDrag.y = ev.clientY - zr.top;
+    const zr = $('belt-zone')?.getBoundingClientRect() || { left: 0, top: 0 };
+    linkDrag.x = ev.clientX - zr.left;
+    linkDrag.y = ev.clientY - zr.top;
 
-        const target = findSnapTarget(ev.clientX, ev.clientY)
-            || (document.elementFromPoint
-                ? document.elementFromPoint(ev.clientX, ev.clientY)?.closest(linkDrag.dir === 'out' ? '[data-drop].sock-ok' : '[data-link].sock-ok')
-                : null);
+    const target = findSnapTarget(ev.clientX, ev.clientY)
+        || (document.elementFromPoint
+            ? document.elementFromPoint(ev.clientX, ev.clientY)?.closest(linkDrag.dir === 'out' ? '[data-drop].sock-ok' : '[data-link].sock-ok')
+            : null);
 
-        if (linkDrag.hot && linkDrag.hot !== target) linkDrag.hot.classList.remove('sock-hot');
-        linkDrag.hot = target;
-        linkDrag.snapPt = target ? (target.classList.add('sock-hot'), sockXY(target)) : null;
+    if (linkDrag.hot && linkDrag.hot !== target) linkDrag.hot.classList.remove('sock-hot');
+    linkDrag.hot = target;
+    linkDrag.snapPt = target ? (target.classList.add('sock-hot'), sockXY(target)) : null;
 
-        renderWires();
-    });
+    renderWires();
+}
 
-    window.addEventListener('mouseup', ev => {
-        if (!linkDrag) return;
-        const d = linkDrag;
-        let t = null;
-
-        if (ev.target?.closest) {
-            const cand = ev.target.closest(d.dir === 'out' ? '[data-drop]' : '[data-link]');
-            if (cand && cand !== d.from) {
-                const want = d.dir === 'out' ? LINK_WANT[d.kind] : LINK_REV[d.kind];
-                const key = d.dir === 'out' ? cand.dataset.drop : (cand.dataset.link || '').split(':')[0];
-                if (key === want && !(d.dir === 'out' && want === 'pos' && !belt.positions[Number(cand.dataset.idx)]?.inspection)) {
-                    t = cand;
-                }
+/** Определение целевого сокета для завершения связи */
+function resolveLinkTarget(ev, d) {
+    if (ev.target?.closest) {
+        const cand = ev.target.closest(d.dir === 'out' ? '[data-drop]' : '[data-link]');
+        if (cand && cand !== d.from) {
+            const want = d.dir === 'out' ? LINK_WANT[d.kind] : LINK_REV[d.kind];
+            const key = d.dir === 'out' ? cand.dataset.drop : (cand.dataset.link || '').split(':')[0];
+            if (key === want && !(d.dir === 'out' && want === 'pos' && !belt.positions[Number(cand.dataset.idx)]?.inspection)) {
+                return cand;
             }
         }
-        if (!t) t = d.hot;
+    }
+    return d.hot;
+}
 
-        markTargets(false);
-        if (d.hot) d.hot.classList.remove('sock-hot');
-        document.body.classList.remove('linking');
-        linkDrag = null;
+/** Завершение протягивания связи (отпускание ЛКМ) */
+function finishLinkDrag(ev) {
+    if (!linkDrag) return;
+    const d = linkDrag;
+    const t = resolveLinkTarget(ev, d);
 
-        if (t) {
-            if (d.dir === 'out') commitLink(d, t);
-            else commitLink({ kind: (t.dataset.link || '').split(':')[0], id: (t.dataset.link || '').split(':')[1] }, d.from);
-        } else {
-            render();
-        }
-    });
+    markTargets(false);
+    if (d.hot) d.hot.classList.remove('sock-hot');
+    document.body.classList.remove('linking');
+    linkDrag = null;
 
-    document.addEventListener('keydown', ev => {
-        if (ev.key === 'Escape' && linkDrag) {
-            markTargets(false);
-            if (linkDrag.hot) linkDrag.hot.classList.remove('sock-hot');
-            document.body.classList.remove('linking');
-            linkDrag = null;
-            render();
-        }
-    });
+    if (t) {
+        if (d.dir === 'out') commitLink(d, t);
+        else commitLink({ kind: (t.dataset.link || '').split(':')[0], id: (t.dataset.link || '').split(':')[1] }, d.from);
+    } else {
+        render();
+    }
+}
+
+/** Отмена протягивания связи (Escape) */
+function cancelLinkDrag() {
+    if (!linkDrag) return;
+    markTargets(false);
+    if (linkDrag.hot) linkDrag.hot.classList.remove('sock-hot');
+    document.body.classList.remove('linking');
+    linkDrag = null;
+    render();
+}
+
+/** Инициализация обработчиков связывания сокетов */
+function wireLinkEngine() {
+    document.addEventListener('mousedown', startLinkDrag);
+    window.addEventListener('mousemove', moveLinkDrag);
+    window.addEventListener('mouseup', finishLinkDrag);
+    document.addEventListener('keydown', ev => { if (ev.key === 'Escape') cancelLinkDrag(); });
 
     ['resize', 'scroll', 'transitionend'].forEach(e =>
         (e === 'scroll' ? document : window).addEventListener(e, scheduleWires, true)
@@ -1382,23 +1419,9 @@ function wireLinkEngine() {
  */
 
 
-/**
- * Подготовка нативного полупрозрачного превью перетаскиваемого объекта
- * @param {DragEvent} ev
- * @param {string} kind
- * @param {string|null} id
- */
-function setupDragImage(ev, kind, id) {
-    if (!ev?.dataTransfer?.setDragImage) return;
-
-    let ghost = $('drag-ghost-native') || el('div', 'drag-ghost-native');
-    ghost.id = 'drag-ghost-native';
-    if (!ghost.parentNode) document.body.appendChild(ghost);
-    ghost.textContent = '';
-
-    let preview = null;
-    let ox = 64;
-    let oy = 18;
+/** Построение превью перетаскиваемого объекта */
+function buildGhostPreview(kind, id) {
+    let preview = null, ox = 64, oy = 18;
 
     if (kind === 'position') {
         const i = belt.positions.length;
@@ -1438,6 +1461,24 @@ function setupDragImage(ev, kind, id) {
         ox = 74;
     }
 
+    return { preview, ox, oy };
+}
+
+/**
+ * Подготовка нативного полупрозрачного превью перетаскиваемого объекта
+ * @param {DragEvent} ev
+ * @param {string} kind
+ * @param {string|null} id
+ */
+function setupDragImage(ev, kind, id) {
+    if (!ev?.dataTransfer?.setDragImage) return;
+
+    let ghost = $('drag-ghost-native') || el('div', 'drag-ghost-native');
+    ghost.id = 'drag-ghost-native';
+    if (!ghost.parentNode) document.body.appendChild(ghost);
+    ghost.textContent = '';
+
+    const { preview, ox, oy } = buildGhostPreview(kind, id);
     if (preview) {
         ghost.appendChild(preview);
         try {
@@ -1518,85 +1559,87 @@ function wirePalette() {
     });
 }
 
+/** Обработка наведения при перетаскивании на холст */
+function handleBeltDragOver(ev) {
+    if (!dragKind) return;
+    ev.preventDefault();
+
+    document.querySelectorAll('.drop-target, .collision-warning').forEach(n =>
+        n.classList.remove('drop-target', 'collision-warning')
+    );
+
+    if (['model-part', 'rule', 'position', 'camera'].includes(dragKind)) {
+        const key = dragKind === 'position' ? 'pos' : (dragKind === 'model-part' ? 'model' : (dragKind === 'rule' ? 'rule' : 'cam'));
+        const dims = getNodeDimensions(key);
+        const pt = canvasPoint(ev, dims.w, dims.h);
+        const coll = hasCollision(pt.x, pt.y, dims.w, dims.h, null, 4);
+
+        ev.dataTransfer.dropEffect = coll ? 'none' : 'copy';
+        if (coll) ev.target?.closest?.('.gnode')?.classList.add('collision-warning');
+    } else {
+        const idx = cardFromEvent(ev);
+        if (idx >= 0 && acceptsAt(dragKind, idx)) {
+            $('belt-zone')?.querySelector(`.pos-card[data-index="${idx}"]`)?.classList.add('drop-target');
+            ev.dataTransfer.dropEffect = 'copy';
+        } else {
+            ev.dataTransfer.dropEffect = 'none';
+        }
+    }
+}
+
+/** Обработка броска элемента на холст */
+function handleBeltDrop(ev) {
+    removeCanvasGhost();
+    if (!dragKind) return;
+    ev.preventDefault();
+
+    const kind = dragKind;
+    const cardIdx = cardFromEvent(ev);
+    cleanVisuals();
+    dragKind = null;
+    dragFrom = -1;
+
+    if (kind === 'position') {
+        if (cardIdx >= 0) return toast('Наложение блоков запрещено.', 'err');
+        return insertPosition(canvasPoint(ev, 176, 100));
+    }
+
+    if (['model-part', 'rule', 'camera'].includes(kind)) {
+        if (cardIdx >= 0) {
+            toast('Наложение блоков запрещено.', 'err');
+            dragAsset = dragCamId = null;
+            return;
+        }
+        const id = kind === 'camera' ? (dragCamId || dragAsset) : dragAsset;
+        if (id) {
+            placeNode((kind === 'model-part' ? 'model:' : (kind === 'rule' ? 'rule:' : 'cam:')) + id, ev);
+        }
+        dragAsset = dragCamId = null;
+        return;
+    }
+
+    if (!belt.positions.length) return toast('Нет ни одной позиции.', 'err');
+    if (cardIdx < 0) return toast('Не на позицию.', 'err');
+    if (kind === 'inspect') return toggleInspection(cardIdx);
+    if (kind === 'reset') return toggleReset(cardIdx);
+}
+
 /**
  * Подключение событий холста для приема бросков элементов
  */
 function wireBelt() {
     const zone = $('belt-zone');
+    if (!zone) return;
 
-    zone.ondragenter = ev => {
-        if (dragKind) ev.preventDefault();
-    };
-
-    zone.ondragover = ev => {
-        if (!dragKind) return;
-        ev.preventDefault();
-
-        document.querySelectorAll('.drop-target, .collision-warning').forEach(n =>
-            n.classList.remove('drop-target', 'collision-warning')
-        );
-
-        if (['model-part', 'rule', 'position', 'camera'].includes(dragKind)) {
-            const key = dragKind === 'position' ? 'pos' : (dragKind === 'model-part' ? 'model' : (dragKind === 'rule' ? 'rule' : 'cam'));
-            const dims = getNodeDimensions(key);
-            const pt = canvasPoint(ev, dims.w, dims.h);
-            const coll = hasCollision(pt.x, pt.y, dims.w, dims.h, null, 4);
-
-            ev.dataTransfer.dropEffect = coll ? 'none' : 'copy';
-            if (coll) ev.target?.closest?.('.gnode')?.classList.add('collision-warning');
-        } else {
-            const idx = cardFromEvent(ev);
-            if (idx >= 0 && acceptsAt(dragKind, idx)) {
-                zone.querySelector(`.pos-card[data-index="${idx}"]`)?.classList.add('drop-target');
-                ev.dataTransfer.dropEffect = 'copy';
-            } else {
-                ev.dataTransfer.dropEffect = 'none';
-            }
-        }
-    };
-
+    zone.ondragenter = ev => { if (dragKind) ev.preventDefault(); };
+    zone.ondragover = handleBeltDragOver;
     zone.ondragleave = ev => {
         if (ev.relatedTarget && zone.contains(ev.relatedTarget)) return;
         document.querySelectorAll('.pos-card.drop-target, .collision-warning').forEach(n =>
             n.classList.remove('drop-target', 'collision-warning')
         );
     };
-
-    zone.ondrop = ev => {
-        removeCanvasGhost();
-        if (!dragKind) return;
-        ev.preventDefault();
-
-        const kind = dragKind;
-        const cardIdx = cardFromEvent(ev);
-        cleanVisuals();
-        dragKind = null;
-        dragFrom = -1;
-
-        if (kind === 'position') {
-            if (cardIdx >= 0) return toast('Наложение блоков запрещено.', 'err');
-            return insertPosition(canvasPoint(ev, 176, 100));
-        }
-
-        if (['model-part', 'rule', 'camera'].includes(kind)) {
-            if (cardIdx >= 0) {
-                toast('Наложение блоков запрещено.', 'err');
-                dragAsset = dragCamId = null;
-                return;
-            }
-            const id = kind === 'camera' ? (dragCamId || dragAsset) : dragAsset;
-            if (id) {
-                placeNode((kind === 'model-part' ? 'model:' : (kind === 'rule' ? 'rule:' : 'cam:')) + id, ev);
-            }
-            dragAsset = dragCamId = null;
-            return;
-        }
-
-        if (!belt.positions.length) return toast('Нет ни одной позиции.', 'err');
-        if (cardIdx < 0) return toast('Не на позицию.', 'err');
-        if (kind === 'inspect') return toggleInspection(cardIdx);
-        if (kind === 'reset') return toggleReset(cardIdx);
-    };
+    zone.ondrop = handleBeltDrop;
 
     $('belt-row')?.addEventListener('click', ev => {
         if (ev.target.closest('.chip')) return;
@@ -1635,87 +1678,94 @@ function nodeAt(node) {
     return belt.places[key] || null;
 }
 
+/** Захват ноды за шапку для перемещения */
+function startNodeDrag(ev) {
+    if (ev.button !== 0 || linkDrag) return;
+    const head = ev.target.closest?.('.gnode .node-head');
+    if (!head || ev.target.closest('button, .sock')) return;
+
+    const node = head.closest('.gnode');
+    const p = nodeAt(node);
+    if (!p) return;
+
+    const key = node.dataset.gk || '';
+    const dims = getNodeDimensions(key, node);
+
+    movingG = {
+        node,
+        key,
+        dims,
+        at: p,
+        x0: ev.clientX,
+        y0: ev.clientY,
+        px: p.x,
+        py: p.y,
+        hasCollided: false
+    };
+
+    ev.preventDefault();
+    node.classList.add('node-dragging');
+    node.parentNode?.appendChild(node);
+    document.body.classList.add('node-moving');
+}
+
+/** Перемещение ноды по холсту курсором */
+function moveNodeDrag(ev) {
+    if (!movingG) return;
+
+    const z = window.BeltView?.state().z || 1;
+    const row = $('belt-row');
+    const tall = movingG.node.classList.contains('g-pos');
+    const maxW = Math.max(row?.offsetWidth || 0, CANVAS_W);
+    const maxH = Math.max(row?.offsetHeight || 0, CANVAS_H);
+
+    const x = clampN(movingG.px + (ev.clientX - movingG.x0) / z, 2, Math.max(2, maxW - (tall ? 180 : 110)));
+    const y = clampN(movingG.py + (ev.clientY - movingG.y0) / z, 2, Math.max(2, maxH - (tall ? 124 : 30)));
+
+    movingG.at.x = x;
+    movingG.at.y = y;
+    movingG.node.style.left = Math.round(x) + 'px';
+    movingG.node.style.top = Math.round(y) + 'px';
+
+    const coll = hasCollision(x, y, movingG.dims.w, movingG.dims.h, movingG.key, 4);
+    movingG.hasCollided = coll;
+    movingG.node.classList.toggle('collision-warning', coll);
+
+    renderWires();
+}
+
+/** Завершение перемещения ноды с откатом при коллизии */
+function finishNodeDrag() {
+    if (!movingG) return;
+    const target = movingG;
+    movingG = null;
+
+    document.body.classList.remove('node-moving');
+    target.node.classList.remove('node-dragging', 'collision-warning');
+
+    if (target.hasCollided) {
+        target.at.x = target.px;
+        target.at.y = target.py;
+        toast('Наложение блоков запрещено.', 'err');
+        render();
+
+        const reNode = $('belt-row')?.querySelector('.gnode[data-gk="' + target.key + '"]');
+        if (reNode) {
+            reNode.classList.add('collision-shake');
+            setTimeout(() => reNode.classList.remove('collision-shake'), 350);
+        }
+    } else {
+        render();
+    }
+}
+
 /**
  * Свободное перемещение нод по холсту за шапку с откатом при коллизиях
  */
 function dragGNodes() {
-    document.addEventListener('mousedown', ev => {
-        if (ev.button !== 0 || linkDrag) return;
-        const head = ev.target.closest?.('.gnode .node-head');
-        if (!head || ev.target.closest('button, .sock')) return;
-
-        const node = head.closest('.gnode');
-        const p = nodeAt(node);
-        if (!p) return;
-
-        const key = node.dataset.gk || '';
-        const dims = getNodeDimensions(key, node);
-
-        movingG = {
-            node,
-            key,
-            dims,
-            at: p,
-            x0: ev.clientX,
-            y0: ev.clientY,
-            px: p.x,
-            py: p.y,
-            hasCollided: false
-        };
-
-        ev.preventDefault();
-        node.classList.add('node-dragging');
-        node.parentNode?.appendChild(node);
-        document.body.classList.add('node-moving');
-    });
-
-    window.addEventListener('mousemove', ev => {
-        if (!movingG) return;
-
-        const z = window.BeltView?.state().z || 1;
-        const row = $('belt-row');
-        const tall = movingG.node.classList.contains('g-pos');
-        const maxW = Math.max(row?.offsetWidth || 0, CANVAS_W);
-        const maxH = Math.max(row?.offsetHeight || 0, CANVAS_H);
-
-        const x = clampN(movingG.px + (ev.clientX - movingG.x0) / z, 2, Math.max(2, maxW - (tall ? 180 : 110)));
-        const y = clampN(movingG.py + (ev.clientY - movingG.y0) / z, 2, Math.max(2, maxH - (tall ? 124 : 30)));
-
-        movingG.at.x = x;
-        movingG.at.y = y;
-        movingG.node.style.left = Math.round(x) + 'px';
-        movingG.node.style.top = Math.round(y) + 'px';
-
-        const coll = hasCollision(x, y, movingG.dims.w, movingG.dims.h, movingG.key, 4);
-        movingG.hasCollided = coll;
-        movingG.node.classList.toggle('collision-warning', coll);
-
-        renderWires();
-    });
-
-    window.addEventListener('mouseup', () => {
-        if (!movingG) return;
-        const target = movingG;
-        movingG = null;
-
-        document.body.classList.remove('node-moving');
-        target.node.classList.remove('node-dragging', 'collision-warning');
-
-        if (target.hasCollided) {
-            target.at.x = target.px;
-            target.at.y = target.py;
-            toast('Наложение блоков запрещено.', 'err');
-            render();
-
-            const reNode = $('belt-row')?.querySelector('.gnode[data-gk="' + target.key + '"]');
-            if (reNode) {
-                reNode.classList.add('collision-shake');
-                setTimeout(() => reNode.classList.remove('collision-shake'), 350);
-            }
-        } else {
-            render();
-        }
-    });
+    document.addEventListener('mousedown', startNodeDrag);
+    window.addEventListener('mousemove', moveNodeDrag);
+    window.addEventListener('mouseup', finishNodeDrag);
 }
 
 
@@ -1774,58 +1824,8 @@ function wireSearch() {
 /**
  * Правая боковая стенка в стиле Photoshop (вкладки правил и моделей, сворачивание)
  */
-function wireSideDock() {
-    const dock = $('side-dock');
-    if (!dock) return;
-
-    const KEY_COL = 'belt_side_dock_collapsed';
-    const KEY_TAB = 'belt_side_dock_tab';
-    let currentTab = 'rules';
-
-    /** Переключение активной вкладки */
-    function setTab(tab, save) {
-        currentTab = tab === 'models' ? 'models' : 'rules';
-        dock.classList.toggle('show-rules', currentTab === 'rules');
-        dock.classList.toggle('show-models', currentTab === 'models');
-
-        ['rules', 'models'].forEach(t => {
-            const active = currentTab === t;
-            const btn = $(`tab-btn-${t}`);
-            btn?.classList.toggle('active', active);
-            btn?.setAttribute('aria-selected', active ? 'true' : 'false');
-            dock.querySelector(`.side-dock-tab[data-panel="${t}"]`)?.classList.toggle('active', active);
-        });
-
-        if (save) {
-            try { localStorage.setItem(KEY_TAB, currentTab); } catch (e) {}
-        }
-        renderWires();
-    }
-
-    /** Сворачивание / разворачивание боковой панели */
-    function setCollapsed(col, save) {
-        dock.classList.toggle('collapsed', col);
-        if (save) {
-            try { localStorage.setItem(KEY_COL, col ? '1' : '0'); } catch (e) {}
-        }
-        window.dispatchEvent(new Event('resize'));
-        renderWires();
-        (window.requestAnimationFrame || (f => f()))(() => {
-            renderWires();
-            setTimeout(renderWires, 40);
-        });
-    }
-
-    try {
-        if (localStorage.getItem(KEY_COL) === '1') setCollapsed(true, false);
-    } catch (e) {}
-
-    try {
-        setTab(localStorage.getItem(KEY_TAB) === 'models' ? 'models' : 'rules', false);
-    } catch (e) {
-        setTab('rules', false);
-    }
-
+/** Навешивание обработчиков событий элементов боковой панели */
+function bindDockListeners(dock, setTab, setCollapsed) {
     $('tab-btn-rules')?.addEventListener('click', e => {
         e.stopPropagation();
         setTab('rules', true);
@@ -1865,7 +1865,62 @@ function wireSideDock() {
             setCollapsed(false, true);
         }
     });
+}
 
+/**
+ * Правая боковая стенка в стиле Photoshop (вкладки правил и моделей, сворачивание)
+ */
+function wireSideDock() {
+    const dock = $('side-dock');
+    if (!dock) return;
+
+    const KEY_COL = 'belt_side_dock_collapsed';
+    const KEY_TAB = 'belt_side_dock_tab';
+    let currentTab = 'rules';
+
+    function setTab(tab, save) {
+        currentTab = tab === 'models' ? 'models' : 'rules';
+        dock.classList.toggle('show-rules', currentTab === 'rules');
+        dock.classList.toggle('show-models', currentTab === 'models');
+
+        ['rules', 'models'].forEach(t => {
+            const active = currentTab === t;
+            const btn = $(`tab-btn-${t}`);
+            btn?.classList.toggle('active', active);
+            btn?.setAttribute('aria-selected', active ? 'true' : 'false');
+            dock.querySelector(`.side-dock-tab[data-panel="${t}"]`)?.classList.toggle('active', active);
+        });
+
+        if (save) {
+            try { localStorage.setItem(KEY_TAB, currentTab); } catch (e) {}
+        }
+        renderWires();
+    }
+
+    function setCollapsed(col, save) {
+        dock.classList.toggle('collapsed', col);
+        if (save) {
+            try { localStorage.setItem(KEY_COL, col ? '1' : '0'); } catch (e) {}
+        }
+        window.dispatchEvent(new Event('resize'));
+        renderWires();
+        (window.requestAnimationFrame || (f => f()))(() => {
+            renderWires();
+            setTimeout(renderWires, 40);
+        });
+    }
+
+    try {
+        if (localStorage.getItem(KEY_COL) === '1') setCollapsed(true, false);
+    } catch (e) {}
+
+    try {
+        setTab(localStorage.getItem(KEY_TAB) === 'models' ? 'models' : 'rules', false);
+    } catch (e) {
+        setTab('rules', false);
+    }
+
+    bindDockListeners(dock, setTab, setCollapsed);
     window.SideDock = { setTab, setCollapsed, currentTab: () => currentTab };
 }
 
@@ -1909,58 +1964,60 @@ function addRuleFromFile(fileName, path) {
 }
 
 /**
+ * Настройка инпута выбора локальной папки и импорта файлов
+ */
+function bindFolderPicker(pathId, btnId, fileId, key, title, defFolder, unit, filter, add) {
+    const pathInp = $(pathId);
+    const fileInp = $(fileId);
+
+    try {
+        const s = localStorage.getItem(key);
+        if (s && pathInp) pathInp.value = s;
+    } catch (e) {}
+
+    $(btnId)?.addEventListener('click', e => {
+        e.stopPropagation();
+        fileInp?.click();
+    });
+
+    fileInp?.addEventListener('change', function () {
+        if (!this.files?.length) return;
+        let folder = '';
+        let count = 0;
+
+        Array.from(this.files).forEach(f => {
+            const rel = f.webkitRelativePath || f.name;
+            if (!folder && rel.includes('/')) folder = rel.split('/')[0];
+            if (filter(f.name.toLowerCase(), rel) && add(f.name, rel)) count++;
+        });
+
+        folder = folder || defFolder;
+        if (pathInp) {
+            pathInp.value = folder + '/';
+            try { localStorage.setItem(key, folder + '/'); } catch (e) {}
+        }
+
+        toast(`${title}: ${folder}${count ? ` (+ ${count} ${unit})` : ''}`);
+        render();
+        this.value = '';
+    });
+
+    pathInp?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            const val = pathInp.value.trim();
+            if (val) {
+                try { localStorage.setItem(key, val); } catch (e) {}
+                toast(`${title}: ${val}`);
+            }
+        }
+    });
+}
+
+/**
  * Настройка полей выбора локальных директорий правил и моделей
  */
 function wireFolderPickers() {
-    const setup = (pathId, btnId, fileId, key, title, defFolder, unit, filter, add) => {
-        const pathInp = $(pathId);
-        const fileInp = $(fileId);
-
-        try {
-            const s = localStorage.getItem(key);
-            if (s && pathInp) pathInp.value = s;
-        } catch (e) {}
-
-        $(btnId)?.addEventListener('click', e => {
-            e.stopPropagation();
-            fileInp?.click();
-        });
-
-        fileInp?.addEventListener('change', function () {
-            if (!this.files?.length) return;
-            let folder = '';
-            let count = 0;
-
-            Array.from(this.files).forEach(f => {
-                const rel = f.webkitRelativePath || f.name;
-                if (!folder && rel.includes('/')) folder = rel.split('/')[0];
-                if (filter(f.name.toLowerCase(), rel) && add(f.name, rel)) count++;
-            });
-
-            folder = folder || defFolder;
-            if (pathInp) {
-                pathInp.value = folder + '/';
-                try { localStorage.setItem(key, folder + '/'); } catch (e) {}
-            }
-
-            toast(`${title}: ${folder}${count ? ` (+ ${count} ${unit})` : ''}`);
-            render();
-            this.value = '';
-        });
-
-        pathInp?.addEventListener('keydown', e => {
-            if (e.key === 'Enter') {
-                const val = pathInp.value.trim();
-                if (val) {
-                    try { localStorage.setItem(key, val); } catch (e) {}
-                    toast(`${title}: ${val}`);
-                }
-            }
-        });
-    };
-
-    // Каталог скриптов правил
-    setup(
+    bindFolderPicker(
         'rule-folder-path',
         'btn-rule-folder',
         'rule-folder-input',
@@ -1972,8 +2029,7 @@ function wireFolderPickers() {
         addRuleFromFile
     );
 
-    // Каталог весов моделей
-    setup(
+    bindFolderPicker(
         'model-folder-path',
         'btn-model-folder',
         'model-folder-input',
