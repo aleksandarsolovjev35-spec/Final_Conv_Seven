@@ -19,43 +19,28 @@
 
 const MAX_POSITIONS = 64;
 const CAM_NAME_MAX = 24;
+const THR_DEFAULT = 0.5;
+const CANVAS_W = 5000, CANVAS_H = 3000;
 
-/* Симуляция обнаружения: список устройств, который сообщает слой
- * захвата (video0..video7). id — стабильный ключ привязки, name —
- * роль-метка (переименовывается), dev — путь устройства. */
-/* Симулированные каталоги (имена — из vision/model_config.py и
- * thresholds.json, укорочены). Присоединяются перетаскиванием
- * плитки на фишку камеры; повторное — снимает. Привязка к прибору. */
-let ruleQuery = '';
-let modelQuery = '';
+let ruleQuery = '', modelQuery = '';
+let nextModelId = 12, nextRuleId = 4;
+let uidSeq = 0, dragKind = null, dragFrom = -1, dragCamId = null, dragAsset = null, openThrCam = null, movingG = null;
 
 const MODELS = [
-    { id: 'm0', name: 'uneven-heights' },
-    { id: 'm1', name: 'window-sinks' },
-    { id: 'm2', name: 'omission-long' },
-    { id: 'm3', name: 'contacts-long' },
-    { id: 'm4', name: 'bracket-90' },
-    { id: 'm5', name: 'flange-low' },
-    { id: 'm6', name: 'gear-set' },
-    { id: 'm7', name: 'hinge-side' },
-    { id: 'm8', name: 'plate-thin' },
-    { id: 'm9', name: 'roller-mid' },
-    { id: 'm10', name: 'shaft-long' },
-    { id: 'm11', name: 'yoke-drop' },
-];
-const RULES = [
-    { id: 'r0', name: 'геометрия', color: '#d9a441',
-      thr: ['площадь', 'перекос', 'высота'], models: [] },
-    { id: 'r1', name: 'наличие', color: '#58b79a',
-      thr: ['контраст'], models: [] },
-    { id: 'r2', name: 'пропуск', color: '#cf7aa6',
-      thr: ['окно'], models: [] },
-    { id: 'r3', name: 'контакты', color: '#a58ad9',
-      thr: ['нажим', 'смещение'], models: [] },
+    { id: 'm0', name: 'uneven-heights' }, { id: 'm1', name: 'window-sinks' },
+    { id: 'm2', name: 'omission-long' }, { id: 'm3', name: 'contacts-long' },
+    { id: 'm4', name: 'bracket-90' }, { id: 'm5', name: 'flange-low' },
+    { id: 'm6', name: 'gear-set' }, { id: 'm7', name: 'hinge-side' },
+    { id: 'm8', name: 'plate-thin' }, { id: 'm9', name: 'roller-mid' },
+    { id: 'm10', name: 'shaft-long' }, { id: 'm11', name: 'yoke-drop' }
 ];
 
-let nextModelId = 12;
-let nextRuleId = 4;
+const RULES = [
+    { id: 'r0', name: 'геометрия', color: '#d9a441', thr: ['площадь', 'перекос', 'высота'], models: [] },
+    { id: 'r1', name: 'наличие', color: '#58b79a', thr: ['контраст'], models: [] },
+    { id: 'r2', name: 'пропуск', color: '#cf7aa6', thr: ['окно'], models: [] },
+    { id: 'r3', name: 'контакты', color: '#a58ad9', thr: ['нажим', 'смещение'], models: [] }
+];
 
 const RULE_COLORS = [
     '#4fa3d1', '#d9a441', '#58b79a', '#cf7aa6', '#a58ad9',
@@ -63,86 +48,60 @@ const RULE_COLORS = [
     '#56b6c2', '#e5c07b', '#e27d60', '#85dcba', '#e8a87c'
 ];
 
-function ruleColor(id) {
-    const r = RULES.find(x => x.id === id);
-    return r ? r.color : 'var(--text-dim)';
-}
-
-const inventory = [];
-(function discover() {
-    for (let i = 0; i < 8; i += 1) {
-        inventory.push({
-            id: 'cam' + i, name: 'CAM_' + (i + 1), dev: 'video' + i,
-            rules: [],
-        });
-    }
-})();
+const inventory = Array.from({ length: 8 }, (_, i) => ({
+    id: 'cam' + i, name: 'CAM_' + (i + 1), dev: 'video' + i, rules: []
+}));
 
 const invCam = id => inventory.find(c => c.id === id) || null;
 const camName = id => (invCam(id) || {}).name || id;
-
-/* positions: [{label, inspection: null|{cameras:[], primary:bool}, reset}]
- * — форма совпадает с belt.path.v1, чтобы лента позже ушла в runtime
- * без переработки модели. */
+const ruleColor = id => RULES.find(x => x.id === id)?.color || 'var(--text-dim)';
 const belt = { positions: [], places: Object.create(null) };
+const $ = id => document.getElementById(id);
 
-let uidSeq = 0;       // сквозной id позиций для связей цепи
-let dragKind = null;    // что сейчас тащим
-let dragFrom = -1;      // индекс карточки при переносе
-let dragCamId = null;   // id камеры при переносе из стены
-let dragAsset = null;   // id модели/правила при переносе из каталога
-let openThrCam = null;  // id камеры, у которой открыт поповер порогов
-const THR_DEFAULT = 0.5;
-
+function toast(text, kind) {
+    const box = $('toasts');
+    if (!box) return;
+    const t = el('div', 'toast' + (kind ? ' toast-' + kind : ''), text);
+    box.appendChild(t);
+    setTimeout(() => {
+        t.classList.add('toast-out');
+        setTimeout(() => t.parentNode && t.parentNode.removeChild(t), 300);
+    }, 2800);
+}
 
 /* ─── Инварианты ─────────────────────────────────────────────────── */
-
 function applyInvariants() {
     let resetKept = false;
-    belt.positions.forEach(function (pos, i) {
-        if (pos.uid == null) { pos.uid = ++uidSeq; }
-        if (pos.reset && pos.nextUid) { pos.nextUid = null; }
+    belt.positions.forEach((pos, i) => {
+        if (pos.uid == null) pos.uid = ++uidSeq;
+        if (pos.reset && pos.nextUid) pos.nextUid = null;
         if (pos.reset) {
-            if (resetKept) { pos.reset = false; }
+            if (resetKept) pos.reset = false;
             resetKept = true;
         }
         if (i === 0) {
-            if (!pos.inspection) { pos.inspection = { cameras: [], primary: true }; }
-            else { pos.inspection.primary = true; }
+            if (!pos.inspection) pos.inspection = { cameras: [], primary: true };
+            else pos.inspection.primary = true;
         } else if (pos.inspection) {
             pos.inspection.primary = false;
         }
-        /* инспекция и сброс на одной позиции невозможны; вход
-         * неснимаем, поэтому при конфликте всегда проигрывает сброс */
-        if (pos.reset && pos.inspection) { pos.reset = false; }
+        if (pos.reset && pos.inspection) pos.reset = false;
     });
 }
 
 /* ─── Геометрия холста и предотвращение наложения блоков ─────────── */
+const clampN = (v, lo, hi) => v < lo ? lo : (v > hi ? hi : v);
 
-function clampN(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
-
-const CANVAS_W = 5000;
-const CANVAS_H = 3000;
-
-/* запасная точка для позиции без координат (старое сохранение):
- * ступенькой от центра поля; поле — свободное 2D */
 function layoutSlot(i) {
-    const row = $('belt-row');
-    const maxW = Math.max(row ? (row.offsetWidth || 0) : 0, CANVAS_W);
-    const maxH = Math.max(row ? (row.offsetHeight || 0) : 0, CANVAS_H);
-    const cx = Math.round(maxW / 2);
-    const cy = Math.round(maxH / 2);
+    const row = $('belt-row'), maxW = Math.max(row?.offsetWidth || 0, CANVAS_W), maxH = Math.max(row?.offsetHeight || 0, CANVAS_H);
     return {
-        x: clampN(cx - 260 + i * 206, 2, maxW - 190),
-        y: clampN(cy - 60 + (i % 3) * 40, 2, maxH - 124)
+        x: clampN(Math.round(maxW / 2) - 260 + i * 206, 2, maxW - 190),
+        y: clampN(Math.round(maxH / 2) - 60 + (i % 3) * 40, 2, maxH - 124)
     };
 }
 
 function getNodeDimensions(keyOrType, domNode) {
-    if (domNode && domNode.offsetWidth && domNode.offsetHeight) {
-        return { w: domNode.offsetWidth, h: domNode.offsetHeight };
-    }
+    if (domNode?.offsetWidth && domNode?.offsetHeight) return { w: domNode.offsetWidth, h: domNode.offsetHeight };
     const k = String(keyOrType || '');
     if (k.startsWith('pos') || k === 'position') return { w: 176, h: 96 };
     if (k.startsWith('cam')) return { w: 148, h: 54 };
@@ -152,107 +111,63 @@ function getNodeDimensions(keyOrType, domNode) {
 }
 
 function getCanvasBoxes(excludeKey) {
-    const boxes = [];
-    const row = $('belt-row');
-
+    const boxes = [], row = $('belt-row');
     belt.positions.forEach((pos, i) => {
         const key = 'pos:' + i;
         if (key === excludeKey) return;
-        const at = pos.at || layoutSlot(i);
-        const dom = row ? row.querySelector('.pos-card[data-index="' + i + '"]') : null;
+        const at = pos.at || layoutSlot(i), dom = row?.querySelector(`.pos-card[data-index="${i}"]`);
         const dims = getNodeDimensions('pos', dom);
         boxes.push({ key, x: at.x, y: at.y, w: dims.w, h: dims.h });
     });
-
     Object.keys(belt.places).forEach(key => {
         if (key === excludeKey || !belt.places[key]) return;
-        const at = belt.places[key];
-        const dom = row ? row.querySelector('.gnode[data-gk="' + key + '"]') : null;
+        const at = belt.places[key], dom = row?.querySelector(`.gnode[data-gk="${key}"]`);
         const dims = getNodeDimensions(key, dom);
         boxes.push({ key, x: at.x, y: at.y, w: dims.w, h: dims.h });
     });
-
     return boxes;
 }
 
-function hasCollision(x, y, w, h, excludeKey, gap = 4) {
-    return getCanvasBoxes(excludeKey).some(b =>
-        x < b.x + b.w + gap && x + w + gap > b.x &&
-        y < b.y + b.h + gap && y + h + gap > b.y
-    );
-}
+const hasCollision = (x, y, w, h, excludeKey, gap = 4) =>
+    getCanvasBoxes(excludeKey).some(b => x < b.x + b.w + gap && x + w + gap > b.x && y < b.y + b.h + gap && y + h + gap > b.y);
 
 /* ─── Действия ───────────────────────────────────────────────────── */
-
-/* Позиции ставятся буквально куда бросил; порядок ленты задают
- * линки коннекторов (П0→…→сброс), а не место в ряду */
 function insertPosition(at) {
-    if (belt.positions.length >= MAX_POSITIONS) {
-        toast('Максимум ' + MAX_POSITIONS + ' позиций на ленте.', 'err');
-        return false;
-    }
+    if (belt.positions.length >= MAX_POSITIONS) return toast(`Максимум ${MAX_POSITIONS} позиций на ленте.`, 'err'), false;
     const targetAt = at || layoutSlot(belt.positions.length);
     const dims = getNodeDimensions('pos');
-    if (at && hasCollision(targetAt.x, targetAt.y, dims.w, dims.h, null, 4)) {
-        toast('Наложение блоков запрещено.', 'err');
-        return false;
-    }
-    const wasEmpty = belt.positions.length === 0;
-    belt.positions.push({
-        label: '', inspection: null, reset: false,
-        uid: ++uidSeq, nextUid: null,
-        at: targetAt,
-    });
+    if (at && hasCollision(targetAt.x, targetAt.y, dims.w, dims.h, null, 4)) return toast('Наложение блоков запрещено.', 'err'), false;
+    const wasEmpty = !belt.positions.length;
+    belt.positions.push({ label: '', inspection: null, reset: false, uid: ++uidSeq, nextUid: null, at: targetAt });
     applyInvariants();
     render();
-    if (wasEmpty) {
-        toast('П0 — вход: место инспекции, определяет наличие детали.');
-    } else {
-        toast('Позиция добавлена — соедините её коннекторами.');
-    }
+    toast(wasEmpty ? 'П0 — вход: место инспекции, определяет наличие детали.' : 'Позиция добавлена — соедините её коннекторами.');
     return true;
 }
 
 function removePosition(i) {
     const gone = belt.positions[i];
-    if (gone) {
-        belt.positions.forEach(function (p) {
-            if (String(p.nextUid) === String(gone.uid)) {
-                p.nextUid = null;
-            }
-        });
-    }
+    if (gone) belt.positions.forEach(p => { if (String(p.nextUid) === String(gone.uid)) p.nextUid = null; });
     belt.positions.splice(i, 1);
-    const hadReset = belt.positions.some(function (p) {
-        return p.reset;
-    });
+    const hadReset = belt.positions.some(p => p.reset);
     applyInvariants();
-    if (hadReset && !belt.positions.some(function (p) { return p.reset; })
-        && belt.positions.length > 0) {
-        toast('Сброс снят: позиция стала входом — инспекция'
-            + ' обязательна.', 'err');
+    if (hadReset && !belt.positions.some(p => p.reset) && belt.positions.length > 0) {
+        toast('Сброс снят: позиция стала входом — инспекция обязательна.', 'err');
     }
     render();
 }
 
 function toggleInspection(i) {
     const pos = belt.positions[i];
-    if (!pos) { return; }
-    if (i === 0) {
-        toast('П0 — входное место инспекции, оно не снимается.');
-        return;
-    }
+    if (!pos) return;
+    if (i === 0) return toast('П0 — входное место инспекции, оно не снимается.');
     if (pos.inspection) {
         pos.inspection = null;
-        toast('П' + i + ': инспекция снята.');
+        toast(`П${i}: инспекция снята.`);
     } else {
-        if (pos.reset) {
-            toast('П' + i + ' — точка сброса: инспекция и сброс'
-                + ' на одной позиции невозможны.', 'err');
-            return;
-        }
+        if (pos.reset) return toast(`П${i} — точка сброса: инспекция и сброс на одной позиции невозможны.`, 'err');
         pos.inspection = { cameras: [], primary: false };
-        toast('П' + i + ' — место инспекции.');
+        toast(`П${i} — место инспекции.`);
     }
     applyInvariants();
     render();
@@ -260,31 +175,18 @@ function toggleInspection(i) {
 
 function toggleReset(i) {
     const pos = belt.positions[i];
-    if (!pos) { return; }
+    if (!pos) return;
     if (pos.reset) {
         pos.reset = false;
-        toast('П' + i + ': точка сброса снята.');
+        toast(`П${i}: точка сброса снята.`);
     } else {
-        if (pos.nextUid) {
-            toast('У П' + i + ' есть связь дальше по ленте — сначала'
-                + ' разорвите её (повторная линка снимает).', 'err');
-            return;
-        }
-        if (pos.inspection && i === 0) {
-            toast('П0 — вход, сбросом быть не может.', 'err');
-            return;
-        }
-        if (pos.inspection) {
-            toast('П' + i + ' — место инспекции: инспекция и сброс'
-                + ' на одной позиции невозможны.', 'err');
-            return;
-        }
-        belt.positions.forEach(function (p) {
-            p.reset = false;
-        });
+        if (pos.nextUid) return toast(`У П${i} есть связь дальше по ленте — сначала разорвите её (повторная линка снимает).`, 'err');
+        if (pos.inspection && i === 0) return toast('П0 — вход, сбросом быть не может.', 'err');
+        if (pos.inspection) return toast(`П${i} — место инспекции: инспекция и сброс на одной позиции невозможны.`, 'err');
+        belt.positions.forEach(p => { p.reset = false; });
         pos.nextUid = null;
         pos.reset = true;
-        toast('П' + i + ' — точка сброса');
+        toast(`П${i} — точка сброса`);
     }
     applyInvariants();
     render();
@@ -293,26 +195,21 @@ function toggleReset(i) {
 function bindCamera(i, camId) {
     const pos = belt.positions[i];
     if (!pos || !camId) return;
-    if (!pos.inspection) {
-        toast('П' + i + ' — не место инспекции: камеры ставятся только на места инспекции («Место инспекции» из палитры).');
-        return;
-    }
-    const owner = belt.positions.findIndex(p => p.inspection && p.inspection.cameras.includes(camId));
+    if (!pos.inspection) return toast(`П${i} — не место инспекции: камеры ставятся только на места инспекции («Место инспекции» из палитры).`);
+    const owner = belt.positions.findIndex(p => p.inspection?.cameras.includes(camId));
     if (owner === i) {
         pos.inspection.cameras.splice(pos.inspection.cameras.indexOf(camId), 1);
-        toast(camName(camId) + ' — снята с П' + i + '.');
+        toast(`${camName(camId)} — снята с П${i}.`);
         render();
         return;
     }
     if (owner >= 0) {
         belt.positions[owner].inspection.cameras.splice(belt.positions[owner].inspection.cameras.indexOf(camId), 1);
-        toast(camName(camId) + ': П' + owner + ' → П' + i);
+        toast(`${camName(camId)}: П${owner} → П${i}`);
     } else {
-        toast(camName(camId) + ' → П' + i);
+        toast(`${camName(camId)} → П${i}`);
     }
-    if (!belt.places['cam:' + camId]) {
-        belt.places['cam:' + camId] = freePoint();
-    }
+    if (!belt.places['cam:' + camId]) belt.places['cam:' + camId] = freePoint();
     pos.inspection.cameras.push(camId);
     applyInvariants();
     render();
@@ -320,337 +217,230 @@ function bindCamera(i, camId) {
 
 function removeCamera(i, j) {
     const pos = belt.positions[i];
-    if (!pos || !pos.inspection) return;
+    if (!pos?.inspection) return;
     const id = pos.inspection.cameras.splice(j, 1)[0];
-    toast(camName(id) + ' — снята с П' + i + '.');
+    toast(`${camName(id)} — снята с П${i}.`);
     render();
 }
 
-const camOwner = camId => belt.positions.findIndex(p => p.inspection && p.inspection.cameras.includes(camId));
+const camOwner = camId => belt.positions.findIndex(p => p.inspection?.cameras.includes(camId));
 
 function renameCamera(camId) {
-    const node = $('belt-row').querySelector(
-        '.cam-node[data-cam="' + camId + '"]');
-    const chip = node ? node.querySelector('.chip') : null;
+    const chip = $('belt-row')?.querySelector(`.cam-node[data-cam="${camId}"] .chip`);
     const cam = invCam(camId);
-    if (!chip || !cam) { return; }
-    startInlineEdit(chip, function (text) {
-        const name = String(text).trim().toUpperCase()
-            .replace(/[^A-Z0-9_]/g, '').slice(0, CAM_NAME_MAX);
-        if (!/^[A-Z][A-Z0-9_]{1,23}$/.test(name)) {
-            toast('Роль некорректна: буквы/цифры/_ , 2–24, с буквы.', 'err');
-            return;
-        }
-        const taken = inventory.some(function (other) {
-            return other !== cam && other.name === name;
-        });
-        if (taken) {
-            toast('Роль «' + name + '» уже занята.', 'err');
-            return;
-        }
+    if (!chip || !cam) return;
+    startInlineEdit(chip, text => {
+        const name = String(text).trim().toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, CAM_NAME_MAX);
+        if (!/^[A-Z][A-Z0-9_]{1,23}$/.test(name)) return toast('Роль некорректна: буквы/цифры/_ , 2–24, с буквы.', 'err');
+        if (inventory.some(other => other !== cam && other.name === name)) return toast(`Роль «${name}» уже занята.`, 'err');
         cam.name = name;
         render();
     });
 }
 
 function renamePosition(i) {
-    const card = $('belt-row').querySelector('.pos-card[data-index="' + i + '"]');
-    const label = card ? card.querySelector('.pos-label') : null;
-    if (!label) { return; }
-    startInlineEdit(label, function (text) {
-        const pos = belt.positions[i];
-        if (pos) { pos.label = String(text).trim().slice(0, 40); }
+    const label = $('belt-row')?.querySelector(`.pos-card[data-index="${i}"] .pos-label`);
+    if (!label) return;
+    startInlineEdit(label, text => {
+        if (belt.positions[i]) belt.positions[i].label = String(text).trim().slice(0, 40);
     });
 }
 
-/* contenteditable-редактирование прямо в карточке: Enter — применить,
- * Esc — отменить, потеря фокуса — применить. */
 function startInlineEdit(node, onCommit) {
     node.dataset.editing = '1';
     node.setAttribute('contenteditable', 'plaintext-only');
-    if (!node.isContentEditable) { node.setAttribute('contenteditable', 'true'); }
+    if (!node.isContentEditable) node.setAttribute('contenteditable', 'true');
     node.classList.add('editing');
     const range = document.createRange();
     range.selectNodeContents(node);
     const sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
-    const finish = function (commit) {
-        if (!node.dataset.editing) { return; }
+    const finish = commit => {
+        if (!node.dataset.editing) return;
         delete node.dataset.editing;
         node.removeAttribute('contenteditable');
         node.classList.remove('editing');
         const text = node.textContent;
         node.removeEventListener('keydown', onKey);
-        if (commit) { onCommit(text); }
+        if (commit) onCommit(text);
         render();
     };
-    const onKey = function (ev) {
+    const onKey = ev => {
         if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
         else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
     };
     node.addEventListener('keydown', onKey);
-    node.addEventListener('blur', function () { finish(true); }, { once: true });
+    node.addEventListener('blur', () => finish(true), { once: true });
 }
 
 /* ─── Рендер ─────────────────────────────────────────────────────── */
-
 function el(tag, cls, text) {
     const node = document.createElement(tag);
-    if (cls) { node.className = cls; }
-    if (text !== undefined) { node.textContent = text; }
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
     return node;
 }
 
 function render() {
     const row = $('belt-row');
+    if (!row) return;
     row.textContent = '';
-    belt.positions.forEach(function (pos, i) {
-        row.appendChild(renderCard(pos, i));
-    });
-    Object.keys(belt.places).forEach(function (key) {
-        const parts = key.split(':');
-        const at = belt.places[key];
-        if (parts[0] === 'cam') {
-            row.appendChild(renderCamNode(parts[1], at));
-        } else if (parts[0] === 'rule') {
-            row.appendChild(renderRuleNode(parts[1], at));
-        } else if (parts[0] === 'model') {
-            row.appendChild(renderModelNode(parts[1], at));
-        }
+    belt.positions.forEach((pos, i) => row.appendChild(renderCard(pos, i)));
+    Object.keys(belt.places).forEach(key => {
+        const [type, id] = key.split(':'), at = belt.places[key];
+        if (type === 'cam') row.appendChild(renderCamNode(id, at));
+        else if (type === 'rule') row.appendChild(renderRuleNode(id, at));
+        else if (type === 'model') row.appendChild(renderModelNode(id, at));
     });
 
-    $('belt-meta').textContent = 'позиций: ' + belt.positions.length +
-        ' / ' + MAX_POSITIONS;
-
-    if (window.Cameras) {
-        window.Cameras.sync(cameraViews());
-    }
+    const meta = $('belt-meta');
+    if (meta) meta.textContent = `позиций: ${belt.positions.length} / ${MAX_POSITIONS}`;
+    if (window.Cameras) window.Cameras.sync(cameraViews());
     renderAssets();
     renderWires();
-    const zn = $('belt-zone');
-    if (zn) { zn.dispatchEvent(new CustomEvent('belt:render')); }
+    $('belt-zone')?.dispatchEvent(new CustomEvent('belt:render'));
 }
 
 const ruleOnCameras = rule => inventory.filter(d => d.rules.includes(rule.id));
 
-/* модель — компонент правила: бросок на плитку правила, повторный — снять;
- * у правила «на камерах» последняя модель не снимается */
 function togglePart(ruleId, modelId) {
-    const rule = RULES.find(r => r.id === ruleId);
-    const mod = MODELS.find(m => m.id === modelId);
+    const rule = RULES.find(r => r.id === ruleId), mod = MODELS.find(m => m.id === modelId);
     if (!rule || !mod) return;
     const at = rule.models.indexOf(modelId);
     if (at >= 0) {
         if (rule.models.length === 1 && ruleOnCameras(rule).length > 0) {
-            toast('Правило «' + rule.name + '» стоит на камерах — последнюю модель не снять.', 'err');
-            return;
+            return toast(`Правило «${rule.name}» стоит на камерах — последнюю модель не снять.`, 'err');
         }
         rule.models.splice(at, 1);
-        toast('«' + mod.name + '» убрана из «' + rule.name + '».');
+        toast(`«${mod.name}» убрана из «${rule.name}».`);
     } else {
         rule.models.push(modelId);
-        toast('«' + rule.name + '» ← ' + mod.name + '.');
+        toast(`«${rule.name}» ← ${mod.name}.`);
     }
     render();
 }
 
 const findPosByUid = uid => belt.positions.find(p => String(p.uid) === String(uid)) || null;
 
-/* линка коннекторов ленты: у позиции один выход; вход приёмника
- * перетягивается на себя; повторная линка разрывает; цикл запрещён */
 function linkPos(fromUid, toUid) {
-    const from = findPosByUid(fromUid);
-    const to = findPosByUid(toUid);
+    const from = findPosByUid(fromUid), to = findPosByUid(toUid);
     if (!from || !to) return;
-    if (from === to) {
-        toast('Позиция не связывается сама с собой.', 'err');
-        return;
-    }
+    if (from === to) return toast('Позиция не связывается сама с собой.', 'err');
     if (String(from.nextUid) === String(toUid)) {
         from.nextUid = null;
         toast('Связь разорвана.');
-        render();
-        return;
+        return render();
     }
     let cur = to, guard = 0;
     while (cur && guard <= belt.positions.length) {
-        if (cur === from) {
-            toast('Лента не делает цикл.', 'err');
-            return;
-        }
+        if (cur === from) return toast('Лента не делает цикл.', 'err');
         cur = cur.nextUid ? findPosByUid(cur.nextUid) : null;
-        guard += 1;
+        guard++;
     }
-    belt.positions.forEach(pp => {
-        if (String(pp.nextUid) === String(toUid)) pp.nextUid = null;
-    });
+    belt.positions.forEach(pp => { if (String(pp.nextUid) === String(toUid)) pp.nextUid = null; });
     from.nextUid = String(toUid);
-    toast('П' + belt.positions.indexOf(from) + ' → П' + belt.positions.indexOf(to));
+    toast(`П${belt.positions.indexOf(from)} → П${belt.positions.indexOf(to)}`);
     render();
 }
 
-/* правило — на камеру; модели подгружаются составом правила */
 function toggleRuleOnCam(camId, ruleId) {
-    const dev = inventory.find(d => d.id === camId);
-    const rule = RULES.find(r => r.id === ruleId);
+    const dev = inventory.find(d => d.id === camId), rule = RULES.find(r => r.id === ruleId);
     if (!dev || !rule) return;
     const at = dev.rules.indexOf(ruleId);
     if (at >= 0) {
         dev.rules.splice(at, 1);
         if (dev.thr) delete dev.thr[ruleId];
-        toast(dev.name + ': «' + rule.name + '» снято.');
+        toast(`${dev.name}: «${rule.name}» снято.`);
     } else {
-        if (!rule.models.length) {
-            toast('Правило «' + rule.name + '» без моделей — не ставится.', 'err');
-            return;
-        }
+        if (!rule.models.length) return toast(`Правило «${rule.name}» без моделей — не ставится.`, 'err');
         dev.rules.push(ruleId);
         if (!dev.thr) dev.thr = Object.create(null);
         dev.thr[ruleId] = rule.thr.map(() => THR_DEFAULT);
-        toast(dev.name + ': «' + rule.name + '» подключено, ' + rule.thr.length + ' порог(а) = ' + THR_DEFAULT.toFixed(2) + '.');
+        toast(`${dev.name}: «${rule.name}» подключено, ${rule.thr.length} порог(а) = ${THR_DEFAULT.toFixed(2)}.`);
     }
     render();
 }
 
 function loadedModels(dev) {
     const set = Object.create(null);
-    dev.rules.forEach(id => {
-        const rule = RULES.find(r => r.id === id);
-        if (rule) rule.models.forEach(m => { set[m] = true; });
-    });
+    dev.rules.forEach(id => RULES.find(r => r.id === id)?.models.forEach(m => { set[m] = true; }));
     return Object.keys(set);
 }
 
 function renderAssets() {
-    /* МОДЕЛИ — drag-источник: бросок на плашку правила назначает */
     const mbox = $('asset-models');
     if (mbox) {
         mbox.textContent = '';
-        const mUsed = MODELS.filter(function (mod) {
-            return RULES.some(function (r) {
-                return r.models.indexOf(mod.id) !== -1;
-            });
-        }).length;
-        const mlist = modelQuery ? MODELS.filter(function (mod) {
-            return mod.name.toLowerCase().indexOf(modelQuery) !== -1;
-        }) : MODELS;
-        mlist.forEach(function (mod) {
-            const byRules = RULES.filter(function (r) {
-                return r.models.indexOf(mod.id) !== -1;
-            });
-            const tile = el('div', 'asset'
-                + (byRules.length ? ' asset-used' : ''));
+        const mUsed = MODELS.filter(m => RULES.some(r => r.models.includes(m.id))).length;
+        const mlist = modelQuery ? MODELS.filter(m => m.name.toLowerCase().includes(modelQuery)) : MODELS;
+        mlist.forEach(mod => {
+            const byRules = RULES.filter(r => r.models.includes(mod.id));
+            const tile = el('div', 'asset' + (byRules.length ? ' asset-used' : ''));
             tile.draggable = true;
             tile.appendChild(el('b', '', mod.name));
-            if (byRules.length) {
-                tile.appendChild(el('span', 'asset-use',
-                    'правил: ' + byRules.length));
-            }
-            tile.addEventListener('dragstart', function (ev) {
-                dragKind = 'model-part';
-                dragAsset = mod.id;
-                ev.dataTransfer.setData('text/plain',
-                    'model:' + mod.id);
+            if (byRules.length) tile.appendChild(el('span', 'asset-use', `правил: ${byRules.length}`));
+            tile.addEventListener('dragstart', ev => {
+                dragKind = 'model-part'; dragAsset = mod.id;
+                ev.dataTransfer.setData('text/plain', 'model:' + mod.id);
                 ev.dataTransfer.effectAllowed = 'copy';
                 tile.classList.add('dragging');
                 setupDragImage(ev, 'model-part', mod.id);
-                const zn = $('belt-zone');
-                if (zn) { zn.classList.add('drop-ready'); }
+                $('belt-zone')?.classList.add('drop-ready');
             });
-            tile.addEventListener('dragend', function () {
-                dragKind = null;
-                dragAsset = null;
-                cleanVisuals();
-            });
+            tile.addEventListener('dragend', () => { dragKind = dragAsset = null; cleanVisuals(); });
             mbox.appendChild(tile);
         });
         const mcnt = $('model-count');
-        if (mcnt) {
-            mcnt.textContent = 'в правилах: ' + mUsed + ' / '
-                + MODELS.length;
-        }
+        if (mcnt) mcnt.textContent = `в правилах: ${mUsed} / ${MODELS.length}`;
     }
 
-    /* ПРАВИЛА — одна строка: имя, счётчики, чипы состава.
-     * Бросок модели добавляет, клик по чипу снимает. */
     const rbox = $('asset-rules');
     if (rbox) {
         rbox.textContent = '';
-        const rUsed = RULES.filter(function (r) {
-            return ruleOnCameras(r).length > 0;
-        }).length;
-        const rlist = ruleQuery ? RULES.filter(function (r) {
-            return r.name.toLowerCase().indexOf(ruleQuery) !== -1;
-        }) : RULES;
-        rlist.forEach(function (rule) {
+        const rUsed = RULES.filter(r => ruleOnCameras(r).length > 0).length;
+        const rlist = ruleQuery ? RULES.filter(r => r.name.toLowerCase().includes(ruleQuery)) : RULES;
+        rlist.forEach(rule => {
             const cams = ruleOnCameras(rule);
             const entry = el('div', 'rule-entry');
-            const tile = el('div', 'rule-tile'
-                + (cams.length ? ' asset-used' : ''));
+            const tile = el('div', 'rule-tile' + (cams.length ? ' asset-used' : ''));
             tile.draggable = true;
             tile.dataset.ruleId = rule.id;
-            const sw = el('span', 'rule-swatch');
-            sw.style.background = rule.color;
+            const sw = el('span', 'rule-swatch'); sw.style.background = rule.color;
             tile.appendChild(sw);
-            const nm = el('b', '', rule.name);
-            nm.style.color = rule.color;
+            const nm = el('b', '', rule.name); nm.style.color = rule.color;
             tile.appendChild(nm);
-            if (rule.models.length) {
-                tile.appendChild(el('span', 'rule-parts-count',
-                    rule.models.length + 'м'));
-            }
-            if (cams.length) {
-                tile.appendChild(el('span', 'asset-use',
-                    'кам: ' + cams.length));
-            }
+            if (rule.models.length) tile.appendChild(el('span', 'rule-parts-count', `${rule.models.length}м`));
+            if (cams.length) tile.appendChild(el('span', 'asset-use', `кам: ${cams.length}`));
             entry.appendChild(tile);
-            tile.addEventListener('dragstart', function (ev) {
-                dragKind = 'rule';
-                dragAsset = rule.id;
-                ev.dataTransfer.setData('text/plain',
-                    'rule:' + rule.id);
+            tile.addEventListener('dragstart', ev => {
+                dragKind = 'rule'; dragAsset = rule.id;
+                ev.dataTransfer.setData('text/plain', 'rule:' + rule.id);
                 ev.dataTransfer.effectAllowed = 'copy';
                 entry.classList.add('dragging');
                 setupDragImage(ev, 'rule', rule.id);
-                const zn = $('belt-zone');
-                if (zn) { zn.classList.add('drop-ready'); }
+                $('belt-zone')?.classList.add('drop-ready');
             });
-            tile.addEventListener('dragend', function () {
-                dragKind = null;
-                dragAsset = null;
-                cleanVisuals();
-            });
+            tile.addEventListener('dragend', () => { dragKind = dragAsset = null; cleanVisuals(); });
             rbox.appendChild(entry);
         });
         const rcnt = $('rule-count');
-        if (rcnt) {
-            rcnt.textContent = 'на камерах: ' + rUsed + ' / '
-                + RULES.length;
-        }
+        if (rcnt) rcnt.textContent = `на камерах: ${rUsed} / ${RULES.length}`;
     }
 }
 
-/* Обнаруженные камеры: роли мест инспекции по порядку ленты;
- * основная — входное (П0) место. */
 function cameraViews() {
     const bound = Object.create(null);
-    belt.positions.forEach(function (pos, i) {
-        if (!pos.inspection) { return; }
-        pos.inspection.cameras.forEach(function (id) {
-            bound[id] = { position: i, primary: !!pos.inspection.primary };
-        });
+    belt.positions.forEach((pos, i) => {
+        if (!pos.inspection) return;
+        pos.inspection.cameras.forEach(id => { bound[id] = { position: i, primary: !!pos.inspection.primary }; });
     });
-    return inventory.map(function (cam) {
+    return inventory.map(cam => {
         const b = bound[cam.id];
         return {
-            id: cam.id,
-            name: cam.name,
-            dev: cam.dev,
-            position: b ? b.position : -1,
-            primary: b ? b.primary : false,
-            rules: cam.rules.length,
-            ruleColors: cam.rules.map(ruleColor),
+            id: cam.id, name: cam.name, dev: cam.dev,
+            position: b ? b.position : -1, primary: b ? b.primary : false,
+            rules: cam.rules.length, ruleColors: cam.rules.map(ruleColor),
             mods: loadedModels(cam).length,
         };
     });
@@ -659,19 +449,18 @@ function cameraViews() {
 function renderCard(pos, i) {
     const card = el('div', 'pos-card gnode g-pos');
     card.dataset.gk = 'pos:' + i;
-    if (!pos.at) { pos.at = layoutSlot(i); }
+    if (!pos.at) pos.at = layoutSlot(i);
     card.style.left = Math.round(pos.at.x) + 'px';
     card.style.top = Math.round(pos.at.y) + 'px';
-    if (pos.inspection) { card.classList.add('inspect'); }
-    if (pos.reset) { card.classList.add('reset-pt'); }
+    if (pos.inspection) card.classList.add('inspect');
+    if (pos.reset) card.classList.add('reset-pt');
     card.dataset.index = String(i);
 
     const head = el('div', 'node-head');
     head.appendChild(el('span', 'pos-index', 'П' + i));
     head.appendChild(el('span', 'pos-label', pos.label || 'Позиция ' + i));
     const del = el('button', 'pos-del', '×');
-    del.type = 'button';
-    del.draggable = false;
+    del.type = 'button'; del.draggable = false;
     head.appendChild(del);
     card.appendChild(head);
 
@@ -680,22 +469,17 @@ function renderCard(pos, i) {
     if (pos.inspection) {
         badges.appendChild(el('span', 'badge badge-insp', 'инспекция'));
         const n = pos.inspection.cameras.length;
-        badges.appendChild(el('span', 'badge badge-cam',
-            n ? 'камер: ' + n : 'без камер'));
+        badges.appendChild(el('span', 'badge badge-cam', n ? `камер: ${n}` : 'без камер'));
     }
-    if (pos.reset) {
-        badges.appendChild(el('span', 'badge badge-reset', 'сброс'));
-    }
+    if (pos.reset) badges.appendChild(el('span', 'badge badge-reset', 'сброс'));
     body.appendChild(badges);
 
     const camIn = el('span', 'sock sock-in sock-node');
-    camIn.dataset.drop = 'pos';
-    camIn.dataset.idx = String(i);
+    camIn.dataset.drop = 'pos'; camIn.dataset.idx = String(i);
     card.appendChild(camIn);
     if (i > 0) {
         const lin = el('span', 'sock sock-in sock-line-in');
-        lin.dataset.drop = 'poslink';
-        lin.dataset.uid = String(pos.uid);
+        lin.dataset.drop = 'poslink'; lin.dataset.uid = String(pos.uid);
         card.appendChild(lin);
     }
     if (!pos.reset) {
@@ -703,29 +487,18 @@ function renderCard(pos, i) {
         lout.dataset.link = 'posline:' + pos.uid;
         card.appendChild(lout);
     }
-
     card.appendChild(body);
     return card;
 }
 
-/* ─── Холст сборки: свободные ноды моделей/правил/камер ────────────
- * Любая нода ставится в любое место ленты (places = координаты),
- * связь — только сокет-линка: модель→правило, правило→камера,
- * камера→зона инспекции. Ноду можно двигать ЛКМ за шапку. */
-
-/* экранные координаты дропа → координаты холста (учитывая зум) */
+/* ─── Холст сборки: свободные ноды моделей/правил/камер ──────────── */
 function canvasPoint(ev, w, h) {
-    const row = $('belt-row');
-    const r = row.getBoundingClientRect();
-    const z = (window.BeltView && window.BeltView.state().z) || 1;
-    const maxW = Math.max(row ? (row.offsetWidth || 0) : 0, CANVAS_W);
-    const maxH = Math.max(row ? (row.offsetHeight || 0) : 0, CANVAS_H);
-    let x = Math.round(maxW / 2 - w / 2);
-    let y = Math.round(maxH / 2 - h / 2);
-    if (r.width) {
-        x = (ev.clientX - r.left) / z - w / 2;
-        y = (ev.clientY - r.top) / z - h / 2;
-    }
+    const row = $('belt-row'), r = row?.getBoundingClientRect() || { left: 0, top: 0, width: 0, height: 0 };
+    const z = window.BeltView?.state().z || 1;
+    const maxW = Math.max(row?.offsetWidth || 0, CANVAS_W);
+    const maxH = Math.max(row?.offsetHeight || 0, CANVAS_H);
+    const x = r.width ? (ev.clientX - r.left) / z - w / 2 : Math.round(maxW / 2 - w / 2);
+    const y = r.width ? (ev.clientY - r.top) / z - h / 2 : Math.round(maxH / 2 - h / 2);
     return {
         x: clampN(x, 2, Math.max(2, maxW - w - 2)),
         y: clampN(y, 2, Math.max(2, maxH - h - 2)),
@@ -733,31 +506,20 @@ function canvasPoint(ev, w, h) {
 }
 
 function freePoint(forType) {
-    const row = $('belt-row');
-    const maxW = Math.max(row ? (row.offsetWidth || 0) : 0, CANVAS_W);
-    const maxH = Math.max(row ? (row.offsetHeight || 0) : 0, CANVAS_H);
+    const row = $('belt-row'), maxW = Math.max(row?.offsetWidth || 0, CANVAS_W), maxH = Math.max(row?.offsetHeight || 0, CANVAS_H);
     const dims = getNodeDimensions(forType || 'cam');
-    let x = Math.round(maxW / 2 - dims.w / 2);
-    let y = Math.round(maxH / 2 - 160);
-    let attempts = 0;
+    let x = Math.round(maxW / 2 - dims.w / 2), y = Math.round(maxH / 2 - 160), attempts = 0;
     while (hasCollision(x, y, dims.w, dims.h, null, 8) && attempts < 100) {
         y += dims.h + 16;
-        if (y + dims.h > maxH - 20) {
-            y = Math.round(maxH / 2 - 160);
-            x += dims.w + 24;
-        }
+        if (y + dims.h > maxH - 20) { y = Math.round(maxH / 2 - 160); x += dims.w + 24; }
         attempts++;
     }
-    return { x: x, y: y };
+    return { x, y };
 }
 
 function placeNode(key, ev) {
-    const dims = getNodeDimensions(key);
-    const pt = canvasPoint(ev, dims.w, dims.h);
-    if (hasCollision(pt.x, pt.y, dims.w, dims.h, key, 4)) {
-        toast('Наложение блоков запрещено.', 'err');
-        return false;
-    }
+    const dims = getNodeDimensions(key), pt = canvasPoint(ev, dims.w, dims.h);
+    if (hasCollision(pt.x, pt.y, dims.w, dims.h, key, 4)) return toast('Наложение блоков запрещено.', 'err'), false;
     belt.places[key] = pt;
     toast('Связь — линкой сокета на холсте ленты.');
     render();
@@ -772,8 +534,7 @@ function gnodeFrame(cls, key, at, title) {
     const head = el('div', 'node-head');
     head.appendChild(el('span', 'pos-label', title));
     const del = el('button', 'pos-del', '×');
-    del.type = 'button';
-    del.draggable = false;
+    del.type = 'button'; del.draggable = false;
     head.appendChild(del);
     node.appendChild(head);
     return node;
@@ -781,46 +542,36 @@ function gnodeFrame(cls, key, at, title) {
 
 function gsock(cls, link, drop, rid) {
     const n = el('span', 'sock ' + cls);
-    if (link) { n.dataset.link = link; }
-    if (drop) { n.dataset.drop = drop; }
-    if (rid) { n.dataset.rid = rid; }
+    if (link) n.dataset.link = link;
+    if (drop) n.dataset.drop = drop;
+    if (rid) n.dataset.rid = rid;
     return n;
 }
 
 function renderModelNode(mid, at) {
     const mod = MODELS.find(m => m.id === mid);
     if (!mod) return el('div', 'gnode');
-    const key = 'model:' + mid;
-    const node = gnodeFrame('g-model', key, at, mod.name);
+    const key = 'model:' + mid, node = gnodeFrame('g-model', key, at, mod.name);
     node.dataset.model = mid;
-    node.querySelector('.pos-del').onclick = ev => {
-        ev.stopPropagation();
-        delete belt.places[key];
-        render();
-    };
-    node.appendChild(gsock('sock-out', key, null));
+    node.querySelector('.pos-del').onclick = ev => { ev.stopPropagation(); delete belt.places[key]; render(); };
+    node.appendChild(gsock('sock-out', key));
     const rules = RULES.filter(r => r.models.includes(mid));
-    if (rules.length) node.appendChild(el('div', 'g-meta', 'правил: ' + rules.length));
+    if (rules.length) node.appendChild(el('div', 'g-meta', `правил: ${rules.length}`));
     return node;
 }
 
 function renderRuleNode(rid, at) {
     const rule = RULES.find(r => r.id === rid);
     if (!rule) return el('div', 'gnode');
-    const key = 'rule:' + rid;
-    const node = gnodeFrame('g-rule', key, at, rule.name);
+    const key = 'rule:' + rid, node = gnodeFrame('g-rule', key, at, rule.name);
     node.dataset.rule = rid;
-    node.querySelector('.pos-del').onclick = ev => {
-        ev.stopPropagation();
-        delete belt.places[key];
-        render();
-    };
+    node.querySelector('.pos-del').onclick = ev => { ev.stopPropagation(); delete belt.places[key]; render(); };
     const head = node.querySelector('.node-head');
     head.insertBefore(el('i', 'g-swatch'), head.firstChild);
     head.firstChild.style.background = rule.color;
     node.querySelector('.pos-label').style.color = rule.color;
     node.appendChild(gsock('sock-in', null, 'rule', rid));
-    node.appendChild(gsock('sock-out', key, null));
+    node.appendChild(gsock('sock-out', key));
     const list = el('div', 'g-models');
     rule.models.forEach(mid => {
         const mod = MODELS.find(m => m.id === mid);
@@ -832,33 +583,29 @@ function renderRuleNode(rid, at) {
     if (!rule.models.length) list.appendChild(el('span', 'g-empty', '→ тяни модель сюда'));
     node.appendChild(list);
     const cams = ruleOnCameras(rule);
-    if (cams.length) node.appendChild(el('div', 'g-meta', 'кам: ' + cams.length));
+    if (cams.length) node.appendChild(el('div', 'g-meta', `кам: ${cams.length}`));
     return node;
 }
 
-/* Нода камеры: привязка линкой ко входу позиции (или мимо — свободна),
- * × — снять привязку, а у свободной — вернуть на стену; клик — пороги */
 function renderCamNode(camId, at) {
     const dev = invCam(camId);
     if (!dev) return el('div', 'gnode');
-    const key = 'cam:' + camId;
-    const owner = camOwner(camId);
+    const key = 'cam:' + camId, owner = camOwner(camId);
     const node = gnodeFrame('cam-node g-cam' + (owner < 0 ? ' free' : ''), key, at, '');
     node.dataset.cam = camId;
     if (owner >= 0) node.dataset.pos = String(owner);
     const head = node.querySelector('.node-head');
-    const cin = gsock('sock-in', null, 'cam', null);
+    const cin = gsock('sock-in', null, 'cam');
     cin.dataset.cam = camId;
     head.insertBefore(cin, head.firstChild);
     node.querySelector('.pos-del').onclick = ev => {
         ev.stopPropagation();
         if (owner >= 0) {
-            const pos = belt.positions[owner];
-            pos.inspection.cameras.splice(pos.inspection.cameras.indexOf(camId), 1);
-            toast(camName(camId) + ' — снята с П' + owner + '.');
+            belt.positions[owner].inspection.cameras.splice(belt.positions[owner].inspection.cameras.indexOf(camId), 1);
+            toast(`${camName(camId)} — снята с П${owner}.`);
         } else {
             delete belt.places[key];
-            toast(camName(camId) + ' — возвращена на стену.');
+            toast(`${camName(camId)} — возвращена на стену.`);
         }
         render();
     };
@@ -866,78 +613,51 @@ function renderCamNode(camId, at) {
     chip.dataset.cam = camId;
     chip.appendChild(el('span', 'chip-name', camName(camId)));
     if (dev.rules.length) {
-        chip.appendChild(el('span', 'chip-assets', 'п:' + dev.rules.length + ' · м:' + loadedModels(dev).length));
+        chip.appendChild(el('span', 'chip-assets', `п:${dev.rules.length} · м:${loadedModels(dev).length}`));
         const tabs = el('span', 'rule-tabs');
         dev.rules.forEach(rid => {
-            const t = el('i');
-            t.style.background = ruleColor(rid);
-            tabs.appendChild(t);
+            const t = el('i'); t.style.background = ruleColor(rid); tabs.appendChild(t);
         });
         chip.appendChild(tabs);
-        if (openThrCam === camId) {
-            node.classList.add('chip-open');
-            chip.classList.add('chip-open');
-        }
-        chip.onclick = ev => {
-            ev.stopPropagation();
-            openThrCam = openThrCam === camId ? null : camId;
-            render();
-        };
+        if (openThrCam === camId) { node.classList.add('chip-open'); chip.classList.add('chip-open'); }
+        chip.onclick = ev => { ev.stopPropagation(); openThrCam = openThrCam === camId ? null : camId; render(); };
     }
     chip.ondblclick = ev => { ev.stopPropagation(); renameCamera(camId); };
     const body = el('div', 'node-body');
     body.appendChild(chip);
     node.appendChild(body);
-    head.insertBefore(el('span', 'g-title'), head.children[1]);
-    node.querySelector('.g-title').textContent = 'камера';
-    node.appendChild(gsock('sock-out', 'camera:' + camId, null));
-    if (openThrCam === camId && dev.rules.length) {
-        node.appendChild(renderThrPop(dev));
-    }
+    head.insertBefore(el('span', 'g-title', 'камера'), head.children[1]);
+    node.appendChild(gsock('sock-out', 'camera:' + camId));
+    if (openThrCam === camId && dev.rules.length) node.appendChild(renderThrPop(dev));
     return node;
 }
 
-function fmtThr(v) {
-    const n = typeof v === 'number' && isFinite(v) ? v : THR_DEFAULT;
-    return Math.max(0, Math.min(1, n)).toFixed(2);
-}
+const fmtThr = v => (typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(1, v)) : THR_DEFAULT).toFixed(2);
 
-/* Нода-карточка: на камеру — блок каждого правила, шапка в цвете
- * правила, тело — фиксированный набор порогов (число на каждый) */
 function renderThrPop(dev) {
     const pop = el('div', 'thr-node');
-    pop.addEventListener('click', function (ev) { ev.stopPropagation(); });
-    dev.rules.forEach(function (rid) {
-        const rule = RULES.find(function (r) { return r.id === rid; });
-        if (!rule) { return; }
-        if (!dev.thr) { dev.thr = Object.create(null); }
-        if (!dev.thr[rid]) {
-            dev.thr[rid] = rule.thr.map(function () { return THR_DEFAULT; });
-        }
-        const arr = dev.thr[rid];
-        const blk = el('div', 'thr-blk');
-        const head = el('div', 'thr-head');
+    pop.addEventListener('click', ev => ev.stopPropagation());
+    dev.rules.forEach(rid => {
+        const rule = RULES.find(r => r.id === rid);
+        if (!rule) return;
+        if (!dev.thr) dev.thr = Object.create(null);
+        if (!dev.thr[rid]) dev.thr[rid] = rule.thr.map(() => THR_DEFAULT);
+        const arr = dev.thr[rid], blk = el('div', 'thr-blk'), head = el('div', 'thr-head');
         head.style.background = rule.color;
         head.appendChild(el('b', '', rule.name));
-        head.appendChild(el('span', 'thr-cams',
-            'кам: ' + ruleOnCameras(rule).length));
+        head.appendChild(el('span', 'thr-cams', `кам: ${ruleOnCameras(rule).length}`));
         blk.appendChild(head);
-        rule.thr.forEach(function (pname, k) {
+        rule.thr.forEach((pname, k) => {
             const row = el('div', 'thr-row');
             row.appendChild(el('span', 'thr-name', pname));
             row.appendChild(el('span', 'thr-gt', '≥'));
             const inp = el('input', 'thr-input');
-            inp.type = 'text';
-            inp.value = fmtThr(arr[k]);
-            inp.addEventListener('input', function () {
+            inp.type = 'text'; inp.value = fmtThr(arr[k]);
+            inp.addEventListener('input', () => {
                 const v = parseFloat(inp.value.replace(',', '.'));
-                if (!isFinite(v)) { return; }
-                arr[k] = Math.max(0, Math.min(1, v));
+                if (isFinite(v)) arr[k] = Math.max(0, Math.min(1, v));
             });
-            inp.addEventListener('change', function () {
-                inp.value = fmtThr(arr[k]);
-                render();
-            });
+            inp.addEventListener('change', () => { inp.value = fmtThr(arr[k]); render(); });
             row.appendChild(inp);
             blk.appendChild(row);
         });
@@ -946,14 +666,10 @@ function renderThrPop(dev) {
     return pop;
 }
 
-/* ─── Связи-провода (Blender-style) ──────────────────────────────
- * Сверхкомпактный и оптимальный движок связей:
- * Двустороннее связывание, магнитный доводчик и клик по проводу для удаления */
-
+/* ─── Связи-провода (Blender-style) ────────────────────────────── */
 const LINK_WANT = { rule: 'cam', model: 'rule', camera: 'pos', posline: 'poslink' };
 const LINK_REV = { cam: 'rule', rule: 'model', pos: 'camera', poslink: 'posline' };
-let linkDrag = null;
-let wiresScheduled = false;
+let linkDrag = null, wiresScheduled = false;
 
 function findSnapTarget(x, y, drag) {
     const d = drag || linkDrag;
@@ -1170,96 +886,60 @@ function wireLinkEngine() {
     }
 }
 
-/* ЛКМ за шапку — свободное перемещение любой ноды по холсту */
-let movingG = null;
-
 function nodeAt(node) {
     const key = node.dataset.gk || '';
-    if (key.indexOf('pos:') === 0) {
-        const idx = Number(key.slice(4));
-        const pos = belt.positions[idx];
-        if (pos) {
-            if (!pos.at) { pos.at = layoutSlot(idx); }
-            return pos.at;
-        }
+    if (key.startsWith('pos:')) {
+        const idx = Number(key.slice(4)), pos = belt.positions[idx];
+        if (pos) { if (!pos.at) pos.at = layoutSlot(idx); return pos.at; }
         return null;
     }
     return belt.places[key] || null;
 }
 
 function dragGNodes() {
-    document.addEventListener('mousedown', function (ev) {
-        if (ev.button !== 0 || linkDrag) { return; }
-        const head = ev.target.closest
-            ? ev.target.closest('.gnode .node-head') : null;
-        if (!head || ev.target.closest('button, .sock')) { return; }
-        const node = head.closest('.gnode');
-        const p = nodeAt(node);
-        if (!p) { return; }
-        const key = node.dataset.gk || '';
-        const dims = getNodeDimensions(key, node);
-        movingG = {
-            node: node,
-            key: key,
-            dims: dims,
-            at: p,
-            x0: ev.clientX,
-            y0: ev.clientY,
-            px: p.x,
-            py: p.y,
-            hasCollided: false
-        };
+    document.addEventListener('mousedown', ev => {
+        if (ev.button !== 0 || linkDrag) return;
+        const head = ev.target.closest?.('.gnode .node-head');
+        if (!head || ev.target.closest('button, .sock')) return;
+        const node = head.closest('.gnode'), p = nodeAt(node);
+        if (!p) return;
+        const key = node.dataset.gk || '', dims = getNodeDimensions(key, node);
+        movingG = { node, key, dims, at: p, x0: ev.clientX, y0: ev.clientY, px: p.x, py: p.y, hasCollided: false };
         ev.preventDefault();
         node.classList.add('node-dragging');
-        if (node.parentNode) {
-            node.parentNode.appendChild(node);
-        }
+        if (node.parentNode) node.parentNode.appendChild(node);
         document.body.classList.add('node-moving');
     });
-    window.addEventListener('mousemove', function (ev) {
-        if (!movingG) { return; }
-        const z = window.BeltView
-            ? (window.BeltView.state().z || 1) : 1;
-        const row = $('belt-row');
-        const tall = movingG.node.classList.contains('g-pos');
-        const maxW = Math.max(row ? (row.offsetWidth || 0) : 0, CANVAS_W);
-        const maxH = Math.max(row ? (row.offsetHeight || 0) : 0, CANVAS_H);
-        const x = clampN(movingG.px + (ev.clientX - movingG.x0) / z,
-            2, Math.max(2, maxW - (tall ? 180 : 110)));
-        const y = clampN(movingG.py + (ev.clientY - movingG.y0) / z,
-            2, Math.max(2, maxH - (tall ? 124 : 30)));
-        movingG.at.x = x;
-        movingG.at.y = y;
+
+    window.addEventListener('mousemove', ev => {
+        if (!movingG) return;
+        const z = window.BeltView?.state().z || 1, row = $('belt-row'), tall = movingG.node.classList.contains('g-pos');
+        const maxW = Math.max(row?.offsetWidth || 0, CANVAS_W), maxH = Math.max(row?.offsetHeight || 0, CANVAS_H);
+        const x = clampN(movingG.px + (ev.clientX - movingG.x0) / z, 2, Math.max(2, maxW - (tall ? 180 : 110)));
+        const y = clampN(movingG.py + (ev.clientY - movingG.y0) / z, 2, Math.max(2, maxH - (tall ? 124 : 30)));
+        movingG.at.x = x; movingG.at.y = y;
         movingG.node.style.left = Math.round(x) + 'px';
         movingG.node.style.top = Math.round(y) + 'px';
-
         const coll = hasCollision(x, y, movingG.dims.w, movingG.dims.h, movingG.key, 4);
         movingG.hasCollided = coll;
         movingG.node.classList.toggle('collision-warning', coll);
-
         renderWires();
     });
-    window.addEventListener('mouseup', function () {
-        if (!movingG) { return; }
+
+    window.addEventListener('mouseup', () => {
+        if (!movingG) return;
         const target = movingG;
         movingG = null;
         document.body.classList.remove('node-moving');
-        target.node.classList.remove('node-dragging');
-        target.node.classList.remove('collision-warning');
-
+        target.node.classList.remove('node-dragging', 'collision-warning');
         if (target.hasCollided) {
-            target.at.x = target.px;
-            target.at.y = target.py;
+            target.at.x = target.px; target.at.y = target.py;
             toast('Наложение блоков запрещено.', 'err');
             render();
-            const reNode = $('belt-row')
-                ? $('belt-row').querySelector('.gnode[data-gk="' + target.key + '"]')
-                : null;
+            const reNode = $('belt-row')?.querySelector('.gnode[data-gk="' + target.key + '"]');
             if (reNode) {
                 reNode.classList.add('collision-shake');
-                setTimeout(function () {
-                    reNode.classList.remove('collision-shake');
-                }, 350);
+                setTimeout(() => reNode.classList.remove('collision-shake'), 350);
             }
         } else {
             render();
@@ -1267,37 +947,16 @@ function dragGNodes() {
     });
 }
 
-function $(id) { return document.getElementById(id); }
-
-let toastTimer = null;
-
-function toast(text, kind) {
-    const box = $('toasts');
-    box.textContent = '';
-    const node = el('div', 'toast' + (kind ? ' ' + kind : ''), text);
-    box.appendChild(node);
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { box.textContent = ''; }, 3200);
-}
-
 /* ─── Drag & drop ─────────────────────────────────────────────────── */
-
-/* Превью и призрак перетаскивания (соответствие реальным габаритам ноды) */
-
 function setupDragImage(ev, kind, id) {
-    if (!ev || !ev.dataTransfer || !ev.dataTransfer.setDragImage) { return; }
+    if (!ev?.dataTransfer?.setDragImage) return;
     let ghost = document.getElementById('drag-ghost-native');
     if (!ghost) {
-        ghost = el('div', 'drag-ghost-native');
-        ghost.id = 'drag-ghost-native';
+        ghost = el('div', 'drag-ghost-native'); ghost.id = 'drag-ghost-native';
         document.body.appendChild(ghost);
     }
     ghost.textContent = '';
-
-    let preview = null;
-    let offsetX = 88;
-    let offsetY = 22;
-
+    let preview = null, ox = 64, oy = 18;
     if (kind === 'position') {
         preview = el('div', 'pos-card gnode g-pos ghost-preview');
         const head = el('div', 'node-head');
@@ -1309,172 +968,107 @@ function setupDragImage(ev, kind, id) {
         badges.appendChild(el('span', 'badge badge-insp', belt.positions.length === 0 ? 'вход' : 'позиция'));
         body.appendChild(badges);
         preview.appendChild(body);
-        offsetX = 88;
-        offsetY = 22;
+        ox = 88; oy = 22;
     } else if (kind === 'rule') {
-        const rule = RULES.find(function (r) { return r.id === id; }) || { name: id, color: '#c1a66a' };
+        const rule = RULES.find(r => r.id === id) || { name: id, color: '#c1a66a' };
         preview = el('div', 'gnode g-rule ghost-preview');
         const head = el('div', 'node-head');
-        const sw = el('i', 'g-swatch');
-        sw.style.background = rule.color;
+        const sw = el('i', 'g-swatch'); sw.style.background = rule.color;
         head.appendChild(sw);
-        const lbl = el('span', 'pos-label', rule.name);
-        lbl.style.color = rule.color;
+        const lbl = el('span', 'pos-label', rule.name); lbl.style.color = rule.color;
         head.appendChild(lbl);
         preview.appendChild(head);
-        offsetX = 64;
-        offsetY = 18;
+        ox = 64; oy = 18;
     } else if (kind === 'model-part') {
-        const mod = MODELS.find(function (m) { return m.id === id; }) || { name: id };
+        const mod = MODELS.find(m => m.id === id) || { name: id };
         preview = el('div', 'gnode g-model ghost-preview');
         const head = el('div', 'node-head');
         head.appendChild(el('span', 'pos-label', mod.name));
         preview.appendChild(head);
-        offsetX = 64;
-        offsetY = 16;
+        ox = 64; oy = 16;
     } else if (kind === 'camera') {
         const cam = invCam(id) || { name: id };
         preview = el('div', 'gnode cam-node g-cam ghost-preview free');
         const head = el('div', 'node-head');
         head.appendChild(el('span', 'pos-label', cam.name || id));
         preview.appendChild(head);
-        offsetX = 74;
-        offsetY = 18;
+        ox = 74; oy = 18;
     }
-
     if (preview) {
         ghost.appendChild(preview);
-        try {
-            ev.dataTransfer.setDragImage(preview, offsetX, offsetY);
-        } catch (e) {}
+        try { ev.dataTransfer.setDragImage(preview, ox, oy); } catch (e) {}
     }
 }
 
 function removeCanvasGhost() {
-    const ghost = document.getElementById('canvas-drag-ghost');
-    if (ghost && ghost.parentNode) {
-        ghost.parentNode.removeChild(ghost);
-    }
+    $('canvas-drag-ghost')?.remove();
 }
 
-/* Мост для стены камер: dragstart/dragend плиты ленты-редактор
- * обрабатывает как обычный drop-объект. */
 window.BeltBridge = {
-    camDragStart: function (id, dt, ev) {
-        dragKind = 'camera';
-        dragCamId = id;
-        dragAsset = id;
-        if (dt) {
-            dt.setData('text/plain', 'camera:' + id);
-            dt.effectAllowed = 'copy';
-        }
-        if (ev) {
-            setupDragImage(ev, 'camera', id);
-        }
-        const zn = $('belt-zone');
-        if (zn) {
-            zn.classList.add('drop-ready');
-        }
+    camDragStart(id, dt, ev) {
+        dragKind = 'camera'; dragCamId = dragAsset = id;
+        if (dt) { dt.setData('text/plain', 'camera:' + id); dt.effectAllowed = 'copy'; }
+        if (ev) setupDragImage(ev, 'camera', id);
+        $('belt-zone')?.classList.add('drop-ready');
     },
-    camDragEnd: function () {
-        dragKind = null;
-        dragCamId = null;
-        dragAsset = null;
-        cleanVisuals();
-    },
-    addModelFromFile: function (fileName, path) { return addModelFromFile(fileName, path); },
-    addRuleFromFile: function (fileName, path) { return addRuleFromFile(fileName, path); },
+    camDragEnd() { dragKind = dragCamId = dragAsset = null; cleanVisuals(); },
+    addModelFromFile: (fileName, path) => addModelFromFile(fileName, path),
+    addRuleFromFile: (fileName, path) => addRuleFromFile(fileName, path),
 };
 
 function cleanVisuals() {
     removeCanvasGhost();
-    document.querySelectorAll('.drop-target, .collision-warning')
-        .forEach(function (n) { n.classList.remove('drop-target', 'collision-warning'); });
-    $('belt-zone').classList.remove('drop-ready');
-    document.querySelectorAll('.tool.dragging, .asset.dragging,'
-        + '.pos-card.dragging-src,.rule-entry.dragging,'
-        + '.rule-entry.drop-target')
-        .forEach(function (n) {
-            n.classList.remove('dragging', 'dragging-src', 'drop-target');
-        });
+    document.querySelectorAll('.drop-target, .collision-warning').forEach(n => n.classList.remove('drop-target', 'collision-warning'));
+    $('belt-zone')?.classList.remove('drop-ready');
+    document.querySelectorAll('.tool.dragging, .asset.dragging, .pos-card.dragging-src, .rule-entry.dragging, .rule-entry.drop-target')
+        .forEach(n => n.classList.remove('dragging', 'dragging-src', 'drop-target'));
 }
 
 function acceptsAt(kind, idx) {
     const pos = belt.positions[idx];
-    if (!pos) { return false; }
-    if (kind === 'position' || kind === 'camera' || kind === 'rule' || kind === 'model-part') { return false; }
-    if (kind === 'inspect') { return !pos.reset || !!pos.inspection; }
-    if (kind === 'reset') {
-        return pos.reset
-            || (idx === belt.positions.length - 1 && !pos.inspection);
-    }
+    if (!pos || kind === 'position' || kind === 'camera' || kind === 'rule' || kind === 'model-part') return false;
+    if (kind === 'inspect') return !pos.reset || !!pos.inspection;
+    if (kind === 'reset') return pos.reset || (idx === belt.positions.length - 1 && !pos.inspection);
     return false;
 }
 
-
-
-function cardFromEvent(ev) {
-    const node = ev.target && ev.target.closest
-        ? ev.target.closest('.pos-card') : null;
-    if (node) { return Number(node.dataset.index); }
-    return -1;
-}
+const cardFromEvent = ev => {
+    const n = ev.target?.closest?.('.pos-card');
+    return n ? Number(n.dataset.index) : -1;
+};
 
 function wirePalette() {
-    document.querySelectorAll('.tool').forEach(function (tool) {
-        tool.addEventListener('dragstart', function (ev) {
-            dragKind = tool.dataset.kind;
-            dragFrom = -1;
+    document.querySelectorAll('.tool').forEach(tool => {
+        tool.addEventListener('dragstart', ev => {
+            dragKind = tool.dataset.kind; dragFrom = -1;
             ev.dataTransfer.setData('text/plain', dragKind);
             ev.dataTransfer.effectAllowed = 'copy';
             tool.classList.add('dragging');
-            if (dragKind === 'position') {
-                setupDragImage(ev, 'position', null);
-            }
-            $('belt-zone').classList.add('drop-ready');
+            if (dragKind === 'position') setupDragImage(ev, 'position', null);
+            $('belt-zone')?.classList.add('drop-ready');
         });
-        tool.addEventListener('dragend', function () {
-            dragKind = null;
-            dragFrom = -1;
-            cleanVisuals();
-        });
+        tool.addEventListener('dragend', () => { dragKind = null; dragFrom = -1; cleanVisuals(); });
     });
 }
 
 function wireBelt() {
     const zone = $('belt-zone');
-
-    /* Firefox: пока не снят default у dragenter, до dragover/drop дело
-     * может не дойти */
-    zone.addEventListener('dragenter', function (ev) {
-        if (dragKind) { ev.preventDefault(); }
-    });
-
-    zone.addEventListener('dragover', function (ev) {
-        if (!dragKind) { return; }
+    zone.addEventListener('dragenter', ev => { if (dragKind) ev.preventDefault(); });
+    zone.addEventListener('dragover', ev => {
+        if (!dragKind) return;
         ev.preventDefault();
-        document.querySelectorAll('.drop-target, .collision-warning')
-            .forEach(function (n) { n.classList.remove('drop-target', 'collision-warning'); });
-        if (dragKind === 'model-part' || dragKind === 'rule'
-            || dragKind === 'position' || dragKind === 'camera') {
-            const key = dragKind === 'position' ? 'pos'
-                : (dragKind === 'model-part' ? 'model' : (dragKind === 'rule' ? 'rule' : 'cam'));
-            const dims = getNodeDimensions(key);
-            const pt = canvasPoint(ev, dims.w, dims.h);
+        document.querySelectorAll('.drop-target, .collision-warning').forEach(n => n.classList.remove('drop-target', 'collision-warning'));
+        if (['model-part', 'rule', 'position', 'camera'].includes(dragKind)) {
+            const key = dragKind === 'position' ? 'pos' : (dragKind === 'model-part' ? 'model' : (dragKind === 'rule' ? 'rule' : 'cam'));
+            const dims = getNodeDimensions(key), pt = canvasPoint(ev, dims.w, dims.h);
             const coll = hasCollision(pt.x, pt.y, dims.w, dims.h, null, 4);
             ev.dataTransfer.dropEffect = coll ? 'none' : 'copy';
-            if (coll) {
-                const under = ev.target && ev.target.closest ? ev.target.closest('.gnode') : null;
-                if (under) { under.classList.add('collision-warning'); }
-            }
+            if (coll) ev.target?.closest?.('.gnode')?.classList.add('collision-warning');
         } else {
             const idx = cardFromEvent(ev);
-            document.querySelectorAll('.pos-card.drop-target').forEach(
-                function (n) { n.classList.remove('drop-target'); });
+            document.querySelectorAll('.pos-card.drop-target').forEach(n => n.classList.remove('drop-target'));
             if (idx >= 0 && acceptsAt(dragKind, idx)) {
-                const card = zone.querySelector(
-                    '.pos-card[data-index="' + idx + '"]');
-                if (card) { card.classList.add('drop-target'); }
+                zone.querySelector('.pos-card[data-index="' + idx + '"]')?.classList.add('drop-target');
                 ev.dataTransfer.dropEffect = 'copy';
             } else {
                 ev.dataTransfer.dropEffect = 'none';
@@ -1482,37 +1076,28 @@ function wireBelt() {
         }
     });
 
-    zone.addEventListener('dragleave', function (ev) {
-        if (ev.relatedTarget && zone.contains(ev.relatedTarget)) { return; }
-        document.querySelectorAll('.pos-card.drop-target, .collision-warning').forEach(
-            function (n) { n.classList.remove('drop-target', 'collision-warning'); });
+    zone.addEventListener('dragleave', ev => {
+        if (ev.relatedTarget && zone.contains(ev.relatedTarget)) return;
+        document.querySelectorAll('.pos-card.drop-target, .collision-warning').forEach(n => n.classList.remove('drop-target', 'collision-warning'));
     });
 
-    zone.addEventListener('drop', function (ev) {
+    zone.addEventListener('drop', ev => {
         removeCanvasGhost();
-        if (!dragKind) { return; }
+        if (!dragKind) return;
         ev.preventDefault();
-        const kind = dragKind;
-        const from = dragFrom;
-        const cardIdx = cardFromEvent(ev);
+        const kind = dragKind, cardIdx = cardFromEvent(ev);
         cleanVisuals();
-        dragKind = null;
-        dragFrom = -1;
+        dragKind = null; dragFrom = -1;
 
-        const emptyZone = belt.positions.length === 0;
         if (kind === 'position') {
-            if (cardIdx >= 0) {
-                toast('Наложение блоков запрещено.', 'err');
-                return;
-            }
+            if (cardIdx >= 0) return toast('Наложение блоков запрещено.', 'err');
             insertPosition(canvasPoint(ev, 176, 100));
             return;
         }
-        if (kind === 'model-part' || kind === 'rule' || kind === 'camera') {
+        if (['model-part', 'rule', 'camera'].includes(kind)) {
             if (cardIdx >= 0) {
                 toast('Наложение блоков запрещено.', 'err');
-                dragAsset = null;
-                dragCamId = null;
+                dragAsset = dragCamId = null;
                 return;
             }
             const assetId = kind === 'camera' ? (dragCamId || dragAsset) : dragAsset;
@@ -1520,68 +1105,43 @@ function wireBelt() {
                 const key = (kind === 'model-part' ? 'model:' : (kind === 'rule' ? 'rule:' : 'cam:')) + assetId;
                 placeNode(key, ev);
             }
-            dragAsset = null;
-            dragCamId = null;
+            dragAsset = dragCamId = null;
             return;
         }
-        if (emptyZone) {
-            toast('Нет ни одной позиции.', 'err');
-            return;
-        }
-        if (cardIdx < 0) {
-            toast('Не на позицию.', 'err');
-            return;
-        }
-        if (kind === 'inspect') { toggleInspection(cardIdx); return; }
-        if (kind === 'reset') { toggleReset(cardIdx); return; }
+        if (!belt.positions.length) return toast('Нет ни одной позиции.', 'err');
+        if (cardIdx < 0) return toast('Не на позицию.', 'err');
+        if (kind === 'inspect') return toggleInspection(cardIdx);
+        if (kind === 'reset') return toggleReset(cardIdx);
     });
 
-    /* клик по карточке: делёжка и значки */
-    $('belt-row').addEventListener('click', function (ev) {
-        if (ev.target.closest('.chip')) { return; }
-        const del = ev.target.closest('.pos-del');
-        if (del) {
+    $('belt-row')?.addEventListener('click', ev => {
+        if (ev.target.closest('.chip')) return;
+        if (ev.target.closest('.pos-del')) {
             const i = cardFromEvent(ev);
-            if (i >= 0) {
-                removePosition(i);
-                toast('Позиция П' + i + ' удалена.');
-            }
-            return;
+            if (i >= 0) { removePosition(i); toast(`Позиция П${i} удалена.`); }
         }
     });
 
-    $('belt-row').addEventListener('dblclick', function (ev) {
-        if (ev.target.closest('.chip') || ev.target.closest('.pos-del')) {
-            return;
-        }
+    $('belt-row')?.addEventListener('dblclick', ev => {
+        if (ev.target.closest('.chip, .pos-del')) return;
         const i = cardFromEvent(ev);
-        if (i >= 0) { renamePosition(i); }
+        if (i >= 0) renamePosition(i);
     });
-
-    /* цепь больше не «таскается» переносом: свободное размещение нод
-     * ЛКМ за шапку делает dragGNodes (позиции — тоже ноды) */
 }
 
 /* ─── Старт ───────────────────────────────────────────────────────── */
-
-/** листание списка ровно на плашку: шаг = высота первой строки + gap;
- * при перетаскивании ползунка список докликовывает scroll-snap */
 function wireSteppedScroll(list) {
-    if (!list) { return; }
-    function step() {
+    if (!list) return;
+    const step = () => {
         const row = list.firstElementChild;
-        const h = row ? row.offsetHeight : 0;
-        return h > 0 ? h + 6 : 40;
-    }
-    list.addEventListener('wheel', function (e) {
-        if (list.scrollHeight <= list.clientHeight) { return; }
+        return (row?.offsetHeight || 0) > 0 ? row.offsetHeight + 6 : 40;
+    };
+    list.addEventListener('wheel', e => {
+        if (list.scrollHeight <= list.clientHeight) return;
         e.preventDefault();
         const d = (e.deltaY > 0 ? 1 : -1) * step();
-        if (list.scrollTo) {
-            list.scrollTo({ top: list.scrollTop + d, behavior: 'smooth' });
-        } else {
-            list.scrollTop += d;
-        }
+        if (list.scrollTo) list.scrollTo({ top: list.scrollTop + d, behavior: 'smooth' });
+        else list.scrollTop += d;
     }, { passive: false });
 }
 
@@ -1591,321 +1151,156 @@ function wireScrollSnap() {
 }
 
 function wireThrClose() {
-    document.addEventListener('click', function () {
-        if (openThrCam !== null) { openThrCam = null; render(); }
-    });
-    document.addEventListener('keydown', function (ev) {
-        if (ev.key === 'Escape' && openThrCam !== null) {
-            openThrCam = null;
-            render();
-        }
+    document.addEventListener('click', () => { if (openThrCam !== null) { openThrCam = null; render(); } });
+    document.addEventListener('keydown', ev => {
+        if (ev.key === 'Escape' && openThrCam !== null) { openThrCam = null; render(); }
     });
 }
 
 function wireSearch() {
-    [['rule-search', function (v) { ruleQuery = v; }],
-     ['model-search', function (v) { modelQuery = v; }]]
-        .forEach(function (pair) {
-            const inp = $(pair[0]);
-            if (!inp) { return; }
-            inp.addEventListener('input', function () {
-                pair[1](inp.value.trim().toLowerCase());
-                render();
-            });
-        });
+    [['rule-search', v => { ruleQuery = v; }], ['model-search', v => { modelQuery = v; }]].forEach(([id, fn]) => {
+        const inp = $(id);
+        inp?.addEventListener('input', () => { fn(inp.value.trim().toLowerCase()); render(); });
+    });
 }
 
 /* ─── Правая боковая стенка в стиле Photoshop (меню правил и моделей) ── */
-
 function wireSideDock() {
     const dock = $('side-dock');
-    const btnCollapse = $('btn-side-collapse');
-    const btnExpand = $('btn-side-expand');
-    const collapsedBar = $('side-dock-collapsed-bar');
-    if (!dock) { return; }
-
-    const KEY_COL = 'belt_side_dock_collapsed';
-    const KEY_TAB = 'belt_side_dock_tab';
-
+    if (!dock) return;
+    const KEY_COL = 'belt_side_dock_collapsed', KEY_TAB = 'belt_side_dock_tab';
     let currentTab = 'rules';
 
     function setTab(tab, save) {
         currentTab = tab === 'models' ? 'models' : 'rules';
         dock.classList.toggle('show-rules', currentTab === 'rules');
         dock.classList.toggle('show-models', currentTab === 'models');
-
-        const tabRules = $('tab-btn-rules');
-        const tabModels = $('tab-btn-models');
-        if (tabRules) {
-            tabRules.classList.toggle('active', currentTab === 'rules');
-            tabRules.setAttribute('aria-selected', currentTab === 'rules' ? 'true' : 'false');
-        }
-        if (tabModels) {
-            tabModels.classList.toggle('active', currentTab === 'models');
-            tabModels.setAttribute('aria-selected', currentTab === 'models' ? 'true' : 'false');
-        }
-
-        const barTabRules = dock.querySelector('.side-dock-tab[data-panel="rules"]');
-        const barTabModels = dock.querySelector('.side-dock-tab[data-panel="models"]');
-        if (barTabRules) { barTabRules.classList.toggle('active', currentTab === 'rules'); }
-        if (barTabModels) { barTabModels.classList.toggle('active', currentTab === 'models'); }
-
-        if (save) {
-            try { localStorage.setItem(KEY_TAB, currentTab); } catch (e) {}
-        }
+        ['rules', 'models'].forEach(t => {
+            const active = currentTab === t;
+            const btn = $(`tab-btn-${t}`);
+            btn?.classList.toggle('active', active);
+            btn?.setAttribute('aria-selected', active ? 'true' : 'false');
+            dock.querySelector(`.side-dock-tab[data-panel="${t}"]`)?.classList.toggle('active', active);
+        });
+        if (save) try { localStorage.setItem(KEY_TAB, currentTab); } catch (e) {}
         renderWires();
     }
 
     function setCollapsed(col, save) {
         dock.classList.toggle('collapsed', col);
-        if (save) {
-            try { localStorage.setItem(KEY_COL, col ? '1' : '0'); } catch (e) {}
-        }
+        if (save) try { localStorage.setItem(KEY_COL, col ? '1' : '0'); } catch (e) {}
         window.dispatchEvent(new Event('resize'));
         renderWires();
-        (window.requestAnimationFrame || function (f) { f(); })(function () {
-            renderWires();
-            setTimeout(renderWires, 40);
-        });
+        (window.requestAnimationFrame || (f => f()))(() => { renderWires(); setTimeout(renderWires, 40); });
     }
 
-    try {
-        if (localStorage.getItem(KEY_COL) === '1') {
-            setCollapsed(true, false);
+    try { if (localStorage.getItem(KEY_COL) === '1') setCollapsed(true, false); } catch (e) {}
+    try { setTab(localStorage.getItem(KEY_TAB) === 'models' ? 'models' : 'rules', false); } catch (e) { setTab('rules', false); }
+
+    $('tab-btn-rules')?.addEventListener('click', e => { e.stopPropagation(); setTab('rules', true); $('rule-search')?.focus(); });
+    $('tab-btn-models')?.addEventListener('click', e => { e.stopPropagation(); setTab('models', true); $('model-search')?.focus(); });
+    ['transitionend', 'transitioncancel'].forEach(evt => dock.addEventListener(evt, () => { renderWires(); window.dispatchEvent(new Event('resize')); }));
+
+    $('btn-side-collapse')?.addEventListener('click', e => { e.stopPropagation(); setCollapsed(true, true); });
+    $('btn-side-expand')?.addEventListener('click', e => { e.stopPropagation(); setCollapsed(false, true); });
+
+    $('side-dock-collapsed-bar')?.addEventListener('click', ev => {
+        const tab = ev.target?.closest?.('.side-dock-tab');
+        const panel = tab?.dataset.panel;
+        if (panel === 'models' || panel === 'rules') {
+            setTab(panel, true);
+            setCollapsed(false, true);
+            setTimeout(() => $(`${panel === 'models' ? 'model' : 'rule'}-search`)?.focus(), 100);
+        } else {
+            setCollapsed(false, true);
         }
-    } catch (e) {}
-
-    try {
-        const savedTab = localStorage.getItem(KEY_TAB);
-        setTab(savedTab === 'models' ? 'models' : 'rules', false);
-    } catch (e) {
-        setTab('rules', false);
-    }
-
-    const tabRules = $('tab-btn-rules');
-    if (tabRules) {
-        tabRules.addEventListener('click', function (ev) {
-            ev.stopPropagation();
-            setTab('rules', true);
-            const s = $('rule-search');
-            if (s) { s.focus(); }
-        });
-    }
-
-    const tabModels = $('tab-btn-models');
-    if (tabModels) {
-        tabModels.addEventListener('click', function (ev) {
-            ev.stopPropagation();
-            setTab('models', true);
-            const s = $('model-search');
-            if (s) { s.focus(); }
-        });
-    }
-
-    ['transitionend', 'transitioncancel'].forEach(function (evtName) {
-        dock.addEventListener(evtName, function () {
-            renderWires();
-            window.dispatchEvent(new Event('resize'));
-        });
     });
 
-    if (btnCollapse) {
-        btnCollapse.addEventListener('click', function (ev) {
-            ev.stopPropagation();
-            setCollapsed(true, true);
-        });
-    }
-
-    if (btnExpand) {
-        btnExpand.addEventListener('click', function (ev) {
-            ev.stopPropagation();
-            setCollapsed(false, true);
-        });
-    }
-
-    if (collapsedBar) {
-        collapsedBar.addEventListener('click', function (ev) {
-            const tab = ev.target && ev.target.closest
-                ? ev.target.closest('.side-dock-tab') : null;
-            if (tab && tab.dataset.panel === 'models') {
-                setTab('models', true);
-                setCollapsed(false, true);
-                const s = $('model-search');
-                if (s) { setTimeout(function () { s.focus(); }, 100); }
-            } else if (tab && tab.dataset.panel === 'rules') {
-                setTab('rules', true);
-                setCollapsed(false, true);
-                const s = $('rule-search');
-                if (s) { setTimeout(function () { s.focus(); }, 100); }
-            } else {
-                setCollapsed(false, true);
-            }
-        });
-    }
-
-    window.SideDock = {
-        setTab: setTab,
-        setCollapsed: setCollapsed,
-        currentTab: function () { return currentTab; }
-    };
+    window.SideDock = { setTab, setCollapsed, currentTab: () => currentTab };
 }
 
 /* ─── Выбор папок с правилами (.py) и весами моделей ───────────────── */
-
 function addModelFromFile(fileName, path) {
-    const cleanName = fileName.replace(/\.[^/.]+$/, '').trim();
-    if (!cleanName) { return null; }
-    const existing = MODELS.find(function (m) {
-        return m.name.toLowerCase() === cleanName.toLowerCase();
-    });
-    if (existing) { return existing; }
-    const id = 'm' + (nextModelId++);
-    const newMod = { id: id, name: cleanName, path: path || cleanName };
-    MODELS.push(newMod);
+    const name = fileName.replace(/\.[^/.]+$/, '').trim();
+    if (!name) return null;
+    const exist = MODELS.find(m => m.name.toLowerCase() === name.toLowerCase());
+    if (exist) return exist;
+    const mod = { id: 'm' + (nextModelId++), name, path: path || name };
+    MODELS.push(mod);
     render();
-    return newMod;
+    return mod;
 }
 
 function addRuleFromFile(fileName, path) {
-    const cleanName = fileName.replace(/\.[^/.]+$/, '').replace(/^rule_/, '').replace(/_/g, ' ').trim();
-    if (!cleanName) { return null; }
-    const existing = RULES.find(function (r) {
-        return r.name.toLowerCase() === cleanName.toLowerCase();
-    });
-    if (existing) { return existing; }
-    const color = RULE_COLORS[RULES.length % RULE_COLORS.length];
-    const id = 'r' + (nextRuleId++);
-    const newRule = {
-        id: id,
-        name: cleanName,
-        color: color,
-        thr: ['порог'],
-        models: [],
-        path: path || cleanName
+    const name = fileName.replace(/\.[^/.]+$/, '').replace(/^rule_/, '').replace(/_/g, ' ').trim();
+    if (!name) return null;
+    const exist = RULES.find(r => r.name.toLowerCase() === name.toLowerCase());
+    if (exist) return exist;
+    const rule = {
+        id: 'r' + (nextRuleId++), name,
+        color: RULE_COLORS[RULES.length % RULE_COLORS.length],
+        thr: ['порог'], models: [], path: path || name
     };
-    RULES.push(newRule);
+    RULES.push(rule);
     render();
-    return newRule;
+    return rule;
 }
 
 function wireFolderPickers() {
-    const rulePathInput = $('rule-folder-path');
-    const ruleBrowseBtn = $('btn-rule-folder');
-    const ruleFileInput = $('rule-folder-input');
-
-    const modelPathInput = $('model-folder-path');
-    const modelBrowseBtn = $('btn-model-folder');
-    const modelFileInput = $('model-folder-input');
-
-    const RULE_FOLDER_KEY = 'belt_rule_folder';
-    const MODEL_FOLDER_KEY = 'belt_model_folder';
-
-    try {
-        const savedRuleFolder = localStorage.getItem(RULE_FOLDER_KEY);
-        if (savedRuleFolder && rulePathInput) { rulePathInput.value = savedRuleFolder; }
-        const savedModelFolder = localStorage.getItem(MODEL_FOLDER_KEY);
-        if (savedModelFolder && modelPathInput) { modelPathInput.value = savedModelFolder; }
-    } catch (e) {}
-
-    // Правила: обзор папки
-    if (ruleBrowseBtn && ruleFileInput) {
-        ruleBrowseBtn.addEventListener('click', function (ev) {
-            ev.stopPropagation();
-            ruleFileInput.click();
-        });
-    }
-
-    if (ruleFileInput) {
-        ruleFileInput.addEventListener('change', function () {
-            if (!this.files || !this.files.length) { return; }
-            let folderName = '';
-            let addedCount = 0;
-            Array.from(this.files).forEach(function (f) {
+    function setupPicker(cfg) {
+        const pathInp = $(cfg.pathId), btn = $(cfg.btnId), fileInp = $(cfg.fileId);
+        try {
+            const saved = localStorage.getItem(cfg.key);
+            if (saved && pathInp) pathInp.value = saved;
+        } catch (e) {}
+        btn?.addEventListener('click', e => { e.stopPropagation(); fileInp?.click(); });
+        fileInp?.addEventListener('change', function () {
+            if (!this.files?.length) return;
+            let folder = '', count = 0;
+            Array.from(this.files).forEach(f => {
                 const rel = f.webkitRelativePath || f.name;
-                if (!folderName && rel.indexOf('/') !== -1) {
-                    folderName = rel.split('/')[0];
-                }
+                if (!folder && rel.includes('/')) folder = rel.split('/')[0];
                 const name = f.name.toLowerCase();
-                if ((name.endsWith('.py') || name.endsWith('.json') || name.endsWith('.rule'))
-                    && name !== '__init__.py' && name !== 'base.py') {
-                    const res = addRuleFromFile(f.name, rel);
-                    if (res) { addedCount += 1; }
+                if (cfg.filter(name, rel)) {
+                    if (cfg.add(f.name, rel)) count++;
                 }
             });
-            if (!folderName) { folderName = 'папка правил'; }
-            if (rulePathInput) {
-                rulePathInput.value = folderName + '/';
-                try { localStorage.setItem(RULE_FOLDER_KEY, folderName + '/'); } catch (e) {}
+            folder = folder || cfg.defaultFolder;
+            if (pathInp) {
+                pathInp.value = folder + '/';
+                try { localStorage.setItem(cfg.key, folder + '/'); } catch (e) {}
             }
-            toast('Папка правил: ' + folderName + (addedCount ? ' (+ ' + addedCount + ' правил)' : ''));
+            toast(`${cfg.title}: ${folder}${count ? ` (+ ${count} ${cfg.unit})` : ''}`);
             render();
             this.value = '';
         });
-    }
-
-    if (rulePathInput) {
-        rulePathInput.addEventListener('keydown', function (ev) {
-            if (ev.key === 'Enter') {
-                const val = rulePathInput.value.trim();
+        pathInp?.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                const val = pathInp.value.trim();
                 if (val) {
-                    try { localStorage.setItem(RULE_FOLDER_KEY, val); } catch (e) {}
-                    toast('Папка правил: ' + val);
+                    try { localStorage.setItem(cfg.key, val); } catch (e) {}
+                    toast(`${cfg.title}: ${val}`);
                 }
             }
         });
     }
 
-    // Модели: обзор папки
-    if (modelBrowseBtn && modelFileInput) {
-        modelBrowseBtn.addEventListener('click', function (ev) {
-            ev.stopPropagation();
-            modelFileInput.click();
-        });
-    }
+    setupPicker({
+        pathId: 'rule-folder-path', btnId: 'btn-rule-folder', fileId: 'rule-folder-input',
+        key: 'belt_rule_folder', title: 'Папка правил', defaultFolder: 'папка правил', unit: 'правил',
+        filter: n => (n.endsWith('.py') || n.endsWith('.json') || n.endsWith('.rule')) && n !== '__init__.py' && n !== 'base.py',
+        add: (name, rel) => addRuleFromFile(name, rel)
+    });
 
-    if (modelFileInput) {
-        modelFileInput.addEventListener('change', function () {
-            if (!this.files || !this.files.length) { return; }
-            let folderName = '';
-            let addedCount = 0;
-            const validExts = ['.pt', '.onnx', '.engine', '.tflite', '.weights', '.bin'];
-            Array.from(this.files).forEach(function (f) {
-                const rel = f.webkitRelativePath || f.name;
-                if (!folderName && rel.indexOf('/') !== -1) {
-                    folderName = rel.split('/')[0];
-                }
-                const name = f.name.toLowerCase();
-                const hasExt = validExts.some(function (ext) { return name.endsWith(ext); });
-                if (hasExt) {
-                    const res = addModelFromFile(f.name, rel);
-                    if (res) { addedCount += 1; }
-                }
-            });
-            if (!folderName) { folderName = 'папка весов'; }
-            if (modelPathInput) {
-                modelPathInput.value = folderName + '/';
-                try { localStorage.setItem(MODEL_FOLDER_KEY, folderName + '/'); } catch (e) {}
-            }
-            toast('Папка весов: ' + folderName + (addedCount ? ' (+ ' + addedCount + ' моделей)' : ''));
-            render();
-            this.value = '';
-        });
-    }
-
-    if (modelPathInput) {
-        modelPathInput.addEventListener('keydown', function (ev) {
-            if (ev.key === 'Enter') {
-                const val = modelPathInput.value.trim();
-                if (val) {
-                    try { localStorage.setItem(MODEL_FOLDER_KEY, val); } catch (e) {}
-                    toast('Папка весов: ' + val);
-                }
-            }
-        });
-    }
+    setupPicker({
+        pathId: 'model-folder-path', btnId: 'btn-model-folder', fileId: 'model-folder-input',
+        key: 'belt_model_folder', title: 'Папка весов', defaultFolder: 'папка весов', unit: 'моделей',
+        filter: n => ['.pt', '.onnx', '.engine', '.tflite', '.weights', '.bin'].some(ext => n.endsWith(ext)),
+        add: (name, rel) => addModelFromFile(name, rel)
+    });
 }
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', () => {
     wirePalette();
     wireBelt();
     wireSearch();
