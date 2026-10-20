@@ -1044,10 +1044,32 @@ function renderThrPop(dev) {
  * data-drop. Совпадение вида (model→rule, rule→cam, camera→pos).
  * Постоянные провода пересчитываются на каждый render/scroll/пан. */
 
-const LINK_WANT = { rule: 'cam', model: 'rule', camera: 'pos',
-    posline: 'poslink' };
+const LINK_WANT = { rule: 'cam', model: 'rule', camera: 'pos', posline: 'poslink' };
+const LINK_REV = { cam: 'rule', rule: 'model', pos: 'camera', poslink: 'posline' };
 let linkDrag = null;
 let wiresScheduled = false;
+
+function findSnapTarget(clientX, clientY, drag) {
+    if (!drag) { return null; }
+    const isOut = drag.dir === 'out';
+    const selector = isOut ? '.sock[data-drop].sock-ok' : '.sock[data-link].sock-ok';
+    const candidates = document.querySelectorAll(selector);
+    let best = null;
+    let minD = 32;
+    candidates.forEach(function (n) {
+        if (n === drag.from) { return; }
+        const r = n.getBoundingClientRect();
+        if (!r.width && !r.height) { return; }
+        const nx = r.left + r.width / 2;
+        const ny = r.top + r.height / 2;
+        const dist = Math.hypot(clientX - nx, clientY - ny);
+        if (dist < minD) {
+            minD = dist;
+            best = n;
+        }
+    });
+    return best;
+}
 
 function sockXY(node) {
     if (!node) { return null; }
@@ -1148,26 +1170,47 @@ function renderWires() {
                 + '"] .sock-line-in'), null, 'wire wire-chain');
     });
     if (linkDrag) {
-        const a = sockXY(linkDrag.from);
-        if (a) {
-            svg.appendChild(svgPath(bez(a, [linkDrag.x, linkDrag.y]),
+        const fromPt = sockXY(linkDrag.from);
+        const toPt = linkDrag.snapPt || [linkDrag.x, linkDrag.y];
+        if (fromPt && toPt) {
+            const start = linkDrag.dir === 'out' ? fromPt : toPt;
+            const end = linkDrag.dir === 'out' ? toPt : fromPt;
+            svg.appendChild(svgPath(bez(start, end),
                 'wire wire-live' + (linkDrag.hot ? ' wire-ok' : '')));
         }
     }
 }
 
 function markTargets(on) {
-    const want = LINK_WANT[on ? linkDrag.kind : ''] || '';
-    document.querySelectorAll('.sock[data-drop]').forEach(function (n) {
-        const own = n.closest ? n.closest('.cam-node') : null;
-        const skip = own && linkDrag && own.dataset.cam === linkDrag.id;
-        let ok = on && n.dataset.drop === want && !skip;
-        if (ok && want === 'pos') {
-            const pos = belt.positions[Number(n.dataset.idx)];
-            if (!pos || !pos.inspection) { ok = false; }
-        }
-        n.classList.toggle('sock-ok', ok);
-    });
+    if (!linkDrag || !on) {
+        document.querySelectorAll('.sock-ok, .sock-hot').forEach(function (n) {
+            n.classList.remove('sock-ok', 'sock-hot');
+        });
+        return;
+    }
+    const isOut = linkDrag.dir === 'out';
+    const want = isOut ? LINK_WANT[linkDrag.kind] : LINK_REV[linkDrag.kind];
+
+    if (isOut) {
+        document.querySelectorAll('.sock[data-drop]').forEach(function (n) {
+            const own = n.closest ? n.closest('.cam-node') : null;
+            const skip = own && own.dataset.cam === linkDrag.id;
+            let ok = n.dataset.drop === want && !skip;
+            if (ok && want === 'pos') {
+                const pos = belt.positions[Number(n.dataset.idx)];
+                if (!pos || !pos.inspection) { ok = false; }
+            }
+            n.classList.toggle('sock-ok', ok);
+        });
+    } else {
+        document.querySelectorAll('.sock[data-link]').forEach(function (n) {
+            const own = n.closest ? n.closest('.cam-node') : null;
+            const skip = own && own.dataset.cam === linkDrag.id;
+            const parts = (n.dataset.link || '').split(':');
+            let ok = parts[0] === want && !skip;
+            n.classList.toggle('sock-ok', ok);
+        });
+    }
 }
 
 function commitLink(d, t) {
@@ -1186,65 +1229,125 @@ function commitLink(d, t) {
 function wireLinkEngine() {
     document.addEventListener('mousedown', function (ev) {
         if (ev.button !== 0) { return; }
-        const sock = ev.target.closest ? ev.target.closest('.sock-out') : null;
+        const sock = ev.target.closest ? ev.target.closest('.sock') : null;
         if (!sock) { return; }
-        const parts = (sock.dataset.link || '').split(':');
-        if (!LINK_WANT[parts[0]]) { return; }
+        const isOut = sock.classList.contains('sock-out');
+        const isIn = sock.classList.contains('sock-in') || sock.dataset.drop;
+        let kind = null;
+        let id = null;
+        let dir = null;
+
+        if (isOut && sock.dataset.link) {
+            const parts = sock.dataset.link.split(':');
+            if (!LINK_WANT[parts[0]]) { return; }
+            dir = 'out';
+            kind = parts[0];
+            id = parts[1];
+        } else if (isIn && sock.dataset.drop) {
+            if (!LINK_REV[sock.dataset.drop]) { return; }
+            dir = 'in';
+            kind = sock.dataset.drop;
+            id = sock.dataset.cam || sock.dataset.rid || sock.dataset.uid || sock.dataset.idx;
+        } else {
+            return;
+        }
+
         ev.preventDefault();
         ev.stopPropagation();
         const zn = $('belt-zone');
         const zr = zn ? zn.getBoundingClientRect() : { left: 0, top: 0 };
-        linkDrag = { from: sock, kind: parts[0], id: parts[1],
-            x: ev.clientX - zr.left, y: ev.clientY - zr.top, hot: null };
+        linkDrag = {
+            from: sock,
+            dir: dir,
+            kind: kind,
+            id: id,
+            x: ev.clientX - zr.left,
+            y: ev.clientY - zr.top,
+            hot: null,
+            snapPt: null
+        };
         document.body.classList.add('linking');
         markTargets(true);
         renderWires();
     });
+
     window.addEventListener('mousemove', function (ev) {
         if (!linkDrag) { return; }
         const zn = $('belt-zone');
         const zr = zn ? zn.getBoundingClientRect() : { left: 0, top: 0 };
         linkDrag.x = ev.clientX - zr.left;
         linkDrag.y = ev.clientY - zr.top;
-        const under = document.elementFromPoint
-            ? document.elementFromPoint(ev.clientX, ev.clientY) : null;
-        const t = under && under.closest ? under.closest('[data-drop]') : null;
-        let ok = t && t.dataset.drop === LINK_WANT[linkDrag.kind];
-        if (ok && LINK_WANT[linkDrag.kind] === 'pos') {
-            const pos = belt.positions[Number(t.dataset.idx)];
-            if (!pos || !pos.inspection) { ok = false; }
+
+        // Магнитный снаппинг к ближайшему совместимому сокету
+        const snap = findSnapTarget(ev.clientX, ev.clientY, linkDrag);
+        let target = snap;
+        if (!target) {
+            const under = document.elementFromPoint ? document.elementFromPoint(ev.clientX, ev.clientY) : null;
+            const cand = under && under.closest ? under.closest(linkDrag.dir === 'out' ? '[data-drop].sock-ok' : '[data-link].sock-ok') : null;
+            if (cand) { target = cand; }
         }
-        if (linkDrag.hot && linkDrag.hot !== (ok ? t : null)) {
+
+        if (linkDrag.hot && linkDrag.hot !== target) {
             linkDrag.hot.classList.remove('sock-hot');
         }
-        linkDrag.hot = ok ? t : null;
-        if (linkDrag.hot) { linkDrag.hot.classList.add('sock-hot'); }
+        linkDrag.hot = target;
+        if (target) {
+            target.classList.add('sock-hot');
+            linkDrag.snapPt = sockXY(target);
+        } else {
+            linkDrag.snapPt = null;
+        }
         renderWires();
     });
+
     window.addEventListener('mouseup', function (ev) {
         if (!linkDrag) { return; }
         const d = linkDrag;
-        let t = d.hot;
-        if (!t && ev.target && ev.target.closest) {
-            const cand = ev.target.closest('[data-drop]');
-            if (cand && cand.dataset.drop === LINK_WANT[d.kind]) {
-                let ok = true;
-                if (LINK_WANT[d.kind] === 'pos') {
-                    const pos = belt.positions[Number(cand.dataset.idx)];
-                    if (!pos || !pos.inspection) { ok = false; }
+        let t = null;
+        // Если бросок точно на совместимый сокет — берём его напрямую (приоритет прямого попадания)
+        if (ev.target && ev.target.closest) {
+            const selector = d.dir === 'out' ? '[data-drop]' : '[data-link]';
+            const cand = ev.target.closest(selector);
+            if (cand && cand !== d.from) {
+                const want = d.dir === 'out' ? LINK_WANT[d.kind] : LINK_REV[d.kind];
+                const key = d.dir === 'out' ? cand.dataset.drop : (cand.dataset.link || '').split(':')[0];
+                if (key === want) {
+                    let ok = true;
+                    if (d.dir === 'out' && want === 'pos') {
+                        const pos = belt.positions[Number(cand.dataset.idx)];
+                        if (!pos || !pos.inspection) { ok = false; }
+                    }
+                    if (ok) { t = cand; }
                 }
-                if (ok) { t = cand; }
             }
         }
+        // Если курсор не прямо над сокетом, но сработал магнитный доводчик
+        if (!t) {
+            t = d.hot;
+        }
+
         markTargets(false);
         if (linkDrag && linkDrag.hot) { linkDrag.hot.classList.remove('sock-hot'); }
         document.body.classList.remove('linking');
         linkDrag = null;
-        if (t) { commitLink(d, t); } else { render(); }
+
+        if (t) {
+            if (d.dir === 'out') {
+                commitLink(d, t);
+            } else {
+                const parts = (t.dataset.link || '').split(':');
+                const outD = { kind: parts[0], id: parts[1] };
+                commitLink(outD, d.from);
+            }
+        } else {
+            render();
+        }
     });
+
     document.addEventListener('keydown', function (ev) {
         if (ev.key === 'Escape' && linkDrag) {
             markTargets(false);
+            if (linkDrag && linkDrag.hot) { linkDrag.hot.classList.remove('sock-hot'); }
             document.body.classList.remove('linking');
             linkDrag = null;
             render();

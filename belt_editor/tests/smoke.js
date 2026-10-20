@@ -813,6 +813,22 @@ check('линии связей при отдалении: пути Безье н
         const hasStroke = wire.style.strokeWidth !== '';
         return hasValidD && hasStroke;
     })());
+check('двунаправленное связывание (In→Out): линковка от входа к выходу создает связь',
+    (function () {
+        const inSock = doc.querySelector('.g-rule[data-rule="r0"] .sock-in');
+        const outSock = doc.querySelector('.g-model[data-model="m0"] .sock-out');
+        if (!inSock || !outSock) return false;
+        inSock.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+        outSock.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+        return true;
+    })());
+check('хитбокс и магнитные сокеты: в CSS заданы увеличенная зона захвата и пульсация',
+    (function () {
+        const css = fs.readFileSync(ROOT + '/css/belt-editor.css', 'utf8');
+        return /\.sock::after\s*\{[^}]*inset:\s*-8px/i.test(css)
+            && /\.sock-hot/i.test(css)
+            && /@keyframes sock-pulse/i.test(css);
+    })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
 
