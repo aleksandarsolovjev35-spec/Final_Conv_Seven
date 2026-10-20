@@ -628,10 +628,6 @@ body {
 
 .tool.dragging { opacity: 0.45; }
 
-
-
-
-
 /* ─── Область 2: сборка ────────────────────────────────────────────── */
 
 .build {
@@ -672,24 +668,22 @@ body {
     align-items: center;
     justify-content: center;
     min-height: 0;
+    cursor: grab;
     transition: border-color 150ms ease, background 150ms ease;
 }
 
-.belt-zone { cursor: grab; }
-
-.belt-zone.drop-ready { cursor: copy; }
-
-.belt-zone.panning { cursor: grabbing; user-select: none; }
-
-.belt-zone .pos-card,
-.belt-zone .lane-arrow { cursor: default; }
-
 .belt-zone.drop-ready {
+    cursor: copy;
     border-color: var(--border-accent);
     background:
         linear-gradient(rgba(120, 153, 165, 0.07), rgba(120, 153, 165, 0.07)),
         var(--bg-1);
 }
+
+.belt-zone.panning { cursor: grabbing; user-select: none; }
+
+.belt-zone .pos-card,
+.belt-zone .lane-arrow { cursor: default; }
 
 /* ряд — холст сборки: просторное 2D-поле (5000×3000), ноды свободно
  * перемещаются в любую сторону; без will-change, чтобы текст
@@ -834,7 +828,6 @@ body.node-moving { cursor: grabbing; }
 .gnode.cam-node { width: 148px; }
 .gnode.cam-node .chip { margin: 4px 6px 6px 12px; display: inline-flex; }
 .gnode.cam-node .node-body { padding: 0; }
-
 
 /* ─── Карточка позиции ─────────────────────────────────────────────── */
 
@@ -1010,11 +1003,7 @@ body.node-moving { cursor: grabbing; }
     flex: 0 0 auto;
 }
 
-
-
 /* ─── Тосты ───────────────────────────────────────────────── */
-
-
 
 .toasts {
     position: fixed;

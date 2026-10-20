@@ -66,26 +66,7 @@ function buildMain() {
         : cam ? cam.name + ' · свободна' : 'камер нет';
 }
 
-function createThumbTile(cam) {
-    const tile = document.createElement('div');
-    let cls = 'thumb';
-    if (cam.id === mainId) { cls += ' main'; }
-    if (cam.position >= 0) { cls += ' bound'; }
-    tile.className = cls;
-    tile.draggable = true;
-
-    const canvas = document.createElement('canvas');
-    canvas.dataset.cam = cam.id;
-    const name = document.createElement('span');
-    name.className = 'thumb-role';
-    name.textContent = cam.name;
-    const det = document.createElement('span');
-    det.className = 'thumb-det';
-
-    tile.appendChild(canvas);
-    tile.appendChild(name);
-    tile.appendChild(det);
-
+function appendThumbBadges(tile, cam) {
     if (cam.rules) {
         const use = document.createElement('span');
         use.className = 'thumb-use';
@@ -110,7 +91,9 @@ function createThumbTile(cam) {
         tag.textContent = 'П' + cam.position;
         tile.appendChild(tag);
     }
+}
 
+function bindThumbEvents(tile, cam) {
     tile.addEventListener('dragstart', function (ev) {
         tileDragging = true;
         tile.classList.add('dragging-src');
@@ -128,6 +111,30 @@ function createThumbTile(cam) {
     tile.addEventListener('click', function () {
         if (!tileDragging) { pick(cam.id); }
     });
+}
+
+function createThumbTile(cam) {
+    const tile = document.createElement('div');
+    let cls = 'thumb';
+    if (cam.id === mainId) { cls += ' main'; }
+    if (cam.position >= 0) { cls += ' bound'; }
+    tile.className = cls;
+    tile.draggable = true;
+
+    const canvas = document.createElement('canvas');
+    canvas.dataset.cam = cam.id;
+    const name = document.createElement('span');
+    name.className = 'thumb-role';
+    name.textContent = cam.name;
+    const det = document.createElement('span');
+    det.className = 'thumb-det';
+
+    tile.appendChild(canvas);
+    tile.appendChild(name);
+    tile.appendChild(det);
+
+    appendThumbBadges(tile, cam);
+    bindThumbEvents(tile, cam);
 
     return tile;
 }
@@ -285,48 +292,52 @@ function drawFeed(ctx, w, h, seed, t, large) {
     return inField;
 }
 
+function paintMainView(t) {
+    const main = $id('cam-main');
+    if (!main) { return; }
+    const on = fitMain(main);
+    const ctx = on ? ctx2d(main) : null;
+    const status = $id('cam-main-status');
+    if (ctx) {
+        const seen = drawFeed(ctx, main.width, main.height,
+            hash('M|' + (mainId || '-')), t, true);
+        if (mainId) {
+            status.textContent = seen ? 'деталь' : 'пусто';
+            status.className = 'cam-tag cam-tag-br' + (seen ? ' live' : '');
+        } else {
+            status.textContent = 'нет камер';
+            status.className = 'cam-tag cam-tag-br';
+        }
+        $id('cam-main-time').textContent =
+            new Date().toLocaleTimeString('ru-RU');
+    } else if (status) {
+        status.textContent = mainId ? 'кадр' : 'нет камер';
+    }
+}
+
+function paintWallThumbnails(t) {
+    const wall = $id('cam-wall');
+    if (!wall) { return; }
+    const tiles = wall.children;
+    for (let i = 0; i < tiles.length; i += 1) {
+        const cv = tiles[i].querySelector('canvas');
+        const det = tiles[i].querySelector('.thumb-det');
+        if (!cv || !det) { continue; }
+        const ready = fitThumb(cv);
+        const ctx = ready ? ctx2d(cv) : null;
+        if (!ctx) { continue; }
+        const id = cv.dataset.cam;
+        const seen = drawFeed(ctx, cv.width, cv.height,
+            hash(id), t, false);
+        det.classList.toggle('found', Boolean(seen && findCam(cameras, id)));
+    }
+}
+
 function paint() {
     const t = ((window.performance && performance.now)
         ? performance.now() : Date.now()) / 1000;
-
-    const main = $id('cam-main');
-    if (main) {
-        const on = fitMain(main);
-        const ctx = on ? ctx2d(main) : null;
-        const status = $id('cam-main-status');
-        if (ctx) {
-            const seen = drawFeed(ctx, main.width, main.height,
-                hash('M|' + (mainId || '-')), t, true);
-            if (mainId) {
-                status.textContent = seen ? 'деталь' : 'пусто';
-                status.className = 'cam-tag cam-tag-br' + (seen ? ' live' : '');
-            } else {
-                status.textContent = 'нет камер';
-                status.className = 'cam-tag cam-tag-br';
-            }
-            $id('cam-main-time').textContent =
-                new Date().toLocaleTimeString('ru-RU');
-        } else if (status) {
-            status.textContent = mainId ? 'кадр' : 'нет камер';
-        }
-    }
-
-    const wall = $id('cam-wall');
-    if (wall) {
-        const tiles = wall.children;
-        for (let i = 0; i < tiles.length; i += 1) {
-            const cv = tiles[i].querySelector('canvas');
-            const det = tiles[i].querySelector('.thumb-det');
-            if (!cv || !det) { continue; }
-            const ready = fitThumb(cv);
-            const ctx = ready ? ctx2d(cv) : null;
-            if (!ctx) { continue; }
-            const id = cv.dataset.cam;
-            const seen = drawFeed(ctx, cv.width, cv.height,
-                hash(id), t, false);
-            det.classList.toggle('found', Boolean(seen && findCam(cameras, id)));
-        }
-    }
+    paintMainView(t);
+    paintWallThumbnails(t);
 }
 
 function schedule() {
