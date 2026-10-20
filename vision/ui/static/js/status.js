@@ -311,6 +311,7 @@ function updateLineStatus(ls) {
     updateProcessPhaseLabel(lineState, ls.process || {});
     setIfChanged(els.metricStep, ls.step || 0);
 
+    updateConveyorSpeed(ls);
     state.backendControls = ls.controls || {};
     applyButtonsForState(lineState, exitRequested, state.backendControls);
     updateViewModeControls();
