@@ -947,92 +947,58 @@ function renderThrPop(dev) {
 }
 
 /* ─── Связи-провода (Blender-style) ──────────────────────────────
- * mousedown по .sock-out — тянется bezier-линка; приёмник — .sock с
- * data-drop. Совпадение вида (model→rule, rule→cam, camera→pos).
- * Постоянные провода пересчитываются на каждый render/scroll/пан. */
+ * Сверхкомпактный и оптимальный движок связей:
+ * Двустороннее связывание, магнитный доводчик и клик по проводу для удаления */
 
 const LINK_WANT = { rule: 'cam', model: 'rule', camera: 'pos', posline: 'poslink' };
 const LINK_REV = { cam: 'rule', rule: 'model', pos: 'camera', poslink: 'posline' };
 let linkDrag = null;
 let wiresScheduled = false;
 
-function findSnapTarget(clientX, clientY, drag) {
-    if (!drag) { return null; }
-    const isOut = drag.dir === 'out';
-    const selector = isOut ? '.sock[data-drop].sock-ok' : '.sock[data-link].sock-ok';
-    const candidates = document.querySelectorAll(selector);
-    let best = null;
-    let minD = 32;
-    candidates.forEach(function (n) {
-        if (n === drag.from) { return; }
+function findSnapTarget(x, y, drag) {
+    const d = drag || linkDrag;
+    if (!d) return null;
+    const sel = d.dir === 'out' ? '.sock[data-drop].sock-ok' : '.sock[data-link].sock-ok';
+    let best = null, minD = 32;
+    document.querySelectorAll(sel).forEach(n => {
+        if (n === d.from) return;
         const r = n.getBoundingClientRect();
-        if (!r.width && !r.height) { return; }
-        const nx = r.left + r.width / 2;
-        const ny = r.top + r.height / 2;
-        const dist = Math.hypot(clientX - nx, clientY - ny);
-        if (dist < minD) {
-            minD = dist;
-            best = n;
-        }
+        if (!r.width && !r.height) return;
+        const dist = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
+        if (dist < minD) { minD = dist; best = n; }
     });
     return best;
 }
 
 function sockXY(node) {
-    if (!node) { return null; }
-    const r = node.getBoundingClientRect();
-    if (!r.width && !r.height) { return null; }
-    const zn = $('belt-zone');
-    const zr = zn ? zn.getBoundingClientRect() : { left: 0, top: 0 };
-    return [
-        r.left - zr.left + r.width / 2,
-        r.top - zr.top + r.height / 2
-    ];
+    if (!node) return null;
+    const r = node.getBoundingClientRect(), z = $('belt-zone')?.getBoundingClientRect() || { left: 0, top: 0 };
+    return (r.width || r.height) ? [r.left - z.left + r.width / 2, r.top - z.top + r.height / 2] : null;
 }
 
 function bez(a, b) {
-    const z = (window.BeltView && window.BeltView.state().z) || 1;
-    const dx = b[0] - a[0];
-    const dy = b[1] - a[1];
-    const dist = Math.hypot(dx, dy);
-    if (dist < 2) {
-        return 'M' + a[0].toFixed(1) + ' ' + a[1].toFixed(1)
-            + 'L' + b[0].toFixed(1) + ' ' + b[1].toFixed(1);
-    }
-    let handle;
-    if (dx > 0) {
-        handle = Math.min(dx * 0.5, Math.max(4 * z, dist * 0.35));
-    } else {
-        handle = Math.min(50 * z, Math.max(6 * z, dist * 0.35));
-    }
-
-    return 'M' + a[0].toFixed(1) + ' ' + a[1].toFixed(1)
-        + 'C' + (a[0] + handle).toFixed(1) + ' ' + a[1].toFixed(1)
-        + ',' + (b[0] - handle).toFixed(1) + ' ' + b[1].toFixed(1)
-        + ',' + b[0].toFixed(1) + ' ' + b[1].toFixed(1);
+    const z = window.BeltView?.state().z || 1, dx = b[0] - a[0], dy = b[1] - a[1], dist = Math.hypot(dx, dy);
+    if (dist < 2) return `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`;
+    const h = dx > 0 ? Math.min(dx * 0.5, Math.max(4 * z, dist * 0.35)) : Math.min(50 * z, Math.max(6 * z, dist * 0.35));
+    return `M${a[0].toFixed(1)} ${a[1].toFixed(1)}C${(a[0] + h).toFixed(1)} ${a[1].toFixed(1)},${(b[0] - h).toFixed(1)} ${b[1].toFixed(1)},${b[0].toFixed(1)} ${b[1].toFixed(1)}`;
 }
 
 function svgPath(d, cls, color) {
     const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     p.setAttribute('d', d);
     p.setAttribute('class', cls);
-    const z = (window.BeltView && window.BeltView.state().z) || 1;
-    const isChain = cls && cls.indexOf('wire-chain') !== -1;
-    const baseW = isChain ? 2.5 : 2.0;
-    const sw = Math.max(0.75, baseW * Math.min(1.2, Math.sqrt(z)));
-    p.style.strokeWidth = sw.toFixed(2) + 'px';
-    if (color) { p.style.stroke = color; }
+    const z = window.BeltView?.state().z || 1;
+    const w = (cls.includes('wire-chain') ? 2.5 : 2.0) * Math.min(1.2, Math.sqrt(z));
+    p.style.strokeWidth = Math.max(0.75, w).toFixed(2) + 'px';
+    if (color) p.style.stroke = color;
     return p;
 }
 
 function scheduleWires() {
-    if (wiresScheduled) { return; }
+    if (wiresScheduled) return;
     wiresScheduled = true;
-    const run = function () { wiresScheduled = false; renderWires(); };
-    (window.requestAnimationFrame || function (f) { f(); })(run);
+    (window.requestAnimationFrame || (f => f()))(() => { wiresScheduled = false; renderWires(); });
 }
-
-/* Стена камер — только источник плиток: связи живут на холсте */
 
 function renderWires() {
     const svg = $('wires');
@@ -1048,195 +1014,103 @@ function renderWires() {
         svg.appendChild(wire);
 
         if (onRemove) {
-            const hitbox = svgPath(d, 'wire-hitbox');
-            hitbox.style.stroke = 'rgba(0,0,0,0.001)';
-            hitbox.style.strokeWidth = '16px';
-            hitbox.style.pointerEvents = 'stroke';
-            hitbox.style.cursor = 'pointer';
-
-            hitbox.setAttribute('title', 'Нажмите, чтобы удалить соединение');
+            const hit = svgPath(d, 'wire-hitbox');
+            hit.style.cssText = 'stroke:rgba(0,0,0,0.001);stroke-width:16px;pointer-events:stroke;cursor:pointer;';
+            hit.setAttribute('title', 'Нажмите, чтобы удалить соединение');
             wire.setAttribute('title', 'Нажмите, чтобы удалить соединение');
-
-            hitbox.addEventListener('mouseenter', () => wire.classList.add('wire-hover-delete'));
-            hitbox.addEventListener('mouseleave', () => wire.classList.remove('wire-hover-delete'));
+            hit.addEventListener('mouseenter', () => wire.classList.add('wire-hover-delete'));
+            hit.addEventListener('mouseleave', () => wire.classList.remove('wire-hover-delete'));
             wire.addEventListener('mouseenter', () => wire.classList.add('wire-hover-delete'));
             wire.addEventListener('mouseleave', () => wire.classList.remove('wire-hover-delete'));
-
-            const stopEv = ev => { if (ev.button === 0) ev.stopPropagation(); };
-            hitbox.addEventListener('mousedown', stopEv);
-            wire.addEventListener('mousedown', stopEv);
-
-            const removeFn = ev => {
-                if (ev.button !== 0 || linkDrag || movingG || (window.BeltView && document.querySelector('.panning'))) return;
+            const onClick = ev => {
+                if (ev.button !== 0 || linkDrag || movingG || document.querySelector('.panning')) return;
                 ev.stopPropagation();
-                ev.preventDefault();
                 onRemove();
             };
-            hitbox.addEventListener('click', removeFn);
-            wire.addEventListener('click', removeFn);
-            svg.appendChild(hitbox);
+            hit.addEventListener('click', onClick);
+            wire.addEventListener('click', onClick);
+            svg.appendChild(hit);
         }
     }
 
-    RULES.forEach(rule => {
-        const to = q('.sock[data-drop="rule"][data-rid="' + rule.id + '"]');
-        rule.models.forEach(mid => {
-            link(q('.sock[data-link="model:' + mid + '"]'), to, null, null, () => togglePart(rule.id, mid));
-        });
-    });
-
-    inventory.forEach(dev => {
-        dev.rules.forEach(rid => {
-            const rule = RULES.find(r => r.id === rid);
-            link(q('.sock[data-link="rule:' + rid + '"]'), q('.sock[data-drop="cam"][data-cam="' + dev.id + '"]'), rule ? rule.color : null, null, () => toggleRuleOnCam(dev.id, rid));
-        });
-    });
-
+    RULES.forEach(r => r.models.forEach(m => link(q(`.sock[data-link="model:${m}"]`), q(`.sock[data-drop="rule"][data-rid="${r.id}"]`), null, null, () => togglePart(r.id, m))));
+    inventory.forEach(dev => dev.rules.forEach(rid => {
+        const r = RULES.find(x => x.id === rid);
+        link(q(`.sock[data-link="rule:${rid}"]`), q(`.sock[data-drop="cam"][data-cam="${dev.id}"]`), r?.color, null, () => toggleRuleOnCam(dev.id, rid));
+    }));
     belt.positions.forEach((pos, i) => {
         if (pos.inspection) {
-            pos.inspection.cameras.forEach(cid => {
-                link(q('.cam-node[data-cam="' + cid + '"] .sock[data-link="camera:' + cid + '"]'), q('.pos-card[data-index="' + i + '"] .sock-node'), null, null, () => {
-                    const cIdx = pos.inspection.cameras.indexOf(cid);
-                    if (cIdx >= 0) {
-                        pos.inspection.cameras.splice(cIdx, 1);
-                        toast(camName(cid) + ' — снята с П' + i + '.');
-                        render();
-                    }
-                });
-            });
+            pos.inspection.cameras.forEach(cid => link(q(`.cam-node[data-cam="${cid}"] .sock[data-link="camera:${cid}"]`), q(`.pos-card[data-index="${i}"] .sock-node`), null, null, () => {
+                const idx = pos.inspection.cameras.indexOf(cid);
+                if (idx >= 0) { pos.inspection.cameras.splice(idx, 1); toast(camName(cid) + ' — снята с П' + i + '.'); render(); }
+            }));
         }
         if (pos.nextUid) {
             const tgt = findPosByUid(pos.nextUid);
-            if (tgt) {
-                link(q('.pos-card[data-index="' + i + '"] .sock-line-out'), q('.pos-card[data-index="' + belt.positions.indexOf(tgt) + '"] .sock-line-in'), null, 'wire wire-chain', () => {
-                    pos.nextUid = null;
-                    toast('Связь разорвана.');
-                    render();
-                });
-            }
+            if (tgt) link(q(`.pos-card[data-index="${i}"] .sock-line-out`), q(`.pos-card[data-index="${belt.positions.indexOf(tgt)}"] .sock-line-in`), null, 'wire wire-chain', () => {
+                pos.nextUid = null; toast('Связь разорвана.'); render();
+            });
         }
     });
 
     if (linkDrag) {
-        const fromPt = sockXY(linkDrag.from);
-        const toPt = linkDrag.snapPt || [linkDrag.x, linkDrag.y];
+        const fromPt = sockXY(linkDrag.from), toPt = linkDrag.snapPt || [linkDrag.x, linkDrag.y];
         if (fromPt && toPt) {
-            const start = linkDrag.dir === 'out' ? fromPt : toPt;
-            const end = linkDrag.dir === 'out' ? toPt : fromPt;
+            const [start, end] = linkDrag.dir === 'out' ? [fromPt, toPt] : [toPt, fromPt];
             svg.appendChild(svgPath(bez(start, end), 'wire wire-live' + (linkDrag.hot ? ' wire-ok' : '')));
         }
     }
 }
 
 function markTargets(on) {
-    if (!linkDrag || !on) {
-        document.querySelectorAll('.sock-ok, .sock-hot').forEach(function (n) {
-            n.classList.remove('sock-ok', 'sock-hot');
-        });
-        return;
-    }
-    const isOut = linkDrag.dir === 'out';
-    const want = isOut ? LINK_WANT[linkDrag.kind] : LINK_REV[linkDrag.kind];
-
-    if (isOut) {
-        document.querySelectorAll('.sock[data-drop]').forEach(function (n) {
-            const own = n.closest ? n.closest('.cam-node') : null;
-            const skip = own && own.dataset.cam === linkDrag.id;
-            let ok = n.dataset.drop === want && !skip;
-            if (ok && want === 'pos') {
-                const pos = belt.positions[Number(n.dataset.idx)];
-                if (!pos || !pos.inspection) { ok = false; }
-            }
-            n.classList.toggle('sock-ok', ok);
-        });
-    } else {
-        document.querySelectorAll('.sock[data-link]').forEach(function (n) {
-            const own = n.closest ? n.closest('.cam-node') : null;
-            const skip = own && own.dataset.cam === linkDrag.id;
-            const parts = (n.dataset.link || '').split(':');
-            let ok = parts[0] === want && !skip;
-            n.classList.toggle('sock-ok', ok);
-        });
-    }
+    document.querySelectorAll('.sock-ok, .sock-hot').forEach(n => n.classList.remove('sock-ok', 'sock-hot'));
+    if (!linkDrag || !on) return;
+    const isOut = linkDrag.dir === 'out', want = isOut ? LINK_WANT[linkDrag.kind] : LINK_REV[linkDrag.kind];
+    document.querySelectorAll(isOut ? '.sock[data-drop]' : '.sock[data-link]').forEach(n => {
+        if (n.closest?.('.cam-node')?.dataset.cam === linkDrag.id) return;
+        const key = isOut ? n.dataset.drop : (n.dataset.link || '').split(':')[0];
+        let ok = key === want;
+        if (ok && isOut && want === 'pos' && !belt.positions[Number(n.dataset.idx)]?.inspection) ok = false;
+        n.classList.toggle('sock-ok', ok);
+    });
 }
 
 function commitLink(d, t) {
-    if (d.kind === 'model') {
-        togglePart(t.dataset.rid || t.dataset.link.split(':')[1], d.id);
-    } else if (d.kind === 'rule') {
-        toggleRuleOnCam(t.dataset.cam, d.id);
-    } else if (d.kind === 'camera') {
-        bindCamera(Number(t.dataset.idx), d.id);
-    } else if (d.kind === 'posline') {
-        linkPos(d.id, t.dataset.uid);
-    }
+    if (d.kind === 'model') togglePart(t.dataset.rid || t.dataset.link.split(':')[1], d.id);
+    else if (d.kind === 'rule') toggleRuleOnCam(t.dataset.cam, d.id);
+    else if (d.kind === 'camera') bindCamera(Number(t.dataset.idx), d.id);
+    else if (d.kind === 'posline') linkPos(d.id, t.dataset.uid);
     render();
 }
 
 function wireLinkEngine() {
-    document.addEventListener('mousedown', function (ev) {
-        if (ev.button !== 0) { return; }
-        const sock = ev.target.closest ? ev.target.closest('.sock') : null;
-        if (!sock) { return; }
+    document.addEventListener('mousedown', ev => {
+        if (ev.button !== 0) return;
+        const sock = ev.target.closest?.('.sock');
+        if (!sock) return;
         const isOut = sock.classList.contains('sock-out');
-        const isIn = sock.classList.contains('sock-in') || sock.dataset.drop;
-        let kind = null;
-        let id = null;
-        let dir = null;
+        const kind = isOut ? (sock.dataset.link || '').split(':')[0] : sock.dataset.drop;
+        if (!LINK_WANT[kind] && !LINK_REV[kind]) return;
 
-        if (isOut && sock.dataset.link) {
-            const parts = sock.dataset.link.split(':');
-            if (!LINK_WANT[parts[0]]) { return; }
-            dir = 'out';
-            kind = parts[0];
-            id = parts[1];
-        } else if (isIn && sock.dataset.drop) {
-            if (!LINK_REV[sock.dataset.drop]) { return; }
-            dir = 'in';
-            kind = sock.dataset.drop;
-            id = sock.dataset.cam || sock.dataset.rid || sock.dataset.uid || sock.dataset.idx;
-        } else {
-            return;
-        }
-
-        ev.preventDefault();
-        ev.stopPropagation();
-        const zn = $('belt-zone');
-        const zr = zn ? zn.getBoundingClientRect() : { left: 0, top: 0 };
-        linkDrag = {
-            from: sock,
-            dir: dir,
-            kind: kind,
-            id: id,
-            x: ev.clientX - zr.left,
-            y: ev.clientY - zr.top,
-            hot: null,
-            snapPt: null
-        };
+        ev.preventDefault(); ev.stopPropagation();
+        const zr = $('belt-zone')?.getBoundingClientRect() || { left: 0, top: 0 };
+        const id = isOut ? sock.dataset.link.split(':')[1] : (sock.dataset.cam || sock.dataset.rid || sock.dataset.uid || sock.dataset.idx);
+        linkDrag = { from: sock, dir: isOut ? 'out' : 'in', kind, id, x: ev.clientX - zr.left, y: ev.clientY - zr.top, hot: null, snapPt: null };
         document.body.classList.add('linking');
         markTargets(true);
         renderWires();
     });
 
-    window.addEventListener('mousemove', function (ev) {
-        if (!linkDrag) { return; }
-        const zn = $('belt-zone');
-        const zr = zn ? zn.getBoundingClientRect() : { left: 0, top: 0 };
+    window.addEventListener('mousemove', ev => {
+        if (!linkDrag) return;
+        const zr = $('belt-zone')?.getBoundingClientRect() || { left: 0, top: 0 };
         linkDrag.x = ev.clientX - zr.left;
         linkDrag.y = ev.clientY - zr.top;
 
-        // Магнитный снаппинг к ближайшему совместимому сокету
-        const snap = findSnapTarget(ev.clientX, ev.clientY, linkDrag);
-        let target = snap;
-        if (!target) {
-            const under = document.elementFromPoint ? document.elementFromPoint(ev.clientX, ev.clientY) : null;
-            const cand = under && under.closest ? under.closest(linkDrag.dir === 'out' ? '[data-drop].sock-ok' : '[data-link].sock-ok') : null;
-            if (cand) { target = cand; }
-        }
+        const target = findSnapTarget(ev.clientX, ev.clientY)
+            || (document.elementFromPoint ? document.elementFromPoint(ev.clientX, ev.clientY)?.closest(linkDrag.dir === 'out' ? '[data-drop].sock-ok' : '[data-link].sock-ok') : null);
 
-        if (linkDrag.hot && linkDrag.hot !== target) {
-            linkDrag.hot.classList.remove('sock-hot');
-        }
+        if (linkDrag.hot && linkDrag.hot !== target) linkDrag.hot.classList.remove('sock-hot');
         linkDrag.hot = target;
         if (target) {
             target.classList.add('sock-hot');
@@ -1247,78 +1121,52 @@ function wireLinkEngine() {
         renderWires();
     });
 
-    window.addEventListener('mouseup', function (ev) {
-        if (!linkDrag) { return; }
+    window.addEventListener('mouseup', ev => {
+        if (!linkDrag) return;
         const d = linkDrag;
         let t = null;
-        // Если бросок точно на совместимый сокет — берём его напрямую (приоритет прямого попадания)
-        if (ev.target && ev.target.closest) {
-            const selector = d.dir === 'out' ? '[data-drop]' : '[data-link]';
-            const cand = ev.target.closest(selector);
+        if (ev.target?.closest) {
+            const cand = ev.target.closest(d.dir === 'out' ? '[data-drop]' : '[data-link]');
             if (cand && cand !== d.from) {
                 const want = d.dir === 'out' ? LINK_WANT[d.kind] : LINK_REV[d.kind];
                 const key = d.dir === 'out' ? cand.dataset.drop : (cand.dataset.link || '').split(':')[0];
-                if (key === want) {
-                    let ok = true;
-                    if (d.dir === 'out' && want === 'pos') {
-                        const pos = belt.positions[Number(cand.dataset.idx)];
-                        if (!pos || !pos.inspection) { ok = false; }
-                    }
-                    if (ok) { t = cand; }
+                if (key === want && !(d.dir === 'out' && want === 'pos' && !belt.positions[Number(cand.dataset.idx)]?.inspection)) {
+                    t = cand;
                 }
             }
         }
-        // Если курсор не прямо над сокетом, но сработал магнитный доводчик
-        if (!t) {
-            t = d.hot;
-        }
+        if (!t) t = d.hot;
 
         markTargets(false);
-        if (linkDrag && linkDrag.hot) { linkDrag.hot.classList.remove('sock-hot'); }
+        if (d.hot) d.hot.classList.remove('sock-hot');
         document.body.classList.remove('linking');
         linkDrag = null;
 
         if (t) {
-            if (d.dir === 'out') {
-                commitLink(d, t);
-            } else {
-                const parts = (t.dataset.link || '').split(':');
-                const outD = { kind: parts[0], id: parts[1] };
-                commitLink(outD, d.from);
-            }
+            if (d.dir === 'out') commitLink(d, t);
+            else commitLink({ kind: (t.dataset.link || '').split(':')[0], id: (t.dataset.link || '').split(':')[1] }, d.from);
         } else {
             render();
         }
     });
 
-    document.addEventListener('keydown', function (ev) {
+    document.addEventListener('keydown', ev => {
         if (ev.key === 'Escape' && linkDrag) {
             markTargets(false);
-            if (linkDrag && linkDrag.hot) { linkDrag.hot.classList.remove('sock-hot'); }
+            if (linkDrag.hot) linkDrag.hot.classList.remove('sock-hot');
             document.body.classList.remove('linking');
             linkDrag = null;
             render();
         }
     });
+
     window.addEventListener('resize', scheduleWires);
     document.addEventListener('scroll', scheduleWires, true);
     document.addEventListener('transitionend', scheduleWires, true);
-    const z = $('belt-zone');
-    if (z) {
-        z.addEventListener('belt:view', function () {
-            renderWires();
-        });
-        ['wheel', 'mousemove', 'dblclick'].forEach(function (t) {
-            z.addEventListener(t, scheduleWires);
-        });
-        if (typeof ResizeObserver !== 'undefined') {
-            try {
-                const ro = new ResizeObserver(function () {
-                    scheduleWires();
-                });
-                ro.observe(z);
-            } catch (e) {}
-        }
+    $('belt-zone')?.addEventListener('belt:view', renderWires);
+    ['wheel', 'mousemove', 'dblclick'].forEach(t => $('belt-zone')?.addEventListener(t, scheduleWires));
+    if (typeof ResizeObserver !== 'undefined' && $('belt-zone')) {
+        try { new ResizeObserver(scheduleWires).observe($('belt-zone')); } catch (e) {}
     }
 }
 
