@@ -14,10 +14,10 @@ const MODELS = ['uneven-heights', 'window-sinks', 'omission-long', 'contacts-lon
     'shaft-long', 'yoke-drop'].map((name, i) => ({ id: 'm' + i, name }));
 
 const RULES = [
-    { id: 'r0', name: 'геометрия', color: '#d9a441', thr: ['площадь', 'перекос', 'высота'], models: [] },
-    { id: 'r1', name: 'наличие', color: '#58b79a', thr: ['контраст'], models: [] },
-    { id: 'r2', name: 'пропуск', color: '#cf7aa6', thr: ['окно'], models: [] },
-    { id: 'r3', name: 'контакты', color: '#a58ad9', thr: ['нажим', 'смещение'], models: [] }
+    { id: 'r0', name: 'геометрия', color: '#d9a441', thr: ['площадь', 'перекос', 'высота'], models: [], mode: 'defect' },
+    { id: 'r1', name: 'наличие', color: '#58b79a', thr: ['контраст'], models: [], mode: 'presence' },
+    { id: 'r2', name: 'пропуск', color: '#cf7aa6', thr: ['окно'], models: [], mode: 'defect' },
+    { id: 'r3', name: 'контакты', color: '#a58ad9', thr: ['нажим', 'смещение'], models: [], mode: 'presence' }
 ];
 
 const RULE_COLORS = ['#4fa3d1', '#d9a441', '#58b79a', '#cf7aa6', '#a58ad9', '#e06c75', '#98c379',
@@ -67,7 +67,7 @@ function getNodeDimensions(keyOrType, domNode) {
     const k = String(keyOrType || '');
     if (k.startsWith('pos') || k === 'position') return { w: 176, h: 96 };
     if (k.startsWith('cam')) return { w: 148, h: 54 };
-    if (k.startsWith('rule')) return { w: 128, h: 50 };
+    if (k.startsWith('rule')) return { w: 168, h: 92 };
     if (k.startsWith('model')) return { w: 128, h: 34 };
     return { w: 128, h: 44 };
 }
@@ -298,6 +298,7 @@ function renderAssets() {
                 const sw = el('span', 'rule-swatch'); sw.style.background = item.color;
                 const nm = el('b', '', item.name); nm.style.color = item.color;
                 tile.appendChild(sw); tile.appendChild(nm);
+                tile.appendChild(el('span', 'rule-mode-tag', item.mode === 'presence' ? 'наличие' : 'дефект'));
                 if (item.models.length) tile.appendChild(el('span', 'rule-parts-count', `${item.models.length}м`));
                 if (used) tile.appendChild(el('span', 'asset-use', `кам: ${used}`));
             } else {
@@ -413,6 +414,7 @@ function renderModelNode(mid, at) {
 function renderRuleNode(rid, at) {
     const rule = RULES.find(r => r.id === rid);
     if (!rule) return el('div', 'gnode');
+    if (!rule.mode) rule.mode = 'defect';
     const key = 'rule:' + rid, node = gnodeFrame('g-rule', key, at, rule.name);
     node.dataset.rule = rid;
     node.querySelector('.pos-del').onclick = ev => { ev.stopPropagation(); delete belt.places[key]; render(); };
@@ -421,13 +423,39 @@ function renderRuleNode(rid, at) {
     node.querySelector('.pos-label').style.color = rule.color;
     node.appendChild(gsock('sock-in', null, 'rule', rid));
     node.appendChild(gsock('sock-out', key));
+
     const list = el('div', 'g-models', null, rule.models.map(mid => {
         const mod = MODELS.find(m => m.id === mid), chip = el('span', 'g-chip', mod ? mod.name : mid);
         chip.title = 'снять модель'; chip.onclick = ev => { ev.stopPropagation(); togglePart(rid, mid); };
         return chip;
     }));
     if (!rule.models.length) list.appendChild(el('span', 'g-empty', '→ тяни модель сюда'));
-    node.appendChild(list);
+
+    const isDefect = rule.mode === 'defect';
+    const logicToggle = el('div', 'rule-logic-toggle' + (isDefect ? ' is-defect' : ' is-presence'), null, [
+        el('span', 'logic-pill', isDefect ? '🔴 Есть зона ➔ БРАК' : '🟢 Нет зоны ➔ БРАК'),
+        el('span', 'logic-sub', isDefect ? 'дефект: найдено = брак' : 'наличие: пусто = брак')
+    ]);
+    logicToggle.title = 'Нажмите для переключения: дефект (есть ➔ брак) ↔ наличие (нет ➔ брак)';
+    logicToggle.onclick = ev => {
+        ev.stopPropagation();
+        rule.mode = rule.mode === 'defect' ? 'presence' : 'defect';
+        toast(`«${rule.name}»: ${rule.mode === 'defect' ? 'режим «дефект» (есть зона ➔ БРАК)' : 'режим «наличие» (нет зоны ➔ БРАК)'}`);
+        render();
+    };
+
+    const blockBody = el('div', 'rule-blocks-body', null, [
+        el('div', 'rule-block-row', null, [
+            el('span', 'rule-block-tag', 'ОБНАРУЖЕНИЕ'),
+            list
+        ]),
+        el('div', 'rule-block-row', null, [
+            el('span', 'rule-block-tag', 'РЕШЕНИЕ'),
+            logicToggle
+        ])
+    ]);
+    node.appendChild(blockBody);
+
     const cams = ruleOnCameras(rule);
     if (cams.length) node.appendChild(el('div', 'g-meta', `кам: ${cams.length}`));
     return node;
@@ -1015,9 +1043,10 @@ function addRuleFromFile(fileName, path) {
     if (!name) return null;
     const exist = RULES.find(r => r.name.toLowerCase() === name.toLowerCase());
     if (exist) return exist;
+    const isPresence = name.includes('presence') || name.includes('наличие') || name.includes('contact');
     const rule = {
         id: 'r' + (nextRuleId++), name, color: RULE_COLORS[RULES.length % RULE_COLORS.length],
-        thr: ['порог'], models: [], path: path || name
+        thr: ['порог'], models: [], mode: isPresence ? 'presence' : 'defect', path: path || name
     };
     RULES.push(rule); render(); return rule;
 }

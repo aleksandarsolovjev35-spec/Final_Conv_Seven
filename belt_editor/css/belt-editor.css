@@ -825,6 +825,74 @@ body.node-moving { cursor: grabbing; }
 
 .gnode.free { border-style: dashed; border-color: var(--border-accent); }
 
+.gnode.g-rule { width: 168px; }
+
+.rule-blocks-body {
+    padding: 0 6px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.rule-block-row {
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.rule-block-tag {
+    font: 8px/1.2 var(--font-mono, monospace);
+    color: var(--text-muted);
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+}
+
+.rule-block-row .g-models {
+    padding: 2px 0 0;
+}
+
+.rule-logic-toggle {
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid transparent;
+    transition: background 120ms, border-color 120ms;
+}
+
+.rule-logic-toggle:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--border-accent);
+}
+
+.logic-pill {
+    font: 9.5px/1.3 var(--font-ui, sans-serif);
+    font-weight: 600;
+}
+
+.rule-logic-toggle.is-defect .logic-pill { color: #e06c75; }
+.rule-logic-toggle.is-presence .logic-pill { color: #58b79a; }
+
+.logic-sub {
+    font: 8.5px/1.2 var(--font-mono, monospace);
+    color: var(--text-dim);
+}
+
+.rule-mode-tag {
+    font: 9px/1.2 var(--font-mono, monospace);
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-dim);
+    margin-left: 2px;
+}
+
 .gnode.cam-node { width: 148px; }
 .gnode.cam-node .chip { margin: 4px 6px 6px 12px; display: inline-flex; }
 .gnode.cam-node .node-body { padding: 0; }
