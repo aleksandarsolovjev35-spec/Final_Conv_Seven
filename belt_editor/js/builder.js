@@ -15,12 +15,13 @@ const MODELS = ['uneven-heights', 'window-sinks', 'omission-long', 'contacts-lon
 
 const RULES = [
     {
-        id: 'r0', name: 'геометрия', defectName: 'ДЕФЕКТ ГЕОМЕТРИИ', color: '#d9a441',
-        thr: ['площадь', 'перекос', 'высота'], models: [], mode: 'defect', baseMode: 'geometry', tolerance: 2, countExpected: 0
+        id: 'r0', name: 'геометрия', defectName: 'ОТКЛОНЕНИЕ РАЗМЕРА ОКНА', color: '#d9a441',
+        thr: ['площадь', 'верх_px', 'низ_px'], models: [], mode: 'measure', baseMode: 'measure',
+        topMin: 15, topMax: 45, bottomMin: 15, bottomMax: 45, tolerance: 2, countExpected: 0
     },
     {
         id: 'r1', name: 'наличие', defectName: 'НЕКОМПЛЕКТ', color: '#58b79a',
-        thr: ['контраст'], models: [], mode: 'presence', baseMode: 'presence', countExpected: 4
+        thr: ['контраст'], models: [], mode: 'presence', baseMode: 'presence', countExpected: 7
     },
     {
         id: 'r2', name: 'дефект', defectName: 'ДЕФЕКТ', color: '#cf7aa6',
@@ -456,7 +457,25 @@ function renderRuleModelList(rule, rid) {
     return list;
 }
 
+function getMeasureRuleConfig(rule) {
+    const tMin = rule.topMin ?? 15, tMax = rule.topMax ?? 45;
+    const bMin = rule.bottomMin ?? 15, bMax = rule.bottomMax ?? 45;
+    return {
+        lbl: 'Окно T/B допуск:', val: `T:${tMin}–${tMax} B:${bMin}–${bMax}`,
+        dec: () => {
+            rule.topMin = Math.max(10, tMin - 2); rule.topMax = Math.max(rule.topMin + 5, tMax - 2);
+            rule.bottomMin = Math.max(10, bMin - 2); rule.bottomMax = Math.max(rule.bottomMin + 5, bMax - 2);
+        },
+        inc: () => {
+            rule.topMin = Math.min(30, tMin + 2); rule.topMax = Math.min(60, tMax + 2);
+            rule.bottomMin = Math.min(30, bMin + 2); rule.bottomMax = Math.min(60, bMax + 2);
+        },
+        formula: `T∈[${tMin}..${tMax}] & B∈[${bMin}..${bMax}] px → ГОДНАЯ`
+    };
+}
+
 function getRuleParamConfig(rule) {
+    if (rule.mode === 'measure') return getMeasureRuleConfig(rule);
     if (rule.mode === 'presence') {
         const val = rule.countExpected || 4;
         return {
@@ -541,8 +560,9 @@ function renderRuleNode(rid, at) {
     node.appendChild(gsock('sock-out', key));
 
     const isPresence = rule.mode === 'presence';
-    const kindClass = isPresence ? 'kind-presence' : (rule.mode === 'shift' ? 'kind-shift' : (rule.mode === 'geometry' ? 'kind-geometry' : 'kind-defect'));
-    const kindText = isPresence ? 'НАЛИЧИЕ' : (rule.mode === 'shift' ? 'СМЕЩЕНИЕ' : (rule.mode === 'geometry' ? 'ГЕОМЕТРИЯ' : 'ДЕФЕКТ'));
+    const isMeasure = rule.mode === 'measure';
+    const kindClass = isPresence ? 'kind-presence' : (rule.mode === 'shift' ? 'kind-shift' : (isMeasure ? 'kind-measure' : (rule.mode === 'geometry' ? 'kind-geometry' : 'kind-defect')));
+    const kindText = isPresence ? 'НАЛИЧИЕ' : (rule.mode === 'shift' ? 'СМЕЩЕНИЕ' : (isMeasure ? 'ЗАМЕР' : (rule.mode === 'geometry' ? 'ГЕОМЕТРИЯ' : 'ДЕФЕКТ')));
     const cams = ruleOnCameras(rule);
     const body = el('div', 'rule-card-body', null, [
         el('div', 'rule-block', null, [

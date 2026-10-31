@@ -298,6 +298,25 @@ function drawInspectionGeometry(ctx, px, py, pw, ph, rule) {
     return { isFail: Math.abs(dev) > tol, text: `Размер: откл. +${dev} мм (допуск ±${tol} мм)` };
 }
 
+function drawInspectionMeasure(ctx, px, py, pw, ph, rule) {
+    const tMin = rule.topMin ?? 15, tMax = rule.topMax ?? 45;
+    const bMin = rule.bottomMin ?? 15, bMax = rule.bottomMax ?? 45;
+    const tVal = 30, bVal = 28;
+    const midY = Math.round(py + ph / 2);
+    ctx.strokeStyle = '#d9a441';
+    ctx.strokeRect(px - 2, py - 2, pw + 4, ph + 4);
+    ctx.strokeStyle = 'rgba(217, 164, 65, 0.8)';
+    ctx.setLineDash([2, 2]);
+    ctx.beginPath(); ctx.moveTo(px - 2, midY); ctx.lineTo(px + pw + 2, midY); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '7px monospace';
+    ctx.fillStyle = '#d9a441';
+    ctx.fillText(`↑T:${tVal}px`, px + 2, py + 8);
+    ctx.fillText(`↓B:${bVal}px`, px + 2, midY + 10);
+    const fail = tVal < tMin || tVal > tMax || bVal < bMin || bVal > bMax;
+    return { isFail: fail, text: `Окно: T=${tVal}px B=${bVal}px (норма: ${tMin}–${tMax}px)` };
+}
+
 function drawInspectionShift(ctx, px, py, pw, ph, rule) {
     const maxShift = rule.maxShift ?? 3, shiftVal = 1.2;
     const cx = Math.round(px + pw / 2), cy = Math.round(py + ph / 2);
@@ -322,6 +341,7 @@ function drawLiveRuleInspection(ctx, w, h, inField, p, size, railY, t, rule) {
     let res = null;
     if (rule.mode === 'presence') res = drawInspectionPresence(ctx, px, py, pw, ph, rule);
     else if (rule.mode === 'shift') res = drawInspectionShift(ctx, px, py, pw, ph, rule);
+    else if (rule.mode === 'measure') res = drawInspectionMeasure(ctx, px, py, pw, ph, rule);
     else if (rule.mode === 'geometry') res = drawInspectionGeometry(ctx, px, py, pw, ph, rule);
     else res = drawInspectionDefect(ctx, px, py, pw, ph, rule);
 

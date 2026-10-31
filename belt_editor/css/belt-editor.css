@@ -1061,7 +1061,8 @@ body.node-moving { cursor: grabbing; }
     border: 1px solid rgba(88, 183, 154, 0.35);
 }
 
-.rule-kind-pill.kind-geometry {
+.rule-kind-pill.kind-geometry,
+.rule-kind-pill.kind-measure {
     background: rgba(217, 164, 65, 0.15);
     color: #d9a441;
     border: 1px solid rgba(217, 164, 65, 0.35);

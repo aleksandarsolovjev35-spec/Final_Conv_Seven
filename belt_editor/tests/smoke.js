@@ -981,6 +981,23 @@ check('выбор модели прямо в карточке инструмен
         const hasChip = Array.from(chipsAfter).some(c => c.textContent.includes('bracket-90'));
         return hasChip;
     })());
+check('инструмент замер окна: контроль расстояний T/B до середины с формулой допуска',
+    (function () {
+        const rNode = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
+        if (!rNode) return false;
+        const toggle = rNode.querySelector('.rule-logic-toggle');
+        if (toggle && toggle.classList.contains('is-presence')) {
+            toggle.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        }
+        const updated = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
+        const pill = updated?.querySelector('.rule-kind-pill');
+        const isMeasure = pill && (pill.classList.contains('kind-measure') || pill.textContent.includes('ЗАМЕР'));
+        const valText = updated?.querySelector('.rule-count-val')?.textContent || '';
+        const formula = updated?.querySelector('.rule-formula')?.textContent || '';
+        const hasTB = valText.includes('T:') && valText.includes('B:');
+        const hasFormula = formula.includes('T∈') && formula.includes('B∈');
+        return isMeasure && hasTB && hasFormula;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);
