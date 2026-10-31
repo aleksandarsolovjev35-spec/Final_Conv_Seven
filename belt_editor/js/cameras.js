@@ -298,69 +298,74 @@ function drawInspectionGeometry(ctx, px, py, pw, ph, rule) {
     return { isFail: Math.abs(dev) > tol, text: `Размер: откл. +${dev} мм (допуск ±${tol} мм)` };
 }
 
-function drawMeasureBboxAndCuts(ctx, px, py, pw, ph, rule) {
-    const cutsH = rule.cutsH ?? 1, cutsV = rule.cutsV ?? 3;
-    ctx.lineWidth = 1.5; ctx.strokeStyle = '#d9a441';
-    ctx.strokeRect(px, py, pw, ph);
-
-    const cLen = Math.min(6, Math.round(pw * 0.15));
-    ctx.strokeStyle = '#f3ca6c';
-    ctx.beginPath();
-    ctx.moveTo(px, py + cLen); ctx.lineTo(px, py); ctx.lineTo(px + cLen, py);
-    ctx.moveTo(px + pw - cLen, py); ctx.lineTo(px + pw); ctx.lineTo(px + pw, py + cLen);
-    ctx.moveTo(px, py + ph - cLen); ctx.lineTo(px, py + ph); ctx.lineTo(px + cLen, py + ph);
-    ctx.moveTo(px + pw - cLen, py + ph); ctx.lineTo(px + pw, py + ph); ctx.lineTo(px + pw, py + ph - cLen);
-    ctx.stroke();
-
-    const hStep = ph / (cutsH + 1);
-    ctx.setLineDash([3, 2]); ctx.strokeStyle = 'rgba(217, 164, 65, 0.75)';
-    for (let h = 1; h <= cutsH; h++) {
-        const my = Math.round(py + h * hStep);
-        ctx.beginPath(); ctx.moveTo(px - 3, my); ctx.lineTo(px + pw + 3, my); ctx.stroke();
-    }
-    const vStep = pw / (cutsV + 1);
-    ctx.strokeStyle = 'rgba(243, 202, 108, 0.4)';
-    for (let v = 1; v <= cutsV; v++) {
-        const vx = Math.round(px + v * vStep);
-        ctx.beginPath(); ctx.moveTo(vx, py - 3); ctx.lineTo(vx, py + ph + 3); ctx.stroke();
+function drawMeasureToleranceBox(ctx, px, py, pw, ph, rule, midX, midY) {
+    const tMax = rule.topMax ?? 45, bMax = rule.bottomMax ?? 45;
+    ctx.strokeStyle = 'rgba(34, 197, 94, 0.85)';
+    ctx.lineWidth = 1.4;
+    ctx.setLineDash([4, 3]);
+    if (rule.lineMode === 'vert') {
+        const x1 = midX - tMax, x2 = midX + bMax;
+        ctx.strokeRect(x1, py - 2, x2 - x1, ph + 4);
+    } else if (rule.lineMode === 'none') {
+        const tx = rule.tolX ?? 36, ty = rule.tolY ?? 30;
+        ctx.strokeRect(midX - tx, midY - ty, tx * 2, ty * 2);
+    } else {
+        const y1 = midY - tMax, y2 = midY + bMax;
+        ctx.strokeRect(px - 2, y1, pw + 4, y2 - y1);
     }
     ctx.setLineDash([]);
 }
 
+function drawMeasureArrowsAndText(ctx, px, py, pw, ph, rule, midX, midY) {
+    const tMin = rule.topMin ?? 15, tMax = rule.topMax ?? 45;
+    const bMin = rule.bottomMin ?? 15, bMax = rule.bottomMax ?? 45;
+    let d1, d2, d1Ok, d2Ok;
+
+    if (rule.lineMode === 'vert') {
+        d1 = Math.round(midX - px); d2 = Math.round(px + pw - midX);
+        d1Ok = d1 >= tMin && d1 <= tMax; d2Ok = d2 >= bMin && d2 <= bMax;
+        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.4; ctx.setLineDash([4, 2]);
+        ctx.beginPath(); ctx.moveTo(midX, py - 6); ctx.lineTo(midX, py + ph + 6); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = '7.5px monospace'; ctx.fillStyle = '#f59e0b'; ctx.fillText('L', midX - 3, py - 8);
+        ctx.fillStyle = d1Ok ? '#22c55e' : '#ef4444'; ctx.fillText(`${d1}px`, px + 2, py - 4);
+        ctx.fillStyle = d2Ok ? '#22c55e' : '#ef4444'; ctx.fillText(`${d2}px`, midX + 4, py - 4);
+    } else if (rule.lineMode === 'none') {
+        d1 = Math.round(pw / 2); d2 = Math.round(ph / 2);
+        d1Ok = d1 <= (rule.tolX ?? 36); d2Ok = d2 <= (rule.tolY ?? 30);
+        ctx.strokeStyle = '#475569'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(midX, py - 4); ctx.lineTo(midX, py + ph + 4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(px - 4, midY); ctx.lineTo(px + pw + 4, midY); ctx.stroke();
+        ctx.font = '7.5px monospace'; ctx.fillStyle = d1Ok && d2Ok ? '#22c55e' : '#ef4444';
+        ctx.fillText(`${pw}×${ph}px`, px + 2, py + ph + 10);
+    } else {
+        d1 = Math.round(midY - py); d2 = Math.round(py + ph - midY);
+        d1Ok = d1 >= tMin && d1 <= tMax; d2Ok = d2 >= bMin && d2 <= bMax;
+        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.4; ctx.setLineDash([4, 2]);
+        ctx.beginPath(); ctx.moveTo(px - 6, midY); ctx.lineTo(px + pw + 6, midY); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = '7.5px monospace'; ctx.fillStyle = '#f59e0b'; ctx.fillText('L', px + pw + 8, midY + 3);
+        const xArr = px + pw + 16;
+        ctx.fillStyle = d1Ok ? '#22c55e' : '#ef4444'; ctx.fillText(`${d1}px`, xArr, midY - 5);
+        ctx.fillStyle = d2Ok ? '#22c55e' : '#ef4444'; ctx.fillText(`${d2}px`, xArr, midY + 11);
+        ctx.fillStyle = '#94a3b8'; ctx.fillText(`W=${pw}px`, px + 4, py + ph + 10);
+    }
+    return { ok: d1Ok && d2Ok, d1, d2 };
+}
+
 function drawInspectionMeasure(ctx, px, py, pw, ph, rule) {
-    drawMeasureBboxAndCuts(ctx, px, py, pw, ph, rule);
-    const cutsV = rule.cutsV ?? 3, cutsH = rule.cutsH ?? 1;
-    const tMin = rule.topMin ?? 15, tMax = rule.topMax ?? 45, bMin = rule.bottomMin ?? 15, bMax = rule.bottomMax ?? 45;
-    const midY = Math.round(py + ph / (cutsH + 1)), vStep = pw / (cutsV + 1);
-    let allOk = true;
+    if (!rule.lineMode) rule.lineMode = 'horiz';
+    const midX = Math.round(px + pw / 2), midY = Math.round(py + ph / 2);
 
-    for (let v = 1; v <= cutsV; v++) {
-        const vx = Math.round(px + v * vStep);
-        const tVal = Math.round(midY - py), bVal = Math.round(py + ph - midY);
-        const ok = tVal >= tMin && tVal <= tMax && bVal >= bMin && bVal <= bMax;
-        if (!ok) allOk = false;
-        ctx.strokeStyle = ctx.fillStyle = ok ? '#7ac48c' : '#e06c75';
-        ctx.beginPath(); ctx.moveTo(vx, py); ctx.lineTo(vx, midY); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(vx, midY); ctx.lineTo(vx, py + ph); ctx.stroke();
-        ctx.font = '7px monospace';
-        ctx.fillText(`T${v}:${tVal}`, vx + 2, py + Math.round((midY - py) / 2));
-        ctx.fillText(`B${v}:${bVal}`, vx + 2, midY + Math.round((py + ph - midY) / 2));
-    }
+    ctx.strokeStyle = '#d9a441'; ctx.lineWidth = 1.2;
+    ctx.strokeRect(px, py, pw, ph);
 
-    const hStep = ph / (cutsH + 1);
-    for (let h = 1; h <= cutsH; h++) {
-        const hy = Math.round(py + h * hStep);
-        ctx.strokeStyle = ctx.fillStyle = '#7ac48c';
-        ctx.beginPath(); ctx.moveTo(px, hy); ctx.lineTo(px + pw, hy); ctx.stroke();
-        ctx.font = '7px monospace';
-        ctx.fillText(`W${h}:${pw}px`, px + Math.round(pw / 2) - 12, hy - 3);
-    }
+    drawMeasureToleranceBox(ctx, px, py, pw, ph, rule, midX, midY);
+    const res = drawMeasureArrowsAndText(ctx, px, py, pw, ph, rule, midX, midY);
 
-    ctx.font = '7.5px monospace'; ctx.fillStyle = '#f3ca6c';
-    ctx.fillText(`BBox ${pw}×${ph} | ${cutsV}V×${cutsH}H срез`, px, py + ph + 10);
     return {
-        isFail: !allOk,
-        text: `Замер ${cutsV}V×${cutsH}H: T=${Math.round(midY - py)} B=${Math.round(py + ph - midY)} W=${pw} px`
+        isFail: !res.ok,
+        text: `Замер: T=${res.d1} B=${res.d2} W=${pw} px`
     };
 }
 

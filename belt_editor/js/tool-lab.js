@@ -280,6 +280,34 @@
 
         document.querySelectorAll('.btn-line-mode').forEach(b => b.classList.toggle('active', b.dataset.mode === labState.lineMode));
         paintLabCanvas();
+        syncToActiveRule();
+    }
+
+    function syncToActiveRule() {
+        if (!labState.activeRuleRef) return;
+        const r = labState.activeRuleRef;
+        r.lineMode = labState.lineMode;
+        if (labState.lineMode !== 'none') {
+            r.topMin = labState.lineTolMin1; r.topMax = labState.lineTolMax1;
+            r.bottomMin = labState.lineTolMin2; r.bottomMax = labState.lineTolMax2;
+        } else {
+            r.tolX = labState.tolX; r.tolY = labState.tolY;
+        }
+        if (typeof window.render === 'function') window.render();
+    }
+
+    function openWithRule(rule) {
+        labState.activeRuleRef = rule || null;
+        if (rule) {
+            if (rule.lineMode) labState.lineMode = rule.lineMode;
+            if (rule.topMax != null) labState.lineTolMax1 = rule.topMax;
+            if (rule.topMin != null) labState.lineTolMin1 = rule.topMin;
+            if (rule.bottomMax != null) labState.lineTolMax2 = rule.bottomMax;
+            if (rule.bottomMin != null) labState.lineTolMin2 = rule.bottomMin;
+            if (rule.tolX != null) labState.tolX = rule.tolX;
+            if (rule.tolY != null) labState.tolY = rule.tolY;
+        }
+        openLab();
     }
 
     function openLab() {
@@ -291,13 +319,14 @@
 
     function closeLab() {
         labState.open = false;
+        labState.activeRuleRef = null;
         const ov = $id('tool-lab-overlay');
         if (ov) ov.style.display = 'none';
     }
 
     function wireLabEvents() {
-        $id('btn-open-lab')?.addEventListener('click', openLab);
-        $id('btn-open-lab-palette')?.addEventListener('click', openLab);
+        $id('btn-open-lab')?.addEventListener('click', () => openWithRule(null));
+        $id('btn-open-lab-palette')?.addEventListener('click', () => openWithRule(null));
         $id('btn-close-lab')?.addEventListener('click', closeLab);
         $id('tool-lab-overlay')?.addEventListener('click', e => {
             if (e.target === $id('tool-lab-overlay')) closeLab();
@@ -341,5 +370,5 @@
         wireLabEvents();
     }
 
-    window.ToolLab = { open: openLab, close: closeLab, state: () => labState };
+    window.ToolLab = { open: openLab, openWithRule: openWithRule, close: closeLab, state: () => labState };
 })();

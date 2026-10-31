@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-    <link rel="stylesheet" href="css/belt-editor.css?v=115">
+    <link rel="stylesheet" href="css/belt-editor.css?v=116">
 </head>
 <body>
 <script>
@@ -48,7 +48,7 @@ window.addEventListener('error', function (e) {
                 <span class="belt-run-badge locked" id="belt-run-status">П0: НЕТ КАМЕРЫ (ПУСК ЗАБЛОКИРОВАН)</span>
                 <button type="button" class="btn-belt-run disabled" id="btn-belt-run" title="Нельзя запустить ленту: на первой позиции (П0) нет камеры инспекции">ПУСК ЛЕНТЫ</button>
             </div>
-            <span class="hint">сб. 102</span>
+            <span class="hint">сб. 103</span>
         </div>
         <div class="build-body">
             <div class="belt-zone" id="belt-zone">
@@ -75,9 +75,9 @@ window.addEventListener('error', function (e) {
                     </span>
                 </div>
 
-                <!-- Правая палитра: на сборке ленты оставлен инструмент «Наличие», остальные настраиваются в лаборатории -->
+                <!-- Правая палитра: готовые инструменты инспекции («Замер», «Наличие») и лаборатория -->
                 <div class="tools tools-right" id="tools-inspect" title="Инструменты инспекции">
-                    <span class="tool tool-rule" draggable="true" data-kind="rule" data-rule="r0" title="Инструмент: Замер окна" style="color: #d9a441; display: none;" aria-hidden="true">
+                    <span class="tool tool-rule" draggable="true" data-kind="rule" data-rule="r0" title="Инструмент: Замер (линейные размеры и допуски)" style="color: #d9a441;">
                         <svg viewBox="0 0 16 16" aria-hidden="true">
                             <path d="M2 3h12v2H2zM2 11h12v2H2zM4 5v6M12 5v6M8 6v4" stroke="currentColor" fill="none" stroke-width="1.2"/>
                         </svg>
@@ -276,9 +276,9 @@ window.addEventListener('error', function (e) {
     </div>
 </div>
 
-    <script src="js/cameras.js?v=115"></script>
-    <script src="js/belt-view.js?v=115"></script>
-    <script src="js/builder.js?v=115"></script>
-    <script src="js/tool-lab.js?v=115"></script>
+    <script src="js/cameras.js?v=116"></script>
+    <script src="js/belt-view.js?v=116"></script>
+    <script src="js/builder.js?v=116"></script>
+    <script src="js/tool-lab.js?v=116"></script>
 </body>
 </html>

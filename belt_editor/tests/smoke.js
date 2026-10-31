@@ -1059,6 +1059,29 @@ check('лаборатория линии: добавление опорной л
         if (btnClose) btnClose.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
         return isHorizActive && isRowShown && hasBefore && hasAfter && isNoneActive;
     })());
+check('инструмент замер в палитре: доступен и открыт для сборки',
+    (function () {
+        const t0 = doc.querySelector('.tools.tools-right .tool.tool-rule[data-rule="r0"]');
+        if (!t0) return false;
+        const isVisible = t0.style.display !== 'none' && !t0.hasAttribute('aria-hidden');
+        const hasTitle = (t0.getAttribute('title') || '').includes('Замер');
+        return isVisible && hasTitle;
+    })());
+check('настройка инструмента замер: опорная база линии H/V, допуски и калибровка',
+    (function () {
+        const rNode = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
+        if (!rNode) return false;
+        const btnLine = rNode.querySelector('.btn-line-toggle');
+        const btnLab = rNode.querySelector('.rule-lab-open-btn');
+        if (!btnLine || !btnLab) return false;
+        const initLineTxt = btnLine.textContent;
+        btnLine.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const nextLineTxt = doc.querySelector('.gnode.g-rule[data-rule="r0"] .btn-line-toggle').textContent;
+        btnLab.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const labOpen = doc.getElementById('tool-lab-overlay')?.style.display === 'flex';
+        doc.getElementById('btn-close-lab')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        return initLineTxt !== nextLineTxt && labOpen;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);

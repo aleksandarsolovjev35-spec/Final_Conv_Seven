@@ -1165,6 +1165,43 @@ body.node-moving { cursor: grabbing; }
     border-color: var(--border-accent);
 }
 
+.btn-line-toggle {
+    flex: 1;
+    background: rgba(217, 164, 65, 0.12);
+    border: 1px solid rgba(217, 164, 65, 0.35);
+    color: #f3ca6c;
+    border-radius: 3px;
+    font: 8.5px/1.2 var(--font-mono, monospace);
+    padding: 2px 4px;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.btn-line-toggle:hover {
+    background: rgba(217, 164, 65, 0.22);
+    border-color: #f3ca6c;
+    color: #fff;
+}
+
+.rule-lab-open-btn {
+    background: rgba(79, 163, 209, 0.12);
+    border: 1px solid rgba(79, 163, 209, 0.35);
+    color: #70bdeb;
+    border-radius: 3px;
+    font: 8.5px/1.2 var(--font-mono, monospace);
+    padding: 3px 4px;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.rule-lab-open-btn:hover {
+    background: rgba(79, 163, 209, 0.22);
+    border-color: #70bdeb;
+    color: #fff;
+}
+
 .rule-cams-meta {
     font: 8px/1.2 var(--font-mono, monospace);
     color: var(--accent);

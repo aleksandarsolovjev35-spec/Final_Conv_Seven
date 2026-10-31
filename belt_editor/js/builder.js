@@ -15,9 +15,10 @@ const MODELS = ['uneven-heights', 'window-sinks', 'omission-long', 'contacts-lon
 
 const RULES = [
     {
-        id: 'r0', name: 'геометрия', defectName: 'ОТКЛОНЕНИЕ РАЗМЕРА ОКНА', color: '#d9a441',
+        id: 'r0', name: 'геометрия', defectName: 'ОТКЛОНЕНИЕ РАЗМЕРА', color: '#d9a441',
         thr: ['площадь', 'верх_px', 'низ_px'], models: [], mode: 'measure', baseMode: 'measure',
-        topMin: 15, topMax: 45, bottomMin: 15, bottomMax: 45, tolerance: 2, countExpected: 0
+        lineMode: 'horiz', topMin: 15, topMax: 45, bottomMin: 15, bottomMax: 45,
+        tolX: 36, tolY: 30, tolerance: 2, countExpected: 0
     },
     {
         id: 'r1', name: 'наличие', defectName: 'НЕКОМПЛЕКТ', color: '#58b79a',
@@ -457,22 +458,32 @@ function renderRuleModelList(rule, rid) {
     return list;
 }
 
+function stepMeasureTol(rule, dir) {
+    const d = dir * 2;
+    rule.topMin = Math.max(5, (rule.topMin ?? 15) + d);
+    rule.topMax = Math.max(rule.topMin + 5, (rule.topMax ?? 45) + d);
+    rule.bottomMin = Math.max(5, (rule.bottomMin ?? 15) + d);
+    rule.bottomMax = Math.max(rule.bottomMin + 5, (rule.bottomMax ?? 45) + d);
+}
+
 function renderMeasureBlock(rule, rid) {
-    if (!rule.cutsV) rule.cutsV = 3;
-    if (!rule.cutsH) rule.cutsH = 1;
+    if (!rule.lineMode) rule.lineMode = 'horiz';
     const tMin = rule.topMin ?? 15, tMax = rule.topMax ?? 45, bMin = rule.bottomMin ?? 15, bMax = rule.bottomMax ?? 45;
     const box = el('div', 'rule-logic-box is-defect');
 
-    const cutsRow = el('div', 'rule-count-row', null, [
-        el('span', 'rule-lbl', 'Срезы V/H:'),
-        el('button', 'btn-count-step', '−'),
-        el('span', 'rule-count-val', `${rule.cutsV}V × ${rule.cutsH}H`),
-        el('button', 'btn-count-step', '+')
+    const modeTxt = rule.lineMode === 'vert' ? 'Линия V (верт.)' : (rule.lineMode === 'none' ? 'Без линии' : 'Линия H (гориз.)');
+    const lineRow = el('div', 'rule-count-row', null, [
+        el('span', 'rule-lbl', 'База:'),
+        el('button', 'btn-line-toggle', modeTxt)
     ]);
-    const [bCutDec, bCutInc] = cutsRow.querySelectorAll('.btn-count-step');
-    bCutDec.onclick = ev => { ev.stopPropagation(); rule.cutsV = Math.max(1, rule.cutsV - 1); selectActiveRule(rid); render(); };
-    bCutInc.onclick = ev => { ev.stopPropagation(); rule.cutsV = Math.min(6, rule.cutsV + 1); selectActiveRule(rid); render(); };
-    box.appendChild(cutsRow);
+    const bLine = lineRow.querySelector('.btn-line-toggle');
+    bLine.type = 'button';
+    bLine.onclick = ev => {
+        ev.stopPropagation();
+        rule.lineMode = rule.lineMode === 'horiz' ? 'vert' : (rule.lineMode === 'vert' ? 'none' : 'horiz');
+        selectActiveRule(rid); render();
+    };
+    box.appendChild(lineRow);
 
     const tolRow = el('div', 'rule-count-row', null, [
         el('span', 'rule-lbl', 'Порог T/B:'),
@@ -481,22 +492,27 @@ function renderMeasureBlock(rule, rid) {
         el('button', 'btn-count-step', '+')
     ]);
     const [bTolDec, bTolInc] = tolRow.querySelectorAll('.btn-count-step');
-    bTolDec.onclick = ev => {
-        ev.stopPropagation();
-        rule.topMin = Math.max(10, tMin - 2); rule.topMax = Math.max(rule.topMin + 5, tMax - 2);
-        rule.bottomMin = Math.max(10, bMin - 2); rule.bottomMax = Math.max(rule.bottomMin + 5, bMax - 2);
-        selectActiveRule(rid); render();
-    };
-    bTolInc.onclick = ev => {
-        ev.stopPropagation();
-        rule.topMin = Math.min(30, tMin + 2); rule.topMax = Math.min(60, tMax + 2);
-        rule.bottomMin = Math.min(30, bMin + 2); rule.bottomMax = Math.min(60, bMax + 2);
-        selectActiveRule(rid); render();
-    };
+    bTolDec.type = bTolInc.type = 'button';
+    bTolDec.onclick = ev => { ev.stopPropagation(); stepMeasureTol(rule, -1); selectActiveRule(rid); render(); };
+    bTolInc.onclick = ev => { ev.stopPropagation(); stepMeasureTol(rule, 1); selectActiveRule(rid); render(); };
     box.appendChild(tolRow);
 
-    box.appendChild(el('div', 'rule-formula', `${rule.cutsV}V×${rule.cutsH}H: T∈[${tMin}..${tMax}] & B∈[${bMin}..${bMax}] px → ГОДНАЯ`));
+    box.appendChild(el('div', 'rule-formula', `T∈[${tMin}..${tMax}] & B∈[${bMin}..${bMax}] px → ГОДНАЯ`));
+
+    const labBtn = el('button', 'rule-lab-open-btn', '🔬 Калибровка стенда');
+    labBtn.type = 'button';
+    labBtn.onclick = ev => {
+        ev.stopPropagation();
+        if (window.ToolLab && typeof window.ToolLab.openWithRule === 'function') {
+            window.ToolLab.openWithRule(rule);
+        } else {
+            $('tool-lab-overlay')?.style.removeProperty('display');
+        }
+    };
+    box.appendChild(labBtn);
+
     const toggleBtn = el('button', 'rule-logic-toggle is-defect', 'Сменить логику: НАЛИЧИЕ (N шт)');
+    toggleBtn.type = 'button';
     toggleBtn.onclick = ev => { ev.stopPropagation(); rule.mode = 'presence'; selectActiveRule(rid); render(); };
     box.appendChild(toggleBtn);
     return box;
@@ -576,7 +592,8 @@ function renderRuleNode(rid, at) {
     if (!rule) return el('div', 'gnode');
     if (!rule.mode) rule.mode = 'defect';
     const isActive = activeTunerRuleId === rid;
-    const key = 'rule:' + rid, node = gnodeFrame('g-rule' + (isActive ? ' is-active' : ''), key, at, rule.name);
+    const titleText = rule.mode === 'measure' ? 'замер' : rule.name;
+    const key = 'rule:' + rid, node = gnodeFrame('g-rule' + (isActive ? ' is-active' : ''), key, at, titleText);
     node.dataset.rule = rid;
     node.querySelector('.pos-del').onclick = ev => { ev.stopPropagation(); delete belt.places[key]; render(); };
     const head = node.querySelector('.node-head'), sw = el('i', 'g-swatch');
