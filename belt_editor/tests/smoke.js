@@ -958,6 +958,17 @@ check('перетаскивание из правой палитры: инстр
         const node = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
         return node !== null;
     })());
+check('нулевой порог инструмента наличие: шаг до 0 переключает на Запрещено (брак при обнаружении)',
+    (function () {
+        for (let i = 0; i < 10; i++) {
+            const btn = doc.querySelector('.gnode.g-rule[data-rule="r1"] .btn-count-step');
+            if (btn) btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        }
+        const updated = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
+        const lbl = updated?.querySelector('.rule-lbl')?.textContent;
+        const val = updated?.querySelector('.rule-count-val')?.textContent;
+        return val?.includes('0 шт') && lbl?.includes('Запрещено');
+    })());
 check('вкладка инструментов убрана из интерфейса дока: нет двоения с правой палитрой',
     (function () {
         const title = doc.getElementById('side-dock-title');

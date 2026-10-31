@@ -523,10 +523,12 @@ function renderMeasureControl(rule, rid, box) {
 
 function getRuleParamConfig(rule) {
     if (rule.mode === 'presence') {
-        const val = rule.countExpected || 4;
+        const val = rule.countExpected ?? 4;
+        const isZero = val === 0;
         return {
-            lbl: 'Требуется:', val: val + ' шт',
-            dec: () => { rule.countExpected = Math.max(1, val - 1); },
+            lbl: isZero ? 'Запрещено:' : 'Требуется:',
+            val: val + ' шт',
+            dec: () => { rule.countExpected = Math.max(0, val - 1); },
             inc: () => { rule.countExpected = Math.min(16, val + 1); }
         };
     }

@@ -264,8 +264,21 @@ function drawReticleOverlay(ctx, w, h, inField, p, size, railY) {
 }
 
 function drawInspectionPresence(ctx, px, py, pw, ph, rule) {
-    const expected = rule.countExpected || 4, actual = expected;
-    const stepX = pw / (expected + 1);
+    const expected = rule.countExpected ?? 4;
+    if (expected === 0) {
+        const actual = 0;
+        ctx.strokeStyle = actual > 0 ? 'rgba(239, 68, 68, 0.7)' : 'rgba(88, 183, 154, 0.6)';
+        ctx.setLineDash([2, 2]);
+        ctx.strokeRect(px + 2, py + 2, pw - 4, ph - 4);
+        ctx.setLineDash([]);
+        ctx.fillStyle = actual > 0 ? '#ef4444' : '#58b79a';
+        ctx.font = '7.5px monospace';
+        ctx.fillText(actual > 0 ? '✕ ОБНАРУЖЕНО' : '✓ ЗАПРЕТ (0 шт)', px + 4, py + Math.round(ph / 2) + 3);
+        const isFail = actual > 0;
+        return { isFail, text: isFail ? `Наличие: обнаружено ${actual} шт (запрещено)` : `Наличие: чисто (0 шт)` };
+    }
+
+    const actual = expected, stepX = pw / (expected + 1);
     for (let i = 1; i <= expected; i++) {
         const mx = Math.round(px + i * stepX), my = Math.round(py + ph / 2);
         ctx.fillStyle = '#58b79a';
