@@ -436,7 +436,7 @@ function renderRuleModelSection(rule, rid) {
         rule.models.forEach(mid => {
             const mod = MODELS.find(m => m.id === mid);
             const chip = el('span', 'g-chip', (mod ? mod.name : mid) + ' ×');
-            chip.title = 'снять деталь';
+            chip.title = 'отвязать модель';
             chip.onclick = ev => { ev.stopPropagation(); togglePart(rid, mid); };
             chips.appendChild(chip);
         });
@@ -444,7 +444,7 @@ function renderRuleModelSection(rule, rid) {
     }
 
     const sel = el('select', 'rule-model-select');
-    const defOpt = el('option', '', rule.models.length ? '+ деталь...' : 'Выбрать деталь...');
+    const defOpt = el('option', '', rule.models.length ? '+ модель...' : 'Выбрать модель...');
     defOpt.value = '';
     sel.appendChild(defOpt);
     MODELS.forEach(m => {
