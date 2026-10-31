@@ -30,67 +30,61 @@
     }
 
     function drawSimulatedFigure(ctx, bx, by, bw, bh, midY) {
-        // Корпус вокруг окна
         ctx.fillStyle = '#222b32';
-        ctx.fillRect(bx - 12, by - 10, bw + 24, bh + 20);
-        // Само окно
-        ctx.fillStyle = '#10161a';
+        ctx.fillRect(bx - 20, by - 16, bw + 40, bh + 32);
+        ctx.fillStyle = '#0c1216';
         ctx.fillRect(bx, by, bw, bh);
-        // Перемычка (середина)
         ctx.fillStyle = '#394853';
-        ctx.fillRect(bx, midY - 3, bw, 6);
+        ctx.fillRect(bx, midY - 4, bw, 8);
         ctx.strokeStyle = '#4fa3d1';
+        ctx.lineWidth = 1.5;
         ctx.strokeRect(bx, by, bw, bh);
     }
 
     function drawMeasurementArrow(ctx, vx, y1, y2, ok, label) {
-        ctx.strokeStyle = ctx.fillStyle = ok ? '#7ac48c' : '#e06c75';
-        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = ctx.fillStyle = ok ? '#7ac48c' : '#ef4444';
+        ctx.lineWidth = 2.0;
         ctx.beginPath(); ctx.moveTo(vx, y1); ctx.lineTo(vx, y2); ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(vx - 2, y1 + 3); ctx.lineTo(vx, y1); ctx.lineTo(vx + 2, y1 + 3);
-        ctx.moveTo(vx - 2, y2 - 3); ctx.lineTo(vx, y2); ctx.lineTo(vx + 2, y2 - 3);
+        ctx.moveTo(vx - 3, y1 + 5); ctx.lineTo(vx, y1); ctx.lineTo(vx + 3, y1 + 5);
+        ctx.moveTo(vx - 3, y2 - 5); ctx.lineTo(vx, y2); ctx.lineTo(vx + 3, y2 - 5);
         ctx.stroke();
-        ctx.font = '8px monospace';
-        ctx.fillText(label, vx + 3, y1 + Math.round((y2 - y1) / 2) + 3);
+
+        ctx.font = 'bold 12px monospace';
+        const tw = ctx.measureText(label).width, ym = Math.round((y1 + y2) / 2);
+        ctx.fillStyle = 'rgba(8, 12, 16, 0.9)';
+        ctx.fillRect(vx + 4, ym - 8, tw + 8, 16);
+        ctx.fillStyle = ok ? '#7ac48c' : '#ef4444';
+        ctx.fillText(label, vx + 8, ym + 4);
     }
 
     function drawLabCutsAndMeasurements(ctx, bx, by, bw, bh, midY) {
-        // Габарит BBox
-        ctx.lineWidth = 1.5;
-        ctx.strokeStyle = '#d9a441';
+        ctx.lineWidth = 2.0; ctx.strokeStyle = '#d9a441';
         ctx.strokeRect(bx, by, bw, bh);
 
-        // Горизонтальные линии разрезов
-        ctx.setLineDash([3, 2]);
-        ctx.strokeStyle = 'rgba(217, 164, 65, 0.7)';
-        ctx.beginPath(); ctx.moveTo(bx - 8, midY); ctx.lineTo(bx + bw + 8, midY); ctx.stroke();
+        ctx.setLineDash([4, 3]); ctx.strokeStyle = 'rgba(217, 164, 65, 0.8)';
+        ctx.beginPath(); ctx.moveTo(bx - 12, midY); ctx.lineTo(bx + bw + 12, midY); ctx.stroke();
         ctx.setLineDash([]);
 
-        const measurements = [];
-        const vStep = bw / (labState.cutsV + 1);
-
+        const measurements = [], vStep = bw / (labState.cutsV + 1);
         for (let v = 1; v <= labState.cutsV; v++) {
             const vx = Math.round(bx + v * vStep);
-            ctx.setLineDash([2, 2]);
-            ctx.strokeStyle = 'rgba(243, 202, 108, 0.4)';
-            ctx.beginPath(); ctx.moveTo(vx, by - 6); ctx.lineTo(vx, by + bh + 6); ctx.stroke();
+            ctx.setLineDash([3, 2]); ctx.strokeStyle = 'rgba(243, 202, 108, 0.5)';
+            ctx.beginPath(); ctx.moveTo(vx, by - 8); ctx.lineTo(vx, by + bh + 8); ctx.stroke();
             ctx.setLineDash([]);
 
-            const tVal = Math.round(midY - by);
-            const bVal = Math.round(by + bh - midY);
+            const tVal = labState.topH, bVal = labState.botH;
             const tOk = tVal >= labState.topMin && tVal <= labState.topMax;
             const bOk = bVal >= labState.bottomMin && bVal <= labState.bottomMax;
             measurements.push({ v, vx, tVal, bVal, tOk, bOk });
 
-            drawMeasurementArrow(ctx, vx, by, midY, tOk, `T${v}:${tVal}`);
-            drawMeasurementArrow(ctx, vx, midY, by + bh, bOk, `B${v}:${bVal}`);
+            drawMeasurementArrow(ctx, vx, by, midY, tOk, `T${v}: ${tVal}px`);
+            drawMeasurementArrow(ctx, vx, midY, by + bh, bOk, `B${v}: ${bVal}px`);
         }
 
-        ctx.font = '8.5px monospace';
-        ctx.fillStyle = '#f3ca6c';
-        ctx.fillText(`BBox: ${bw}×${bh} px | Срезов: ${labState.cutsV}V × ${labState.cutsH}H`, bx, by + bh + 14);
-
+        ctx.font = 'bold 12px monospace'; ctx.fillStyle = '#f3ca6c';
+        const sumText = `BBox: ${labState.w}×${labState.topH + labState.botH} px (масштаб 2.4×) | Срезов: ${labState.cutsV}V × ${labState.cutsH}H`;
+        ctx.fillText(sumText, bx, by + bh + 24);
         return measurements;
     }
 
@@ -106,8 +100,8 @@
             const row = document.createElement('div');
             row.className = 'lab-report-row ' + (m.tOk && m.bOk ? 'ok' : 'fail');
             row.innerHTML = `<span>Срез V${m.v}:</span> ` +
-                `<b style="color:${m.tOk ? '#7ac48c' : '#e06c75'}">T = ${m.tVal} px ${m.tOk ? '✓' : '✗ вылет'}</b> ` +
-                `<b style="color:${m.bOk ? '#7ac48c' : '#e06c75'}">B = ${m.bVal} px ${m.bOk ? '✓' : '✗ вылет'}</b>`;
+                `<b style="color:${m.tOk ? '#7ac48c' : '#ef4444'}">T = ${m.tVal} px ${m.tOk ? '✓' : '✗ вылет'}</b> ` +
+                `<b style="color:${m.bOk ? '#7ac48c' : '#ef4444'}">B = ${m.bVal} px ${m.bOk ? '✓' : '✗ вылет'}</b>`;
             detEl.appendChild(row);
         });
     }
@@ -131,9 +125,13 @@
 
         drawGrid(ctx, w, h);
 
-        const bw = labState.w, bh = labState.topH + labState.botH;
+        const ZOOM = 2.4;
+        const bw = Math.round(labState.w * ZOOM);
+        const topH = Math.round(labState.topH * ZOOM);
+        const botH = Math.round(labState.botH * ZOOM);
+        const bh = topH + botH;
         const bx = Math.round((w - bw) / 2), by = Math.round((h - bh) / 2);
-        const midY = by + labState.topH;
+        const midY = by + topH;
 
         drawSimulatedFigure(ctx, bx, by, bw, bh, midY);
         const measurements = drawLabCutsAndMeasurements(ctx, bx, by, bw, bh, midY);
