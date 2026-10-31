@@ -958,21 +958,30 @@ check('перетаскивание из правой палитры: инстр
         const node = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
         return node !== null;
     })());
-check('переключатель логики инструмента наличие: Должно быть / Не должно быть',
+check('переключатель логики инструмента наличие: все 4 режима (= N, ≥ N, > N, = 0)',
     (function () {
         const node = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
         if (!node) return false;
         const segs = node.querySelectorAll('.btn-seg');
-        if (segs.length !== 2) return false;
-        // Клик по "Не должно быть"
-        segs[1].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-        const updated1 = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
-        const isForbid = updated1?.querySelector('.rule-lbl')?.textContent.includes('Запрещено');
-        // Клик по "Должно быть"
-        updated1.querySelectorAll('.btn-seg')[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-        const updated2 = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
-        const isReq = updated2?.querySelector('.rule-lbl')?.textContent.includes('Требуется');
-        return isForbid && isReq;
+        if (segs.length !== 4) return false;
+
+        // 1. Клик по "= N"
+        segs[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const isEq = doc.querySelector('.gnode.g-rule[data-rule="r1"] .rule-lbl')?.textContent.includes('Ровно');
+
+        // 2. Клик по "> N"
+        doc.querySelectorAll('.gnode.g-rule[data-rule="r1"] .btn-seg')[2].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const isGt = doc.querySelector('.gnode.g-rule[data-rule="r1"] .rule-lbl')?.textContent.includes('Больше');
+
+        // 3. Клик по "= 0" (запрещено вообще)
+        doc.querySelectorAll('.gnode.g-rule[data-rule="r1"] .btn-seg')[3].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const isZero = doc.querySelector('.gnode.g-rule[data-rule="r1"] .rule-lbl')?.textContent.includes('Запрещено');
+
+        // 4. Клик по "≥ N"
+        doc.querySelectorAll('.gnode.g-rule[data-rule="r1"] .btn-seg')[1].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const isGte = doc.querySelector('.gnode.g-rule[data-rule="r1"] .rule-lbl')?.textContent.includes('Не меньше');
+
+        return isEq && isGt && isZero && isGte;
     })());
 check('вкладка инструментов убрана из интерфейса дока: нет двоения с правой палитрой',
     (function () {
