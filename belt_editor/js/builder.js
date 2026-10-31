@@ -15,9 +15,9 @@ const MODELS = ['uneven-heights', 'window-sinks', 'omission-long', 'contacts-lon
 
 const RULES = [
     {
-        id: 'r0', name: 'геометрия', defectName: 'ОТКЛОНЕНИЕ РАЗМЕРА', color: '#d9a441',
+        id: 'r0', name: 'замер', defectName: 'ОТКЛОНЕНИЕ РАЗМЕРА', color: '#d9a441',
         thr: ['площадь', 'верх_px', 'низ_px'], models: [], mode: 'measure', baseMode: 'measure',
-        lineMode: 'horiz', topMin: 15, topMax: 45, bottomMin: 15, bottomMax: 45,
+        lineMode: 'horiz', topMin: 10, topMax: 35, bottomMin: 10, bottomMax: 35,
         tolX: 36, tolY: 30, tolerance: 2, countExpected: 0
     },
     {
@@ -429,17 +429,17 @@ function renderModelNode(mid, at) {
     return node;
 }
 
-function renderRuleModelList(rule, rid) {
+function renderRuleModelSection(rule, rid) {
     const list = el('div', 'g-models');
     rule.models.forEach(mid => {
         const mod = MODELS.find(m => m.id === mid), chip = el('span', 'g-chip', mod ? mod.name : mid);
-        chip.title = 'снять модель'; chip.onclick = ev => { ev.stopPropagation(); togglePart(rid, mid); };
+        chip.title = 'снять деталь'; chip.onclick = ev => { ev.stopPropagation(); togglePart(rid, mid); };
         list.appendChild(chip);
     });
-    if (!rule.models.length) list.appendChild(el('span', 'g-empty', '→ привяжите модель'));
+    if (!rule.models.length) list.appendChild(el('span', 'g-empty', '→ привяжите деталь'));
 
     const sel = el('select', 'rule-model-select');
-    const defOpt = el('option', '', '+ привязать модель...');
+    const defOpt = el('option', '', '+ привязать деталь...');
     defOpt.value = '';
     sel.appendChild(defOpt);
     MODELS.forEach(m => {
@@ -455,66 +455,64 @@ function renderRuleModelList(rule, rid) {
     };
     sel.onclick = ev => ev.stopPropagation();
     list.appendChild(sel);
-    return list;
+
+    return el('div', 'tool-section tool-section-model', null, [
+        el('div', 'tool-row', null, [el('span', 'tool-lbl', 'Деталь:'), list])
+    ]);
 }
 
-function stepMeasureTol(rule, dir) {
+function stepMeasureTol(rule, which, dir) {
     const d = dir * 2;
-    rule.topMin = Math.max(5, (rule.topMin ?? 15) + d);
-    rule.topMax = Math.max(rule.topMin + 5, (rule.topMax ?? 45) + d);
-    rule.bottomMin = Math.max(5, (rule.bottomMin ?? 15) + d);
-    rule.bottomMax = Math.max(rule.bottomMin + 5, (rule.bottomMax ?? 45) + d);
+    if (rule.lineMode !== 'none') {
+        if (which === 1) {
+            rule.topMax = Math.max(10, Math.min(80, (rule.topMax ?? 35) + d));
+            rule.topMin = Math.max(5, rule.topMax - 25);
+        } else {
+            rule.bottomMax = Math.max(10, Math.min(80, (rule.bottomMax ?? 35) + d));
+            rule.bottomMin = Math.max(5, rule.bottomMax - 25);
+        }
+    } else {
+        if (which === 1) rule.tolX = Math.max(10, Math.min(80, (rule.tolX ?? 36) + d));
+        else rule.tolY = Math.max(10, Math.min(80, (rule.tolY ?? 30) + d));
+    }
 }
 
-function renderMeasureBlock(rule, rid) {
+function makeStepRow(label, value, onDec, onInc, rid) {
+    const row = el('div', 'rule-count-row tool-row', null, [
+        el('span', 'rule-lbl tool-lbl', label),
+        el('button', 'btn-count-step btn-step', '−'),
+        el('span', 'rule-count-val tool-val', value),
+        el('button', 'btn-count-step btn-step', '+')
+    ]);
+    const [bDec, bInc] = row.querySelectorAll('.btn-count-step');
+    bDec.type = bInc.type = 'button';
+    bDec.onclick = ev => { ev.stopPropagation(); onDec(); selectActiveRule(rid); render(); };
+    bInc.onclick = ev => { ev.stopPropagation(); onInc(); selectActiveRule(rid); render(); };
+    return row;
+}
+
+function renderMeasureControl(rule, rid, box) {
     if (!rule.lineMode) rule.lineMode = 'horiz';
-    const tMin = rule.topMin ?? 15, tMax = rule.topMax ?? 45, bMin = rule.bottomMin ?? 15, bMax = rule.bottomMax ?? 45;
-    const box = el('div', 'rule-logic-box is-defect');
-
-    const modeTxt = rule.lineMode === 'vert' ? 'Линия V (верт.)' : (rule.lineMode === 'none' ? 'Без линии' : 'Линия H (гориз.)');
-    const lineRow = el('div', 'rule-count-row', null, [
-        el('span', 'rule-lbl', 'База:'),
-        el('button', 'btn-line-toggle', modeTxt)
+    const segGroup = el('div', 'tool-seg-group', null, [
+        el('button', 'btn-seg' + (rule.lineMode === 'horiz' ? ' active' : ''), '― Гориз.'),
+        el('button', 'btn-seg' + (rule.lineMode === 'vert' ? ' active' : ''), '| Верт.'),
+        el('button', 'btn-seg' + (rule.lineMode === 'none' ? ' active' : ''), '✕ Без линии')
     ]);
-    const bLine = lineRow.querySelector('.btn-line-toggle');
-    bLine.type = 'button';
-    bLine.onclick = ev => {
-        ev.stopPropagation();
-        rule.lineMode = rule.lineMode === 'horiz' ? 'vert' : (rule.lineMode === 'vert' ? 'none' : 'horiz');
-        selectActiveRule(rid); render();
-    };
-    box.appendChild(lineRow);
+    const [bH, bV, bN] = segGroup.querySelectorAll('.btn-seg');
+    bH.onclick = ev => { ev.stopPropagation(); rule.lineMode = 'horiz'; selectActiveRule(rid); render(); };
+    bV.onclick = ev => { ev.stopPropagation(); rule.lineMode = 'vert'; selectActiveRule(rid); render(); };
+    bN.onclick = ev => { ev.stopPropagation(); rule.lineMode = 'none'; selectActiveRule(rid); render(); };
 
-    const tolRow = el('div', 'rule-count-row', null, [
-        el('span', 'rule-lbl', 'Порог T/B:'),
-        el('button', 'btn-count-step', '−'),
-        el('span', 'rule-count-val', `T:${tMin}–${tMax} B:${bMin}–${bMax}`),
-        el('button', 'btn-count-step', '+')
-    ]);
-    const [bTolDec, bTolInc] = tolRow.querySelectorAll('.btn-count-step');
-    bTolDec.type = bTolInc.type = 'button';
-    bTolDec.onclick = ev => { ev.stopPropagation(); stepMeasureTol(rule, -1); selectActiveRule(rid); render(); };
-    bTolInc.onclick = ev => { ev.stopPropagation(); stepMeasureTol(rule, 1); selectActiveRule(rid); render(); };
-    box.appendChild(tolRow);
+    box.appendChild(el('div', 'tool-row', null, [el('span', 'tool-lbl', 'Опора:'), segGroup]));
 
-    box.appendChild(el('div', 'rule-formula', `T∈[${tMin}..${tMax}] & B∈[${bMin}..${bMax}] px → ГОДНАЯ`));
+    const isLine = rule.lineMode !== 'none';
+    const lbl1 = isLine ? 'ДО линии:' : 'Допуск X:';
+    const lbl2 = isLine ? 'ОТ линии:' : 'Допуск Y:';
+    const val1 = isLine ? ((rule.topMax ?? 35) + ' px') : ('±' + (rule.tolX ?? 36) + ' px');
+    const val2 = isLine ? ((rule.bottomMax ?? 35) + ' px') : ('±' + (rule.tolY ?? 30) + ' px');
 
-    const labBtn = el('button', 'rule-lab-open-btn', '🔬 Калибровка стенда');
-    labBtn.type = 'button';
-    labBtn.onclick = ev => {
-        ev.stopPropagation();
-        if (window.ToolLab && typeof window.ToolLab.openWithRule === 'function') {
-            window.ToolLab.openWithRule(rule);
-        } else {
-            $('tool-lab-overlay')?.style.removeProperty('display');
-        }
-    };
-    box.appendChild(labBtn);
-
-    const toggleBtn = el('button', 'rule-logic-toggle is-defect', 'Сменить логику: НАЛИЧИЕ (N шт)');
-    toggleBtn.type = 'button';
-    toggleBtn.onclick = ev => { ev.stopPropagation(); rule.mode = 'presence'; selectActiveRule(rid); render(); };
-    box.appendChild(toggleBtn);
+    box.appendChild(makeStepRow(lbl1, val1, () => stepMeasureTol(rule, 1, -1), () => stepMeasureTol(rule, 1, 1), rid));
+    box.appendChild(makeStepRow(lbl2, val2, () => stepMeasureTol(rule, 2, -1), () => stepMeasureTol(rule, 2, 1), rid));
     return box;
 }
 
@@ -522,10 +520,9 @@ function getRuleParamConfig(rule) {
     if (rule.mode === 'presence') {
         const val = rule.countExpected || 4;
         return {
-            lbl: 'Требуется N:', val: val + ' шт',
+            lbl: 'Требуется:', val: val + ' шт',
             dec: () => { rule.countExpected = Math.max(1, val - 1); },
-            inc: () => { rule.countExpected = Math.min(16, val + 1); },
-            formula: '= N шт → ГОДНАЯ | < N → БРАК'
+            inc: () => { rule.countExpected = Math.min(16, val + 1); }
         };
     }
     if (rule.mode === 'shift') {
@@ -533,57 +530,23 @@ function getRuleParamConfig(rule) {
         return {
             lbl: 'Макс. сдвиг:', val: val + ' px',
             dec: () => { rule.maxShift = Math.max(1, val - 1); },
-            inc: () => { rule.maxShift = Math.min(10, val + 1); },
-            formula: `сдвиг ≤ ${val} px → ГОДНАЯ | > Δ → БРАК`
-        };
-    }
-    if (rule.mode === 'geometry') {
-        const val = rule.tolerance ?? 2;
-        return {
-            lbl: 'Допуск размера:', val: `±${val} мм`,
-            dec: () => { rule.tolerance = Math.max(1, val - 1); },
-            inc: () => { rule.tolerance = Math.min(10, val + 1); },
-            formula: `допуск ±${val} мм → ГОДНАЯ | вылет → БРАК`
+            inc: () => { rule.maxShift = Math.min(10, val + 1); }
         };
     }
     const val = rule.maxDefects ?? 0;
     return {
-        lbl: 'Допуск брака:', val: val + ' шт',
+        lbl: 'Макс. брак:', val: val + ' шт',
         dec: () => { rule.maxDefects = Math.max(0, val - 1); },
-        inc: () => { rule.maxDefects = Math.min(5, val + 1); },
-        formula: val === 0 ? '0 шт → ГОДНАЯ | > 0 → БРАК' : `≤ ${val} шт → ГОДНАЯ | > ${val} → БРАК`
+        inc: () => { rule.maxDefects = Math.min(5, val + 1); }
     };
 }
 
-function renderRuleConditionBlock(rule, rid) {
-    if (rule.mode === 'measure') return renderMeasureBlock(rule, rid);
-    const isPresence = rule.mode === 'presence';
+function renderRuleControlSection(rule, rid) {
+    const box = el('div', 'rule-logic-box tool-section tool-section-ctrl');
+    if (rule.mode === 'measure') return renderMeasureControl(rule, rid, box);
+
     const cfg = getRuleParamConfig(rule);
-    const box = el('div', 'rule-logic-box ' + (isPresence ? 'is-presence' : 'is-defect'));
-
-    const countRow = el('div', 'rule-count-row', null, [
-        el('span', 'rule-lbl', cfg.lbl),
-        el('button', 'btn-count-step', '−'),
-        el('span', 'rule-count-val', cfg.val),
-        el('button', 'btn-count-step', '+')
-    ]);
-    const [btnMinus, btnPlus] = countRow.querySelectorAll('.btn-count-step');
-    btnMinus.type = btnPlus.type = 'button';
-    btnMinus.onclick = ev => { ev.stopPropagation(); cfg.dec(); selectActiveRule(rid); render(); };
-    btnPlus.onclick = ev => { ev.stopPropagation(); cfg.inc(); selectActiveRule(rid); render(); };
-    box.appendChild(countRow);
-    box.appendChild(el('div', 'rule-formula', cfg.formula));
-
-    const toggleBtn = el('button', 'rule-logic-toggle ' + (isPresence ? 'is-presence' : 'is-defect'),
-        isPresence ? 'Сменить логику: ДЕФЕКТ / ДОПУСК' : 'Сменить логику: НАЛИЧИЕ (N шт)');
-    toggleBtn.type = 'button';
-    toggleBtn.onclick = ev => {
-        ev.stopPropagation();
-        rule.mode = isPresence ? (rule.baseMode || 'defect') : 'presence';
-        toast(`Инструмент «${rule.name}»: режим «${rule.mode.toUpperCase()}»`);
-        selectActiveRule(rid); render();
-    };
-    box.appendChild(toggleBtn);
+    box.appendChild(makeStepRow(cfg.lbl, cfg.val, cfg.dec, cfg.inc, rid));
     return box;
 }
 
@@ -592,43 +555,29 @@ function renderRuleNode(rid, at) {
     if (!rule) return el('div', 'gnode');
     if (!rule.mode) rule.mode = 'defect';
     const isActive = activeTunerRuleId === rid;
-    const titleText = rule.mode === 'measure' ? 'замер' : rule.name;
+    const titleText = rule.mode === 'measure' ? 'ЗАМЕР' : (rule.mode === 'presence' ? 'НАЛИЧИЕ' : (rule.mode === 'shift' ? 'СМЕЩЕНИЕ' : 'ДЕФЕКТ'));
     const key = 'rule:' + rid, node = gnodeFrame('g-rule' + (isActive ? ' is-active' : ''), key, at, titleText);
     node.dataset.rule = rid;
     node.querySelector('.pos-del').onclick = ev => { ev.stopPropagation(); delete belt.places[key]; render(); };
     const head = node.querySelector('.node-head'), sw = el('i', 'g-swatch');
     sw.style.background = rule.color; head.insertBefore(sw, head.firstChild);
     node.querySelector('.pos-label').style.color = rule.color;
-    head.insertBefore(el('span', 'tool-tag-pill', 'ИНСТРУМЕНТ'), node.querySelector('.pos-del'));
 
     node.appendChild(gsock('sock-in', null, 'rule', rid));
     node.appendChild(gsock('sock-out', key));
 
-    const isPresence = rule.mode === 'presence';
-    const isMeasure = rule.mode === 'measure';
-    const kindClass = isPresence ? 'kind-presence' : (rule.mode === 'shift' ? 'kind-shift' : (isMeasure ? 'kind-measure' : (rule.mode === 'geometry' ? 'kind-geometry' : 'kind-defect')));
-    const kindText = isPresence ? 'НАЛИЧИЕ' : (rule.mode === 'shift' ? 'СМЕЩЕНИЕ' : (isMeasure ? 'ЗАМЕР' : (rule.mode === 'geometry' ? 'ГЕОМЕТРИЯ' : 'ДЕФЕКТ')));
     const cams = ruleOnCameras(rule);
     const body = el('div', 'rule-card-body', null, [
-        el('div', 'rule-block', null, [
-            el('div', 'rule-block-head', null, [
-                el('span', 'rule-block-tag', 'МОДЕЛЬ (ОБЛАСТЬ)'),
-                el('span', 'rule-kind-pill ' + kindClass, kindText)
-            ]),
-            renderRuleModelList(rule, rid)
-        ]),
-        el('div', 'rule-block', null, [
-            el('div', 'rule-block-head', null, [el('span', 'rule-block-tag', 'ЛОГИКА ИНСТРУМЕНТА')]),
-            renderRuleConditionBlock(rule, rid)
-        ]),
+        renderRuleModelSection(rule, rid),
+        renderRuleControlSection(rule, rid),
         cams.length
-            ? el('div', 'rule-cams-meta', `камера: ${cams.map(c => c.name).join(', ')}`)
-            : el('div', 'rule-cams-meta empty', '→ подключите к камере')
+            ? el('div', 'tool-cam-line', 'камера: ' + cams.map(c => c.name).join(', '))
+            : el('div', 'tool-cam-line empty', '→ соедините с камерой')
     ]);
     node.appendChild(body);
 
     node.onclick = ev => {
-        if (!ev.target.closest('button, input, .sock, .g-chip')) {
+        if (!ev.target.closest('button, input, select, .sock, .g-chip')) {
             selectActiveRule(rid);
             render();
         }

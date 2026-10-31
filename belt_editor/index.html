@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-    <link rel="stylesheet" href="css/belt-editor.css?v=116">
+    <link rel="stylesheet" href="css/belt-editor.css?v=117">
 </head>
 <body>
 <script>
@@ -22,7 +22,6 @@ window.addEventListener('error', function (e) {
     <div class="cam-main-wrap">
         <div class="zone-head">ОСНОВНАЯ КАМЕРА
             <span class="hint" id="cam-main-role"></span>
-            <button type="button" class="btn-lab-toggle" id="btn-open-lab" title="Лаборатория и симулятор фигур для проверки инструментов">🔬 ЛАБОРАТОРИЯ ИНСТРУМЕНТОВ</button>
         </div>
         <div class="cam-main-box" id="cam-main-box">
             <canvas id="cam-main"></canvas>
@@ -48,7 +47,7 @@ window.addEventListener('error', function (e) {
                 <span class="belt-run-badge locked" id="belt-run-status">П0: НЕТ КАМЕРЫ (ПУСК ЗАБЛОКИРОВАН)</span>
                 <button type="button" class="btn-belt-run disabled" id="btn-belt-run" title="Нельзя запустить ленту: на первой позиции (П0) нет камеры инспекции">ПУСК ЛЕНТЫ</button>
             </div>
-            <span class="hint">сб. 103</span>
+            <span class="hint">сб. 104</span>
         </div>
         <div class="build-body">
             <div class="belt-zone" id="belt-zone">
@@ -103,9 +102,6 @@ window.addEventListener('error', function (e) {
                             <path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3" stroke="currentColor" stroke-width="1.2"/>
                         </svg>
                     </span>
-                    <button type="button" class="tool tool-lab-btn" id="btn-open-lab-palette" title="Лаборатория инструментов (симулятор)">
-                        🔬
-                    </button>
                 </div>
                 <div class="belt-row" id="belt-row"></div>
                 <svg id="wires" aria-hidden="true"></svg>
@@ -201,84 +197,8 @@ window.addEventListener('error', function (e) {
 
 <div id="toasts" class="toasts"></div>
 
-<!-- Лаборатория инструментов: координатные допуски (X, Y) -->
-<div class="tool-lab-overlay" id="tool-lab-overlay" style="display: none;">
-    <div class="tool-lab-modal" id="tool-lab-modal">
-        <div class="tool-lab-head">
-            <div class="tool-lab-title">
-                <span class="lab-badge">🔬 СТЕНД</span>
-                ЛАБОРАТОРИЯ: ЦЕНТР ОБЛАСТИ В ТОЧКЕ 0 (ДОПУСКИ ±X, ±Y)
-            </div>
-            <button type="button" class="btn-lab-close" id="btn-close-lab" title="Закрыть лабораторию">✕</button>
-        </div>
-        <div class="tool-lab-body">
-            <!-- Левая колонка: экран симуляции на координатной плоскости -->
-            <div class="tool-lab-sim">
-                <div class="lab-subhead">1. СИМУЛЯТОР ОБЛАСТИ (ЦЕНТР В ТОЧКЕ 0)</div>
-                <div class="lab-canvas-wrap">
-                    <canvas id="lab-canvas" width="600" height="340"></canvas>
-                </div>
-                <div class="lab-sliders">
-                    <div class="lab-slider-row" id="fig-row-w">
-                        <span>Ширина детали W:</span>
-                        <input type="range" id="fig-slider-w" min="20" max="140" value="72">
-                        <b id="fig-val-w">72 px (±36 px)</b>
-                    </div>
-                    <div class="lab-slider-row" id="fig-row-h">
-                        <span>Высота детали H:</span>
-                        <input type="range" id="fig-slider-h" min="15" max="100" value="58">
-                        <b id="fig-val-h">58 px (±29 px)</b>
-                    </div>
-                    <div class="lab-slider-row" id="fig-row-d1" style="display: none;">
-                        <span>Размер ДО линии (d1):</span>
-                        <input type="range" id="fig-slider-d1" min="10" max="65" value="30">
-                        <b id="fig-val-d1">30 px</b>
-                    </div>
-                    <div class="lab-slider-row" id="fig-row-d2" style="display: none;">
-                        <span>Размер ОТ линии (d2):</span>
-                        <input type="range" id="fig-slider-d2" min="10" max="65" value="28">
-                        <b id="fig-val-d2">28 px</b>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Правая колонка: два параметра настройки инструмента -->
-            <div class="tool-lab-ctrl">
-                <div class="lab-subhead">2. НАСТРОЙКА ИНСТРУМЕНТА (ЗАМЕРЫ И ДОПУСКИ)</div>
-                <div class="lab-card">
-                    <div class="lab-ctrl-row">
-                        <span>Опорная линия замера:</span>
-                        <div class="lab-line-btn-group">
-                            <button type="button" class="btn-line-mode active" id="btn-line-none" data-mode="none">Без линии</button>
-                            <button type="button" class="btn-line-mode" id="btn-line-horiz" data-mode="horiz">+ Линия H (гориз.)</button>
-                            <button type="button" class="btn-line-mode" id="btn-line-vert" data-mode="vert">+ Линия V (верт.)</button>
-                        </div>
-                    </div>
-
-                    <div class="lab-ctrl-row">
-                        <span id="lab-lbl-tol-1">Параметр 1 — Допуск X (от центра 0):</span>
-                        <button type="button" class="btn-step" id="lab-tol-x-dec">−</button>
-                        <b id="lab-val-tol-x">±42 px (W ≤ 84 px)</b>
-                        <button type="button" class="btn-step" id="lab-tol-x-inc">+</button>
-                    </div>
-                    <div class="lab-ctrl-row">
-                        <span id="lab-lbl-tol-2">Параметр 2 — Допуск Y (от центра 0):</span>
-                        <button type="button" class="btn-step" id="lab-tol-y-dec">−</button>
-                        <b id="lab-val-tol-y">±34 px (H ≤ 68 px)</b>
-                        <button type="button" class="btn-step" id="lab-tol-y-inc">+</button>
-                    </div>
-                    <div class="lab-hint-row" id="lab-hint-text">
-                        Центр области зафиксирован в точке (0, 0). Контролируется симметричное отклонение краев ±X и ±Y от центра.
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-    <script src="js/cameras.js?v=116"></script>
-    <script src="js/belt-view.js?v=116"></script>
-    <script src="js/builder.js?v=116"></script>
-    <script src="js/tool-lab.js?v=116"></script>
+<script src="js/cameras.js?v=117"></script>
+    <script src="js/belt-view.js?v=117"></script>
+    <script src="js/builder.js?v=117"></script>
 </body>
 </html>

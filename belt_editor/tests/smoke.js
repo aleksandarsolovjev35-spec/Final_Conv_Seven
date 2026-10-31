@@ -19,7 +19,6 @@ window.HTMLElement.prototype.getBoundingClientRect = () =>
 window.eval(fs.readFileSync(ROOT + '/js/builder.js', 'utf8'));
 window.eval(fs.readFileSync(ROOT + '/js/belt-view.js', 'utf8'));
 window.eval(fs.readFileSync(ROOT + '/js/cameras.js', 'utf8'));
-if (fs.existsSync(ROOT + '/js/tool-lab.js')) window.eval(fs.readFileSync(ROOT + '/js/tool-lab.js', 'utf8'));
 doc.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
 
 const mkDT = () => ({ data: {}, setData(k, v) { this.data[k] = v; },
@@ -431,10 +430,10 @@ check('последнюю модель стоящего правила снят�
         return doc.querySelectorAll('.gnode.g-rule[data-rule="r0"] .g-chip').length === 1;
     })());
 const ri = doc.getElementById('rule-search');
-ri.value = 'геом';
+ri.value = 'замер';
 ri.dispatchEvent(new window.MouseEvent('input', { bubbles: true }));
 check('поиск ПРАВИЛ фильтрует по подстроке',
-    ruleTiles().length === 1 && /геометрия/.test(ruleTiles()[0].textContent));
+    ruleTiles().length === 1 && /замер/.test(ruleTiles()[0].textContent));
 ri.value = '';
 ri.dispatchEvent(new window.MouseEvent('input', { bubbles: true }));
 check('очистка поиска возвращает полный список', ruleTiles().length === 4);
@@ -861,19 +860,17 @@ check('логический блок правила: вход модели, ус
         const hasBody = rNode.querySelector('.rule-card-body') !== null;
         const hasModels = rNode.querySelector('.g-models') !== null;
         const hasLogicBox = rNode.querySelector('.rule-logic-box') !== null;
-        const hasFormula = rNode.querySelector('.rule-formula') !== null;
-        const hasToggle = rNode.querySelector('.rule-logic-toggle') !== null;
-        return hasBody && hasModels && hasLogicBox && hasFormula && hasToggle;
+        const noFormula = rNode.querySelector('.rule-formula') === null;
+        const noToggle = rNode.querySelector('.rule-logic-toggle') === null;
+        return hasBody && hasModels && hasLogicBox && noFormula && noToggle;
     })());
-check('логика решения: переключение режима дефект ↔ наличие с настройкой N шт',
+check('перепроектированный блок инструмента: чистая нода без лишнего визуального шума',
     (function () {
-        const toggle = doc.querySelector('.gnode.g-rule[data-rule="r0"] .rule-logic-toggle');
-        if (!toggle) return false;
-        const wasDefect = toggle.classList.contains('is-defect');
-        toggle.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-        const isPresence = doc.querySelector('.gnode.g-rule[data-rule="r0"] .rule-logic-toggle').classList.contains('is-presence');
-        const countRow = doc.querySelector('.gnode.g-rule[data-rule="r0"] .rule-count-row');
-        return wasDefect && isPresence && countRow !== null;
+        const rNode = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
+        if (!rNode) return false;
+        const segs = rNode.querySelectorAll('.btn-seg');
+        const rows = rNode.querySelectorAll('.tool-row');
+        return segs.length === 3 && rows.length >= 3;
     })());
 check('камера чиста от управляющих плашек: плашка настройки убрана с видеостены, все изменения только на сборке',
     (function () {
@@ -905,12 +902,12 @@ check('настройка числа N в блоке наличия: кнопк�
         const valAfter = doc.querySelector('.gnode.g-rule[data-rule="r0"] .rule-count-val').textContent;
         return valBefore !== valAfter;
     })());
-check('конструктор инструментов: каталог содержит базовые инструменты геометрия, наличие, дефект, смещение',
+check('конструктор инструментов: каталог содержит базовые инструменты замер, наличие, дефект, смещение',
     (function () {
         const tiles = ruleTiles();
         const names = Array.from(tiles).map(t => t.querySelector('b')?.textContent.trim());
         const tags = Array.from(tiles).map(t => t.querySelector('.rule-mode-tag')?.textContent.trim());
-        return names.includes('геометрия') && names.includes('наличие')
+        return names.includes('замер') && names.includes('наличие')
             && names.includes('дефект') && names.includes('смещение')
             && tags.includes('наличие') && tags.includes('дефект') && tags.includes('смещение');
     })());
@@ -982,82 +979,14 @@ check('выбор модели прямо в карточке инструмен
         const hasChip = Array.from(chipsAfter).some(c => c.textContent.includes('bracket-90'));
         return hasChip;
     })());
-check('инструмент замер окна: контроль расстояний T/B до середины с формулой допуска',
+check('инструмент замер: прямое задание допусков ДО и ОТ линии',
     (function () {
         const rNode = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
         if (!rNode) return false;
-        const toggle = rNode.querySelector('.rule-logic-toggle');
-        if (toggle && toggle.classList.contains('is-presence')) {
-            toggle.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-        }
-        const updated = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
-        const pill = updated?.querySelector('.rule-kind-pill');
-        const isMeasure = pill && (pill.classList.contains('kind-measure') || pill.textContent.includes('ЗАМЕР'));
-        const allVals = Array.from(updated?.querySelectorAll('.rule-count-val') || []).map(e => e.textContent).join(' ');
-        const formula = updated?.querySelector('.rule-formula')?.textContent || '';
-        const hasTB = allVals.includes('T:') && allVals.includes('B:');
-        const hasFormula = formula.includes('T∈') && formula.includes('B∈');
-        return isMeasure && hasTB && hasFormula;
-    })());
-check('лаборатория инструментов: координатные оси X Y, симуляция фигуры и проверка допуска',
-    (function () {
-        const btnOpen = doc.getElementById('btn-open-lab');
-        const overlay = doc.getElementById('tool-lab-overlay');
-        const btnClose = doc.getElementById('btn-close-lab');
-        if (!btnOpen || !overlay || !btnClose) return false;
-        btnOpen.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        const opened = overlay.style.display !== 'none';
-        const hasCanvas = doc.getElementById('lab-canvas') !== null;
-        const hasSliders = doc.getElementById('fig-slider-w') !== null && doc.getElementById('fig-slider-h') !== null;
-        const hasTolParams = doc.getElementById('lab-val-tol-x') !== null && doc.getElementById('lab-val-tol-y') !== null;
-        btnClose.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        const closed = overlay.style.display === 'none';
-        return opened && hasCanvas && hasSliders && hasTolParams && closed;
-    })());
-check('лаборатория допусков: двухпараметрическая координатная настройка допуска X и Y',
-    (function () {
-        const btnOpen = doc.getElementById('btn-open-lab');
-        const overlay = doc.getElementById('tool-lab-overlay');
-        const btnClose = doc.getElementById('btn-close-lab');
-        if (!btnOpen || !overlay) return false;
-        btnOpen.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        const valXEl = doc.getElementById('lab-val-tol-x');
-        const valYEl = doc.getElementById('lab-val-tol-y');
-        const btnXInc = doc.getElementById('lab-tol-x-inc');
-        const btnYDec = doc.getElementById('lab-tol-y-dec');
-        if (!valXEl || !valYEl || !btnXInc || !btnYDec) return false;
-        const initX = valXEl.textContent;
-        const initY = valYEl.textContent;
-        btnXInc.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        const changedX = valXEl.textContent !== initX;
-        btnYDec.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        const changedY = valYEl.textContent !== initY;
-        if (btnClose) btnClose.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        return changedX && changedY;
-    })());
-check('лаборатория линии: добавление опорной линии и замеры ДО и ОТ неё',
-    (function () {
-        const btnOpen = doc.getElementById('btn-open-lab');
-        const overlay = doc.getElementById('tool-lab-overlay');
-        const btnClose = doc.getElementById('btn-close-lab');
-        if (!btnOpen || !overlay) return false;
-        btnOpen.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        const btnHoriz = doc.getElementById('btn-line-horiz');
-        const btnNone = doc.getElementById('btn-line-none');
-        const rowD1 = doc.getElementById('fig-row-d1');
-        const rowD2 = doc.getElementById('fig-row-d2');
-        const lbl1 = doc.getElementById('lab-lbl-tol-1');
-        const lbl2 = doc.getElementById('lab-lbl-tol-2');
-        if (!btnHoriz || !btnNone || !rowD1 || !rowD2 || !lbl1 || !lbl2) return false;
-        btnHoriz.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        const isHorizActive = btnHoriz.classList.contains('active');
-        const isRowShown = rowD1.style.display !== 'none' && rowD2.style.display !== 'none';
-        const hasBefore = lbl1.textContent.includes('ДО линии');
-        const hasAfter = lbl2.textContent.includes('ОТ линии');
-        btnNone.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        const isNoneActive = btnNone.classList.contains('active');
-        if (btnClose) btnClose.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        return isHorizActive && isRowShown && hasBefore && hasAfter && isNoneActive;
+        const rows = rNode.querySelectorAll('.rule-count-row');
+        const vals = Array.from(rNode.querySelectorAll('.rule-count-val')).map(e => e.textContent);
+        const hasValues = vals.length >= 2 && vals[0].includes('px') && vals[1].includes('px');
+        return rows.length >= 2 && hasValues;
     })());
 check('инструмент замер в палитре: доступен и открыт для сборки',
     (function () {
@@ -1067,20 +996,18 @@ check('инструмент замер в палитре: доступен и о
         const hasTitle = (t0.getAttribute('title') || '').includes('Замер');
         return isVisible && hasTitle;
     })());
-check('настройка инструмента замер: опорная база линии H/V, допуски и калибровка',
+check('настройка инструмента замер: опорная база линии (H, V, без линии)',
     (function () {
         const rNode = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
         if (!rNode) return false;
-        const btnLine = rNode.querySelector('.btn-line-toggle');
-        const btnLab = rNode.querySelector('.rule-lab-open-btn');
-        if (!btnLine || !btnLab) return false;
-        const initLineTxt = btnLine.textContent;
-        btnLine.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-        const nextLineTxt = doc.querySelector('.gnode.g-rule[data-rule="r0"] .btn-line-toggle').textContent;
-        btnLab.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-        const labOpen = doc.getElementById('tool-lab-overlay')?.style.display === 'flex';
-        doc.getElementById('btn-close-lab')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        return initLineTxt !== nextLineTxt && labOpen;
+        const segs = rNode.querySelectorAll('.btn-seg');
+        if (segs.length !== 3) return false;
+        segs[1].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const updated = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
+        const isVert = updated.querySelectorAll('.btn-seg')[1].classList.contains('active');
+        segs[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const isHoriz = doc.querySelector('.gnode.g-rule[data-rule="r0"] .btn-seg').classList.contains('active');
+        return isVert && isHoriz;
     })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
