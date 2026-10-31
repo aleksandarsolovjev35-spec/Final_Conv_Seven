@@ -541,12 +541,12 @@ function renderPresenceControl(rule, rid, box) {
         () => { rule.countExpected = Math.min(16, val + 1); },
         rid
     ));
-    box.appendChild(makeStepRow('Фильтр X:', '±' + fx + ' px',
+    box.appendChild(makeStepRow('Коридор X:', '±' + fx + ' px',
         () => stepPresenceFilter(rule, 'x', -1),
         () => stepPresenceFilter(rule, 'x', 1),
         rid
     ));
-    box.appendChild(makeStepRow('Фильтр Y:', '±' + fy + ' px',
+    box.appendChild(makeStepRow('Коридор Y:', '±' + fy + ' px',
         () => stepPresenceFilter(rule, 'y', -1),
         () => stepPresenceFilter(rule, 'y', 1),
         rid

@@ -268,14 +268,14 @@ function drawInspectionPresence(ctx, px, py, pw, ph, rule) {
     const fx = rule.filterX ?? 30, fy = rule.filterY ?? 20;
     const cx = Math.round(px + pw / 2), cy = Math.round(py + ph / 2);
 
-    ctx.strokeStyle = 'rgba(88, 183, 154, 0.7)';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(88, 183, 154, 0.85)';
+    ctx.lineWidth = 1.3;
     ctx.setLineDash([3, 2]);
     ctx.strokeRect(cx - fx, cy - fy, fx * 2, fy * 2);
     ctx.setLineDash([]);
     ctx.fillStyle = '#58b79a';
     ctx.font = 'bold 7.5px monospace';
-    ctx.fillText(`FX:±${fx} FY:±${fy}`, cx - fx + 2, cy - fy - 3);
+    ctx.fillText(`КОРИДОР X:±${fx} Y:±${fy}`, cx - fx + 2, cy - fy - 3);
 
     const stepX = Math.min(pw, fx * 2 - 8) / (expected + 1);
     const startX = cx - Math.min(pw, fx * 2 - 8) / 2;
@@ -286,8 +286,13 @@ function drawInspectionPresence(ctx, px, py, pw, ph, rule) {
         ctx.font = 'bold 8px monospace';
         ctx.fillText(String(i), mx - 2, my - 5);
     }
+    // Маркер отсечения шума вне коридора (как в contacts_long_ignored)
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.55)';
+    ctx.font = 'bold 7px monospace';
+    ctx.fillText('✕ отсев', cx + fx + 4, cy - fy + 4);
+
     const isFail = actual < expected;
-    return { isFail, text: `Наличие: ${actual} из ${expected} шт (зона ±${fx}×±${fy}px)` };
+    return { isFail, text: `Наличие: ${actual} из ${expected} шт (коридор ±${fx}×±${fy}px)` };
 }
 
 function drawInspectionDefect(ctx, px, py, pw, ph, rule) {
