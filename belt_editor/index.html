@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-    <link rel="stylesheet" href="css/belt-editor.css?v=111">
+    <link rel="stylesheet" href="css/belt-editor.css?v=112">
 </head>
 <body>
 <script>
@@ -48,7 +48,7 @@ window.addEventListener('error', function (e) {
                 <span class="belt-run-badge locked" id="belt-run-status">П0: НЕТ КАМЕРЫ (ПУСК ЗАБЛОКИРОВАН)</span>
                 <button type="button" class="btn-belt-run disabled" id="btn-belt-run" title="Нельзя запустить ленту: на первой позиции (П0) нет камеры инспекции">ПУСК ЛЕНТЫ</button>
             </div>
-            <span class="hint">сб. 98</span>
+            <span class="hint">сб. 99</span>
         </div>
         <div class="build-body">
             <div class="belt-zone" id="belt-zone">
@@ -229,6 +229,11 @@ window.addEventListener('error', function (e) {
                         <input type="range" id="fig-slider-h" min="15" max="100" value="58">
                         <b id="fig-val-h">58 px (±29 px)</b>
                     </div>
+                    <div class="lab-slider-row" id="fig-row-line-pos" style="display: none;">
+                        <span>Положение линии на детали:</span>
+                        <input type="range" id="fig-slider-line" min="-25" max="25" value="0">
+                        <b id="fig-val-line">0 px (по центру)</b>
+                    </div>
                 </div>
             </div>
 
@@ -273,9 +278,9 @@ window.addEventListener('error', function (e) {
     </div>
 </div>
 
-    <script src="js/cameras.js?v=111"></script>
-    <script src="js/belt-view.js?v=111"></script>
-    <script src="js/builder.js?v=111"></script>
-    <script src="js/tool-lab.js?v=111"></script>
+    <script src="js/cameras.js?v=112"></script>
+    <script src="js/belt-view.js?v=112"></script>
+    <script src="js/builder.js?v=112"></script>
+    <script src="js/tool-lab.js?v=112"></script>
 </body>
 </html>

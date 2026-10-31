@@ -1,4 +1,4 @@
-/* belt_editor/js/tool-lab.js — Лаборатория: замеры до и от опорной линии */
+/* belt_editor/js/tool-lab.js — Лаборатория: корректные замеры до и от опорной линии */
 'use strict';
 
 (function () {
@@ -94,6 +94,33 @@
         ctx.fillText(`допуск X: ±${labState.tolX} px`, xc + tx - 40, yc - ty - 6);
     }
 
+    function drawArrowV(ctx, x, y1, y2, color, text) {
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(x, y1); ctx.lineTo(x, y2);
+        ctx.moveTo(x - 3, y1 + 5); ctx.lineTo(x, y1); ctx.lineTo(x + 3, y1 + 5);
+        ctx.moveTo(x - 3, y2 - 5); ctx.lineTo(x, y2); ctx.lineTo(x + 3, y2 - 5);
+        ctx.stroke();
+        ctx.font = 'bold 11.5px monospace';
+        ctx.fillText(text, x + 8, (y1 + y2) / 2 + 4);
+    }
+
+    function drawArrowH(ctx, y, x1, x2, color, text) {
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(x1, y); ctx.lineTo(x2, y);
+        ctx.moveTo(x1 + 5, y - 3); ctx.lineTo(x1, y); ctx.lineTo(x1 + 5, y + 3);
+        ctx.moveTo(x2 - 5, y - 3); ctx.lineTo(x2, y); ctx.lineTo(x2 - 5, y + 3);
+        ctx.stroke();
+        ctx.font = 'bold 11.5px monospace';
+        const tw = ctx.measureText(text).width;
+        ctx.fillText(text, (x1 + x2) / 2 - tw / 2, y - 7);
+    }
+
     function drawHorizLineMeasures(ctx, xc, yc, scale, hh, dx, dy) {
         const yLine = yc - labState.lineOffset * scale;
         ctx.strokeStyle = '#f59e0b';
@@ -106,24 +133,24 @@
 
         ctx.fillStyle = '#f59e0b';
         ctx.font = 'bold 11px monospace';
-        ctx.fillText('[ЛИНИЯ L]', xc + dx + 20, yLine + 4);
+        ctx.fillText(`[ЛИНИЯ Y=${labState.lineOffset > 0 ? '+' : ''}${labState.lineOffset}]`, xc - dx - 105, yLine + 4);
 
-        const d1 = Math.round(hh + labState.lineOffset);
-        const d2 = Math.round(hh - labState.lineOffset);
+        const d1 = Math.round(hh - labState.lineOffset);
+        const d2 = Math.round(hh + labState.lineOffset);
         const d1Ok = d1 >= labState.lineTolMin1 && d1 <= labState.lineTolMax1;
         const d2Ok = d2 >= labState.lineTolMin2 && d2 <= labState.lineTolMax2;
 
-        const xArrow = xc - dx + 24;
-        ctx.lineWidth = 1.8;
-        ctx.strokeStyle = d1Ok ? '#22c55e' : '#ef4444';
-        ctx.beginPath(); ctx.moveTo(xArrow, yc - dy); ctx.lineTo(xArrow, yLine); ctx.stroke();
-        ctx.fillStyle = d1Ok ? '#22c55e' : '#ef4444';
-        ctx.fillText(`ДО линии: ${d1}px ${d1Ok ? '✓' : '✗'}`, xArrow + 6, (yc - dy + yLine) / 2 + 4);
+        const xDim = xc + dx + 26;
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(xc + dx, yc - dy); ctx.lineTo(xDim + 8, yc - dy);
+        ctx.moveTo(xc + dx, yLine); ctx.lineTo(xDim + 8, yLine);
+        ctx.moveTo(xc + dx, yc + dy); ctx.lineTo(xDim + 8, yc + dy);
+        ctx.stroke();
 
-        ctx.strokeStyle = d2Ok ? '#22c55e' : '#ef4444';
-        ctx.beginPath(); ctx.moveTo(xArrow, yLine); ctx.lineTo(xArrow, yc + dy); ctx.stroke();
-        ctx.fillStyle = d2Ok ? '#22c55e' : '#ef4444';
-        ctx.fillText(`ОТ линии: ${d2}px ${d2Ok ? '✓' : '✗'}`, xArrow + 6, (yLine + yc + dy) / 2 + 4);
+        drawArrowV(ctx, xDim, yc - dy, yLine, d1Ok ? '#22c55e' : '#ef4444', `ДО: ${d1}px ${d1Ok ? '✓' : '✗'}`);
+        drawArrowV(ctx, xDim, yLine, yc + dy, d2Ok ? '#22c55e' : '#ef4444', `ОТ: ${d2}px ${d2Ok ? '✓' : '✗'}`);
 
         return { ok: d1Ok && d2Ok, d1, d2, d1Ok, d2Ok };
     }
@@ -140,24 +167,24 @@
 
         ctx.fillStyle = '#f59e0b';
         ctx.font = 'bold 11px monospace';
-        ctx.fillText('[ЛИНИЯ L]', xLine - 25, yc - dy - 20);
+        ctx.fillText(`[ЛИНИЯ X=${labState.lineOffset > 0 ? '+' : ''}${labState.lineOffset}]`, xLine - 35, yc + dy + 22);
 
         const d1 = Math.round(hw + labState.lineOffset);
         const d2 = Math.round(hw - labState.lineOffset);
         const d1Ok = d1 >= labState.lineTolMin1 && d1 <= labState.lineTolMax1;
         const d2Ok = d2 >= labState.lineTolMin2 && d2 <= labState.lineTolMax2;
 
-        const yArrow = yc - dy + 22;
-        ctx.lineWidth = 1.8;
-        ctx.strokeStyle = d1Ok ? '#22c55e' : '#ef4444';
-        ctx.beginPath(); ctx.moveTo(xc - dx, yArrow); ctx.lineTo(xLine, yArrow); ctx.stroke();
-        ctx.fillStyle = d1Ok ? '#22c55e' : '#ef4444';
-        ctx.fillText(`ДО: ${d1}px ${d1Ok ? '✓' : '✗'}`, (xc - dx + xLine) / 2 - 20, yArrow - 6);
+        const yDim = yc - dy - 22;
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(xc - dx, yc - dy); ctx.lineTo(xc - dx, yDim - 6);
+        ctx.moveTo(xLine, yc - dy); ctx.lineTo(xLine, yDim - 6);
+        ctx.moveTo(xc + dx, yc - dy); ctx.lineTo(xc + dx, yDim - 6);
+        ctx.stroke();
 
-        ctx.strokeStyle = d2Ok ? '#22c55e' : '#ef4444';
-        ctx.beginPath(); ctx.moveTo(xLine, yArrow); ctx.lineTo(xc + dx, yArrow); ctx.stroke();
-        ctx.fillStyle = d2Ok ? '#22c55e' : '#ef4444';
-        ctx.fillText(`ОТ: ${d2}px ${d2Ok ? '✓' : '✗'}`, (xLine + xc + dx) / 2 - 20, yArrow - 6);
+        drawArrowH(ctx, yDim, xc - dx, xLine, d1Ok ? '#22c55e' : '#ef4444', `ДО: ${d1}px ${d1Ok ? '✓' : '✗'}`);
+        drawArrowH(ctx, yDim, xLine, xc + dx, d2Ok ? '#22c55e' : '#ef4444', `ОТ: ${d2}px ${d2Ok ? '✓' : '✗'}`);
 
         return { ok: d1Ok && d2Ok, d1, d2, d1Ok, d2Ok };
     }
@@ -167,11 +194,11 @@
         if (labState.lineMode === 'horiz') {
             const r = drawHorizLineMeasures(ctx, xc, yc, 2.4, hh, dx, dy);
             allOk = r.ok;
-            verdict = allOk ? '✓ ГОДНАЯ (ОК)' : (!r.d1Ok && !r.d2Ok ? '✗ БРАК (ВЫЛЕТ ДО И ОТ)' : (!r.d1Ok ? '✗ БРАК: ВЫЛЕТ ДО ЛИНИИ' : '✗ БРАК: ВЫЛЕТ ОТ ЛИНИИ'));
+            verdict = allOk ? '✓ ГОДНАЯ (ОК)' : (!r.d1Ok && !r.d2Ok ? '✗ БРАК (ВЫЛЕТ ДО И ОТ)' : (!r.d1Ok ? `✗ ВЫЛЕТ ДО (${r.d1}px)` : `✗ ВЫЛЕТ ОТ (${r.d2}px)`));
         } else if (labState.lineMode === 'vert') {
             const r = drawVertLineMeasures(ctx, xc, yc, 2.4, hw, dx, dy);
             allOk = r.ok;
-            verdict = allOk ? '✓ ГОДНАЯ (ОК)' : (!r.d1Ok && !r.d2Ok ? '✗ БРАК (ВЫЛЕТ ДО И ОТ)' : (!r.d1Ok ? '✗ БРАК: ВЫЛЕТ ДО ЛИНИИ' : '✗ БРАК: ВЫЛЕТ ОТ ЛИНИИ'));
+            verdict = allOk ? '✓ ГОДНАЯ (ОК)' : (!r.d1Ok && !r.d2Ok ? '✗ БРАК (ВЫЛЕТ ДО И ОТ)' : (!r.d1Ok ? `✗ ВЫЛЕТ ДО (${r.d1}px)` : `✗ ВЫЛЕТ ОТ (${r.d2}px)`));
         } else {
             const xOk = hw <= labState.tolX, yOk = hh <= labState.tolY;
             allOk = xOk && yOk;
@@ -232,12 +259,18 @@
         $id('fig-val-h') && ($id('fig-val-h').textContent = `${labState.figH} px (±${hh} px)`);
         const isLine = labState.lineMode !== 'none';
         $id('lab-row-line-pos') && ($id('lab-row-line-pos').style.display = isLine ? 'flex' : 'none');
-        $id('lab-val-line-pos') && ($id('lab-val-line-pos').textContent = `${labState.lineOffset > 0 ? '+' : ''}${labState.lineOffset} px ${labState.lineOffset === 0 ? '(по центру)' : ''}`);
+        $id('fig-row-line-pos') && ($id('fig-row-line-pos').style.display = isLine ? 'flex' : 'none');
+
+        const linePosTxt = `${labState.lineOffset > 0 ? '+' : ''}${labState.lineOffset} px ${labState.lineOffset === 0 ? '(по центру)' : ''}`;
+        $id('lab-val-line-pos') && ($id('lab-val-line-pos').textContent = linePosTxt);
+        $id('fig-val-line') && ($id('fig-val-line').textContent = linePosTxt);
+        const slLine = $id('fig-slider-line');
+        if (slLine && parseInt(slLine.value, 10) !== labState.lineOffset) slLine.value = labState.lineOffset;
 
         const lbl1 = $id('lab-lbl-tol-1'), lbl2 = $id('lab-lbl-tol-2'), hint = $id('lab-hint-text');
         if (lbl1) lbl1.textContent = isLine ? 'Параметр 1 — Допуск ДО линии:' : 'Параметр 1 — Допуск X (от центра 0):';
         if (lbl2) lbl2.textContent = isLine ? 'Параметр 2 — Допуск ОТ линии:' : 'Параметр 2 — Допуск Y (от центра 0):';
-        if (hint) hint.textContent = isLine ? 'Замеры проводятся строго ДО опорной линии и ОТ неё. На рисунке видны стрелки расстояний и допуски.' : 'Центр области зафиксирован в точке (0, 0). Контролируется симметричное отклонение краев ±X и ±Y от центра.';
+        if (hint) hint.textContent = isLine ? 'Замеры проводятся строго ДО опорной линии и ОТ неё. На чертеже видны размерные стрелки.' : 'Центр области зафиксирован в точке (0, 0). Контролируется симметричное отклонение краев ±X и ±Y от центра.';
 
         const val1 = isLine ? `${labState.lineTolMin1}–${labState.lineTolMax1} px` : `±${labState.tolX} px (W ≤ ${labState.tolX * 2} px)`;
         const val2 = isLine ? `${labState.lineTolMin2}–${labState.lineTolMax2} px` : `±${labState.tolY} px (H ≤ ${labState.tolY * 2} px)`;
@@ -275,6 +308,7 @@
 
         $id('lab-line-pos-dec')?.addEventListener('click', () => { labState.lineOffset = Math.max(-25, labState.lineOffset - 2); updateUiValues(); });
         $id('lab-line-pos-inc')?.addEventListener('click', () => { labState.lineOffset = Math.min(25, labState.lineOffset + 2); updateUiValues(); });
+        $id('fig-slider-line')?.addEventListener('input', e => { labState.lineOffset = parseInt(e.target.value, 10); updateUiValues(); });
 
         $id('fig-slider-w')?.addEventListener('input', e => { labState.figW = parseInt(e.target.value, 10); updateUiValues(); });
         $id('fig-slider-h')?.addEventListener('input', e => { labState.figH = parseInt(e.target.value, 10); updateUiValues(); });
