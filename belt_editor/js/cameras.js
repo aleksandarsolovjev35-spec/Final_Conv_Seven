@@ -330,10 +330,8 @@ function drawMeasureBboxAndCuts(ctx, px, py, pw, ph, rule) {
 function drawInspectionMeasure(ctx, px, py, pw, ph, rule) {
     drawMeasureBboxAndCuts(ctx, px, py, pw, ph, rule);
     const cutsV = rule.cutsV ?? 3, cutsH = rule.cutsH ?? 1;
-    const tMin = rule.topMin ?? 15, tMax = rule.topMax ?? 45;
-    const bMin = rule.bottomMin ?? 15, bMax = rule.bottomMax ?? 45;
-    const midY = Math.round(py + ph / (cutsH + 1));
-    const vStep = pw / (cutsV + 1);
+    const tMin = rule.topMin ?? 15, tMax = rule.topMax ?? 45, bMin = rule.bottomMin ?? 15, bMax = rule.bottomMax ?? 45;
+    const midY = Math.round(py + ph / (cutsH + 1)), vStep = pw / (cutsV + 1);
     let allOk = true;
 
     for (let v = 1; v <= cutsV; v++) {
@@ -344,19 +342,25 @@ function drawInspectionMeasure(ctx, px, py, pw, ph, rule) {
         ctx.strokeStyle = ctx.fillStyle = ok ? '#7ac48c' : '#e06c75';
         ctx.beginPath(); ctx.moveTo(vx, py); ctx.lineTo(vx, midY); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(vx, midY); ctx.lineTo(vx, py + ph); ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(vx - 2, py + 3); ctx.lineTo(vx, py); ctx.lineTo(vx + 2, py + 3);
-        ctx.moveTo(vx - 2, py + ph - 3); ctx.lineTo(vx, py + ph); ctx.lineTo(vx + 2, py + ph - 3);
-        ctx.stroke();
         ctx.font = '7px monospace';
         ctx.fillText(`T${v}:${tVal}`, vx + 2, py + Math.round((midY - py) / 2));
         ctx.fillText(`B${v}:${bVal}`, vx + 2, midY + Math.round((py + ph - midY) / 2));
     }
+
+    const hStep = ph / (cutsH + 1);
+    for (let h = 1; h <= cutsH; h++) {
+        const hy = Math.round(py + h * hStep);
+        ctx.strokeStyle = ctx.fillStyle = '#7ac48c';
+        ctx.beginPath(); ctx.moveTo(px, hy); ctx.lineTo(px + pw, hy); ctx.stroke();
+        ctx.font = '7px monospace';
+        ctx.fillText(`W${h}:${pw}px`, px + Math.round(pw / 2) - 12, hy - 3);
+    }
+
     ctx.font = '7.5px monospace'; ctx.fillStyle = '#f3ca6c';
     ctx.fillText(`BBox ${pw}×${ph} | ${cutsV}V×${cutsH}H срез`, px, py + ph + 10);
     return {
         isFail: !allOk,
-        text: `Замер ${cutsV}V×${cutsH}H: T=${Math.round(midY - py)} B=${Math.round(py + ph - midY)} px`
+        text: `Замер ${cutsV}V×${cutsH}H: T=${Math.round(midY - py)} B=${Math.round(py + ph - midY)} W=${pw} px`
     };
 }
 
