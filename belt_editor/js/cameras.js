@@ -264,31 +264,30 @@ function drawReticleOverlay(ctx, w, h, inField, p, size, railY) {
 }
 
 function drawInspectionPresence(ctx, px, py, pw, ph, rule) {
-    const isForbid = rule.presenceType === 'forbid';
-    if (isForbid) {
-        const actual = 0;
-        ctx.strokeStyle = actual > 0 ? 'rgba(239, 68, 68, 0.7)' : 'rgba(88, 183, 154, 0.6)';
-        ctx.setLineDash([2, 2]);
-        ctx.strokeRect(px + 2, py + 2, pw - 4, ph - 4);
-        ctx.setLineDash([]);
-        ctx.fillStyle = actual > 0 ? '#ef4444' : '#58b79a';
-        ctx.font = 'bold 7.5px monospace';
-        ctx.fillText(actual > 0 ? '✕ ОБНАРУЖЕНО' : '✓ НЕ ОБНАРУЖЕНО', px + 4, py + Math.round(ph / 2) + 3);
-        const isFail = actual > 0;
-        return { isFail, text: isFail ? `Наличие: обнаружено ${actual} шт (запрещено)` : `Наличие: чисто (не обнаружено)` };
-    }
-
     const expected = rule.countExpected || 7, actual = expected;
-    const stepX = pw / (expected + 1);
+    const fx = rule.filterX ?? 30, fy = rule.filterY ?? 20;
+    const cx = Math.round(px + pw / 2), cy = Math.round(py + ph / 2);
+
+    ctx.strokeStyle = 'rgba(88, 183, 154, 0.7)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([3, 2]);
+    ctx.strokeRect(cx - fx, cy - fy, fx * 2, fy * 2);
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#58b79a';
+    ctx.font = 'bold 7.5px monospace';
+    ctx.fillText(`FX:±${fx} FY:±${fy}`, cx - fx + 2, cy - fy - 3);
+
+    const stepX = Math.min(pw, fx * 2 - 8) / (expected + 1);
+    const startX = cx - Math.min(pw, fx * 2 - 8) / 2;
     for (let i = 1; i <= Math.min(expected, 10); i++) {
-        const mx = Math.round(px + i * stepX), my = Math.round(py + ph / 2);
+        const mx = Math.round(startX + i * stepX), my = cy;
         ctx.fillStyle = '#58b79a';
         ctx.fillRect(mx - 3, my - 3, 6, 6);
         ctx.font = 'bold 8px monospace';
         ctx.fillText(String(i), mx - 2, my - 5);
     }
     const isFail = actual < expected;
-    return { isFail, text: `Наличие: ${actual} из ${expected} шт` };
+    return { isFail, text: `Наличие: ${actual} из ${expected} шт (зона ±${fx}×±${fy}px)` };
 }
 
 function drawInspectionDefect(ctx, px, py, pw, ph, rule) {

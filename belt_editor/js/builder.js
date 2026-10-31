@@ -81,7 +81,7 @@ function getNodeDimensions(keyOrType, domNode) {
     const k = String(keyOrType || '');
     if (k.startsWith('pos') || k === 'position') return { w: 176, h: 96 };
     if (k.startsWith('cam')) return { w: 148, h: 54 };
-    if (k.startsWith('rule')) return { w: 180, h: 125 };
+    if (k.startsWith('rule')) return { w: 180, h: 145 };
     if (k.startsWith('model')) return { w: 128, h: 34 };
     return { w: 128, h: 44 };
 }
@@ -525,34 +525,32 @@ function renderMeasureControl(rule, rid, box) {
     return box;
 }
 
+function stepPresenceFilter(rule, which, dir) {
+    const d = dir * 5;
+    if (which === 'x') rule.filterX = Math.max(5, Math.min(100, (rule.filterX ?? 30) + d));
+    else rule.filterY = Math.max(5, Math.min(100, (rule.filterY ?? 20) + d));
+}
+
 function renderPresenceControl(rule, rid, box) {
-    if (!rule.presenceType) rule.presenceType = 'require';
-    const isReq = rule.presenceType === 'require';
-    const segGroup = el('div', 'tool-seg-group', null, [
-        el('button', 'btn-seg btn-seg-req' + (isReq ? ' active' : ''), '✓'),
-        el('button', 'btn-seg btn-seg-forbid' + (!isReq ? ' active' : ''), '✕')
-    ]);
-    const [bReq, bForbid] = segGroup.querySelectorAll('.btn-seg');
-    bReq.title = 'Должно быть (комплектность)';
-    bForbid.title = 'Запрещено (не должно быть вообще)';
+    const val = rule.countExpected || 7;
+    const fx = rule.filterX ?? 30;
+    const fy = rule.filterY ?? 20;
 
-    bReq.onclick = ev => { ev.stopPropagation(); rule.presenceType = 'require'; selectActiveRule(rid); render(); };
-    bForbid.onclick = ev => { ev.stopPropagation(); rule.presenceType = 'forbid'; selectActiveRule(rid); render(); };
-    box.appendChild(segGroup);
-
-    if (isReq) {
-        const val = rule.countExpected || 7;
-        box.appendChild(makeStepRow('Требуется:', val + ' шт',
-            () => { rule.countExpected = Math.max(1, val - 1); },
-            () => { rule.countExpected = Math.min(16, val + 1); },
-            rid
-        ));
-    } else {
-        box.appendChild(el('div', 'rule-count-row tool-row', null, [
-            el('span', 'rule-lbl tool-lbl', 'Запрещено:'),
-            el('span', 'rule-count-val tool-val tool-val-alert', '0 шт (брак)')
-        ]));
-    }
+    box.appendChild(makeStepRow('Количество:', val + ' шт',
+        () => { rule.countExpected = Math.max(1, val - 1); },
+        () => { rule.countExpected = Math.min(16, val + 1); },
+        rid
+    ));
+    box.appendChild(makeStepRow('Фильтр X:', '±' + fx + ' px',
+        () => stepPresenceFilter(rule, 'x', -1),
+        () => stepPresenceFilter(rule, 'x', 1),
+        rid
+    ));
+    box.appendChild(makeStepRow('Фильтр Y:', '±' + fy + ' px',
+        () => stepPresenceFilter(rule, 'y', -1),
+        () => stepPresenceFilter(rule, 'y', 1),
+        rid
+    ));
     return box;
 }
 

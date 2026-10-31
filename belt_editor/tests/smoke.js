@@ -958,24 +958,22 @@ check('перетаскивание из правой палитры: инстр
         const node = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
         return node !== null;
     })());
-check('переключатель логики инструмента наличие: символы ✓ (комплект) и ✕ (запрет)',
+check('инструмент наличие: настройка количества и фильтров зоны X и Y',
     (function () {
         const node = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
         if (!node) return false;
-        const segs = node.querySelectorAll('.btn-seg');
-        if (segs.length !== 2) return false;
+        const rows = node.querySelectorAll('.tool-row');
+        if (rows.length !== 3) return false;
 
-        // 1. Клик по "✕" (запрет)
-        segs[1].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-        const updated1 = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
-        const isForbid = updated1?.querySelector('.rule-lbl')?.textContent.includes('Запрещено');
+        const val0Before = rows[0].querySelector('.rule-count-val').textContent;
+        rows[0].querySelectorAll('.btn-count-step')[1].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const val0After = doc.querySelector('.gnode.g-rule[data-rule="r1"] .rule-count-val').textContent;
 
-        // 2. Клик по "✓" (комплект)
-        updated1.querySelectorAll('.btn-seg')[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-        const updated2 = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
-        const isReq = updated2?.querySelector('.rule-lbl')?.textContent.includes('Требуется');
+        const val1Before = doc.querySelectorAll('.gnode.g-rule[data-rule="r1"] .rule-count-val')[1].textContent;
+        doc.querySelectorAll('.gnode.g-rule[data-rule="r1"] .btn-count-step')[3].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const val1After = doc.querySelectorAll('.gnode.g-rule[data-rule="r1"] .rule-count-val')[1].textContent;
 
-        return isForbid && isReq;
+        return val0Before !== val0After && val1Before !== val1After;
     })());
 check('вкладка инструментов убрана из интерфейса дока: нет двоения с правой палитрой',
     (function () {
