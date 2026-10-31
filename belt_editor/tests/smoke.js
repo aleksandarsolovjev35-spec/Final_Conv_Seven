@@ -970,6 +970,17 @@ check('вкладка инструментов убрана из интерфе�
             && (miniRuleTab?.style.display === 'none');
         return hasTitle && isHidden;
     })());
+check('выбор модели прямо в карточке инструмента: селектор привязывает модель без проводов',
+    (function () {
+        const rNode = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
+        const sel = rNode?.querySelector('.rule-model-select');
+        if (!rNode || !sel) return false;
+        sel.value = 'm4'; // bracket-90
+        sel.dispatchEvent(new window.Event('change', { bubbles: true }));
+        const chipsAfter = doc.querySelectorAll('.gnode.g-rule[data-rule="r0"] .g-chip');
+        const hasChip = Array.from(chipsAfter).some(c => c.textContent.includes('bracket-90'));
+        return hasChip;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);

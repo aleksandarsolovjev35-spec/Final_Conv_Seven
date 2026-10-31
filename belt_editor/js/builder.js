@@ -79,7 +79,7 @@ function getNodeDimensions(keyOrType, domNode) {
     const k = String(keyOrType || '');
     if (k.startsWith('pos') || k === 'position') return { w: 176, h: 96 };
     if (k.startsWith('cam')) return { w: 148, h: 54 };
-    if (k.startsWith('rule')) return { w: 184, h: 140 };
+    if (k.startsWith('rule')) return { w: 184, h: 165 };
     if (k.startsWith('model')) return { w: 128, h: 34 };
     return { w: 128, h: 44 };
 }
@@ -428,12 +428,31 @@ function renderModelNode(mid, at) {
 }
 
 function renderRuleModelList(rule, rid) {
-    const list = el('div', 'g-models', null, rule.models.map(mid => {
+    const list = el('div', 'g-models');
+    rule.models.forEach(mid => {
         const mod = MODELS.find(m => m.id === mid), chip = el('span', 'g-chip', mod ? mod.name : mid);
         chip.title = 'снять модель'; chip.onclick = ev => { ev.stopPropagation(); togglePart(rid, mid); };
-        return chip;
-    }));
-    if (!rule.models.length) list.appendChild(el('span', 'g-empty', '→ подключите модель'));
+        list.appendChild(chip);
+    });
+    if (!rule.models.length) list.appendChild(el('span', 'g-empty', '→ привяжите модель'));
+
+    const sel = el('select', 'rule-model-select');
+    const defOpt = el('option', '', '+ привязать модель...');
+    defOpt.value = '';
+    sel.appendChild(defOpt);
+    MODELS.forEach(m => {
+        if (!rule.models.includes(m.id)) {
+            const opt = el('option', '', m.name);
+            opt.value = m.id;
+            sel.appendChild(opt);
+        }
+    });
+    sel.onchange = ev => {
+        ev.stopPropagation();
+        if (sel.value) { togglePart(rid, sel.value); selectActiveRule(rid); render(); }
+    };
+    sel.onclick = ev => ev.stopPropagation();
+    list.appendChild(sel);
     return list;
 }
 
