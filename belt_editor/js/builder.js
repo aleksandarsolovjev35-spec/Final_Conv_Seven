@@ -81,7 +81,7 @@ function getNodeDimensions(keyOrType, domNode) {
     const k = String(keyOrType || '');
     if (k.startsWith('pos') || k === 'position') return { w: 176, h: 96 };
     if (k.startsWith('cam')) return { w: 148, h: 54 };
-    if (k.startsWith('rule')) return { w: 210, h: 140 };
+    if (k.startsWith('rule')) return { w: 216, h: 140 };
     if (k.startsWith('model')) return { w: 128, h: 34 };
     return { w: 128, h: 44 };
 }
@@ -430,12 +430,18 @@ function renderModelNode(mid, at) {
 }
 
 function renderRuleModelSection(rule, rid) {
-    const list = el('div', 'g-models');
-    rule.models.forEach(mid => {
-        const mod = MODELS.find(m => m.id === mid), chip = el('span', 'g-chip', mod ? mod.name : mid);
-        chip.title = 'снять деталь'; chip.onclick = ev => { ev.stopPropagation(); togglePart(rid, mid); };
-        list.appendChild(chip);
-    });
+    const wrap = el('div', 'tool-section tool-section-model g-models');
+    if (rule.models.length) {
+        const chips = el('div', 'tool-chip-list');
+        rule.models.forEach(mid => {
+            const mod = MODELS.find(m => m.id === mid);
+            const chip = el('span', 'g-chip', (mod ? mod.name : mid) + ' ×');
+            chip.title = 'снять деталь';
+            chip.onclick = ev => { ev.stopPropagation(); togglePart(rid, mid); };
+            chips.appendChild(chip);
+        });
+        wrap.appendChild(chips);
+    }
 
     const sel = el('select', 'rule-model-select');
     const defOpt = el('option', '', rule.models.length ? '+ деталь...' : 'Выбрать деталь...');
@@ -453,9 +459,9 @@ function renderRuleModelSection(rule, rid) {
         if (sel.value) { togglePart(rid, sel.value); selectActiveRule(rid); render(); }
     };
     sel.onclick = ev => ev.stopPropagation();
-    list.appendChild(sel);
+    wrap.appendChild(sel);
 
-    return el('div', 'tool-section tool-section-model', null, [list]);
+    return wrap;
 }
 
 function stepMeasureTol(rule, which, dir) {

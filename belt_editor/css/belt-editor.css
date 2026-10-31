@@ -954,12 +954,18 @@ body.node-moving { cursor: grabbing; }
 
 /* ─── Нода инструмента (Замер / Наличие / Дефект / Смещение) ──────── */
 .gnode.g-rule {
-    width: 210px;
+    width: 216px;
     background: #11171f;
     border: 1px solid #23303d;
     border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gnode.g-rule .sock-in,
+.gnode.g-rule .sock-out {
+    top: 13px;
+    margin-top: 0;
 }
 
 .gnode.g-rule.is-active {
@@ -998,6 +1004,13 @@ body.node-moving { cursor: grabbing; }
 .tool-section-model {
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     padding-bottom: 6px;
+}
+
+.tool-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
 }
 
 .tool-row {
