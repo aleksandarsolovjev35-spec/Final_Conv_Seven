@@ -565,7 +565,7 @@ function getRuleParamConfig(rule) {
     }
     const val = rule.maxDefects ?? 0;
     return {
-        lbl: 'Макс. брак:', val: val + ' шт',
+        lbl: 'Допустимо:', val: val + ' шт',
         dec: () => { rule.maxDefects = Math.max(0, val - 1); },
         inc: () => { rule.maxDefects = Math.min(5, val + 1); }
     };
