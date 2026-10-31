@@ -999,7 +999,7 @@ check('инструмент замер окна: контроль расстоя
         const hasFormula = formula.includes('T∈') && formula.includes('B∈');
         return isMeasure && hasTB && hasFormula;
     })());
-check('лаборатория инструментов: стенд симуляции фигур, переключение пресетов и расчет допуска',
+check('лаборатория инструментов: координатные оси X Y, симуляция фигуры и проверка допуска',
     (function () {
         const btnOpen = doc.getElementById('btn-open-lab');
         const overlay = doc.getElementById('tool-lab-overlay');
@@ -1008,33 +1008,32 @@ check('лаборатория инструментов: стенд симуля�
         btnOpen.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
         const opened = overlay.style.display !== 'none';
         const hasCanvas = doc.getElementById('lab-canvas') !== null;
-        const hasPresets = doc.querySelectorAll('.btn-lab-fig').length >= 4;
-        const hasSliders = doc.querySelectorAll('.lab-slider-row input').length >= 3;
-        const hasVerdict = doc.getElementById('lab-verdict') !== null;
+        const hasSliders = doc.getElementById('fig-slider-w') !== null && doc.getElementById('fig-slider-h') !== null;
+        const hasTolParams = doc.getElementById('lab-val-tol-x') !== null && doc.getElementById('lab-val-tol-y') !== null;
         btnClose.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
         const closed = overlay.style.display === 'none';
-        return opened && hasCanvas && hasPresets && hasSliders && hasVerdict && closed;
+        return opened && hasCanvas && hasSliders && hasTolParams && closed;
     })());
-check('лаборатория допусков: 3 режима допусков сетки (по рядам, единый, разброс) с контекстными панелями',
+check('лаборатория допусков: двухпараметрическая координатная настройка допуска X и Y',
     (function () {
         const btnOpen = doc.getElementById('btn-open-lab');
         const overlay = doc.getElementById('tool-lab-overlay');
         const btnClose = doc.getElementById('btn-close-lab');
         if (!btnOpen || !overlay) return false;
         btnOpen.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        const modeBtns = doc.querySelectorAll('.btn-tol-mode');
-        const panelRows = doc.getElementById('tol-panel-rows');
-        const panelUniform = doc.getElementById('tol-panel-uniform');
-        const panelEven = doc.getElementById('tol-panel-evenness');
-        if (modeBtns.length !== 3 || !panelRows || !panelUniform || !panelEven) return false;
-        const btnUniform = doc.querySelector('.btn-tol-mode[data-mode="uniform"]');
-        btnUniform.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        const isUniformActive = panelUniform.classList.contains('active') && !panelRows.classList.contains('active');
-        const btnEven = doc.querySelector('.btn-tol-mode[data-mode="evenness"]');
-        btnEven.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        const isEvenActive = panelEven.classList.contains('active') && !panelUniform.classList.contains('active');
+        const valXEl = doc.getElementById('lab-val-tol-x');
+        const valYEl = doc.getElementById('lab-val-tol-y');
+        const btnXInc = doc.getElementById('lab-tol-x-inc');
+        const btnYDec = doc.getElementById('lab-tol-y-dec');
+        if (!valXEl || !valYEl || !btnXInc || !btnYDec) return false;
+        const initX = valXEl.textContent;
+        const initY = valYEl.textContent;
+        btnXInc.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const changedX = valXEl.textContent !== initX;
+        btnYDec.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const changedY = valYEl.textContent !== initY;
         if (btnClose) btnClose.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-        return isUniformActive && isEvenActive;
+        return changedX && changedY;
     })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');

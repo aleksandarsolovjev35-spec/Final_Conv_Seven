@@ -2012,34 +2012,8 @@ body.node-moving .wire-hitbox,
     background: #0f1418;
 }
 
-.lab-figure-presets {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.btn-lab-fig {
-    padding: 7px 12px;
-    background: var(--bg-0, #11171d);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text-dim);
-    font: 11.5px/1.2 var(--font-ui, sans-serif);
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 120ms ease;
-}
-
-.btn-lab-fig:hover,
-.btn-lab-fig.active {
-    border-color: #4fa3d1;
-    color: #fff;
-    background: rgba(79, 163, 209, 0.2);
-}
-
 .lab-sliders,
-.lab-card,
-.lab-report {
+.lab-card {
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -2099,96 +2073,13 @@ body.node-moving .wire-hitbox,
     background: rgba(79, 163, 209, 0.15);
 }
 
-.lab-verdict {
-    padding: 12px 16px;
-    border-radius: 5px;
-    font: 14px/1.3 var(--font-mono, monospace);
-    font-weight: 700;
-    text-align: center;
-    letter-spacing: 0.5px;
-}
-
-.lab-verdict.pass {
-    background: rgba(122, 196, 140, 0.22);
-    border: 1px solid #7ac48c;
-    color: #7ac48c;
-}
-
-.lab-verdict.fail {
-    background: rgba(224, 108, 117, 0.22);
-    border: 1px solid #e06c75;
-    color: #e06c75;
-}
-
-.lab-details {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.lab-report-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.04);
-    border-radius: 4px;
-    font: 12px/1.3 var(--font-mono, monospace);
-}
-
-.lab-mode-selector {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 8px 0 4px;
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-}
-
-.lab-mode-lbl {
-    font: 10.5px/1.2 var(--font-mono, monospace);
-    font-weight: 700;
-    color: #4fa3d1;
-    letter-spacing: 0.8px;
-}
-
-.lab-mode-btns {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-
-.btn-tol-mode {
-    padding: 6px 10px;
-    background: var(--bg-0);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text-dim);
-    font: 11px/1.2 var(--font-ui, sans-serif);
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 120ms ease;
-}
-
-.btn-tol-mode:hover,
-.btn-tol-mode.active {
-    border-color: #4fa3d1;
-    color: #fff;
-    background: rgba(79, 163, 209, 0.2);
-}
-
-.lab-tol-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
 .lab-hint-row {
-    font: 11px/1.3 var(--font-ui, sans-serif);
+    font: 11.5px/1.4 var(--font-ui, sans-serif);
     color: var(--text-muted);
     font-style: italic;
-    padding: 4px 6px;
+    padding: 8px 10px;
     background: rgba(255, 255, 255, 0.03);
     border-radius: 4px;
+    border-left: 2px solid #4fa3d1;
 }
 

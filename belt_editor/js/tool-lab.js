@@ -1,33 +1,21 @@
-/* belt_editor/js/tool-lab.js — Лаборатория инструментов (стенд симуляции и замера фигур) */
+/* belt_editor/js/tool-lab.js — Лаборатория инструментов (координатные допуски X, Y) */
 'use strict';
 
 (function () {
     const labState = {
         open: false,
-        fig: 'window',
-        topH: 30,
-        botH: 28,
-        w: 72,
-        cutsV: 3,
-        cutsH: 1,
-        tolMode: 'rows',
-        topMin: 15,
-        topMax: 45,
-        bottomMin: 15,
-        bottomMax: 45,
-        wMin: 50,
-        wMax: 100,
-        cellWMin: 15,
-        cellWMax: 50,
-        cellHMin: 15,
-        cellHMax: 45,
-        maxDelta: 4
+        figW: 72,
+        figH: 58,
+        xMin: 50,
+        xMax: 90,
+        yMin: 40,
+        yMax: 70
     };
 
     function $id(id) { return document.getElementById(id); }
 
-    function drawGrid(ctx, w, h) {
-        ctx.fillStyle = '#0f1418';
+    function drawCanvasGrid(ctx, w, h) {
+        ctx.fillStyle = '#0c1216';
         ctx.fillRect(0, 0, w, h);
         ctx.strokeStyle = 'rgba(120, 153, 165, 0.08)';
         ctx.lineWidth = 1;
@@ -37,184 +25,119 @@
         ctx.stroke();
     }
 
-    function drawSimulatedFigure(ctx, bx, by, bw, bh, midY) {
-        ctx.fillStyle = '#222b32';
-        ctx.fillRect(bx - 20, by - 16, bw + 40, bh + 32);
-        ctx.fillStyle = '#0c1216';
-        ctx.fillRect(bx, by, bw, bh);
-        ctx.fillStyle = '#394853';
-        ctx.fillRect(bx, midY - 4, bw, 8);
-        ctx.strokeStyle = '#4fa3d1';
+    function drawToleranceBands(ctx, x0, y0, scX, scY) {
+        const x1 = x0 + labState.xMin * scX, x2 = x0 + labState.xMax * scX;
+        ctx.fillStyle = 'rgba(34, 197, 94, 0.2)';
+        ctx.fillRect(x1, y0 - 4, x2 - x1, 8);
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x1, y0 - 8); ctx.lineTo(x1, y0 + 8);
+        ctx.moveTo(x2, y0 - 8); ctx.lineTo(x2, y0 + 8);
+        ctx.stroke();
+
+        const y1 = y0 - labState.yMin * scY, y2 = y0 - labState.yMax * scY;
+        ctx.fillStyle = 'rgba(34, 197, 94, 0.2)';
+        ctx.fillRect(x0 - 4, y2, 8, y1 - y2);
+        ctx.beginPath();
+        ctx.moveTo(x0 - 8, y1); ctx.lineTo(x0 + 8, y1);
+        ctx.moveTo(x0 - 8, y2); ctx.lineTo(x0 + 8, y2);
+        ctx.stroke();
+    }
+
+    function drawCoordinateAxes(ctx, x0, y0, scX, scY) {
+        const xEnd = 540, yEnd = 40;
+        ctx.strokeStyle = '#475569';
         ctx.lineWidth = 1.5;
-        ctx.strokeRect(bx, by, bw, bh);
+        ctx.beginPath();
+        ctx.moveTo(x0 - 10, y0); ctx.lineTo(xEnd, y0);
+        ctx.moveTo(xEnd, y0); ctx.lineTo(xEnd - 8, y0 - 4);
+        ctx.moveTo(xEnd, y0); ctx.lineTo(xEnd - 8, y0 + 4);
+        ctx.moveTo(x0, y0 + 10); ctx.lineTo(x0, yEnd);
+        ctx.moveTo(x0, yEnd); ctx.lineTo(x0 - 4, yEnd + 8);
+        ctx.moveTo(x0, yEnd); ctx.lineTo(x0 + 4, yEnd + 8);
+        ctx.stroke();
+
+        ctx.font = 'bold 11px monospace';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText('X (горизонталь, px) →', xEnd - 150, y0 + 22);
+        ctx.fillText('↑ Y (высота, px)', x0 - 15, yEnd - 12);
+
+        for (let px = 20; px <= 140; px += 20) {
+            const x = x0 + px * scX;
+            ctx.beginPath(); ctx.moveTo(x, y0 - 3); ctx.lineTo(x, y0 + 3); ctx.stroke();
+            ctx.fillText(String(px), x - 8, y0 + 16);
+        }
+        for (let py = 20; py <= 100; py += 20) {
+            const y = y0 - py * scY;
+            ctx.beginPath(); ctx.moveTo(x0 - 3, y); ctx.lineTo(x0 + 3, y); ctx.stroke();
+            ctx.fillText(String(py), x0 - 24, y + 4);
+        }
+        drawToleranceBands(ctx, x0, y0, scX, scY);
     }
 
-    function evaluateCellOk(cell, allCells) {
-        if (labState.cutsV === 0 && labState.cutsH === 0) {
-            return cell.rW >= labState.wMin && cell.rW <= labState.wMax &&
-                   cell.rH >= labState.topMin && cell.rH <= (labState.topMax + labState.bottomMax);
-        }
-        if (labState.tolMode === 'uniform') {
-            return cell.rW >= labState.cellWMin && cell.rW <= labState.cellWMax &&
-                   cell.rH >= labState.cellHMin && cell.rH <= labState.cellHMax;
-        }
-        if (labState.tolMode === 'evenness') {
-            const hs = allCells.map(c => c.rH);
-            const delta = Math.max(...hs) - Math.min(...hs);
-            const avg = hs.reduce((a, b) => a + b, 0) / hs.length;
-            return delta <= labState.maxDelta && Math.abs(cell.rH - avg) <= (labState.maxDelta / 2 + 1);
-        }
-        const isTwo = (allCells.some(c => c.r === 2));
-        const hOk = isTwo ? (cell.r === 1 ? (cell.rH >= labState.topMin && cell.rH <= labState.topMax) : (cell.rH >= labState.bottomMin && cell.rH <= labState.bottomMax)) : (cell.rH >= labState.topMin && cell.rH <= labState.topMax);
-        const wOk = cell.rW >= Math.round(labState.wMin / (labState.cutsV + 1)) && cell.rW <= Math.round(labState.wMax / (labState.cutsV + 1));
-        return hOk && wOk;
-    }
+    function drawFigureAndProjections(ctx, x0, y0, scX, scY) {
+        const wPx = labState.figW * scX, hPx = labState.figH * scY;
+        const xOk = labState.figW >= labState.xMin && labState.figW <= labState.xMax;
+        const yOk = labState.figH >= labState.yMin && labState.figH <= labState.yMax;
+        const allOk = xOk && yOk;
 
-    function buildGridCells(bx, by, bw, bh, midY) {
-        const cutsV = labState.cutsV, cutsH = labState.cutsH;
-        if (cutsV === 0 && cutsH === 0) {
-            const rW = labState.w, rH = labState.topH + labState.botH;
-            const cell = { r: 1, c: 1, x: bx, y: by, w: bw, h: bh, rW, rH, title: 'Область целиком' };
-            cell.ok = evaluateCellOk(cell, [cell]);
-            return [cell];
-        }
-        const cols = cutsV + 1, rows = cutsH + 1, list = [];
-        const colW = bw / cols, rW = Math.round(labState.w / cols);
-        for (let r = 0; r < rows; r++) {
-            const isTwo = (rows === 2);
-            const rowH = isTwo ? (r === 0 ? midY - by : by + bh - midY) : (bh / rows);
-            const rH = isTwo ? (r === 0 ? labState.topH : labState.botH) : Math.round((labState.topH + labState.botH) / rows);
-            const rowY = isTwo ? (r === 0 ? by : midY) : (by + r * (bh / rows));
-            const title = isTwo ? (r === 0 ? 'Верхний ряд (T)' : 'Нижний ряд (B)') : `Клеточка [${r + 1}, c]`;
-            for (let c = 0; c < cols; c++) {
-                list.push({ r: r + 1, c: c + 1, x: bx + c * colW, y: rowY, w: colW, h: rowH, rW, rH, title: cols > 1 ? `${title}, кол.${c + 1}` : title });
-            }
-        }
-        list.forEach(cell => { cell.ok = evaluateCellOk(cell, list); });
-        return list;
-    }
+        ctx.fillStyle = allOk ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.14)';
+        ctx.fillRect(x0, y0 - hPx, wPx, hPx);
+        ctx.strokeStyle = allOk ? '#22c55e' : '#ef4444';
+        ctx.lineWidth = 2.4;
+        ctx.strokeRect(x0, y0 - hPx, wPx, hPx);
 
-    function drawSingleCell(ctx, cell) {
-        ctx.fillStyle = cell.ok ? 'rgba(122, 196, 140, 0.12)' : 'rgba(239, 68, 68, 0.16)';
-        ctx.fillRect(cell.x, cell.y, cell.w, cell.h);
-        ctx.strokeStyle = cell.ok ? '#7ac48c' : '#ef4444';
-        ctx.lineWidth = 2.0;
-        ctx.strokeRect(cell.x, cell.y, cell.w, cell.h);
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = xOk ? '#22c55e' : '#ef4444';
+        ctx.beginPath(); ctx.moveTo(x0 + wPx, y0 - hPx); ctx.lineTo(x0 + wPx, y0); ctx.stroke();
+        ctx.strokeStyle = yOk ? '#22c55e' : '#ef4444';
+        ctx.beginPath(); ctx.moveTo(x0 + wPx, y0 - hPx); ctx.lineTo(x0, y0 - hPx); ctx.stroke();
+        ctx.setLineDash([]);
 
-        const text = `${cell.rW}×${cell.rH}px ${cell.ok ? '✓' : '✗'}`;
-        ctx.font = 'bold 12.5px monospace';
-        const tw = ctx.measureText(text).width;
-        const xm = Math.round(cell.x + cell.w / 2), ym = Math.round(cell.y + cell.h / 2);
-        ctx.fillStyle = 'rgba(8, 12, 16, 0.9)';
-        ctx.fillRect(xm - Math.round(tw / 2) - 4, ym - 9, tw + 8, 18);
-        ctx.fillStyle = cell.ok ? '#7ac48c' : '#ef4444';
-        ctx.fillText(text, xm - Math.round(tw / 2), ym + 4);
-    }
+        ctx.fillStyle = xOk ? '#22c55e' : '#ef4444';
+        ctx.beginPath(); ctx.arc(x0 + wPx, y0, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText(`X = ${labState.figW} px ${xOk ? '✓' : '✗ вылет'}`, x0 + wPx - 20, y0 - 10);
 
-    function drawLabGridAndMeasurements(ctx, bx, by, bw, bh, midY) {
-        ctx.lineWidth = 2.2; ctx.strokeStyle = '#d9a441';
-        ctx.strokeRect(bx, by, bw, bh);
+        ctx.fillStyle = yOk ? '#22c55e' : '#ef4444';
+        ctx.beginPath(); ctx.arc(x0, y0 - hPx, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillText(`Y = ${labState.figH} px ${yOk ? '✓' : '✗ вылет'}`, x0 + 10, y0 - hPx - 8);
 
-        const cells = buildGridCells(bx, by, bw, bh, midY);
-        cells.forEach(cell => drawSingleCell(ctx, cell));
+        ctx.font = 'bold 15px monospace';
+        ctx.fillStyle = allOk ? '#22c55e' : '#ef4444';
+        ctx.fillText(`${labState.figW} × ${labState.figH} px`, x0 + wPx / 2 - 40, y0 - hPx / 2 + 5);
 
-        ctx.font = 'bold 12px monospace'; ctx.fillStyle = '#f3ca6c';
-        const cols = labState.cutsV + 1, rows = labState.cutsH + 1;
-        const desc = (labState.cutsV === 0 && labState.cutsH === 0)
-            ? `Замер области целиком (без разрезов, 1 клеточка)`
-            : `Сетка: ${cols} кол. × ${rows} стр. (${cells.length} клеточек) | Режим: ${labState.tolMode.toUpperCase()}`;
-        ctx.fillText(desc, bx, by + bh + 24);
-        return cells;
-    }
-
-    function renderLabReport(cells) {
-        const verdEl = $id('lab-verdict'), detEl = $id('lab-details');
-        if (!verdEl || !detEl) return;
-        const allOk = cells.every(c => c.ok);
-        verdEl.className = 'lab-verdict ' + (allOk ? 'pass' : 'fail');
-        verdEl.textContent = allOk ? '✓ ГОДНАЯ (ОК): ВСЕ КЛЕТОЧКИ В ДОПУСКЕ' : '✗ БРАК: ВЫЛЕТ РАЗМЕРА В КЛЕТОЧКАХ';
-
-        detEl.innerHTML = '';
-        if (labState.tolMode === 'evenness') {
-            const hs = cells.map(c => c.rH);
-            const delta = Math.max(...hs) - Math.min(...hs);
-            const sumRow = document.createElement('div');
-            sumRow.className = 'lab-report-row ' + (delta <= labState.maxDelta ? 'ok' : 'fail');
-            sumRow.innerHTML = `<span>Разброс высот Δ:</span> <b style="color:${delta <= labState.maxDelta ? '#7ac48c' : '#ef4444'}">Δ = ${delta} px (норма ≤ ${labState.maxDelta} px) ${delta <= labState.maxDelta ? '✓ равномерно' : '✗ перекос'}</b>`;
-            detEl.appendChild(sumRow);
-        }
-        cells.forEach(c => {
-            const row = document.createElement('div');
-            row.className = 'lab-report-row ' + (c.ok ? 'ok' : 'fail');
-            row.innerHTML = `<span>${c.title}:</span> ` +
-                `<b style="color:${c.ok ? '#7ac48c' : '#ef4444'}">` +
-                `${c.rW} × ${c.rH} px ${c.ok ? '✓' : '✗ БРАК'}</b>`;
-            detEl.appendChild(row);
-        });
-    }
-
-    function computeFallbackMeasurements() {
-        return buildGridCells(0, 0, 100, 100, 50);
+        const verdict = allOk ? '✓ ГОДНАЯ (ОК)' : (!xOk && !yOk ? '✗ БРАК (ВЫЛЕТ X И Y)' : (!xOk ? '✗ БРАК (ВЫЛЕТ X)' : '✗ БРАК (ВЫЛЕТ Y)'));
+        ctx.fillStyle = allOk ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.25)';
+        ctx.fillRect(380, 18, 205, 30);
+        ctx.strokeStyle = allOk ? '#22c55e' : '#ef4444';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(380, 18, 205, 30);
+        ctx.fillStyle = allOk ? '#22c55e' : '#ef4444';
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText(verdict, 392, 38);
     }
 
     function paintLabCanvas() {
         const cv = $id('lab-canvas');
-        if (!cv || !cv.getContext) { renderLabReport(computeFallbackMeasurements()); return; }
+        if (!cv || !cv.getContext) return;
         const ctx = cv.getContext('2d');
-        if (!ctx) { renderLabReport(computeFallbackMeasurements()); return; }
+        if (!ctx) return;
         const w = cv.width, h = cv.height;
+        const x0 = 80, y0 = 280, scX = 2.8, scY = 2.2;
 
-        drawGrid(ctx, w, h);
-
-        const ZOOM = 2.4;
-        const bw = Math.round(labState.w * ZOOM);
-        const topH = Math.round(labState.topH * ZOOM);
-        const botH = Math.round(labState.botH * ZOOM);
-        const bh = topH + botH;
-        const bx = Math.round((w - bw) / 2), by = Math.round((h - bh) / 2);
-        const midY = by + topH;
-
-        drawSimulatedFigure(ctx, bx, by, bw, bh, midY);
-        const cells = drawLabGridAndMeasurements(ctx, bx, by, bw, bh, midY);
-        renderLabReport(cells);
+        drawCanvasGrid(ctx, w, h);
+        drawCoordinateAxes(ctx, x0, y0, scX, scY);
+        drawFigureAndProjections(ctx, x0, y0, scX, scY);
     }
 
     function updateUiValues() {
-        $id('fig-val-top') && ($id('fig-val-top').textContent = labState.topH + ' px');
-        $id('fig-val-bot') && ($id('fig-val-bot').textContent = labState.botH + ' px');
-        $id('fig-val-w') && ($id('fig-val-w').textContent = labState.w + ' px');
-        $id('lab-val-v') && ($id('lab-val-v').textContent = String(labState.cutsV));
-        $id('lab-val-h') && ($id('lab-val-h').textContent = String(labState.cutsH));
-        $id('lab-val-t') && ($id('lab-val-t').textContent = `${labState.topMin}–${labState.topMax} px`);
-        $id('lab-val-b') && ($id('lab-val-b').textContent = `${labState.bottomMin}–${labState.bottomMax} px`);
-        $id('lab-val-w') && ($id('lab-val-w').textContent = `${labState.wMin}–${labState.wMax} px`);
-        $id('lab-val-cell-h') && ($id('lab-val-cell-h').textContent = `${labState.cellHMin}–${labState.cellHMax} px`);
-        $id('lab-val-cell-w') && ($id('lab-val-cell-w').textContent = `${labState.cellWMin}–${labState.cellWMax} px`);
-        $id('lab-val-delta') && ($id('lab-val-delta').textContent = `≤ ${labState.maxDelta} px`);
-
-        ['rows', 'uniform', 'evenness'].forEach(m => {
-            const panel = $id(`tol-panel-${m}`);
-            if (panel) {
-                panel.style.display = (labState.tolMode === m ? 'flex' : 'none');
-                panel.classList.toggle('active', labState.tolMode === m);
-            }
-        });
-        document.querySelectorAll('.btn-tol-mode').forEach(b => b.classList.toggle('active', b.dataset.mode === labState.tolMode));
+        $id('fig-val-w') && ($id('fig-val-w').textContent = labState.figW + ' px');
+        $id('fig-val-h') && ($id('fig-val-h').textContent = labState.figH + ' px');
+        $id('lab-val-tol-x') && ($id('lab-val-tol-x').textContent = `${labState.xMin}–${labState.xMax} px`);
+        $id('lab-val-tol-y') && ($id('lab-val-tol-y').textContent = `${labState.yMin}–${labState.yMax} px`);
         paintLabCanvas();
-    }
-
-    function setFigurePreset(preset) {
-        labState.fig = preset;
-        document.querySelectorAll('.btn-lab-fig').forEach(b => b.classList.toggle('active', b.dataset.fig === preset));
-        if (preset === 'window') { labState.topH = 30; labState.botH = 28; labState.w = 72; }
-        else if (preset === 'window_defect_top') { labState.topH = 52; labState.botH = 28; labState.w = 72; }
-        else if (preset === 'window_defect_bot') { labState.topH = 30; labState.botH = 50; labState.w = 72; }
-        else if (preset === 'rect') { labState.topH = 24; labState.botH = 24; labState.w = 88; }
-        const sT = $id('fig-slider-top'), sB = $id('fig-slider-bot'), sW = $id('fig-slider-w');
-        if (sT) sT.value = labState.topH;
-        if (sB) sB.value = labState.botH;
-        if (sW) sW.value = labState.w;
-        updateUiValues();
     }
 
     function openLab() {
@@ -238,36 +161,36 @@
             if (e.target === $id('tool-lab-overlay')) closeLab();
         });
 
-        document.querySelectorAll('.btn-lab-fig').forEach(btn => {
-            btn.addEventListener('click', () => setFigurePreset(btn.dataset.fig));
+        $id('fig-slider-w')?.addEventListener('input', e => {
+            labState.figW = parseInt(e.target.value, 10);
+            updateUiValues();
+        });
+        $id('fig-slider-h')?.addEventListener('input', e => {
+            labState.figH = parseInt(e.target.value, 10);
+            updateUiValues();
         });
 
-        $id('fig-slider-top')?.addEventListener('input', e => { labState.topH = parseInt(e.target.value, 10); updateUiValues(); });
-        $id('fig-slider-bot')?.addEventListener('input', e => { labState.botH = parseInt(e.target.value, 10); updateUiValues(); });
-        $id('fig-slider-w')?.addEventListener('input', e => { labState.w = parseInt(e.target.value, 10); updateUiValues(); });
-
-        $id('lab-v-dec')?.addEventListener('click', () => { labState.cutsV = Math.max(0, labState.cutsV - 1); updateUiValues(); });
-        $id('lab-v-inc')?.addEventListener('click', () => { labState.cutsV = Math.min(6, labState.cutsV + 1); updateUiValues(); });
-        $id('lab-h-dec')?.addEventListener('click', () => { labState.cutsH = Math.max(0, labState.cutsH - 1); updateUiValues(); });
-        $id('lab-h-inc')?.addEventListener('click', () => { labState.cutsH = Math.min(4, labState.cutsH + 1); updateUiValues(); });
-
-        $id('lab-t-dec')?.addEventListener('click', () => { labState.topMin = Math.max(5, labState.topMin - 2); labState.topMax = Math.max(labState.topMin + 5, labState.topMax - 2); updateUiValues(); });
-        $id('lab-t-inc')?.addEventListener('click', () => { labState.topMin = Math.min(30, labState.topMin + 2); labState.topMax = Math.min(60, labState.topMax + 2); updateUiValues(); });
-        $id('lab-b-dec')?.addEventListener('click', () => { labState.bottomMin = Math.max(5, labState.bottomMin - 2); labState.bottomMax = Math.max(labState.bottomMin + 5, labState.bottomMax - 2); updateUiValues(); });
-        $id('lab-b-inc')?.addEventListener('click', () => { labState.bottomMin = Math.min(30, labState.bottomMin + 2); labState.bottomMax = Math.min(60, labState.bottomMax + 2); updateUiValues(); });
-
-        $id('lab-w-dec')?.addEventListener('click', () => { labState.wMin = Math.max(20, labState.wMin - 5); labState.wMax = Math.max(labState.wMin + 10, labState.wMax - 5); updateUiValues(); });
-        $id('lab-w-inc')?.addEventListener('click', () => { labState.wMin = Math.min(80, labState.wMin + 5); labState.wMax = Math.min(140, labState.wMax + 5); updateUiValues(); });
-
-        document.querySelectorAll('.btn-tol-mode').forEach(b => {
-            b.addEventListener('click', () => { labState.tolMode = b.dataset.mode; updateUiValues(); });
+        $id('lab-tol-x-dec')?.addEventListener('click', () => {
+            labState.xMin = Math.min(labState.xMin + 3, labState.xMax - 10);
+            labState.xMax = Math.max(labState.xMax - 3, labState.xMin + 10);
+            updateUiValues();
         });
-        $id('lab-cell-h-dec')?.addEventListener('click', () => { labState.cellHMin = Math.max(5, labState.cellHMin - 2); labState.cellHMax = Math.max(labState.cellHMin + 5, labState.cellHMax - 2); updateUiValues(); });
-        $id('lab-cell-h-inc')?.addEventListener('click', () => { labState.cellHMin = Math.min(30, labState.cellHMin + 2); labState.cellHMax = Math.min(60, labState.cellHMax + 2); updateUiValues(); });
-        $id('lab-cell-w-dec')?.addEventListener('click', () => { labState.cellWMin = Math.max(5, labState.cellWMin - 2); labState.cellWMax = Math.max(labState.cellWMin + 5, labState.cellWMax - 2); updateUiValues(); });
-        $id('lab-cell-w-inc')?.addEventListener('click', () => { labState.cellWMin = Math.min(40, labState.cellWMin + 2); labState.cellWMax = Math.min(80, labState.cellWMax + 2); updateUiValues(); });
-        $id('lab-delta-dec')?.addEventListener('click', () => { labState.maxDelta = Math.max(1, labState.maxDelta - 1); updateUiValues(); });
-        $id('lab-delta-inc')?.addEventListener('click', () => { labState.maxDelta = Math.min(15, labState.maxDelta + 1); updateUiValues(); });
+        $id('lab-tol-x-inc')?.addEventListener('click', () => {
+            labState.xMin = Math.max(10, labState.xMin - 3);
+            labState.xMax = Math.min(140, labState.xMax + 3);
+            updateUiValues();
+        });
+
+        $id('lab-tol-y-dec')?.addEventListener('click', () => {
+            labState.yMin = Math.min(labState.yMin + 2, labState.yMax - 8);
+            labState.yMax = Math.max(labState.yMax - 2, labState.yMin + 8);
+            updateUiValues();
+        });
+        $id('lab-tol-y-inc')?.addEventListener('click', () => {
+            labState.yMin = Math.max(10, labState.yMin - 2);
+            labState.yMax = Math.min(100, labState.yMax + 2);
+            updateUiValues();
+        });
     }
 
     if (document.readyState === 'loading') {
@@ -276,5 +199,5 @@
         wireLabEvents();
     }
 
-    window.ToolLab = { open: openLab, close: closeLab, state: () => labState, setPreset: setFigurePreset };
+    window.ToolLab = { open: openLab, close: closeLab, state: () => labState };
 })();
