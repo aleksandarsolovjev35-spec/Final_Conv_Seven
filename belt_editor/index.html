@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-    <link rel="stylesheet" href="css/belt-editor.css?v=99">
+    <link rel="stylesheet" href="css/belt-editor.css?v=100">
 </head>
 <body>
 <script>
@@ -123,7 +123,7 @@ window.addEventListener('error', function (e) {
                 </div>
 
                 <div class="side-dock-body">
-                    <section class="ps-panel" id="ps-panel-rules">
+                    <section class="ps-panel" id="ps-panel-rules" style="display: none !important;" aria-hidden="true">
                         <div class="ps-panel-head">
                             <span class="ps-panel-title">ИНСТРУМЕНТЫ</span>
                             <span class="hint" id="rule-count"></span>
@@ -150,7 +150,7 @@ window.addEventListener('error', function (e) {
                         </div>
                     </section>
 
-                    <div class="ps-panel-divider"></div>
+                    <div class="ps-panel-divider" style="display: none !important;"></div>
 
                     <section class="ps-panel" id="ps-panel-models">
                         <div class="ps-panel-head">
@@ -197,8 +197,8 @@ window.addEventListener('error', function (e) {
 
 <div id="toasts" class="toasts"></div>
 
-    <script src="js/cameras.js?v=99"></script>
-    <script src="js/belt-view.js?v=99"></script>
-    <script src="js/builder.js?v=99"></script>
+    <script src="js/cameras.js?v=100"></script>
+    <script src="js/belt-view.js?v=100"></script>
+    <script src="js/builder.js?v=100"></script>
 </body>
 </html>

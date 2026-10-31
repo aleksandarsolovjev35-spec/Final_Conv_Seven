@@ -1124,20 +1124,18 @@ function wireSideDock() {
     }
 
     try { if (localStorage.getItem(KEY_COL) === '1') setCollapsed(true, false); } catch (e) {}
-    try { setTab(localStorage.getItem(KEY_TAB) === 'rules' ? 'rules' : 'models', false); } catch (e) { setTab('models', false); }
+    try { localStorage.removeItem(KEY_TAB); } catch (e) {}
+    setTab('models', false);
 
-    $('tab-btn-rules')?.addEventListener('click', e => { e.stopPropagation(); setTab('rules', true); $('rule-search')?.focus(); });
-    $('tab-btn-models')?.addEventListener('click', e => { e.stopPropagation(); setTab('models', true); $('model-search')?.focus(); });
+    $('tab-btn-rules')?.addEventListener('click', e => { e.stopPropagation(); setTab('rules', false); });
+    $('tab-btn-models')?.addEventListener('click', e => { e.stopPropagation(); setTab('models', false); $('model-search')?.focus(); });
     ['transitionend', 'transitioncancel'].forEach(evt => dock.addEventListener(evt, () => { renderWires(); window.dispatchEvent(new Event('resize')); }));
     $('btn-side-collapse')?.addEventListener('click', e => { e.stopPropagation(); setCollapsed(true, true); });
     $('btn-side-expand')?.addEventListener('click', e => { e.stopPropagation(); setCollapsed(false, true); });
 
-    $('side-dock-collapsed-bar')?.addEventListener('click', ev => {
-        const panel = ev.target?.closest?.('.side-dock-tab')?.dataset.panel;
-        if (panel === 'models' || panel === 'rules') {
-            setTab(panel, true); setCollapsed(false, true);
-            setTimeout(() => $(`${panel === 'models' ? 'model' : 'rule'}-search`)?.focus(), 100);
-        } else setCollapsed(false, true);
+    $('side-dock-collapsed-bar')?.addEventListener('click', () => {
+        setTab('models', false); setCollapsed(false, true);
+        setTimeout(() => $('model-search')?.focus(), 100);
     });
 
     window.SideDock = { setTab, setCollapsed, currentTab: () => currentTab };

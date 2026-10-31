@@ -1647,7 +1647,7 @@ body.node-moving .wire-hitbox,
     overflow: hidden;
 }
 
-/* Панель в стиле Photoshop (Правила / Модели) — за раз отображается только одна */
+/* Панель моделей в боковом доке (инструменты вынесены на поле сборки) */
 .ps-panel {
     flex: 1 1 auto;
     height: 100%;
@@ -1657,14 +1657,19 @@ body.node-moving .wire-hitbox,
     overflow: hidden;
 }
 
-/* Переключение: либо правила, либо модели */
-.side-dock.show-rules #ps-panel-rules { display: flex; }
-.side-dock.show-rules #ps-panel-models { display: none; }
-.side-dock.show-rules .ps-panel-divider { display: none; }
+#ps-panel-rules,
+.ps-panel#ps-panel-rules,
+.side-dock.show-rules #ps-panel-rules,
+.side-dock #ps-panel-rules,
+.ps-panel-divider {
+    display: none !important;
+}
 
-.side-dock.show-models #ps-panel-rules { display: none; }
-.side-dock.show-models #ps-panel-models { display: flex; }
-.side-dock.show-models .ps-panel-divider { display: none; }
+#ps-panel-models,
+.side-dock.show-models #ps-panel-models,
+.side-dock #ps-panel-models {
+    display: flex !important;
+}
 
 .ps-panel-head {
     display: flex;
