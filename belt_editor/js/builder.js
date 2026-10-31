@@ -521,17 +521,35 @@ function renderMeasureControl(rule, rid, box) {
     return box;
 }
 
-function getRuleParamConfig(rule) {
-    if (rule.mode === 'presence') {
-        const val = rule.countExpected ?? 4;
-        const isZero = val === 0;
-        return {
-            lbl: isZero ? 'Запрещено:' : 'Требуется:',
-            val: val + ' шт',
-            dec: () => { rule.countExpected = Math.max(0, val - 1); },
-            inc: () => { rule.countExpected = Math.min(16, val + 1); }
-        };
+function renderPresenceControl(rule, rid, box) {
+    if (!rule.presenceType) rule.presenceType = 'require';
+    const isReq = rule.presenceType === 'require';
+    const segGroup = el('div', 'tool-seg-group', null, [
+        el('button', 'btn-seg' + (isReq ? ' active' : ''), 'Должно быть'),
+        el('button', 'btn-seg' + (!isReq ? ' active' : ''), 'Не должно быть')
+    ]);
+    const [bReq, bForbid] = segGroup.querySelectorAll('.btn-seg');
+    bReq.onclick = ev => { ev.stopPropagation(); rule.presenceType = 'require'; selectActiveRule(rid); render(); };
+    bForbid.onclick = ev => { ev.stopPropagation(); rule.presenceType = 'forbid'; selectActiveRule(rid); render(); };
+    box.appendChild(segGroup);
+
+    if (isReq) {
+        const val = rule.countExpected || 4;
+        box.appendChild(makeStepRow('Требуется:', val + ' шт',
+            () => { rule.countExpected = Math.max(1, val - 1); },
+            () => { rule.countExpected = Math.min(16, val + 1); },
+            rid
+        ));
+    } else {
+        box.appendChild(el('div', 'rule-count-row tool-row', null, [
+            el('span', 'rule-lbl tool-lbl', 'Запрещено:'),
+            el('span', 'rule-count-val tool-val tool-val-alert', '0 шт (брак)')
+        ]));
     }
+    return box;
+}
+
+function getRuleParamConfig(rule) {
     if (rule.mode === 'shift') {
         const val = rule.maxShift ?? 3;
         return {
@@ -551,6 +569,7 @@ function getRuleParamConfig(rule) {
 function renderRuleControlSection(rule, rid) {
     const box = el('div', 'rule-logic-box tool-section tool-section-ctrl');
     if (rule.mode === 'measure') return renderMeasureControl(rule, rid, box);
+    if (rule.mode === 'presence') return renderPresenceControl(rule, rid, box);
 
     const cfg = getRuleParamConfig(rule);
     box.appendChild(makeStepRow(cfg.lbl, cfg.val, cfg.dec, cfg.inc, rid));

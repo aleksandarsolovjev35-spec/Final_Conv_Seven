@@ -958,16 +958,21 @@ check('перетаскивание из правой палитры: инстр
         const node = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
         return node !== null;
     })());
-check('нулевой порог инструмента наличие: шаг до 0 переключает на Запрещено (брак при обнаружении)',
+check('переключатель логики инструмента наличие: Должно быть / Не должно быть',
     (function () {
-        for (let i = 0; i < 10; i++) {
-            const btn = doc.querySelector('.gnode.g-rule[data-rule="r1"] .btn-count-step');
-            if (btn) btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-        }
-        const updated = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
-        const lbl = updated?.querySelector('.rule-lbl')?.textContent;
-        const val = updated?.querySelector('.rule-count-val')?.textContent;
-        return val?.includes('0 шт') && lbl?.includes('Запрещено');
+        const node = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
+        if (!node) return false;
+        const segs = node.querySelectorAll('.btn-seg');
+        if (segs.length !== 2) return false;
+        // Клик по "Не должно быть"
+        segs[1].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const updated1 = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
+        const isForbid = updated1?.querySelector('.rule-lbl')?.textContent.includes('Запрещено');
+        // Клик по "Должно быть"
+        updated1.querySelectorAll('.btn-seg')[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const updated2 = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
+        const isReq = updated2?.querySelector('.rule-lbl')?.textContent.includes('Требуется');
+        return isForbid && isReq;
     })());
 check('вкладка инструментов убрана из интерфейса дока: нет двоения с правой палитрой',
     (function () {

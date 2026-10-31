@@ -960,6 +960,7 @@ body.node-moving { cursor: grabbing; }
     border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
     font-family: var(--font-mono, monospace);
+    font-weight: bold;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -1024,7 +1025,7 @@ body.node-moving { cursor: grabbing; }
 
 .tool-lbl,
 .rule-lbl {
-    font: 10px/1.2 var(--font-mono, monospace);
+    font: bold 10px/1.2 var(--font-mono, monospace);
     color: var(--text-dim, #94a3b8);
     flex: 1;
     min-width: 0;
@@ -1045,6 +1046,13 @@ body.node-moving { cursor: grabbing; }
     text-align: center;
 }
 
+.tool-val-alert {
+    color: #ef4444;
+    font: bold 10px/1.2 var(--font-mono, monospace);
+    white-space: nowrap;
+    text-align: right;
+}
+
 .tool-seg-group {
     width: 100%;
     display: flex;
@@ -1062,8 +1070,7 @@ body.node-moving { cursor: grabbing; }
     border: none;
     background: transparent;
     color: var(--text-dim, #94a3b8);
-    font: 9.5px/1 var(--font-mono, monospace);
-    font-weight: 600;
+    font: bold 9px/1 var(--font-mono, monospace);
     padding: 0 4px;
     border-radius: 3px;
     cursor: pointer;
@@ -1078,9 +1085,19 @@ body.node-moving { cursor: grabbing; }
 }
 
 .btn-seg.active {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-weight: 700;
+}
+
+.gnode.g-rule[data-rule="r0"] .btn-seg.active {
     background: rgba(217, 164, 65, 0.25);
     color: #f3ca6c;
-    font-weight: 700;
+}
+
+.gnode.g-rule[data-rule="r1"] .btn-seg.active {
+    background: rgba(88, 183, 154, 0.25);
+    color: #58b79a;
 }
 
 .btn-step,
@@ -1121,7 +1138,7 @@ body.node-moving { cursor: grabbing; }
     border: 1px solid var(--border, #2a3440);
     border-radius: 4px;
     color: var(--text-dim, #9bb0c1);
-    font: 10px/1.2 var(--font-mono, monospace);
+    font: bold 10px/1.2 var(--font-mono, monospace);
     cursor: pointer;
     outline: none;
     transition: border-color 0.12s ease, color 0.12s ease;
@@ -1136,10 +1153,11 @@ body.node-moving { cursor: grabbing; }
 .rule-model-select option {
     background: #141a20;
     color: #cbd5e1;
+    font-weight: bold;
 }
 
 .tool-cam-line {
-    font: 9.5px/1.2 var(--font-mono, monospace);
+    font: bold 9.5px/1.2 var(--font-mono, monospace);
     color: var(--accent);
     padding-top: 4px;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
