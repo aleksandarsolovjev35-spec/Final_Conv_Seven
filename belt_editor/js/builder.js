@@ -969,13 +969,14 @@ function wirePalette() {
     document.querySelectorAll('.tool').forEach(tool => {
         tool.ondragstart = ev => {
             dragKind = tool.dataset.kind; dragFrom = -1;
-            ev.dataTransfer.setData('text/plain', dragKind);
+            dragAsset = tool.dataset.rule || tool.dataset.ruleId || null;
+            ev.dataTransfer.setData('text/plain', (dragKind === 'rule' && dragAsset) ? 'rule:' + dragAsset : dragKind);
             ev.dataTransfer.effectAllowed = 'copy';
             tool.classList.add('dragging');
-            if (dragKind === 'position') setupDragImage(ev, 'position', null);
+            if (dragKind === 'position' || dragKind === 'rule') setupDragImage(ev, dragKind, dragAsset);
             $('belt-zone')?.classList.add('drop-ready');
         };
-        tool.ondragend = () => { dragKind = null; dragFrom = -1; cleanVisuals(); };
+        tool.ondragend = () => { dragKind = dragAsset = null; dragFrom = -1; cleanVisuals(); };
     });
 }
 

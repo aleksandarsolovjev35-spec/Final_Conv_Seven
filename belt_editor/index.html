@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-    <link rel="stylesheet" href="css/belt-editor.css?v=97">
+    <link rel="stylesheet" href="css/belt-editor.css?v=98">
 </head>
 <body>
 <script>
@@ -51,14 +51,14 @@ window.addEventListener('error', function (e) {
         </div>
         <div class="build-body">
             <div class="belt-zone" id="belt-zone">
-                <div class="tools">
-                    <span class="tool" draggable="true" data-kind="position">
+                <div class="tools tools-left" title="Инструменты конвейера">
+                    <span class="tool" draggable="true" data-kind="position" title="Позиция ленты">
                         <svg viewBox="0 0 16 16" aria-hidden="true">
                             <rect x="4" y="2" width="8" height="7"/>
                             <path d="M1.5 13h13"/>
                         </svg>
                     </span>
-                    <span class="tool" draggable="true" data-kind="inspect">
+                    <span class="tool" draggable="true" data-kind="inspect" title="Инспекция">
                         <svg viewBox="0 0 16 16" aria-hidden="true">
                             <rect x="1.5" y="4.5" width="13" height="9"
                                 rx="1.5"/>
@@ -66,10 +66,40 @@ window.addEventListener('error', function (e) {
                             <path d="M6 4.5V3h4v1.5"/>
                         </svg>
                     </span>
-                    <span class="tool" draggable="true" data-kind="reset">
+                    <span class="tool" draggable="true" data-kind="reset" title="Сброс детали">
                         <svg viewBox="0 0 16 16" aria-hidden="true">
                             <path d="M8 1.5v7.5M5 6.5l3 3 3-3"/>
                             <path d="M2.5 13.5h11"/>
+                        </svg>
+                    </span>
+                </div>
+
+                <!-- Правая палитра: готовые продуманные инструменты инспекции -->
+                <div class="tools tools-right" id="tools-inspect" title="Инструменты инспекции">
+                    <span class="tool tool-rule" draggable="true" data-kind="rule" data-rule="r0" title="Инструмент: Геометрия (допуск размера)" style="color: #d9a441;">
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <path d="M2 3h12v2H2zM2 11h12v2H2zM4 5v6M12 5v6M8 6v4" stroke="currentColor" fill="none" stroke-width="1.2"/>
+                        </svg>
+                    </span>
+                    <span class="tool tool-rule" draggable="true" data-kind="rule" data-rule="r1" title="Инструмент: Наличие (комплектность N шт)" style="color: #58b79a;">
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <rect x="3" y="3" width="4" height="4" fill="currentColor"/>
+                            <rect x="9" y="3" width="4" height="4" fill="currentColor"/>
+                            <rect x="3" y="9" width="4" height="4" fill="currentColor"/>
+                            <rect x="9" y="9" width="4" height="4" fill="currentColor"/>
+                        </svg>
+                    </span>
+                    <span class="tool tool-rule" draggable="true" data-kind="rule" data-rule="r2" title="Инструмент: Дефект (контроль брака)" style="color: #cf7aa6;">
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+                            <path d="M8 2.5l1.6 3.8-2.2 1.9 3.2 3.4-1.8-2.7 2.3-2.3z" fill="currentColor"/>
+                        </svg>
+                    </span>
+                    <span class="tool tool-rule" draggable="true" data-kind="rule" data-rule="r3" title="Инструмент: Смещение (позиция / соосность)" style="color: #a58ad9;">
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+                            <circle cx="9" cy="7" r="1.8" fill="currentColor"/>
+                            <path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3" stroke="currentColor" stroke-width="1.2"/>
                         </svg>
                     </span>
                 </div>
@@ -170,8 +200,8 @@ window.addEventListener('error', function (e) {
 
 <div id="toasts" class="toasts"></div>
 
-    <script src="js/cameras.js?v=97"></script>
-    <script src="js/belt-view.js?v=97"></script>
-    <script src="js/builder.js?v=97"></script>
+    <script src="js/cameras.js?v=98"></script>
+    <script src="js/belt-view.js?v=98"></script>
+    <script src="js/builder.js?v=98"></script>
 </body>
 </html>

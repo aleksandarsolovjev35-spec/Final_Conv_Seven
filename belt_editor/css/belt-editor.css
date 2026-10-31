@@ -597,6 +597,12 @@ body {
     box-shadow: var(--shadow-md);
 }
 
+.tools.tools-right {
+    left: auto;
+    right: 10px;
+    top: 10px;
+}
+
 .tool {
     display: flex;
     width: 32px;
@@ -610,7 +616,31 @@ body {
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
-    transition: border-color 120ms ease, transform 120ms ease;
+    transition: border-color 120ms ease, transform 120ms ease, background 120ms ease;
+}
+
+.tool.tool-rule {
+    position: relative;
+}
+
+.tool.tool-rule svg {
+    width: 17px;
+    height: 17px;
+    transition: transform 120ms ease;
+}
+
+.tool.tool-rule:hover svg {
+    transform: scale(1.15);
+}
+
+.tool.tool-rule:hover {
+    border-color: currentColor;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+#ps-panel-rules .search,
+#ps-panel-rules .folder-bar {
+    display: none !important;
 }
 
 /* векторные знаки инструментов: наследуют color */

@@ -937,6 +937,29 @@ check('настройка инструмента смещение: кнопки 
         node.querySelector('.pos-del')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
         return valBefore !== valAfter && valAfter.includes('4 px');
     })());
+check('правая палитра инструментов: на сборке ленты справа размещены продуманные блоки геометрия, наличие, дефект, смещение',
+    (function () {
+        const p = doc.querySelector('.tools.tools-right');
+        if (!p) return false;
+        const items = p.querySelectorAll('.tool.tool-rule');
+        return items.length === 4
+            && items[0].dataset.rule === 'r0'
+            && items[1].dataset.rule === 'r1'
+            && items[2].dataset.rule === 'r2'
+            && items[3].dataset.rule === 'r3';
+    })());
+check('перетаскивание из правой палитры: инструмент добавляется на поле как нода',
+    (function () {
+        const toolBtn = doc.querySelector('.tools.tools-right .tool[data-rule="r1"]');
+        if (!toolBtn) return false;
+        const dt = mkDT();
+        fire(toolBtn, 'dragstart', dt);
+        fire(zone(), 'dragover', dt, 300);
+        fire(zone(), 'drop', dt, 300);
+        fire(toolBtn, 'dragend', dt);
+        const node = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
+        return node !== null;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);
