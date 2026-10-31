@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-    <link rel="stylesheet" href="css/belt-editor.css?v=112">
+    <link rel="stylesheet" href="css/belt-editor.css?v=113">
 </head>
 <body>
 <script>
@@ -48,7 +48,7 @@ window.addEventListener('error', function (e) {
                 <span class="belt-run-badge locked" id="belt-run-status">П0: НЕТ КАМЕРЫ (ПУСК ЗАБЛОКИРОВАН)</span>
                 <button type="button" class="btn-belt-run disabled" id="btn-belt-run" title="Нельзя запустить ленту: на первой позиции (П0) нет камеры инспекции">ПУСК ЛЕНТЫ</button>
             </div>
-            <span class="hint">сб. 99</span>
+            <span class="hint">сб. 100</span>
         </div>
         <div class="build-body">
             <div class="belt-zone" id="belt-zone">
@@ -219,20 +219,25 @@ window.addEventListener('error', function (e) {
                     <canvas id="lab-canvas" width="600" height="340"></canvas>
                 </div>
                 <div class="lab-sliders">
-                    <div class="lab-slider-row">
-                        <span>Ширина детали W (вдоль оси X):</span>
+                    <div class="lab-slider-row" id="fig-row-w">
+                        <span>Ширина детали W:</span>
                         <input type="range" id="fig-slider-w" min="20" max="140" value="72">
                         <b id="fig-val-w">72 px (±36 px)</b>
                     </div>
-                    <div class="lab-slider-row">
-                        <span>Высота детали H (вдоль оси Y):</span>
+                    <div class="lab-slider-row" id="fig-row-h">
+                        <span>Высота детали H:</span>
                         <input type="range" id="fig-slider-h" min="15" max="100" value="58">
                         <b id="fig-val-h">58 px (±29 px)</b>
                     </div>
-                    <div class="lab-slider-row" id="fig-row-line-pos" style="display: none;">
-                        <span>Положение линии на детали:</span>
-                        <input type="range" id="fig-slider-line" min="-25" max="25" value="0">
-                        <b id="fig-val-line">0 px (по центру)</b>
+                    <div class="lab-slider-row" id="fig-row-d1" style="display: none;">
+                        <span>Размер ДО линии (d1):</span>
+                        <input type="range" id="fig-slider-d1" min="10" max="65" value="30">
+                        <b id="fig-val-d1">30 px</b>
+                    </div>
+                    <div class="lab-slider-row" id="fig-row-d2" style="display: none;">
+                        <span>Размер ОТ линии (d2):</span>
+                        <input type="range" id="fig-slider-d2" min="10" max="65" value="28">
+                        <b id="fig-val-d2">28 px</b>
                     </div>
                 </div>
             </div>
@@ -248,13 +253,6 @@ window.addEventListener('error', function (e) {
                             <button type="button" class="btn-line-mode" id="btn-line-horiz" data-mode="horiz">+ Линия H (гориз.)</button>
                             <button type="button" class="btn-line-mode" id="btn-line-vert" data-mode="vert">+ Линия V (верт.)</button>
                         </div>
-                    </div>
-
-                    <div class="lab-ctrl-row" id="lab-row-line-pos" style="display: none;">
-                        <span>Смещение линии от центра 0:</span>
-                        <button type="button" class="btn-step" id="lab-line-pos-dec">−</button>
-                        <b id="lab-val-line-pos">0 px (по центру)</b>
-                        <button type="button" class="btn-step" id="lab-line-pos-inc">+</button>
                     </div>
 
                     <div class="lab-ctrl-row">
@@ -278,9 +276,9 @@ window.addEventListener('error', function (e) {
     </div>
 </div>
 
-    <script src="js/cameras.js?v=112"></script>
-    <script src="js/belt-view.js?v=112"></script>
-    <script src="js/builder.js?v=112"></script>
-    <script src="js/tool-lab.js?v=112"></script>
+    <script src="js/cameras.js?v=113"></script>
+    <script src="js/belt-view.js?v=113"></script>
+    <script src="js/builder.js?v=113"></script>
+    <script src="js/tool-lab.js?v=113"></script>
 </body>
 </html>

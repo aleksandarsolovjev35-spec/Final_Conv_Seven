@@ -1044,13 +1044,14 @@ check('лаборатория линии: добавление опорной л
         btnOpen.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
         const btnHoriz = doc.getElementById('btn-line-horiz');
         const btnNone = doc.getElementById('btn-line-none');
-        const rowPos = doc.getElementById('lab-row-line-pos');
+        const rowD1 = doc.getElementById('fig-row-d1');
+        const rowD2 = doc.getElementById('fig-row-d2');
         const lbl1 = doc.getElementById('lab-lbl-tol-1');
         const lbl2 = doc.getElementById('lab-lbl-tol-2');
-        if (!btnHoriz || !btnNone || !rowPos || !lbl1 || !lbl2) return false;
+        if (!btnHoriz || !btnNone || !rowD1 || !rowD2 || !lbl1 || !lbl2) return false;
         btnHoriz.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
         const isHorizActive = btnHoriz.classList.contains('active');
-        const isRowShown = rowPos.style.display !== 'none';
+        const isRowShown = rowD1.style.display !== 'none' && rowD2.style.display !== 'none';
         const hasBefore = lbl1.textContent.includes('ДО линии');
         const hasAfter = lbl2.textContent.includes('ОТ линии');
         btnNone.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
