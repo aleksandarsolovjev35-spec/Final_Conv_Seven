@@ -2136,3 +2136,59 @@ body.node-moving .wire-hitbox,
     font: 12px/1.3 var(--font-mono, monospace);
 }
 
+.lab-mode-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 0 4px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+.lab-mode-lbl {
+    font: 10.5px/1.2 var(--font-mono, monospace);
+    font-weight: 700;
+    color: #4fa3d1;
+    letter-spacing: 0.8px;
+}
+
+.lab-mode-btns {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.btn-tol-mode {
+    padding: 6px 10px;
+    background: var(--bg-0);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-dim);
+    font: 11px/1.2 var(--font-ui, sans-serif);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 120ms ease;
+}
+
+.btn-tol-mode:hover,
+.btn-tol-mode.active {
+    border-color: #4fa3d1;
+    color: #fff;
+    background: rgba(79, 163, 209, 0.2);
+}
+
+.lab-tol-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.lab-hint-row {
+    font: 11px/1.3 var(--font-ui, sans-serif);
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 4px 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 4px;
+}
+

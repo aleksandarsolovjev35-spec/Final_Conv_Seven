@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-    <link rel="stylesheet" href="css/belt-editor.css?v=107">
+    <link rel="stylesheet" href="css/belt-editor.css?v=108">
 </head>
 <body>
 <script>
@@ -48,7 +48,7 @@ window.addEventListener('error', function (e) {
                 <span class="belt-run-badge locked" id="belt-run-status">П0: НЕТ КАМЕРЫ (ПУСК ЗАБЛОКИРОВАН)</span>
                 <button type="button" class="btn-belt-run disabled" id="btn-belt-run" title="Нельзя запустить ленту: на первой позиции (П0) нет камеры инспекции">ПУСК ЛЕНТЫ</button>
             </div>
-            <span class="hint">сб. 94</span>
+            <span class="hint">сб. 95</span>
         </div>
         <div class="build-body">
             <div class="belt-zone" id="belt-zone">
@@ -259,23 +259,65 @@ window.addEventListener('error', function (e) {
                         <b id="lab-val-h">1</b>
                         <button type="button" class="btn-step" id="lab-h-inc">+</button>
                     </div>
-                    <div class="lab-ctrl-row">
-                        <span>Допуск верха T (px):</span>
-                        <button type="button" class="btn-step" id="lab-t-dec">−</button>
-                        <b id="lab-val-t">15–45 px</b>
-                        <button type="button" class="btn-step" id="lab-t-inc">+</button>
+
+                    <div class="lab-mode-selector">
+                        <span class="lab-mode-lbl">РЕЖИМ ДОПУСКА КЛЕТОК:</span>
+                        <div class="lab-mode-btns">
+                            <button type="button" class="btn-tol-mode active" data-mode="rows">По рядам (T / B)</button>
+                            <button type="button" class="btn-tol-mode" data-mode="uniform">Единый на все клетки</button>
+                            <button type="button" class="btn-tol-mode" data-mode="evenness">Разброс (Δ перекос)</button>
+                        </div>
                     </div>
-                    <div class="lab-ctrl-row">
-                        <span>Допуск низа B (px):</span>
-                        <button type="button" class="btn-step" id="lab-b-dec">−</button>
-                        <b id="lab-val-b">15–45 px</b>
-                        <button type="button" class="btn-step" id="lab-b-inc">+</button>
+
+                    <!-- Панель допусков: режим "По рядам" -->
+                    <div class="lab-tol-panel" id="tol-panel-rows">
+                        <div class="lab-ctrl-row">
+                            <span>Допуск верха T (px):</span>
+                            <button type="button" class="btn-step" id="lab-t-dec">−</button>
+                            <b id="lab-val-t">15–45 px</b>
+                            <button type="button" class="btn-step" id="lab-t-inc">+</button>
+                        </div>
+                        <div class="lab-ctrl-row">
+                            <span>Допуск низа B (px):</span>
+                            <button type="button" class="btn-step" id="lab-b-dec">−</button>
+                            <b id="lab-val-b">15–45 px</b>
+                            <button type="button" class="btn-step" id="lab-b-inc">+</button>
+                        </div>
+                        <div class="lab-ctrl-row">
+                            <span>Допуск ширины W (px):</span>
+                            <button type="button" class="btn-step" id="lab-w-dec">−</button>
+                            <b id="lab-val-w">50–100 px</b>
+                            <button type="button" class="btn-step" id="lab-w-inc">+</button>
+                        </div>
                     </div>
-                    <div class="lab-ctrl-row">
-                        <span>Допуск ширины W (px):</span>
-                        <button type="button" class="btn-step" id="lab-w-dec">−</button>
-                        <b id="lab-val-w">50–100 px</b>
-                        <button type="button" class="btn-step" id="lab-w-inc">+</button>
+
+                    <!-- Панель допусков: режим "Единый" -->
+                    <div class="lab-tol-panel" id="tol-panel-uniform" style="display: none;">
+                        <div class="lab-ctrl-row">
+                            <span>Высота клетки h (px):</span>
+                            <button type="button" class="btn-step" id="lab-cell-h-dec">−</button>
+                            <b id="lab-val-cell-h">15–45 px</b>
+                            <button type="button" class="btn-step" id="lab-cell-h-inc">+</button>
+                        </div>
+                        <div class="lab-ctrl-row">
+                            <span>Ширина клетки w (px):</span>
+                            <button type="button" class="btn-step" id="lab-cell-w-dec">−</button>
+                            <b id="lab-val-cell-w">15–50 px</b>
+                            <button type="button" class="btn-step" id="lab-cell-w-inc">+</button>
+                        </div>
+                    </div>
+
+                    <!-- Панель допусков: режим "Разброс (равномерность)" -->
+                    <div class="lab-tol-panel" id="tol-panel-evenness" style="display: none;">
+                        <div class="lab-ctrl-row">
+                            <span>Макс. разброс Δ (px):</span>
+                            <button type="button" class="btn-step" id="lab-delta-dec">−</button>
+                            <b id="lab-val-delta">≤ 4 px</b>
+                            <button type="button" class="btn-step" id="lab-delta-inc">+</button>
+                        </div>
+                        <div class="lab-hint-row">
+                            Контроль клина: если разница между макс. и мин. высотой клеток &gt; Δ → БРАК
+                        </div>
                     </div>
                 </div>
 
@@ -289,9 +331,9 @@ window.addEventListener('error', function (e) {
     </div>
 </div>
 
-    <script src="js/cameras.js?v=107"></script>
-    <script src="js/belt-view.js?v=107"></script>
-    <script src="js/builder.js?v=107"></script>
-    <script src="js/tool-lab.js?v=107"></script>
+    <script src="js/cameras.js?v=108"></script>
+    <script src="js/belt-view.js?v=108"></script>
+    <script src="js/builder.js?v=108"></script>
+    <script src="js/tool-lab.js?v=108"></script>
 </body>
 </html>

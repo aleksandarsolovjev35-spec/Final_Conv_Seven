@@ -1015,6 +1015,27 @@ check('лаборатория инструментов: стенд симуля�
         const closed = overlay.style.display === 'none';
         return opened && hasCanvas && hasPresets && hasSliders && hasVerdict && closed;
     })());
+check('лаборатория допусков: 3 режима допусков сетки (по рядам, единый, разброс) с контекстными панелями',
+    (function () {
+        const btnOpen = doc.getElementById('btn-open-lab');
+        const overlay = doc.getElementById('tool-lab-overlay');
+        const btnClose = doc.getElementById('btn-close-lab');
+        if (!btnOpen || !overlay) return false;
+        btnOpen.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const modeBtns = doc.querySelectorAll('.btn-tol-mode');
+        const panelRows = doc.getElementById('tol-panel-rows');
+        const panelUniform = doc.getElementById('tol-panel-uniform');
+        const panelEven = doc.getElementById('tol-panel-evenness');
+        if (modeBtns.length !== 3 || !panelRows || !panelUniform || !panelEven) return false;
+        const btnUniform = doc.querySelector('.btn-tol-mode[data-mode="uniform"]');
+        btnUniform.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const isUniformActive = panelUniform.classList.contains('active') && !panelRows.classList.contains('active');
+        const btnEven = doc.querySelector('.btn-tol-mode[data-mode="evenness"]');
+        btnEven.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const isEvenActive = panelEven.classList.contains('active') && !panelUniform.classList.contains('active');
+        if (btnClose) btnClose.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        return isUniformActive && isEvenActive;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);

@@ -10,12 +10,18 @@
         w: 72,
         cutsV: 3,
         cutsH: 1,
+        tolMode: 'rows',
         topMin: 15,
         topMax: 45,
         bottomMin: 15,
         bottomMax: 45,
         wMin: 50,
-        wMax: 100
+        wMax: 100,
+        cellWMin: 15,
+        cellWMax: 50,
+        cellHMin: 15,
+        cellHMax: 45,
+        maxDelta: 4
     };
 
     function $id(id) { return document.getElementById(id); }
@@ -43,20 +49,34 @@
         ctx.strokeRect(bx, by, bw, bh);
     }
 
+    function evaluateCellOk(cell, allCells) {
+        if (labState.cutsV === 0 && labState.cutsH === 0) {
+            return cell.rW >= labState.wMin && cell.rW <= labState.wMax &&
+                   cell.rH >= labState.topMin && cell.rH <= (labState.topMax + labState.bottomMax);
+        }
+        if (labState.tolMode === 'uniform') {
+            return cell.rW >= labState.cellWMin && cell.rW <= labState.cellWMax &&
+                   cell.rH >= labState.cellHMin && cell.rH <= labState.cellHMax;
+        }
+        if (labState.tolMode === 'evenness') {
+            const hs = allCells.map(c => c.rH);
+            const delta = Math.max(...hs) - Math.min(...hs);
+            const avg = hs.reduce((a, b) => a + b, 0) / hs.length;
+            return delta <= labState.maxDelta && Math.abs(cell.rH - avg) <= (labState.maxDelta / 2 + 1);
+        }
+        const isTwo = (allCells.some(c => c.r === 2));
+        const hOk = isTwo ? (cell.r === 1 ? (cell.rH >= labState.topMin && cell.rH <= labState.topMax) : (cell.rH >= labState.bottomMin && cell.rH <= labState.bottomMax)) : (cell.rH >= labState.topMin && cell.rH <= labState.topMax);
+        const wOk = cell.rW >= Math.round(labState.wMin / (labState.cutsV + 1)) && cell.rW <= Math.round(labState.wMax / (labState.cutsV + 1));
+        return hOk && wOk;
+    }
+
     function buildGridCells(bx, by, bw, bh, midY) {
         const cutsV = labState.cutsV, cutsH = labState.cutsH;
         if (cutsV === 0 && cutsH === 0) {
             const rW = labState.w, rH = labState.topH + labState.botH;
-            const ok = rW >= labState.wMin && rW <= labState.wMax && rH >= labState.topMin && rH <= (labState.topMax + labState.bottomMax);
-            return [{ r: 1, c: 1, x: bx, y: by, w: bw, h: bh, rW, rH, ok, title: 'Область целиком' }];
-        }
-        if (cutsV === 0 && cutsH === 1) {
-            const tOk = labState.topH >= labState.topMin && labState.topH <= labState.topMax;
-            const bOk = labState.botH >= labState.bottomMin && labState.botH <= labState.bottomMax;
-            return [
-                { r: 1, c: 1, x: bx, y: by, w: bw, h: midY - by, rW: labState.w, rH: labState.topH, ok: tOk, title: 'Верхняя клеточка (T)' },
-                { r: 2, c: 1, x: bx, y: midY, w: bw, h: by + bh - midY, rW: labState.w, rH: labState.botH, ok: bOk, title: 'Нижняя клеточка (B)' }
-            ];
+            const cell = { r: 1, c: 1, x: bx, y: by, w: bw, h: bh, rW, rH, title: 'Область целиком' };
+            cell.ok = evaluateCellOk(cell, [cell]);
+            return [cell];
         }
         const cols = cutsV + 1, rows = cutsH + 1, list = [];
         const colW = bw / cols, rW = Math.round(labState.w / cols);
@@ -65,12 +85,12 @@
             const rowH = isTwo ? (r === 0 ? midY - by : by + bh - midY) : (bh / rows);
             const rH = isTwo ? (r === 0 ? labState.topH : labState.botH) : Math.round((labState.topH + labState.botH) / rows);
             const rowY = isTwo ? (r === 0 ? by : midY) : (by + r * (bh / rows));
-            const hOk = isTwo ? (r === 0 ? rH >= labState.topMin && rH <= labState.topMax : rH >= labState.bottomMin && rH <= labState.bottomMax) : (rH >= labState.topMin && rH <= labState.topMax);
+            const title = isTwo ? (r === 0 ? 'Верхний ряд (T)' : 'Нижний ряд (B)') : `Клеточка [${r + 1}, c]`;
             for (let c = 0; c < cols; c++) {
-                const wOk = rW >= Math.round(labState.wMin / cols) && rW <= Math.round(labState.wMax / cols);
-                list.push({ r: r + 1, c: c + 1, x: bx + c * colW, y: rowY, w: colW, h: rowH, rW, rH, ok: hOk && wOk, title: `Клеточка [${r + 1}, ${c + 1}]` });
+                list.push({ r: r + 1, c: c + 1, x: bx + c * colW, y: rowY, w: colW, h: rowH, rW, rH, title: cols > 1 ? `${title}, кол.${c + 1}` : title });
             }
         }
+        list.forEach(cell => { cell.ok = evaluateCellOk(cell, list); });
         return list;
     }
 
@@ -102,7 +122,7 @@
         const cols = labState.cutsV + 1, rows = labState.cutsH + 1;
         const desc = (labState.cutsV === 0 && labState.cutsH === 0)
             ? `Замер области целиком (без разрезов, 1 клеточка)`
-            : `Сетка: ${cols} кол. × ${rows} стр. (${cells.length} клеточек) | Разрезы: ${labState.cutsV}V × ${labState.cutsH}H`;
+            : `Сетка: ${cols} кол. × ${rows} стр. (${cells.length} клеточек) | Режим: ${labState.tolMode.toUpperCase()}`;
         ctx.fillText(desc, bx, by + bh + 24);
         return cells;
     }
@@ -115,12 +135,20 @@
         verdEl.textContent = allOk ? '✓ ГОДНАЯ (ОК): ВСЕ КЛЕТОЧКИ В ДОПУСКЕ' : '✗ БРАК: ВЫЛЕТ РАЗМЕРА В КЛЕТОЧКАХ';
 
         detEl.innerHTML = '';
+        if (labState.tolMode === 'evenness') {
+            const hs = cells.map(c => c.rH);
+            const delta = Math.max(...hs) - Math.min(...hs);
+            const sumRow = document.createElement('div');
+            sumRow.className = 'lab-report-row ' + (delta <= labState.maxDelta ? 'ok' : 'fail');
+            sumRow.innerHTML = `<span>Разброс высот Δ:</span> <b style="color:${delta <= labState.maxDelta ? '#7ac48c' : '#ef4444'}">Δ = ${delta} px (норма ≤ ${labState.maxDelta} px) ${delta <= labState.maxDelta ? '✓ равномерно' : '✗ перекос'}</b>`;
+            detEl.appendChild(sumRow);
+        }
         cells.forEach(c => {
             const row = document.createElement('div');
             row.className = 'lab-report-row ' + (c.ok ? 'ok' : 'fail');
             row.innerHTML = `<span>${c.title}:</span> ` +
                 `<b style="color:${c.ok ? '#7ac48c' : '#ef4444'}">` +
-                `размер = ${c.rW} × ${c.rH} px ${c.ok ? '✓ в норме' : '✗ БРАК (вылет)'}</b>`;
+                `${c.rW} × ${c.rH} px ${c.ok ? '✓' : '✗ БРАК'}</b>`;
             detEl.appendChild(row);
         });
     }
@@ -160,6 +188,18 @@
         $id('lab-val-t') && ($id('lab-val-t').textContent = `${labState.topMin}–${labState.topMax} px`);
         $id('lab-val-b') && ($id('lab-val-b').textContent = `${labState.bottomMin}–${labState.bottomMax} px`);
         $id('lab-val-w') && ($id('lab-val-w').textContent = `${labState.wMin}–${labState.wMax} px`);
+        $id('lab-val-cell-h') && ($id('lab-val-cell-h').textContent = `${labState.cellHMin}–${labState.cellHMax} px`);
+        $id('lab-val-cell-w') && ($id('lab-val-cell-w').textContent = `${labState.cellWMin}–${labState.cellWMax} px`);
+        $id('lab-val-delta') && ($id('lab-val-delta').textContent = `≤ ${labState.maxDelta} px`);
+
+        ['rows', 'uniform', 'evenness'].forEach(m => {
+            const panel = $id(`tol-panel-${m}`);
+            if (panel) {
+                panel.style.display = (labState.tolMode === m ? 'flex' : 'none');
+                panel.classList.toggle('active', labState.tolMode === m);
+            }
+        });
+        document.querySelectorAll('.btn-tol-mode').forEach(b => b.classList.toggle('active', b.dataset.mode === labState.tolMode));
         paintLabCanvas();
     }
 
@@ -218,6 +258,16 @@
 
         $id('lab-w-dec')?.addEventListener('click', () => { labState.wMin = Math.max(20, labState.wMin - 5); labState.wMax = Math.max(labState.wMin + 10, labState.wMax - 5); updateUiValues(); });
         $id('lab-w-inc')?.addEventListener('click', () => { labState.wMin = Math.min(80, labState.wMin + 5); labState.wMax = Math.min(140, labState.wMax + 5); updateUiValues(); });
+
+        document.querySelectorAll('.btn-tol-mode').forEach(b => {
+            b.addEventListener('click', () => { labState.tolMode = b.dataset.mode; updateUiValues(); });
+        });
+        $id('lab-cell-h-dec')?.addEventListener('click', () => { labState.cellHMin = Math.max(5, labState.cellHMin - 2); labState.cellHMax = Math.max(labState.cellHMin + 5, labState.cellHMax - 2); updateUiValues(); });
+        $id('lab-cell-h-inc')?.addEventListener('click', () => { labState.cellHMin = Math.min(30, labState.cellHMin + 2); labState.cellHMax = Math.min(60, labState.cellHMax + 2); updateUiValues(); });
+        $id('lab-cell-w-dec')?.addEventListener('click', () => { labState.cellWMin = Math.max(5, labState.cellWMin - 2); labState.cellWMax = Math.max(labState.cellWMin + 5, labState.cellWMax - 2); updateUiValues(); });
+        $id('lab-cell-w-inc')?.addEventListener('click', () => { labState.cellWMin = Math.min(40, labState.cellWMin + 2); labState.cellWMax = Math.min(80, labState.cellWMax + 2); updateUiValues(); });
+        $id('lab-delta-dec')?.addEventListener('click', () => { labState.maxDelta = Math.max(1, labState.maxDelta - 1); updateUiValues(); });
+        $id('lab-delta-inc')?.addEventListener('click', () => { labState.maxDelta = Math.min(15, labState.maxDelta + 1); updateUiValues(); });
     }
 
     if (document.readyState === 'loading') {
