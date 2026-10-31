@@ -19,6 +19,7 @@ window.HTMLElement.prototype.getBoundingClientRect = () =>
 window.eval(fs.readFileSync(ROOT + '/js/builder.js', 'utf8'));
 window.eval(fs.readFileSync(ROOT + '/js/belt-view.js', 'utf8'));
 window.eval(fs.readFileSync(ROOT + '/js/cameras.js', 'utf8'));
+if (fs.existsSync(ROOT + '/js/tool-lab.js')) window.eval(fs.readFileSync(ROOT + '/js/tool-lab.js', 'utf8'));
 doc.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
 
 const mkDT = () => ({ data: {}, setData(k, v) { this.data[k] = v; },
@@ -997,6 +998,22 @@ check('инструмент замер окна: контроль расстоя
         const hasTB = allVals.includes('T:') && allVals.includes('B:');
         const hasFormula = formula.includes('T∈') && formula.includes('B∈');
         return isMeasure && hasTB && hasFormula;
+    })());
+check('лаборатория инструментов: стенд симуляции фигур, переключение пресетов и расчет допуска',
+    (function () {
+        const btnOpen = doc.getElementById('btn-open-lab');
+        const overlay = doc.getElementById('tool-lab-overlay');
+        const btnClose = doc.getElementById('btn-close-lab');
+        if (!btnOpen || !overlay || !btnClose) return false;
+        btnOpen.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const opened = overlay.style.display !== 'none';
+        const hasCanvas = doc.getElementById('lab-canvas') !== null;
+        const hasPresets = doc.querySelectorAll('.btn-lab-fig').length >= 4;
+        const hasSliders = doc.querySelectorAll('.lab-slider-row input').length >= 3;
+        const hasVerdict = doc.getElementById('lab-verdict') !== null;
+        btnClose.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const closed = overlay.style.display === 'none';
+        return opened && hasCanvas && hasPresets && hasSliders && hasVerdict && closed;
     })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');

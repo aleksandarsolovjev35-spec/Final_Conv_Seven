@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-    <link rel="stylesheet" href="css/belt-editor.css?v=103">
+    <link rel="stylesheet" href="css/belt-editor.css?v=104">
 </head>
 <body>
 <script>
@@ -22,6 +22,7 @@ window.addEventListener('error', function (e) {
     <div class="cam-main-wrap">
         <div class="zone-head">ОСНОВНАЯ КАМЕРА
             <span class="hint" id="cam-main-role"></span>
+            <button type="button" class="btn-lab-toggle" id="btn-open-lab" title="Лаборатория и симулятор фигур для проверки инструментов">🔬 ЛАБОРАТОРИЯ ИНСТРУМЕНТОВ</button>
         </div>
         <div class="cam-main-box" id="cam-main-box">
             <canvas id="cam-main"></canvas>
@@ -74,14 +75,14 @@ window.addEventListener('error', function (e) {
                     </span>
                 </div>
 
-                <!-- Правая палитра: готовые продуманные инструменты инспекции -->
+                <!-- Правая палитра: на сборке ленты оставлен инструмент «Наличие», остальные настраиваются в лаборатории -->
                 <div class="tools tools-right" id="tools-inspect" title="Инструменты инспекции">
-                    <span class="tool tool-rule" draggable="true" data-kind="rule" data-rule="r0" title="Инструмент: Замер окна (верх и низ до середины)" style="color: #d9a441;">
+                    <span class="tool tool-rule" draggable="true" data-kind="rule" data-rule="r0" title="Инструмент: Замер окна" style="color: #d9a441; display: none;" aria-hidden="true">
                         <svg viewBox="0 0 16 16" aria-hidden="true">
                             <path d="M2 3h12v2H2zM2 11h12v2H2zM4 5v6M12 5v6M8 6v4" stroke="currentColor" fill="none" stroke-width="1.2"/>
                         </svg>
                     </span>
-                    <span class="tool tool-rule" draggable="true" data-kind="rule" data-rule="r1" title="Инструмент: Наличие (комплектность 7 окон)" style="color: #58b79a;">
+                    <span class="tool tool-rule" draggable="true" data-kind="rule" data-rule="r1" title="Инструмент: Наличие (комплектность деталей)" style="color: #58b79a;">
                         <svg viewBox="0 0 16 16" aria-hidden="true">
                             <rect x="3" y="3" width="4" height="4" fill="currentColor"/>
                             <rect x="9" y="3" width="4" height="4" fill="currentColor"/>
@@ -89,19 +90,22 @@ window.addEventListener('error', function (e) {
                             <rect x="9" y="9" width="4" height="4" fill="currentColor"/>
                         </svg>
                     </span>
-                    <span class="tool tool-rule" draggable="true" data-kind="rule" data-rule="r2" title="Инструмент: Дефект (контроль брака)" style="color: #cf7aa6;">
+                    <span class="tool tool-rule" draggable="true" data-kind="rule" data-rule="r2" title="Инструмент: Дефект" style="color: #cf7aa6; display: none;" aria-hidden="true">
                         <svg viewBox="0 0 16 16" aria-hidden="true">
                             <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
                             <path d="M8 2.5l1.6 3.8-2.2 1.9 3.2 3.4-1.8-2.7 2.3-2.3z" fill="currentColor"/>
                         </svg>
                     </span>
-                    <span class="tool tool-rule" draggable="true" data-kind="rule" data-rule="r3" title="Инструмент: Смещение (позиция / соосность)" style="color: #a58ad9;">
+                    <span class="tool tool-rule" draggable="true" data-kind="rule" data-rule="r3" title="Инструмент: Смещение" style="color: #a58ad9; display: none;" aria-hidden="true">
                         <svg viewBox="0 0 16 16" aria-hidden="true">
                             <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.2"/>
                             <circle cx="9" cy="7" r="1.8" fill="currentColor"/>
                             <path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3" stroke="currentColor" stroke-width="1.2"/>
                         </svg>
                     </span>
+                    <button type="button" class="tool tool-lab-btn" id="btn-open-lab-palette" title="Лаборатория инструментов (симулятор)">
+                        🔬
+                    </button>
                 </div>
                 <div class="belt-row" id="belt-row"></div>
                 <svg id="wires" aria-hidden="true"></svg>
@@ -197,8 +201,91 @@ window.addEventListener('error', function (e) {
 
 <div id="toasts" class="toasts"></div>
 
-    <script src="js/cameras.js?v=103"></script>
-    <script src="js/belt-view.js?v=103"></script>
-    <script src="js/builder.js?v=103"></script>
+<!-- Лаборатория инструментов: стенд симуляции простых фигур и проверки инструментов -->
+<div class="tool-lab-overlay" id="tool-lab-overlay" style="display: none;">
+    <div class="tool-lab-modal" id="tool-lab-modal">
+        <div class="tool-lab-head">
+            <div class="tool-lab-title">
+                <span class="lab-badge">🔬 СТЕНД</span>
+                ЛАБОРАТОРИЯ ИНСТРУМЕНТОВ: СИМУЛЯЦИЯ ФИГУР И ПРОВЕРКА ЗАМЕРОВ
+            </div>
+            <button type="button" class="btn-lab-close" id="btn-close-lab" title="Закрыть лабораторию">✕</button>
+        </div>
+        <div class="tool-lab-body">
+            <!-- Левая колонка: экран симуляции фигуры -->
+            <div class="tool-lab-sim">
+                <div class="lab-subhead">1. СИМУЛЯТОР ФИГУРЫ (ВИРТУАЛЬНЫЙ КАДР)</div>
+                <div class="lab-canvas-wrap">
+                    <canvas id="lab-canvas" width="440" height="260"></canvas>
+                </div>
+                <div class="lab-figure-presets">
+                    <button type="button" class="btn-lab-fig active" data-fig="window">Окно (норма: T=30, B=28)</button>
+                    <button type="button" class="btn-lab-fig" data-fig="window_defect_top">Брак: вылет верха (T=52)</button>
+                    <button type="button" class="btn-lab-fig" data-fig="window_defect_bot">Брак: вылет низа (B=50)</button>
+                    <button type="button" class="btn-lab-fig" data-fig="rect">Прямоугольник (деталь)</button>
+                </div>
+                <div class="lab-sliders">
+                    <div class="lab-slider-row">
+                        <span>Верх T (px):</span>
+                        <input type="range" id="fig-slider-top" min="10" max="65" value="30">
+                        <b id="fig-val-top">30 px</b>
+                    </div>
+                    <div class="lab-slider-row">
+                        <span>Низ B (px):</span>
+                        <input type="range" id="fig-slider-bot" min="10" max="65" value="28">
+                        <b id="fig-val-bot">28 px</b>
+                    </div>
+                    <div class="lab-slider-row">
+                        <span>Ширина W (px):</span>
+                        <input type="range" id="fig-slider-w" min="30" max="140" value="72">
+                        <b id="fig-val-w">72 px</b>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Правая колонка: параметры инструмента и живой вердикт -->
+            <div class="tool-lab-ctrl">
+                <div class="lab-subhead">2. НАСТРОЙКА ИНСТРУМЕНТА «ЗАМЕР ПО BBOX»</div>
+                <div class="lab-card">
+                    <div class="lab-ctrl-row">
+                        <span>Разрезов по вертикали (V):</span>
+                        <button type="button" class="btn-step" id="lab-v-dec">−</button>
+                        <b id="lab-val-v">3</b>
+                        <button type="button" class="btn-step" id="lab-v-inc">+</button>
+                    </div>
+                    <div class="lab-ctrl-row">
+                        <span>Разрезов по горизонтали (H):</span>
+                        <button type="button" class="btn-step" id="lab-h-dec">−</button>
+                        <b id="lab-val-h">1</b>
+                        <button type="button" class="btn-step" id="lab-h-inc">+</button>
+                    </div>
+                    <div class="lab-ctrl-row">
+                        <span>Допуск верха T (px):</span>
+                        <button type="button" class="btn-step" id="lab-t-dec">−</button>
+                        <b id="lab-val-t">15–45 px</b>
+                        <button type="button" class="btn-step" id="lab-t-inc">+</button>
+                    </div>
+                    <div class="lab-ctrl-row">
+                        <span>Допуск низа B (px):</span>
+                        <button type="button" class="btn-step" id="lab-b-dec">−</button>
+                        <b id="lab-val-b">15–45 px</b>
+                        <button type="button" class="btn-step" id="lab-b-inc">+</button>
+                    </div>
+                </div>
+
+                <div class="lab-subhead">3. ЖИВОЙ ОТЧЁТ И ВЕРДИКТ РЕШЕНИЯ</div>
+                <div class="lab-report">
+                    <div class="lab-verdict pass" id="lab-verdict">ГОДНАЯ (ОК)</div>
+                    <div class="lab-details" id="lab-details"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <script src="js/cameras.js?v=104"></script>
+    <script src="js/belt-view.js?v=104"></script>
+    <script src="js/builder.js?v=104"></script>
+    <script src="js/tool-lab.js?v=104"></script>
 </body>
 </html>
