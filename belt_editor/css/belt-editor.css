@@ -111,197 +111,6 @@ body {
     100% { transform: scale(1.05); }
 }
 
-/* ─── Инспектор правил в реальном времени (Live Tuner) ──────────────── */
-.cam-rule-tuner {
-    position: absolute;
-    bottom: 8px;
-    left: 8px;
-    z-index: 10;
-    width: 380px;
-    max-width: calc(100% - 100px);
-    background: rgba(15, 20, 25, 0.92);
-    border: 1px solid var(--border-accent);
-    border-radius: var(--radius);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(6px);
-    display: flex;
-    flex-direction: column;
-    font-size: 11px;
-    user-select: none;
-}
-
-.cam-rule-tuner.collapsed .tuner-body {
-    display: none;
-}
-
-.tuner-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 8px;
-    background: rgba(255, 255, 255, 0.04);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.tuner-title {
-    font: 9.5px/1.2 var(--font-mono, monospace);
-    font-weight: bold;
-    color: var(--text-dim);
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-}
-
-.tuner-select {
-    flex: 1;
-    min-width: 0;
-    background: var(--bg-1);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    padding: 2px 4px;
-    font: 10px/1.2 var(--font-ui, sans-serif);
-}
-
-.tuner-toggle-btn {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    border-radius: 3px;
-    width: 18px;
-    height: 18px;
-    line-height: 14px;
-    cursor: pointer;
-}
-
-.tuner-toggle-btn:hover {
-    color: var(--text);
-    border-color: var(--border-accent);
-}
-
-.tuner-body {
-    padding: 6px 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.tuner-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.tuner-label {
-    font: 9px/1.2 var(--font-mono, monospace);
-    color: var(--text-muted);
-    min-width: 50px;
-    text-transform: uppercase;
-}
-
-.tuner-btn-group {
-    display: flex;
-    gap: 3px;
-    flex: 1;
-}
-
-.tuner-btn {
-    flex: 1;
-    background: var(--bg-0);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    border-radius: 3px;
-    font: 9.5px/1.3 var(--font-ui, sans-serif);
-    padding: 2px 4px;
-    cursor: pointer;
-    white-space: nowrap;
-    text-align: center;
-}
-
-.tuner-btn:hover {
-    border-color: var(--border-accent);
-    color: var(--text);
-}
-
-.tuner-btn.active {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
-    font-weight: 600;
-}
-
-.tuner-sliders {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.tuner-slider-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.tuner-slider-name {
-    font: 9.5px/1.2 var(--font-ui, sans-serif);
-    color: var(--text-dim);
-    width: 75px;
-    white-space: nowrap;
-}
-
-.tuner-slider-input {
-    flex: 1;
-    accent-color: var(--accent);
-    cursor: pointer;
-    height: 14px;
-}
-
-.tuner-slider-val {
-    font: 9.5px/1.2 var(--font-mono, monospace);
-    color: var(--accent);
-    width: 48px;
-    text-align: right;
-}
-
-.tuner-mode-btn {
-    flex: 1;
-    border-radius: 3px;
-    font: 9.5px/1.4 var(--font-ui, sans-serif);
-    font-weight: 600;
-    cursor: pointer;
-    padding: 3px 6px;
-    text-align: center;
-    border: 1px solid transparent;
-}
-
-.tuner-mode-btn.is-defect {
-    background: rgba(224, 108, 117, 0.15);
-    color: #e06c75;
-    border-color: rgba(224, 108, 117, 0.4);
-}
-
-.tuner-mode-btn.is-presence {
-    background: rgba(88, 183, 154, 0.15);
-    color: #58b79a;
-    border-color: rgba(88, 183, 154, 0.4);
-}
-
-.tuner-verdict {
-    font: 10px/1.2 var(--font-mono, monospace);
-    font-weight: bold;
-    padding: 2px 6px;
-    border-radius: 3px;
-}
-
-.tuner-verdict.pass {
-    background: rgba(88, 183, 154, 0.2);
-    color: #58b79a;
-}
-
-.tuner-verdict.fail {
-    background: rgba(224, 108, 117, 0.2);
-    color: #e06c75;
-}
-
 .assets-zone {
     flex: 2 1 0;
     min-height: 0;
@@ -1023,51 +832,134 @@ body.node-moving { cursor: grabbing; }
 
 .gnode.free { border-style: dashed; border-color: var(--border-accent); }
 
-.gnode.g-rule { width: 168px; }
+.gnode.g-rule {
+    width: 204px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
 
-.rule-blocks-body {
-    padding: 0 6px 6px;
+.gnode.g-rule.is-active {
+    border-color: var(--accent);
+    box-shadow: 0 0 10px rgba(79, 163, 209, 0.4);
+}
+
+.rule-live-badge {
+    font: 8px/1 var(--font-mono, monospace);
+    font-weight: bold;
+    padding: 2px 4px;
+    border-radius: 2px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    background: rgba(79, 163, 209, 0.2);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    margin-right: auto;
+    margin-left: 4px;
+}
+
+.rule-card-body {
+    padding: 2px 6px 6px;
     display: flex;
     flex-direction: column;
     gap: 4px;
 }
 
-.rule-block-row {
+.rule-block {
     background: rgba(0, 0, 0, 0.22);
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 3px 5px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
+}
+
+.rule-block-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .rule-block-tag {
-    font: 8px/1.2 var(--font-mono, monospace);
+    font: 8px/1 var(--font-mono, monospace);
     color: var(--text-muted);
     letter-spacing: 0.6px;
     text-transform: uppercase;
 }
 
-.rule-geom-val {
-    font: 9px/1.2 var(--font-mono, monospace);
-    color: var(--accent);
+.rule-types-bar {
+    display: flex;
+    gap: 2px;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 3px;
+    padding: 2px;
+}
+
+.rule-type-btn {
+    flex: 1;
+    padding: 2px 1px;
+    font: 8px/1.2 var(--font-mono, monospace);
+    text-align: center;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    border-radius: 2px;
     cursor: pointer;
+    transition: background 0.12s, color 0.12s;
 }
 
-.rule-geom-val:hover {
-    text-decoration: underline;
+.rule-type-btn:hover {
+    color: var(--text-bright);
+    background: rgba(255, 255, 255, 0.05);
 }
 
-.rule-block-row .g-models {
-    padding: 2px 0 0;
+.rule-type-btn.active {
+    background: var(--accent);
+    color: #fff;
+    font-weight: bold;
+}
+
+.rule-sliders-box {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding-top: 1px;
+}
+
+.rule-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.rule-slider-lbl {
+    font: 8px/1 var(--font-mono, monospace);
+    color: var(--text-dim);
+    width: 60px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.rule-slider-input {
+    flex: 1;
+    accent-color: var(--accent);
+    cursor: ew-resize;
+    height: 12px;
+    margin: 0;
+}
+
+.rule-slider-val {
+    font: 8px/1 var(--font-mono, monospace);
+    color: var(--accent);
+    width: 40px;
+    text-align: right;
+    flex-shrink: 0;
 }
 
 .rule-logic-toggle {
     display: flex;
     flex-direction: column;
     cursor: pointer;
-    padding: 2px 4px;
+    padding: 3px 5px;
     border-radius: 3px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid transparent;
@@ -1080,40 +972,33 @@ body.node-moving { cursor: grabbing; }
 }
 
 .logic-pill {
-    font: 9.5px/1.3 var(--font-ui, sans-serif);
+    font: 9px/1.3 var(--font-ui, sans-serif);
     font-weight: 600;
 }
 
+.rule-logic-toggle.is-defect {
+    background: rgba(224, 108, 117, 0.12);
+    border-color: rgba(224, 108, 117, 0.35);
+}
+
 .rule-logic-toggle.is-defect .logic-pill { color: #e06c75; }
+
+.rule-logic-toggle.is-presence {
+    background: rgba(88, 183, 154, 0.12);
+    border-color: rgba(88, 183, 154, 0.35);
+}
+
 .rule-logic-toggle.is-presence .logic-pill { color: #58b79a; }
 
 .logic-sub {
-    font: 8.5px/1.2 var(--font-mono, monospace);
+    font: 8px/1.1 var(--font-mono, monospace);
     color: var(--text-dim);
 }
 
-.rule-mode-tag {
-    font: 9px/1.2 var(--font-mono, monospace);
-    padding: 1px 4px;
-    border-radius: 3px;
-    background: rgba(255, 255, 255, 0.06);
+.rule-cams-meta {
+    font: 8px/1.2 var(--font-mono, monospace);
     color: var(--text-dim);
-    margin-left: 2px;
-}
-
-.btn-rule-tune {
-    background: transparent;
-    border: none;
-    font-size: 11px;
-    cursor: pointer;
-    padding: 0 3px;
-    opacity: 0.6;
-    margin-left: auto;
-}
-
-.btn-rule-tune:hover {
-    opacity: 1;
-    transform: scale(1.15);
+    padding-top: 1px;
 }
 
 .gnode.cam-node { width: 148px; }

@@ -83,7 +83,7 @@ function getNodeDimensions(keyOrType, domNode) {
     const k = String(keyOrType || '');
     if (k.startsWith('pos') || k === 'position') return { w: 176, h: 96 };
     if (k.startsWith('cam')) return { w: 148, h: 54 };
-    if (k.startsWith('rule')) return { w: 168, h: 92 };
+    if (k.startsWith('rule')) return { w: 204, h: 180 };
     if (k.startsWith('model')) return { w: 128, h: 34 };
     return { w: 128, h: 44 };
 }
@@ -439,66 +439,123 @@ function renderRuleModelList(rule, rid) {
 
 function renderRuleLogicToggle(rule) {
     const isDefect = rule.mode === 'defect';
-    const toggle = el('div', 'rule-logic-toggle' + (isDefect ? ' is-defect' : ' is-presence'), null, [
-        el('span', 'logic-pill', isDefect ? '🔴 Есть зона ➔ БРАК' : '🟢 Нет зоны ➔ БРАК'),
-        el('span', 'logic-sub', isDefect ? 'дефект: найдено = брак' : 'наличие: пусто = брак')
+    const toggle = el('div', 'rule-logic-toggle ' + (isDefect ? 'is-defect' : 'is-presence'), null, [
+        el('span', 'logic-pill', isDefect ? 'ДЕФЕКТ: ЕСТЬ ЗОНА ➔ БРАК' : 'НАЛИЧИЕ: НЕТ ЗОНЫ ➔ БРАК'),
+        el('span', 'logic-sub', isDefect ? 'найдена область дефекта — брак' : 'обязательная зона отсутствует — брак')
     ]);
-    toggle.title = 'Нажмите для переключения: дефект (есть ➔ брак) ↔ наличие (нет ➔ брак)';
+    toggle.title = 'Клик для переключения режима: дефект (есть ➔ брак) ↔ наличие (нет ➔ брак)';
     toggle.onclick = ev => {
         ev.stopPropagation();
         rule.mode = rule.mode === 'defect' ? 'presence' : 'defect';
-        toast(`«${rule.name}»: ${rule.mode === 'defect' ? 'режим «дефект» (есть зона ➔ БРАК)' : 'режим «наличие» (нет зоны ➔ БРАК)'}`);
-        updateTunerUI();
+        toast(`«${rule.name}»: ${rule.mode === 'defect' ? 'режим «дефект»' : 'режим «наличие»'}`);
         render();
     };
     return toggle;
 }
 
-function renderRuleGeomBadge(rule, rid) {
-    let geomText = '';
-    if (rule.checkType === 'inscribe') geomText = `вписанный ${rule.inscribeW || 46}×${rule.inscribeH || 24}px`;
-    else if (rule.checkType === 'area') geomText = `площадь S ≥ ${rule.areaThreshold || 35}px²`;
-    else if (rule.checkType === 'count') geomText = `счётчик: ${rule.countExpected || 5} шт`;
-    else geomText = `перекос Δ ≤ ${rule.gapMax || 10}px`;
+function renderRuleSliders(rule, container, rid) {
+    container.textContent = '';
+    const addSlider = (label, key, min, max, step, unit) => {
+        const row = el('div', 'rule-slider-row');
+        row.appendChild(el('span', 'rule-slider-lbl', label));
+        const inp = el('input', 'rule-slider-input');
+        inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step;
+        inp.value = rule[key] != null ? rule[key] : min;
+        const valSpan = el('span', 'rule-slider-val', inp.value + unit);
+        inp.oninput = () => {
+            rule[key] = parseFloat(inp.value);
+            valSpan.textContent = inp.value + unit;
+            selectActiveRule(rid);
+        };
+        ['mousedown', 'pointerdown'].forEach(evName => inp.addEventListener(evName, e => e.stopPropagation()));
+        row.appendChild(inp);
+        row.appendChild(valSpan);
+        container.appendChild(row);
+    };
 
-    const badge = el('div', 'rule-block-row', null, [
-        el('span', 'rule-block-tag', 'ГЕОМЕТРИЯ'),
-        el('span', 'rule-geom-val', geomText)
+    if (rule.checkType === 'inscribe') {
+        addSlider('Ширина W:', 'inscribeW', 10, 100, 1, ' px');
+        addSlider('Высота H:', 'inscribeH', 5, 50, 1, ' px');
+    } else if (rule.checkType === 'area') {
+        addSlider('Порог S:', 'areaThreshold', 5, 100, 1, ' px²');
+        addSlider('AI Conf:', 'confidence', 0.1, 0.95, 0.05, '');
+    } else if (rule.checkType === 'count') {
+        addSlider('Кол-во N:', 'countExpected', 1, 8, 1, ' шт');
+    } else {
+        addSlider('Перекос Δ:', 'gapMax', 2, 25, 1, ' px');
+    }
+}
+
+function renderRuleGeomBlock(rule, rid) {
+    const curType = rule.checkType || 'inscribe';
+    const slidersBox = el('div', 'rule-sliders-box');
+    const typesBar = el('div', 'rule-types-bar', null, [
+        { id: 'inscribe', title: 'Вписан.' },
+        { id: 'area', title: 'Площадь' },
+        { id: 'count', title: 'Счётчик' },
+        { id: 'gap', title: 'Зазор' }
+    ].map(t => {
+        const btn = el('button', 'rule-type-btn' + (curType === t.id ? ' active' : ''), t.title);
+        btn.type = 'button';
+        btn.dataset.type = t.id;
+        btn.onclick = ev => {
+            ev.stopPropagation();
+            rule.checkType = t.id;
+            selectActiveRule(rid);
+            render();
+        };
+        return btn;
+    }));
+
+    renderRuleSliders(rule, slidersBox, rid);
+
+    return el('div', 'rule-block', null, [
+        el('div', 'rule-block-head', null, [el('span', 'rule-block-tag', 'ГЕОМЕТРИЯ')]),
+        typesBar,
+        slidersBox
     ]);
-    badge.title = 'Клик для настройки в эфире';
-    badge.onclick = ev => { ev.stopPropagation(); selectActiveRule(rid); };
-    return badge;
 }
 
 function renderRuleNode(rid, at) {
     const rule = RULES.find(r => r.id === rid);
     if (!rule) return el('div', 'gnode');
     if (!rule.mode) rule.mode = 'defect';
-    const key = 'rule:' + rid, node = gnodeFrame('g-rule', key, at, rule.name);
+    const isActive = activeTunerRuleId === rid;
+    const key = 'rule:' + rid, node = gnodeFrame('g-rule' + (isActive ? ' is-active' : ''), key, at, rule.name);
     node.dataset.rule = rid;
     node.querySelector('.pos-del').onclick = ev => { ev.stopPropagation(); delete belt.places[key]; render(); };
     const head = node.querySelector('.node-head'), sw = el('i', 'g-swatch');
     sw.style.background = rule.color; head.insertBefore(sw, head.firstChild);
     node.querySelector('.pos-label').style.color = rule.color;
 
-    const tuneBtn = el('button', 'btn-rule-tune', '🎛');
-    tuneBtn.type = 'button'; tuneBtn.title = 'Настроить правило в прямом эфире на камере';
-    tuneBtn.onclick = ev => { ev.stopPropagation(); selectActiveRule(rid); };
-    head.insertBefore(tuneBtn, node.querySelector('.pos-del'));
+    if (isActive) {
+        head.insertBefore(el('span', 'rule-live-badge', 'ЭФИР'), node.querySelector('.pos-del'));
+    }
 
     node.appendChild(gsock('sock-in', null, 'rule', rid));
     node.appendChild(gsock('sock-out', key));
 
-    const blockBody = el('div', 'rule-blocks-body', null, [
-        el('div', 'rule-block-row', null, [el('span', 'rule-block-tag', 'ОБНАРУЖЕНИЕ'), renderRuleModelList(rule, rid)]),
-        renderRuleGeomBadge(rule, rid),
-        el('div', 'rule-block-row', null, [el('span', 'rule-block-tag', 'РЕШЕНИЕ'), renderRuleLogicToggle(rule)])
-    ]);
-    node.appendChild(blockBody);
-    node.onclick = ev => { if (!ev.target.closest('button, .sock, .g-chip')) selectActiveRule(rid); };
-
     const cams = ruleOnCameras(rule);
-    if (cams.length) node.appendChild(el('div', 'g-meta', `кам: ${cams.length}`));
+    const body = el('div', 'rule-card-body', null, [
+        el('div', 'rule-block', null, [
+            el('div', 'rule-block-head', null, [el('span', 'rule-block-tag', 'ОБНАРУЖЕНИЕ')]),
+            renderRuleModelList(rule, rid)
+        ]),
+        renderRuleGeomBlock(rule, rid),
+        el('div', 'rule-block', null, [
+            el('div', 'rule-block-head', null, [el('span', 'rule-block-tag', 'РЕШЕНИЕ')]),
+            renderRuleLogicToggle(rule)
+        ]),
+        cams.length ? el('div', 'rule-cams-meta', `камеры: ${cams.map(c => c.name).join(', ')}`) : null
+    ]);
+    node.appendChild(body);
+
+    node.onclick = ev => {
+        if (!ev.target.closest('button, input, .sock, .g-chip')) {
+            selectActiveRule(rid);
+            render();
+        }
+    };
     return node;
 }
 
@@ -1126,7 +1183,7 @@ function wireFolderPickers() {
         n => ['.pt', '.onnx', '.engine', '.tflite', '.weights', '.bin'].some(ext => n.endsWith(ext)), addModelFromFile);
 }
 
-/* ─── Инспектор и настройка правил в прямом эфире ─────────────────── */
+/* ─── Инспектор и активное правило для предпросмотра на камере ────── */
 let activeTunerRuleId = 'r0';
 
 function getActiveTunerRule() {
@@ -1137,100 +1194,22 @@ function selectActiveRule(rid) {
     const r = RULES.find(x => x.id === rid);
     if (!r) return;
     activeTunerRuleId = rid;
-    const sel = $('tuner-rule-select');
-    if (sel && sel.value !== rid) sel.value = rid;
-    updateTunerUI();
-}
-
-function renderTunerSliders(rule, container) {
-    container.textContent = '';
-    const addSlider = (name, key, min, max, step, unit) => {
-        const row = el('div', 'tuner-slider-row');
-        row.appendChild(el('span', 'tuner-slider-name', name));
-        const inp = el('input', 'tuner-slider-input');
-        inp.type = 'range';
-        inp.min = min; inp.max = max; inp.step = step;
-        inp.value = rule[key] != null ? rule[key] : min;
-        const valSpan = el('span', 'tuner-slider-val', inp.value + unit);
-        inp.oninput = () => {
-            rule[key] = parseFloat(inp.value);
-            valSpan.textContent = inp.value + unit;
-        };
-        inp.onchange = () => render();
-        row.appendChild(inp);
-        row.appendChild(valSpan);
-        container.appendChild(row);
-    };
-
-    if (rule.checkType === 'inscribe') {
-        addSlider('Ширина W:', 'inscribeW', 10, 100, 1, 'px');
-        addSlider('Высота H:', 'inscribeH', 5, 50, 1, 'px');
-    } else if (rule.checkType === 'area') {
-        addSlider('Порог S:', 'areaThreshold', 5, 100, 1, 'px²');
-        addSlider('AI Conf:', 'confidence', 0.1, 0.95, 0.05, '');
-    } else if (rule.checkType === 'count') {
-        addSlider('Кол-во N:', 'countExpected', 1, 8, 1, ' шт');
-    } else {
-        addSlider('Перекос Δ:', 'gapMax', 2, 25, 1, 'px');
-    }
-}
-
-function updateTunerUI() {
-    const rule = getActiveTunerRule(), container = $('tuner-sliders'), modeBtn = $('tuner-mode-btn');
-    if (!rule || !container) return;
-    document.querySelectorAll('#tuner-types .tuner-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.type === (rule.checkType || 'inscribe'));
+    document.querySelectorAll('.gnode.g-rule').forEach(n => {
+        const isCur = n.dataset.rule === rid;
+        n.classList.toggle('is-active', isCur);
+        const b = n.querySelector('.rule-live-badge');
+        if (isCur && !b) {
+            const head = n.querySelector('.node-head'), del = n.querySelector('.pos-del');
+            head.insertBefore(el('span', 'rule-live-badge', 'ЭФИР'), del);
+        } else if (!isCur && b) {
+            b.remove();
+        }
     });
-    renderTunerSliders(rule, container);
-    if (modeBtn) {
-        const isDef = rule.mode === 'defect';
-        modeBtn.className = 'tuner-mode-btn ' + (isDef ? 'is-defect' : 'is-presence');
-        modeBtn.textContent = isDef ? '🔴 Есть дефект ➔ БРАК' : '🟢 Нет зоны ➔ БРАК';
-    }
-}
-
-function wireLiveTuner() {
-    const tuner = $('cam-rule-tuner'), sel = $('tuner-rule-select');
-    if (!tuner || !sel) return;
-    sel.textContent = '';
-    RULES.forEach(r => {
-        const opt = el('option', '', `${r.name} (${r.defectName || r.name})`);
-        opt.value = r.id;
-        sel.appendChild(opt);
-    });
-    sel.value = activeTunerRuleId;
-    sel.onchange = () => selectActiveRule(sel.value);
-
-    $('btn-tuner-collapse')?.addEventListener('click', () => {
-        tuner.classList.toggle('collapsed');
-        const isC = tuner.classList.contains('collapsed');
-        $('btn-tuner-collapse').textContent = isC ? '+' : '−';
-    });
-
-    document.querySelectorAll('#tuner-types .tuner-btn').forEach(btn => {
-        btn.onclick = () => {
-            const rule = getActiveTunerRule();
-            rule.checkType = btn.dataset.type;
-            updateTunerUI();
-            render();
-        };
-    });
-
-    $('tuner-mode-btn')?.addEventListener('click', () => {
-        const rule = getActiveTunerRule();
-        rule.mode = rule.mode === 'defect' ? 'presence' : 'defect';
-        toast(`«${rule.name}»: ${rule.mode === 'defect' ? 'режим «дефект» (есть зона ➔ БРАК)' : 'режим «наличие» (нет зоны ➔ БРАК)'}`);
-        updateTunerUI();
-        render();
-    });
-
-    updateTunerUI();
 }
 
 function boot() {
     wirePalette(); wireBelt(); wireSearch(); wireThrClose(); wireLinkEngine();
-    dragGNodes(); wireScrollSnap(); wireSideDock(); wireFolderPickers();
-    wireLiveTuner(); render();
+    dragGNodes(); wireScrollSnap(); wireSideDock(); wireFolderPickers(); render();
 }
 
 if (document.readyState === 'loading') {

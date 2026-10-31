@@ -853,15 +853,16 @@ check('наведение на провод: подсветка красным �
     })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
-check('универсальная нода правила: блоки обнаружение, геометрия и логика решения',
+check('универсальная нода правила: блоки обнаружение, геометрия и логика решения на холсте',
     (function () {
         const rNode = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
         if (!rNode) return false;
-        const hasBlocks = rNode.querySelector('.rule-blocks-body') !== null;
-        const hasGeom = rNode.querySelector('.rule-geom-val') !== null;
+        const hasBody = rNode.querySelector('.rule-card-body') !== null;
+        const hasModels = rNode.querySelector('.g-models') !== null;
+        const hasTypes = rNode.querySelector('.rule-types-bar') !== null;
+        const hasSliders = rNode.querySelector('.rule-sliders-box') !== null;
         const hasToggle = rNode.querySelector('.rule-logic-toggle') !== null;
-        const hasTuneBtn = rNode.querySelector('.btn-rule-tune') !== null;
-        return hasBlocks && hasGeom && hasToggle && hasTuneBtn;
+        return hasBody && hasModels && hasTypes && hasSliders && hasToggle;
     })());
 check('логика решения: переключение режима дефект ↔ наличие',
     (function () {
@@ -872,23 +873,21 @@ check('логика решения: переключение режима деф
         const isPresence = doc.querySelector('.gnode.g-rule[data-rule="r0"] .rule-logic-toggle').classList.contains('is-presence');
         return wasDefect && isPresence;
     })());
-check('инспектор в прямом эфире: панель #cam-rule-tuner в зоне камеры',
+check('камера чиста от управляющих плашек: плашка настройки убрана с видеостены, все изменения только на сборке',
     (function () {
         const tuner = doc.getElementById('cam-rule-tuner');
-        if (!tuner) return false;
-        const hasSelect = doc.getElementById('tuner-rule-select') !== null;
-        const hasTypes = doc.getElementById('tuner-types') !== null;
-        const hasSliders = doc.getElementById('tuner-sliders') !== null;
-        const hasModeBtn = doc.getElementById('tuner-mode-btn') !== null;
-        return hasSelect && hasTypes && hasSliders && hasModeBtn;
+        const box = doc.getElementById('cam-main-box');
+        if (tuner !== null || !box) return false;
+        return box.querySelectorAll('button, select, input').length === 0;
     })());
-check('живая настройка: смена типа геометрии (inscribe, area, count, gap) и синхронизация слайдеров',
+check('продуманная система настройки правил на сборке: переключение геометрии и слайдеры на ноде',
     (function () {
-        const areaBtn = doc.querySelector('#tuner-types .tuner-btn[data-type="area"]');
+        const rNode = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
+        const areaBtn = rNode?.querySelector('.rule-type-btn[data-type="area"]');
         if (!areaBtn) return false;
         areaBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
         const rule = window.BeltBridge?.getActiveRule?.();
-        const slider = doc.querySelector('#tuner-sliders .tuner-slider-input');
+        const slider = rNode.querySelector('.rule-sliders-box .rule-slider-input');
         return rule && rule.checkType === 'area' && slider !== null;
     })());
 
