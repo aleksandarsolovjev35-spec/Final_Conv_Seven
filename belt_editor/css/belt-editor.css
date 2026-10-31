@@ -1095,6 +1095,11 @@ body.node-moving { cursor: grabbing; }
     color: #f3ca6c;
 }
 
+.gnode.g-rule[data-rule="r0"] .btn-seg {
+    font-size: 13px;
+    font-weight: bold;
+}
+
 .gnode.g-rule[data-rule="r1"] .btn-seg.active {
     background: rgba(88, 183, 154, 0.25);
     color: #58b79a;

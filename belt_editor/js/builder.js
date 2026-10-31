@@ -499,11 +499,15 @@ function makeStepRow(label, value, onDec, onInc, rid) {
 function renderMeasureControl(rule, rid, box) {
     if (!rule.lineMode) rule.lineMode = 'horiz';
     const segGroup = el('div', 'tool-seg-group', null, [
-        el('button', 'btn-seg' + (rule.lineMode === 'horiz' ? ' active' : ''), '― Гориз.'),
-        el('button', 'btn-seg' + (rule.lineMode === 'vert' ? ' active' : ''), '| Верт.'),
-        el('button', 'btn-seg' + (rule.lineMode === 'none' ? ' active' : ''), 'Без линии')
+        el('button', 'btn-seg' + (rule.lineMode === 'horiz' ? ' active' : ''), '―'),
+        el('button', 'btn-seg' + (rule.lineMode === 'vert' ? ' active' : ''), '|'),
+        el('button', 'btn-seg' + (rule.lineMode === 'none' ? ' active' : ''), '✕')
     ]);
     const [bH, bV, bN] = segGroup.querySelectorAll('.btn-seg');
+    bH.title = 'Горизонтальная линия';
+    bV.title = 'Вертикальная линия';
+    bN.title = 'Без линии (допуск X/Y)';
+
     bH.onclick = ev => { ev.stopPropagation(); rule.lineMode = 'horiz'; selectActiveRule(rid); render(); };
     bV.onclick = ev => { ev.stopPropagation(); rule.lineMode = 'vert'; selectActiveRule(rid); render(); };
     bN.onclick = ev => { ev.stopPropagation(); rule.lineMode = 'none'; selectActiveRule(rid); render(); };
