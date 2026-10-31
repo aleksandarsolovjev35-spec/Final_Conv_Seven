@@ -1107,9 +1107,19 @@ body.node-moving { cursor: grabbing; }
     font-weight: bold;
 }
 
-.gnode.g-rule[data-rule="r1"] .btn-seg.active {
+.gnode.g-rule[data-rule="r1"] .btn-seg {
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.gnode.g-rule[data-rule="r1"] .btn-seg-req.active {
     background: rgba(88, 183, 154, 0.25);
     color: #58b79a;
+}
+
+.gnode.g-rule[data-rule="r1"] .btn-seg-forbid.active {
+    background: rgba(239, 68, 68, 0.25);
+    color: #ef4444;
 }
 
 .btn-step,

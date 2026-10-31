@@ -526,39 +526,32 @@ function renderMeasureControl(rule, rid, box) {
 }
 
 function renderPresenceControl(rule, rid, box) {
-    if (!rule.presenceOp) rule.presenceOp = 'gte';
-    const op = rule.presenceOp;
+    if (!rule.presenceType) rule.presenceType = 'require';
+    const isReq = rule.presenceType === 'require';
     const segGroup = el('div', 'tool-seg-group', null, [
-        el('button', 'btn-seg' + (op === 'eq' ? ' active' : ''), '= N'),
-        el('button', 'btn-seg' + (op === 'gte' ? ' active' : ''), '≥ N'),
-        el('button', 'btn-seg' + (op === 'gt' ? ' active' : ''), '> N'),
-        el('button', 'btn-seg' + (op === 'zero' ? ' active' : ''), '= 0')
+        el('button', 'btn-seg btn-seg-req' + (isReq ? ' active' : ''), '✓'),
+        el('button', 'btn-seg btn-seg-forbid' + (!isReq ? ' active' : ''), '✕')
     ]);
-    const [bEq, bGte, bGt, bZero] = segGroup.querySelectorAll('.btn-seg');
-    bEq.title = 'Должно быть ровно N';
-    bGte.title = 'Должно быть не меньше N';
-    bGt.title = 'Должно быть больше N';
-    bZero.title = 'Не должно быть вообще (0 шт)';
+    const [bReq, bForbid] = segGroup.querySelectorAll('.btn-seg');
+    bReq.title = 'Должно быть (комплектность)';
+    bForbid.title = 'Запрещено (не должно быть вообще)';
 
-    bEq.onclick = ev => { ev.stopPropagation(); rule.presenceOp = 'eq'; selectActiveRule(rid); render(); };
-    bGte.onclick = ev => { ev.stopPropagation(); rule.presenceOp = 'gte'; selectActiveRule(rid); render(); };
-    bGt.onclick = ev => { ev.stopPropagation(); rule.presenceOp = 'gt'; selectActiveRule(rid); render(); };
-    bZero.onclick = ev => { ev.stopPropagation(); rule.presenceOp = 'zero'; selectActiveRule(rid); render(); };
+    bReq.onclick = ev => { ev.stopPropagation(); rule.presenceType = 'require'; selectActiveRule(rid); render(); };
+    bForbid.onclick = ev => { ev.stopPropagation(); rule.presenceType = 'forbid'; selectActiveRule(rid); render(); };
     box.appendChild(segGroup);
 
-    const val = rule.countExpected || 7;
-    if (op === 'zero') {
-        box.appendChild(el('div', 'rule-count-row tool-row', null, [
-            el('span', 'rule-lbl tool-lbl', 'Запрещено:'),
-            el('span', 'rule-count-val tool-val tool-val-alert', '0 шт (брак)')
-        ]));
-    } else {
-        const lbl = op === 'eq' ? 'Ровно:' : (op === 'gt' ? 'Больше:' : 'Не меньше:');
-        box.appendChild(makeStepRow(lbl, val + ' шт',
+    if (isReq) {
+        const val = rule.countExpected || 7;
+        box.appendChild(makeStepRow('Требуется:', val + ' шт',
             () => { rule.countExpected = Math.max(1, val - 1); },
             () => { rule.countExpected = Math.min(16, val + 1); },
             rid
         ));
+    } else {
+        box.appendChild(el('div', 'rule-count-row tool-row', null, [
+            el('span', 'rule-lbl tool-lbl', 'Запрещено:'),
+            el('span', 'rule-count-val tool-val tool-val-alert', '0 шт (брак)')
+        ]));
     }
     return box;
 }

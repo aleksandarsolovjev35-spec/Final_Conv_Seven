@@ -263,27 +263,9 @@ function drawReticleOverlay(ctx, w, h, inField, p, size, railY) {
     }
 }
 
-function checkPresenceResult(rule, actual, expected) {
-    const op = rule.presenceOp || 'gte';
-    if (op === 'zero') {
-        const ok = actual === 0;
-        return { isFail: !ok, text: ok ? 'Наличие: чисто (0 шт)' : `Наличие: обнаружено ${actual} шт (запрещено)` };
-    }
-    if (op === 'eq') {
-        const ok = actual === expected;
-        return { isFail: !ok, text: `Наличие: ${actual} шт (требуется = ${expected})` };
-    }
-    if (op === 'gt') {
-        const ok = actual > expected;
-        return { isFail: !ok, text: `Наличие: ${actual} шт (требуется > ${expected})` };
-    }
-    const ok = actual >= expected;
-    return { isFail: !ok, text: `Наличие: ${actual} шт (требуется ≥ ${expected})` };
-}
-
 function drawInspectionPresence(ctx, px, py, pw, ph, rule) {
-    const op = rule.presenceOp || 'gte';
-    if (op === 'zero') {
+    const isForbid = rule.presenceType === 'forbid';
+    if (isForbid) {
         const actual = 0;
         ctx.strokeStyle = actual > 0 ? 'rgba(239, 68, 68, 0.7)' : 'rgba(88, 183, 154, 0.6)';
         ctx.setLineDash([2, 2]);
@@ -292,7 +274,8 @@ function drawInspectionPresence(ctx, px, py, pw, ph, rule) {
         ctx.fillStyle = actual > 0 ? '#ef4444' : '#58b79a';
         ctx.font = 'bold 7.5px monospace';
         ctx.fillText(actual > 0 ? '✕ ОБНАРУЖЕНО' : '✓ НЕ ОБНАРУЖЕНО', px + 4, py + Math.round(ph / 2) + 3);
-        return checkPresenceResult(rule, actual, 0);
+        const isFail = actual > 0;
+        return { isFail, text: isFail ? `Наличие: обнаружено ${actual} шт (запрещено)` : `Наличие: чисто (не обнаружено)` };
     }
 
     const expected = rule.countExpected || 7, actual = expected;
@@ -304,7 +287,8 @@ function drawInspectionPresence(ctx, px, py, pw, ph, rule) {
         ctx.font = 'bold 8px monospace';
         ctx.fillText(String(i), mx - 2, my - 5);
     }
-    return checkPresenceResult(rule, actual, expected);
+    const isFail = actual < expected;
+    return { isFail, text: `Наличие: ${actual} из ${expected} шт` };
 }
 
 function drawInspectionDefect(ctx, px, py, pw, ph, rule) {
