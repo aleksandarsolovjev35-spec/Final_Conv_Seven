@@ -954,10 +954,10 @@ body.node-moving { cursor: grabbing; }
 
 /* ─── Нода инструмента (Замер / Наличие / Дефект / Смещение) ──────── */
 .gnode.g-rule {
-    width: 216px;
+    width: 180px;
     background: #11171f;
     border: 1px solid #23303d;
-    border-radius: 8px;
+    border-radius: 7px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
     font-family: var(--font-mono, monospace);
     font-weight: bold;
@@ -966,7 +966,7 @@ body.node-moving { cursor: grabbing; }
 
 .gnode.g-rule .sock-in,
 .gnode.g-rule .sock-out {
-    top: 13px;
+    top: 12px;
     margin-top: 0;
 }
 
@@ -978,54 +978,54 @@ body.node-moving { cursor: grabbing; }
 .gnode.g-rule .node-head {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
+    gap: 6px;
+    padding: 5px 8px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .gnode.g-rule .pos-label {
-    font: bold 11px/1 var(--font-mono, monospace);
-    letter-spacing: 0.6px;
+    font: bold 10.5px/1 var(--font-mono, monospace);
+    letter-spacing: 0.5px;
     text-transform: uppercase;
     flex: 1;
 }
 
 .rule-card-body {
-    padding: 8px 10px 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.tool-section {
+    padding: 6px 8px 8px;
     display: flex;
     flex-direction: column;
     gap: 6px;
 }
 
+.tool-section {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
 .tool-section-model {
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    padding-bottom: 6px;
+    padding-bottom: 5px;
 }
 
 .tool-chip-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 6px;
+    gap: 3px;
+    margin-bottom: 4px;
 }
 
 .tool-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 6px;
-    height: 22px;
+    gap: 4px;
+    height: 20px;
 }
 
 .tool-lbl,
 .rule-lbl {
-    font: bold 10px/1.2 var(--font-mono, monospace);
+    font: bold 9.5px/1.2 var(--font-mono, monospace);
     color: var(--text-dim, #94a3b8);
     flex: 1;
     min-width: 0;
@@ -1035,20 +1035,20 @@ body.node-moving { cursor: grabbing; }
 .tool-step-ctrl {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
 }
 
 .tool-val,
 .rule-count-val {
-    font: bold 11px/1 var(--font-mono, monospace);
+    font: bold 10.5px/1 var(--font-mono, monospace);
     color: var(--text-bright, #fff);
-    min-width: 48px;
+    min-width: 36px;
     text-align: center;
 }
 
 .tool-val-alert {
     color: #ef4444;
-    font: bold 10px/1.2 var(--font-mono, monospace);
+    font: bold 9.5px/1.2 var(--font-mono, monospace);
     white-space: nowrap;
     text-align: right;
 }
@@ -1056,23 +1056,23 @@ body.node-moving { cursor: grabbing; }
 .tool-seg-group {
     width: 100%;
     display: flex;
-    gap: 3px;
+    gap: 2px;
     background: rgba(0, 0, 0, 0.4);
-    padding: 3px;
-    border-radius: 5px;
+    padding: 2px;
+    border-radius: 4px;
     border: 1px solid var(--border, #2a3440);
     box-sizing: border-box;
 }
 
 .btn-seg {
     flex: 1;
-    height: 22px;
+    height: 20px;
     border: none;
     background: transparent;
     color: var(--text-dim, #94a3b8);
-    font: bold 9px/1 var(--font-mono, monospace);
-    padding: 0 4px;
-    border-radius: 3px;
+    font: bold 8.5px/1 var(--font-mono, monospace);
+    padding: 0 2px;
+    border-radius: 2px;
     cursor: pointer;
     transition: all 0.12s ease;
     white-space: nowrap;
@@ -1096,7 +1096,7 @@ body.node-moving { cursor: grabbing; }
 }
 
 .gnode.g-rule[data-rule="r0"] .btn-seg {
-    font-size: 13px;
+    font-size: 11.5px;
     font-weight: bold;
 }
 
@@ -1107,8 +1107,8 @@ body.node-moving { cursor: grabbing; }
 
 .btn-step,
 .btn-count-step {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1116,7 +1116,7 @@ body.node-moving { cursor: grabbing; }
     border: 1px solid var(--border, #2a3440);
     border-radius: 3px;
     color: var(--text);
-    font: 12px/1 var(--font-mono, monospace);
+    font: 11px/1 var(--font-mono, monospace);
     font-weight: bold;
     cursor: pointer;
     transition: all 0.12s ease;
@@ -1137,13 +1137,13 @@ body.node-moving { cursor: grabbing; }
 
 .rule-model-select {
     width: 100%;
-    height: 24px;
-    padding: 2px 6px;
+    height: 22px;
+    padding: 1px 5px;
     background: var(--bg-0, #141a20);
     border: 1px solid var(--border, #2a3440);
     border-radius: 4px;
     color: var(--text-dim, #9bb0c1);
-    font: bold 10px/1.2 var(--font-mono, monospace);
+    font: bold 9.5px/1.2 var(--font-mono, monospace);
     cursor: pointer;
     outline: none;
     transition: border-color 0.12s ease, color 0.12s ease;
@@ -1162,9 +1162,9 @@ body.node-moving { cursor: grabbing; }
 }
 
 .tool-cam-line {
-    font: bold 9.5px/1.2 var(--font-mono, monospace);
+    font: bold 9px/1.2 var(--font-mono, monospace);
     color: var(--accent);
-    padding-top: 4px;
+    padding-top: 3px;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
