@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-    <link rel="stylesheet" href="css/belt-editor.css?v=109">
+    <link rel="stylesheet" href="css/belt-editor.css?v=110">
 </head>
 <body>
 <script>
@@ -48,7 +48,7 @@ window.addEventListener('error', function (e) {
                 <span class="belt-run-badge locked" id="belt-run-status">П0: НЕТ КАМЕРЫ (ПУСК ЗАБЛОКИРОВАН)</span>
                 <button type="button" class="btn-belt-run disabled" id="btn-belt-run" title="Нельзя запустить ленту: на первой позиции (П0) нет камеры инспекции">ПУСК ЛЕНТЫ</button>
             </div>
-            <span class="hint">сб. 96</span>
+            <span class="hint">сб. 97</span>
         </div>
         <div class="build-body">
             <div class="belt-zone" id="belt-zone">
@@ -207,49 +207,49 @@ window.addEventListener('error', function (e) {
         <div class="tool-lab-head">
             <div class="tool-lab-title">
                 <span class="lab-badge">🔬 СТЕНД</span>
-                ЛАБОРАТОРИЯ ИНСТРУМЕНТОВ: КООРДИНАТНЫЕ ДОПУСКИ (X, Y)
+                ЛАБОРАТОРИЯ: ЦЕНТР ОБЛАСТИ В ТОЧКЕ 0 (ДОПУСКИ ±X, ±Y)
             </div>
             <button type="button" class="btn-lab-close" id="btn-close-lab" title="Закрыть лабораторию">✕</button>
         </div>
         <div class="tool-lab-body">
             <!-- Левая колонка: экран симуляции на координатной плоскости -->
             <div class="tool-lab-sim">
-                <div class="lab-subhead">1. СИМУЛЯТОР ФИГУРЫ (ОСИ X И Y)</div>
+                <div class="lab-subhead">1. СИМУЛЯТОР ОБЛАСТИ (ЦЕНТР В ТОЧКЕ 0)</div>
                 <div class="lab-canvas-wrap">
                     <canvas id="lab-canvas" width="600" height="340"></canvas>
                 </div>
                 <div class="lab-sliders">
                     <div class="lab-slider-row">
-                        <span>Размер по оси X (ширина):</span>
+                        <span>Ширина детали W (вдоль оси X):</span>
                         <input type="range" id="fig-slider-w" min="20" max="140" value="72">
-                        <b id="fig-val-w">72 px</b>
+                        <b id="fig-val-w">72 px (±36 px)</b>
                     </div>
                     <div class="lab-slider-row">
-                        <span>Размер по оси Y (высота):</span>
+                        <span>Высота детали H (вдоль оси Y):</span>
                         <input type="range" id="fig-slider-h" min="15" max="100" value="58">
-                        <b id="fig-val-h">58 px</b>
+                        <b id="fig-val-h">58 px (±29 px)</b>
                     </div>
                 </div>
             </div>
 
             <!-- Правая колонка: два параметра настройки инструмента -->
             <div class="tool-lab-ctrl">
-                <div class="lab-subhead">2. НАСТРОЙКА ИНСТРУМЕНТА (ДВА ПАРАМЕТРА)</div>
+                <div class="lab-subhead">2. НАСТРОЙКА ИНСТРУМЕНТА (ДВА ПАРАМЕТРА ОТ ЦЕНТРА 0)</div>
                 <div class="lab-card">
                     <div class="lab-ctrl-row">
-                        <span>Параметр 1 — Допуск X (горизонталь):</span>
+                        <span>Параметр 1 — Допуск X (от центра 0):</span>
                         <button type="button" class="btn-step" id="lab-tol-x-dec">−</button>
-                        <b id="lab-val-tol-x">50–90 px</b>
+                        <b id="lab-val-tol-x">±42 px (W ≤ 84 px)</b>
                         <button type="button" class="btn-step" id="lab-tol-x-inc">+</button>
                     </div>
                     <div class="lab-ctrl-row">
-                        <span>Параметр 2 — Допуск Y (вертикаль):</span>
+                        <span>Параметр 2 — Допуск Y (от центра 0):</span>
                         <button type="button" class="btn-step" id="lab-tol-y-dec">−</button>
-                        <b id="lab-val-tol-y">40–70 px</b>
+                        <b id="lab-val-tol-y">±34 px (H ≤ 68 px)</b>
                         <button type="button" class="btn-step" id="lab-tol-y-inc">+</button>
                     </div>
                     <div class="lab-hint-row">
-                        Задаются ровно 2 параметра допуска вдоль осей X и Y. Все проверки, проекции и вердикт решения отображаются прямо на графике.
+                        Центр области зафиксирован в точке (0, 0). Контролируется симметричное отклонение краев ±X и ±Y от центра.
                     </div>
                 </div>
             </div>
@@ -257,9 +257,9 @@ window.addEventListener('error', function (e) {
     </div>
 </div>
 
-    <script src="js/cameras.js?v=109"></script>
-    <script src="js/belt-view.js?v=109"></script>
-    <script src="js/builder.js?v=109"></script>
-    <script src="js/tool-lab.js?v=109"></script>
+    <script src="js/cameras.js?v=110"></script>
+    <script src="js/belt-view.js?v=110"></script>
+    <script src="js/builder.js?v=110"></script>
+    <script src="js/tool-lab.js?v=110"></script>
 </body>
 </html>
