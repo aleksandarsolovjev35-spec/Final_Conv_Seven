@@ -43,120 +43,90 @@
         ctx.strokeRect(bx, by, bw, bh);
     }
 
-    function drawMeasurementArrow(ctx, vx, y1, y2, ok, label) {
-        ctx.strokeStyle = ctx.fillStyle = ok ? '#7ac48c' : '#ef4444';
-        ctx.lineWidth = 2.0;
-        ctx.beginPath(); ctx.moveTo(vx, y1); ctx.lineTo(vx, y2); ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(vx - 3, y1 + 5); ctx.lineTo(vx, y1); ctx.lineTo(vx + 3, y1 + 5);
-        ctx.moveTo(vx - 3, y2 - 5); ctx.lineTo(vx, y2); ctx.lineTo(vx + 3, y2 - 5);
-        ctx.stroke();
-
-        ctx.font = 'bold 12px monospace';
-        const tw = ctx.measureText(label).width, ym = Math.round((y1 + y2) / 2);
-        ctx.fillStyle = 'rgba(8, 12, 16, 0.9)';
-        ctx.fillRect(vx + 4, ym - 8, tw + 8, 16);
-        ctx.fillStyle = ok ? '#7ac48c' : '#ef4444';
-        ctx.fillText(label, vx + 8, ym + 4);
+    function buildGridCells(bx, by, bw, bh, midY) {
+        const cutsV = labState.cutsV, cutsH = labState.cutsH;
+        if (cutsV === 0 && cutsH === 0) {
+            const rW = labState.w, rH = labState.topH + labState.botH;
+            const ok = rW >= labState.wMin && rW <= labState.wMax && rH >= labState.topMin && rH <= (labState.topMax + labState.bottomMax);
+            return [{ r: 1, c: 1, x: bx, y: by, w: bw, h: bh, rW, rH, ok, title: 'Область целиком' }];
+        }
+        if (cutsV === 0 && cutsH === 1) {
+            const tOk = labState.topH >= labState.topMin && labState.topH <= labState.topMax;
+            const bOk = labState.botH >= labState.bottomMin && labState.botH <= labState.bottomMax;
+            return [
+                { r: 1, c: 1, x: bx, y: by, w: bw, h: midY - by, rW: labState.w, rH: labState.topH, ok: tOk, title: 'Верхняя клеточка (T)' },
+                { r: 2, c: 1, x: bx, y: midY, w: bw, h: by + bh - midY, rW: labState.w, rH: labState.botH, ok: bOk, title: 'Нижняя клеточка (B)' }
+            ];
+        }
+        const cols = cutsV + 1, rows = cutsH + 1, list = [];
+        const colW = bw / cols, rW = Math.round(labState.w / cols);
+        for (let r = 0; r < rows; r++) {
+            const isTwo = (rows === 2);
+            const rowH = isTwo ? (r === 0 ? midY - by : by + bh - midY) : (bh / rows);
+            const rH = isTwo ? (r === 0 ? labState.topH : labState.botH) : Math.round((labState.topH + labState.botH) / rows);
+            const rowY = isTwo ? (r === 0 ? by : midY) : (by + r * (bh / rows));
+            const hOk = isTwo ? (r === 0 ? rH >= labState.topMin && rH <= labState.topMax : rH >= labState.bottomMin && rH <= labState.bottomMax) : (rH >= labState.topMin && rH <= labState.topMax);
+            for (let c = 0; c < cols; c++) {
+                const wOk = rW >= Math.round(labState.wMin / cols) && rW <= Math.round(labState.wMax / cols);
+                list.push({ r: r + 1, c: c + 1, x: bx + c * colW, y: rowY, w: colW, h: rowH, rW, rH, ok: hOk && wOk, title: `Клеточка [${r + 1}, ${c + 1}]` });
+            }
+        }
+        return list;
     }
 
-    function drawHorizMeasurementArrow(ctx, y, x1, x2, ok, label) {
-        ctx.strokeStyle = ctx.fillStyle = ok ? '#7ac48c' : '#ef4444';
+    function drawSingleCell(ctx, cell) {
+        ctx.fillStyle = cell.ok ? 'rgba(122, 196, 140, 0.12)' : 'rgba(239, 68, 68, 0.16)';
+        ctx.fillRect(cell.x, cell.y, cell.w, cell.h);
+        ctx.strokeStyle = cell.ok ? '#7ac48c' : '#ef4444';
         ctx.lineWidth = 2.0;
-        ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(x1 + 5, y - 3); ctx.lineTo(x1, y); ctx.lineTo(x1 + 5, y + 3);
-        ctx.moveTo(x2 - 5, y - 3); ctx.lineTo(x2, y); ctx.lineTo(x2 - 5, y + 3);
-        ctx.stroke();
+        ctx.strokeRect(cell.x, cell.y, cell.w, cell.h);
 
-        ctx.font = 'bold 12px monospace';
-        const tw = ctx.measureText(label).width, xm = Math.round((x1 + x2) / 2);
+        const text = `${cell.rW}×${cell.rH}px ${cell.ok ? '✓' : '✗'}`;
+        ctx.font = 'bold 12.5px monospace';
+        const tw = ctx.measureText(text).width;
+        const xm = Math.round(cell.x + cell.w / 2), ym = Math.round(cell.y + cell.h / 2);
         ctx.fillStyle = 'rgba(8, 12, 16, 0.9)';
-        ctx.fillRect(xm - Math.round(tw / 2) - 4, y - 8, tw + 8, 16);
-        ctx.fillStyle = ok ? '#7ac48c' : '#ef4444';
-        ctx.fillText(label, xm - Math.round(tw / 2), y + 4);
+        ctx.fillRect(xm - Math.round(tw / 2) - 4, ym - 9, tw + 8, 18);
+        ctx.fillStyle = cell.ok ? '#7ac48c' : '#ef4444';
+        ctx.fillText(text, xm - Math.round(tw / 2), ym + 4);
     }
 
-    function drawLabCutsAndMeasurements(ctx, bx, by, bw, bh, midY) {
-        ctx.lineWidth = 2.0; ctx.strokeStyle = '#d9a441';
+    function drawLabGridAndMeasurements(ctx, bx, by, bw, bh, midY) {
+        ctx.lineWidth = 2.2; ctx.strokeStyle = '#d9a441';
         ctx.strokeRect(bx, by, bw, bh);
 
-        const hMeasurements = [], hStep = bh / (labState.cutsH + 1);
-        for (let h = 1; h <= labState.cutsH; h++) {
-            const hy = Math.round(by + h * hStep);
-            ctx.setLineDash([4, 3]); ctx.strokeStyle = 'rgba(217, 164, 65, 0.8)';
-            ctx.beginPath(); ctx.moveTo(bx - 14, hy); ctx.lineTo(bx + bw + 14, hy); ctx.stroke();
-            ctx.setLineDash([]);
-
-            const wVal = labState.w;
-            const wOk = wVal >= labState.wMin && wVal <= labState.wMax;
-            hMeasurements.push({ h, hy, wVal, wOk });
-            drawHorizMeasurementArrow(ctx, hy, bx, bx + bw, wOk, `W${h}: ${wVal}px`);
-        }
-
-        const vMeasurements = [], vStep = bw / (labState.cutsV + 1);
-        for (let v = 1; v <= labState.cutsV; v++) {
-            const vx = Math.round(bx + v * vStep);
-            ctx.setLineDash([3, 2]); ctx.strokeStyle = 'rgba(243, 202, 108, 0.5)';
-            ctx.beginPath(); ctx.moveTo(vx, by - 8); ctx.lineTo(vx, by + bh + 8); ctx.stroke();
-            ctx.setLineDash([]);
-
-            const tVal = labState.topH, bVal = labState.botH;
-            const tOk = tVal >= labState.topMin && tVal <= labState.topMax;
-            const bOk = bVal >= labState.bottomMin && bVal <= labState.bottomMax;
-            vMeasurements.push({ v, vx, tVal, bVal, tOk, bOk });
-
-            drawMeasurementArrow(ctx, vx, by, midY, tOk, `T${v}: ${tVal}px`);
-            drawMeasurementArrow(ctx, vx, midY, by + bh, bOk, `B${v}: ${bVal}px`);
-        }
+        const cells = buildGridCells(bx, by, bw, bh, midY);
+        cells.forEach(cell => drawSingleCell(ctx, cell));
 
         ctx.font = 'bold 12px monospace'; ctx.fillStyle = '#f3ca6c';
-        const sumText = `BBox: ${labState.w}×${labState.topH + labState.botH} px (масштаб 2.4×) | Срезов: ${labState.cutsV}V × ${labState.cutsH}H`;
-        ctx.fillText(sumText, bx, by + bh + 24);
-        return { vMeasurements, hMeasurements };
+        const cols = labState.cutsV + 1, rows = labState.cutsH + 1;
+        const desc = (labState.cutsV === 0 && labState.cutsH === 0)
+            ? `Замер области целиком (без разрезов, 1 клеточка)`
+            : `Сетка: ${cols} кол. × ${rows} стр. (${cells.length} клеточек) | Разрезы: ${labState.cutsV}V × ${labState.cutsH}H`;
+        ctx.fillText(desc, bx, by + bh + 24);
+        return cells;
     }
 
-    function renderLabReport(report) {
+    function renderLabReport(cells) {
         const verdEl = $id('lab-verdict'), detEl = $id('lab-details');
         if (!verdEl || !detEl) return;
-        const vList = report.vMeasurements || [], hList = report.hMeasurements || [];
-        const allOk = vList.every(m => m.tOk && m.bOk) && hList.every(m => m.wOk);
-
+        const allOk = cells.every(c => c.ok);
         verdEl.className = 'lab-verdict ' + (allOk ? 'pass' : 'fail');
-        verdEl.textContent = allOk ? '✓ ГОДНАЯ (ОК): ВСЕ ЗАМЕРЫ В ДОПУСКЕ' : '✗ БРАК: ОБНАРУЖЕН ВЫЛЕТ РАЗМЕРА';
+        verdEl.textContent = allOk ? '✓ ГОДНАЯ (ОК): ВСЕ КЛЕТОЧКИ В ДОПУСКЕ' : '✗ БРАК: ВЫЛЕТ РАЗМЕРА В КЛЕТОЧКАХ';
 
         detEl.innerHTML = '';
-        vList.forEach(m => {
+        cells.forEach(c => {
             const row = document.createElement('div');
-            row.className = 'lab-report-row ' + (m.tOk && m.bOk ? 'ok' : 'fail');
-            row.innerHTML = `<span>Верт. срез V${m.v}:</span> ` +
-                `<b style="color:${m.tOk ? '#7ac48c' : '#ef4444'}">T = ${m.tVal} px ${m.tOk ? '✓' : '✗'}</b> ` +
-                `<b style="color:${m.bOk ? '#7ac48c' : '#ef4444'}">B = ${m.bVal} px ${m.bOk ? '✓' : '✗'}</b>`;
-            detEl.appendChild(row);
-        });
-
-        hList.forEach(m => {
-            const row = document.createElement('div');
-            row.className = 'lab-report-row ' + (m.wOk ? 'ok' : 'fail');
-            row.innerHTML = `<span>Гор. срез H${m.h}:</span> ` +
-                `<b style="color:${m.wOk ? '#7ac48c' : '#ef4444'}">Ширина W = ${m.wVal} px (норма ${labState.wMin}–${labState.wMax}) ${m.wOk ? '✓' : '✗'}</b>`;
+            row.className = 'lab-report-row ' + (c.ok ? 'ok' : 'fail');
+            row.innerHTML = `<span>${c.title}:</span> ` +
+                `<b style="color:${c.ok ? '#7ac48c' : '#ef4444'}">` +
+                `размер = ${c.rW} × ${c.rH} px ${c.ok ? '✓ в норме' : '✗ БРАК (вылет)'}</b>`;
             detEl.appendChild(row);
         });
     }
 
     function computeFallbackMeasurements() {
-        const vList = [], tVal = labState.topH, bVal = labState.botH;
-        for (let v = 1; v <= labState.cutsV; v++) {
-            const tOk = tVal >= labState.topMin && tVal <= labState.topMax;
-            const bOk = bVal >= labState.bottomMin && bVal <= labState.bottomMax;
-            vList.push({ v, tVal, bVal, tOk, bOk });
-        }
-        const hList = [], wVal = labState.w;
-        for (let h = 1; h <= labState.cutsH; h++) {
-            const wOk = wVal >= labState.wMin && wVal <= labState.wMax;
-            hList.push({ h, wVal, wOk });
-        }
-        return { vMeasurements: vList, hMeasurements: hList };
+        return buildGridCells(0, 0, 100, 100, 50);
     }
 
     function paintLabCanvas() {
@@ -177,8 +147,8 @@
         const midY = by + topH;
 
         drawSimulatedFigure(ctx, bx, by, bw, bh, midY);
-        const measurements = drawLabCutsAndMeasurements(ctx, bx, by, bw, bh, midY);
-        renderLabReport(measurements);
+        const cells = drawLabGridAndMeasurements(ctx, bx, by, bw, bh, midY);
+        renderLabReport(cells);
     }
 
     function updateUiValues() {
@@ -236,10 +206,10 @@
         $id('fig-slider-bot')?.addEventListener('input', e => { labState.botH = parseInt(e.target.value, 10); updateUiValues(); });
         $id('fig-slider-w')?.addEventListener('input', e => { labState.w = parseInt(e.target.value, 10); updateUiValues(); });
 
-        $id('lab-v-dec')?.addEventListener('click', () => { labState.cutsV = Math.max(1, labState.cutsV - 1); updateUiValues(); });
+        $id('lab-v-dec')?.addEventListener('click', () => { labState.cutsV = Math.max(0, labState.cutsV - 1); updateUiValues(); });
         $id('lab-v-inc')?.addEventListener('click', () => { labState.cutsV = Math.min(6, labState.cutsV + 1); updateUiValues(); });
-        $id('lab-h-dec')?.addEventListener('click', () => { labState.cutsH = Math.max(1, labState.cutsH - 1); updateUiValues(); });
-        $id('lab-h-inc')?.addEventListener('click', () => { labState.cutsH = Math.min(3, labState.cutsH + 1); updateUiValues(); });
+        $id('lab-h-dec')?.addEventListener('click', () => { labState.cutsH = Math.max(0, labState.cutsH - 1); updateUiValues(); });
+        $id('lab-h-inc')?.addEventListener('click', () => { labState.cutsH = Math.min(4, labState.cutsH + 1); updateUiValues(); });
 
         $id('lab-t-dec')?.addEventListener('click', () => { labState.topMin = Math.max(5, labState.topMin - 2); labState.topMax = Math.max(labState.topMin + 5, labState.topMax - 2); updateUiValues(); });
         $id('lab-t-inc')?.addEventListener('click', () => { labState.topMin = Math.min(30, labState.topMin + 2); labState.topMax = Math.min(60, labState.topMax + 2); updateUiValues(); });
