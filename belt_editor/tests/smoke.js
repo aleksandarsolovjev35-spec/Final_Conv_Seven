@@ -1035,6 +1035,29 @@ check('лаборатория допусков: двухпараметричес
         if (btnClose) btnClose.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
         return changedX && changedY;
     })());
+check('лаборатория линии: добавление опорной линии и замеры ДО и ОТ неё',
+    (function () {
+        const btnOpen = doc.getElementById('btn-open-lab');
+        const overlay = doc.getElementById('tool-lab-overlay');
+        const btnClose = doc.getElementById('btn-close-lab');
+        if (!btnOpen || !overlay) return false;
+        btnOpen.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const btnHoriz = doc.getElementById('btn-line-horiz');
+        const btnNone = doc.getElementById('btn-line-none');
+        const rowPos = doc.getElementById('lab-row-line-pos');
+        const lbl1 = doc.getElementById('lab-lbl-tol-1');
+        const lbl2 = doc.getElementById('lab-lbl-tol-2');
+        if (!btnHoriz || !btnNone || !rowPos || !lbl1 || !lbl2) return false;
+        btnHoriz.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const isHorizActive = btnHoriz.classList.contains('active');
+        const isRowShown = rowPos.style.display !== 'none';
+        const hasBefore = lbl1.textContent.includes('ДО линии');
+        const hasAfter = lbl2.textContent.includes('ОТ линии');
+        btnNone.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const isNoneActive = btnNone.classList.contains('active');
+        if (btnClose) btnClose.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        return isHorizActive && isRowShown && hasBefore && hasAfter && isNoneActive;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);

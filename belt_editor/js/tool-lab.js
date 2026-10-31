@@ -1,4 +1,4 @@
-/* belt_editor/js/tool-lab.js — Лаборатория: центр области в точке 0 (допуски ±X, ±Y) */
+/* belt_editor/js/tool-lab.js — Лаборатория: замеры до и от опорной линии */
 'use strict';
 
 (function () {
@@ -7,7 +7,13 @@
         figW: 72,
         figH: 58,
         tolX: 42,
-        tolY: 34
+        tolY: 34,
+        lineMode: 'none',
+        lineOffset: 0,
+        lineTolMin1: 20,
+        lineTolMax1: 35,
+        lineTolMin2: 20,
+        lineTolMax2: 35
     };
 
     function $id(id) { return document.getElementById(id); }
@@ -64,6 +70,7 @@
     }
 
     function drawToleranceZone(ctx, xc, yc, scale) {
+        if (labState.lineMode !== 'none') return;
         const tx = labState.tolX * scale, ty = labState.tolY * scale;
         ctx.strokeStyle = '#22c55e';
         ctx.lineWidth = 1.8;
@@ -87,11 +94,89 @@
         ctx.fillText(`допуск X: ±${labState.tolX} px`, xc + tx - 40, yc - ty - 6);
     }
 
-    function drawCenteredFigure(ctx, xc, yc, scale) {
-        const hw = labState.figW / 2, hh = labState.figH / 2;
-        const dx = hw * scale, dy = hh * scale;
-        const xOk = hw <= labState.tolX, yOk = hh <= labState.tolY;
-        const allOk = xOk && yOk;
+    function drawHorizLineMeasures(ctx, xc, yc, scale, hh, dx, dy) {
+        const yLine = yc - labState.lineOffset * scale;
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2.0;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(xc - dx - 16, yLine); ctx.lineTo(xc + dx + 16, yLine);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('[ЛИНИЯ L]', xc + dx + 20, yLine + 4);
+
+        const d1 = Math.round(hh + labState.lineOffset);
+        const d2 = Math.round(hh - labState.lineOffset);
+        const d1Ok = d1 >= labState.lineTolMin1 && d1 <= labState.lineTolMax1;
+        const d2Ok = d2 >= labState.lineTolMin2 && d2 <= labState.lineTolMax2;
+
+        const xArrow = xc - dx + 24;
+        ctx.lineWidth = 1.8;
+        ctx.strokeStyle = d1Ok ? '#22c55e' : '#ef4444';
+        ctx.beginPath(); ctx.moveTo(xArrow, yc - dy); ctx.lineTo(xArrow, yLine); ctx.stroke();
+        ctx.fillStyle = d1Ok ? '#22c55e' : '#ef4444';
+        ctx.fillText(`ДО линии: ${d1}px ${d1Ok ? '✓' : '✗'}`, xArrow + 6, (yc - dy + yLine) / 2 + 4);
+
+        ctx.strokeStyle = d2Ok ? '#22c55e' : '#ef4444';
+        ctx.beginPath(); ctx.moveTo(xArrow, yLine); ctx.lineTo(xArrow, yc + dy); ctx.stroke();
+        ctx.fillStyle = d2Ok ? '#22c55e' : '#ef4444';
+        ctx.fillText(`ОТ линии: ${d2}px ${d2Ok ? '✓' : '✗'}`, xArrow + 6, (yLine + yc + dy) / 2 + 4);
+
+        return { ok: d1Ok && d2Ok, d1, d2, d1Ok, d2Ok };
+    }
+
+    function drawVertLineMeasures(ctx, xc, yc, scale, hw, dx, dy) {
+        const xLine = xc + labState.lineOffset * scale;
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2.0;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(xLine, yc - dy - 16); ctx.lineTo(xLine, yc + dy + 16);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('[ЛИНИЯ L]', xLine - 25, yc - dy - 20);
+
+        const d1 = Math.round(hw + labState.lineOffset);
+        const d2 = Math.round(hw - labState.lineOffset);
+        const d1Ok = d1 >= labState.lineTolMin1 && d1 <= labState.lineTolMax1;
+        const d2Ok = d2 >= labState.lineTolMin2 && d2 <= labState.lineTolMax2;
+
+        const yArrow = yc - dy + 22;
+        ctx.lineWidth = 1.8;
+        ctx.strokeStyle = d1Ok ? '#22c55e' : '#ef4444';
+        ctx.beginPath(); ctx.moveTo(xc - dx, yArrow); ctx.lineTo(xLine, yArrow); ctx.stroke();
+        ctx.fillStyle = d1Ok ? '#22c55e' : '#ef4444';
+        ctx.fillText(`ДО: ${d1}px ${d1Ok ? '✓' : '✗'}`, (xc - dx + xLine) / 2 - 20, yArrow - 6);
+
+        ctx.strokeStyle = d2Ok ? '#22c55e' : '#ef4444';
+        ctx.beginPath(); ctx.moveTo(xLine, yArrow); ctx.lineTo(xc + dx, yArrow); ctx.stroke();
+        ctx.fillStyle = d2Ok ? '#22c55e' : '#ef4444';
+        ctx.fillText(`ОТ: ${d2}px ${d2Ok ? '✓' : '✗'}`, (xLine + xc + dx) / 2 - 20, yArrow - 6);
+
+        return { ok: d1Ok && d2Ok, d1, d2, d1Ok, d2Ok };
+    }
+
+    function evaluateVerdictAndFigure(ctx, xc, yc, dx, dy, hw, hh) {
+        let allOk = false, verdict = '';
+        if (labState.lineMode === 'horiz') {
+            const r = drawHorizLineMeasures(ctx, xc, yc, 2.4, hh, dx, dy);
+            allOk = r.ok;
+            verdict = allOk ? '✓ ГОДНАЯ (ОК)' : (!r.d1Ok && !r.d2Ok ? '✗ БРАК (ВЫЛЕТ ДО И ОТ)' : (!r.d1Ok ? '✗ БРАК: ВЫЛЕТ ДО ЛИНИИ' : '✗ БРАК: ВЫЛЕТ ОТ ЛИНИИ'));
+        } else if (labState.lineMode === 'vert') {
+            const r = drawVertLineMeasures(ctx, xc, yc, 2.4, hw, dx, dy);
+            allOk = r.ok;
+            verdict = allOk ? '✓ ГОДНАЯ (ОК)' : (!r.d1Ok && !r.d2Ok ? '✗ БРАК (ВЫЛЕТ ДО И ОТ)' : (!r.d1Ok ? '✗ БРАК: ВЫЛЕТ ДО ЛИНИИ' : '✗ БРАК: ВЫЛЕТ ОТ ЛИНИИ'));
+        } else {
+            const xOk = hw <= labState.tolX, yOk = hh <= labState.tolY;
+            allOk = xOk && yOk;
+            verdict = allOk ? '✓ ГОДНАЯ (ОК)' : (!xOk && !yOk ? '✗ БРАК (ВЫЛЕТ X И Y)' : (!xOk ? '✗ БРАК (ВЫЛЕТ X)' : '✗ БРАК (ВЫЛЕТ Y)'));
+        }
 
         ctx.fillStyle = allOk ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.15)';
         ctx.fillRect(xc - dx, yc - dy, dx * 2, dy * 2);
@@ -99,26 +184,32 @@
         ctx.lineWidth = 2.4;
         ctx.strokeRect(xc - dx, yc - dy, dx * 2, dy * 2);
 
+        ctx.fillStyle = allOk ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.25)';
+        ctx.fillRect(360, 18, 225, 30);
+        ctx.strokeStyle = allOk ? '#22c55e' : '#ef4444';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(360, 18, 225, 30);
+        ctx.fillStyle = allOk ? '#22c55e' : '#ef4444';
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText(verdict, 370, 38);
+    }
+
+    function drawCenteredFigure(ctx, xc, yc, scale) {
+        const hw = labState.figW / 2, hh = labState.figH / 2;
+        const dx = hw * scale, dy = hh * scale;
+
+        evaluateVerdictAndFigure(ctx, xc, yc, dx, dy, hw, hh);
+
         ctx.beginPath();
         ctx.moveTo(xc - 5, yc); ctx.lineTo(xc + 5, yc);
         ctx.moveTo(xc, yc - 5); ctx.lineTo(xc, yc + 5);
         ctx.stroke();
 
-        ctx.font = 'bold 13px monospace';
-        ctx.fillStyle = allOk ? '#22c55e' : '#ef4444';
+        ctx.font = 'bold 12.5px monospace';
+        ctx.fillStyle = '#cbd5e1';
         const txt = `${labState.figW} × ${labState.figH} px (±${hw} / ±${hh})`;
         const tw = ctx.measureText(txt).width;
         ctx.fillText(txt, xc - tw / 2, yc + dy + 18);
-
-        const verdict = allOk ? '✓ ГОДНАЯ (ОК)' : (!xOk && !yOk ? '✗ БРАК (ВЫЛЕТ X И Y)' : (!xOk ? '✗ БРАК (ВЫЛЕТ X)' : '✗ БРАК (ВЫЛЕТ Y)'));
-        ctx.fillStyle = allOk ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.25)';
-        ctx.fillRect(380, 18, 205, 30);
-        ctx.strokeStyle = allOk ? '#22c55e' : '#ef4444';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(380, 18, 205, 30);
-        ctx.fillStyle = allOk ? '#22c55e' : '#ef4444';
-        ctx.font = 'bold 12px monospace';
-        ctx.fillText(verdict, 392, 38);
     }
 
     function paintLabCanvas() {
@@ -136,12 +227,24 @@
     }
 
     function updateUiValues() {
-        const hw = (labState.figW / 2).toFixed(0);
-        const hh = (labState.figH / 2).toFixed(0);
+        const hw = (labState.figW / 2).toFixed(0), hh = (labState.figH / 2).toFixed(0);
         $id('fig-val-w') && ($id('fig-val-w').textContent = `${labState.figW} px (±${hw} px)`);
         $id('fig-val-h') && ($id('fig-val-h').textContent = `${labState.figH} px (±${hh} px)`);
-        $id('lab-val-tol-x') && ($id('lab-val-tol-x').textContent = `±${labState.tolX} px (W ≤ ${labState.tolX * 2} px)`);
-        $id('lab-val-tol-y') && ($id('lab-val-tol-y').textContent = `±${labState.tolY} px (H ≤ ${labState.tolY * 2} px)`);
+        const isLine = labState.lineMode !== 'none';
+        $id('lab-row-line-pos') && ($id('lab-row-line-pos').style.display = isLine ? 'flex' : 'none');
+        $id('lab-val-line-pos') && ($id('lab-val-line-pos').textContent = `${labState.lineOffset > 0 ? '+' : ''}${labState.lineOffset} px ${labState.lineOffset === 0 ? '(по центру)' : ''}`);
+
+        const lbl1 = $id('lab-lbl-tol-1'), lbl2 = $id('lab-lbl-tol-2'), hint = $id('lab-hint-text');
+        if (lbl1) lbl1.textContent = isLine ? 'Параметр 1 — Допуск ДО линии:' : 'Параметр 1 — Допуск X (от центра 0):';
+        if (lbl2) lbl2.textContent = isLine ? 'Параметр 2 — Допуск ОТ линии:' : 'Параметр 2 — Допуск Y (от центра 0):';
+        if (hint) hint.textContent = isLine ? 'Замеры проводятся строго ДО опорной линии и ОТ неё. На рисунке видны стрелки расстояний и допуски.' : 'Центр области зафиксирован в точке (0, 0). Контролируется симметричное отклонение краев ±X и ±Y от центра.';
+
+        const val1 = isLine ? `${labState.lineTolMin1}–${labState.lineTolMax1} px` : `±${labState.tolX} px (W ≤ ${labState.tolX * 2} px)`;
+        const val2 = isLine ? `${labState.lineTolMin2}–${labState.lineTolMax2} px` : `±${labState.tolY} px (H ≤ ${labState.tolY * 2} px)`;
+        $id('lab-val-tol-x') && ($id('lab-val-tol-x').textContent = val1);
+        $id('lab-val-tol-y') && ($id('lab-val-tol-y').textContent = val2);
+
+        document.querySelectorAll('.btn-line-mode').forEach(b => b.classList.toggle('active', b.dataset.mode === labState.lineMode));
         paintLabCanvas();
     }
 
@@ -166,30 +269,35 @@
             if (e.target === $id('tool-lab-overlay')) closeLab();
         });
 
-        $id('fig-slider-w')?.addEventListener('input', e => {
-            labState.figW = parseInt(e.target.value, 10);
-            updateUiValues();
-        });
-        $id('fig-slider-h')?.addEventListener('input', e => {
-            labState.figH = parseInt(e.target.value, 10);
-            updateUiValues();
+        document.querySelectorAll('.btn-line-mode').forEach(b => {
+            b.addEventListener('click', () => { labState.lineMode = b.dataset.mode; updateUiValues(); });
         });
 
+        $id('lab-line-pos-dec')?.addEventListener('click', () => { labState.lineOffset = Math.max(-25, labState.lineOffset - 2); updateUiValues(); });
+        $id('lab-line-pos-inc')?.addEventListener('click', () => { labState.lineOffset = Math.min(25, labState.lineOffset + 2); updateUiValues(); });
+
+        $id('fig-slider-w')?.addEventListener('input', e => { labState.figW = parseInt(e.target.value, 10); updateUiValues(); });
+        $id('fig-slider-h')?.addEventListener('input', e => { labState.figH = parseInt(e.target.value, 10); updateUiValues(); });
+
         $id('lab-tol-x-dec')?.addEventListener('click', () => {
-            labState.tolX = Math.max(15, labState.tolX - 2);
+            if (labState.lineMode !== 'none') { labState.lineTolMin1 = Math.max(5, labState.lineTolMin1 - 1); labState.lineTolMax1 = Math.max(labState.lineTolMin1 + 5, labState.lineTolMax1 - 1); }
+            else { labState.tolX = Math.max(15, labState.tolX - 2); }
             updateUiValues();
         });
         $id('lab-tol-x-inc')?.addEventListener('click', () => {
-            labState.tolX = Math.min(70, labState.tolX + 2);
+            if (labState.lineMode !== 'none') { labState.lineTolMin1 = Math.min(30, labState.lineTolMin1 + 1); labState.lineTolMax1 = Math.min(55, labState.lineTolMax1 + 1); }
+            else { labState.tolX = Math.min(70, labState.tolX + 2); }
             updateUiValues();
         });
 
         $id('lab-tol-y-dec')?.addEventListener('click', () => {
-            labState.tolY = Math.max(10, labState.tolY - 2);
+            if (labState.lineMode !== 'none') { labState.lineTolMin2 = Math.max(5, labState.lineTolMin2 - 1); labState.lineTolMax2 = Math.max(labState.lineTolMin2 + 5, labState.lineTolMax2 - 1); }
+            else { labState.tolY = Math.max(10, labState.tolY - 2); }
             updateUiValues();
         });
         $id('lab-tol-y-inc')?.addEventListener('click', () => {
-            labState.tolY = Math.min(50, labState.tolY + 2);
+            if (labState.lineMode !== 'none') { labState.lineTolMin2 = Math.min(30, labState.lineTolMin2 + 1); labState.lineTolMax2 = Math.min(55, labState.lineTolMax2 + 1); }
+            else { labState.tolY = Math.min(50, labState.tolY + 2); }
             updateUiValues();
         });
     }

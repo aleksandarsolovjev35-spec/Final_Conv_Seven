@@ -2083,3 +2083,28 @@ body.node-moving .wire-hitbox,
     border-left: 2px solid #4fa3d1;
 }
 
+.lab-line-btn-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.btn-line-mode {
+    padding: 5px 10px;
+    background: var(--bg-0, #11171d);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-dim);
+    font: 11px/1.2 var(--font-ui, sans-serif);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 120ms ease;
+}
+
+.btn-line-mode:hover,
+.btn-line-mode.active {
+    border-color: #f59e0b;
+    color: #fff;
+    background: rgba(245, 158, 11, 0.2);
+}
+

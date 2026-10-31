@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-    <link rel="stylesheet" href="css/belt-editor.css?v=110">
+    <link rel="stylesheet" href="css/belt-editor.css?v=111">
 </head>
 <body>
 <script>
@@ -48,7 +48,7 @@ window.addEventListener('error', function (e) {
                 <span class="belt-run-badge locked" id="belt-run-status">П0: НЕТ КАМЕРЫ (ПУСК ЗАБЛОКИРОВАН)</span>
                 <button type="button" class="btn-belt-run disabled" id="btn-belt-run" title="Нельзя запустить ленту: на первой позиции (П0) нет камеры инспекции">ПУСК ЛЕНТЫ</button>
             </div>
-            <span class="hint">сб. 97</span>
+            <span class="hint">сб. 98</span>
         </div>
         <div class="build-body">
             <div class="belt-zone" id="belt-zone">
@@ -234,21 +234,37 @@ window.addEventListener('error', function (e) {
 
             <!-- Правая колонка: два параметра настройки инструмента -->
             <div class="tool-lab-ctrl">
-                <div class="lab-subhead">2. НАСТРОЙКА ИНСТРУМЕНТА (ДВА ПАРАМЕТРА ОТ ЦЕНТРА 0)</div>
+                <div class="lab-subhead">2. НАСТРОЙКА ИНСТРУМЕНТА (ЗАМЕРЫ И ДОПУСКИ)</div>
                 <div class="lab-card">
                     <div class="lab-ctrl-row">
-                        <span>Параметр 1 — Допуск X (от центра 0):</span>
+                        <span>Опорная линия замера:</span>
+                        <div class="lab-line-btn-group">
+                            <button type="button" class="btn-line-mode active" id="btn-line-none" data-mode="none">Без линии</button>
+                            <button type="button" class="btn-line-mode" id="btn-line-horiz" data-mode="horiz">+ Линия H (гориз.)</button>
+                            <button type="button" class="btn-line-mode" id="btn-line-vert" data-mode="vert">+ Линия V (верт.)</button>
+                        </div>
+                    </div>
+
+                    <div class="lab-ctrl-row" id="lab-row-line-pos" style="display: none;">
+                        <span>Смещение линии от центра 0:</span>
+                        <button type="button" class="btn-step" id="lab-line-pos-dec">−</button>
+                        <b id="lab-val-line-pos">0 px (по центру)</b>
+                        <button type="button" class="btn-step" id="lab-line-pos-inc">+</button>
+                    </div>
+
+                    <div class="lab-ctrl-row">
+                        <span id="lab-lbl-tol-1">Параметр 1 — Допуск X (от центра 0):</span>
                         <button type="button" class="btn-step" id="lab-tol-x-dec">−</button>
                         <b id="lab-val-tol-x">±42 px (W ≤ 84 px)</b>
                         <button type="button" class="btn-step" id="lab-tol-x-inc">+</button>
                     </div>
                     <div class="lab-ctrl-row">
-                        <span>Параметр 2 — Допуск Y (от центра 0):</span>
+                        <span id="lab-lbl-tol-2">Параметр 2 — Допуск Y (от центра 0):</span>
                         <button type="button" class="btn-step" id="lab-tol-y-dec">−</button>
                         <b id="lab-val-tol-y">±34 px (H ≤ 68 px)</b>
                         <button type="button" class="btn-step" id="lab-tol-y-inc">+</button>
                     </div>
-                    <div class="lab-hint-row">
+                    <div class="lab-hint-row" id="lab-hint-text">
                         Центр области зафиксирован в точке (0, 0). Контролируется симметричное отклонение краев ±X и ±Y от центра.
                     </div>
                 </div>
@@ -257,9 +273,9 @@ window.addEventListener('error', function (e) {
     </div>
 </div>
 
-    <script src="js/cameras.js?v=110"></script>
-    <script src="js/belt-view.js?v=110"></script>
-    <script src="js/builder.js?v=110"></script>
-    <script src="js/tool-lab.js?v=110"></script>
+    <script src="js/cameras.js?v=111"></script>
+    <script src="js/belt-view.js?v=111"></script>
+    <script src="js/builder.js?v=111"></script>
+    <script src="js/tool-lab.js?v=111"></script>
 </body>
 </html>
