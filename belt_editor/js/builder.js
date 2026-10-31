@@ -457,25 +457,52 @@ function renderRuleModelList(rule, rid) {
     return list;
 }
 
-function getMeasureRuleConfig(rule) {
-    const tMin = rule.topMin ?? 15, tMax = rule.topMax ?? 45;
-    const bMin = rule.bottomMin ?? 15, bMax = rule.bottomMax ?? 45;
-    return {
-        lbl: 'Окно T/B допуск:', val: `T:${tMin}–${tMax} B:${bMin}–${bMax}`,
-        dec: () => {
-            rule.topMin = Math.max(10, tMin - 2); rule.topMax = Math.max(rule.topMin + 5, tMax - 2);
-            rule.bottomMin = Math.max(10, bMin - 2); rule.bottomMax = Math.max(rule.bottomMin + 5, bMax - 2);
-        },
-        inc: () => {
-            rule.topMin = Math.min(30, tMin + 2); rule.topMax = Math.min(60, tMax + 2);
-            rule.bottomMin = Math.min(30, bMin + 2); rule.bottomMax = Math.min(60, bMax + 2);
-        },
-        formula: `T∈[${tMin}..${tMax}] & B∈[${bMin}..${bMax}] px → ГОДНАЯ`
+function renderMeasureBlock(rule, rid) {
+    if (!rule.cutsV) rule.cutsV = 3;
+    if (!rule.cutsH) rule.cutsH = 1;
+    const tMin = rule.topMin ?? 15, tMax = rule.topMax ?? 45, bMin = rule.bottomMin ?? 15, bMax = rule.bottomMax ?? 45;
+    const box = el('div', 'rule-logic-box is-defect');
+
+    const cutsRow = el('div', 'rule-count-row', null, [
+        el('span', 'rule-lbl', 'Срезы V/H:'),
+        el('button', 'btn-count-step', '−'),
+        el('span', 'rule-count-val', `${rule.cutsV}V × ${rule.cutsH}H`),
+        el('button', 'btn-count-step', '+')
+    ]);
+    const [bCutDec, bCutInc] = cutsRow.querySelectorAll('.btn-count-step');
+    bCutDec.onclick = ev => { ev.stopPropagation(); rule.cutsV = Math.max(1, rule.cutsV - 1); selectActiveRule(rid); render(); };
+    bCutInc.onclick = ev => { ev.stopPropagation(); rule.cutsV = Math.min(6, rule.cutsV + 1); selectActiveRule(rid); render(); };
+    box.appendChild(cutsRow);
+
+    const tolRow = el('div', 'rule-count-row', null, [
+        el('span', 'rule-lbl', 'Порог T/B:'),
+        el('button', 'btn-count-step', '−'),
+        el('span', 'rule-count-val', `T:${tMin}–${tMax} B:${bMin}–${bMax}`),
+        el('button', 'btn-count-step', '+')
+    ]);
+    const [bTolDec, bTolInc] = tolRow.querySelectorAll('.btn-count-step');
+    bTolDec.onclick = ev => {
+        ev.stopPropagation();
+        rule.topMin = Math.max(10, tMin - 2); rule.topMax = Math.max(rule.topMin + 5, tMax - 2);
+        rule.bottomMin = Math.max(10, bMin - 2); rule.bottomMax = Math.max(rule.bottomMin + 5, bMax - 2);
+        selectActiveRule(rid); render();
     };
+    bTolInc.onclick = ev => {
+        ev.stopPropagation();
+        rule.topMin = Math.min(30, tMin + 2); rule.topMax = Math.min(60, tMax + 2);
+        rule.bottomMin = Math.min(30, bMin + 2); rule.bottomMax = Math.min(60, bMax + 2);
+        selectActiveRule(rid); render();
+    };
+    box.appendChild(tolRow);
+
+    box.appendChild(el('div', 'rule-formula', `${rule.cutsV}V×${rule.cutsH}H: T∈[${tMin}..${tMax}] & B∈[${bMin}..${bMax}] px → ГОДНАЯ`));
+    const toggleBtn = el('button', 'rule-logic-toggle is-defect', 'Сменить логику: НАЛИЧИЕ (N шт)');
+    toggleBtn.onclick = ev => { ev.stopPropagation(); rule.mode = 'presence'; selectActiveRule(rid); render(); };
+    box.appendChild(toggleBtn);
+    return box;
 }
 
 function getRuleParamConfig(rule) {
-    if (rule.mode === 'measure') return getMeasureRuleConfig(rule);
     if (rule.mode === 'presence') {
         const val = rule.countExpected || 4;
         return {
@@ -513,6 +540,7 @@ function getRuleParamConfig(rule) {
 }
 
 function renderRuleConditionBlock(rule, rid) {
+    if (rule.mode === 'measure') return renderMeasureBlock(rule, rid);
     const isPresence = rule.mode === 'presence';
     const cfg = getRuleParamConfig(rule);
     const box = el('div', 'rule-logic-box ' + (isPresence ? 'is-presence' : 'is-defect'));

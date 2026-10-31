@@ -992,9 +992,9 @@ check('инструмент замер окна: контроль расстоя
         const updated = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
         const pill = updated?.querySelector('.rule-kind-pill');
         const isMeasure = pill && (pill.classList.contains('kind-measure') || pill.textContent.includes('ЗАМЕР'));
-        const valText = updated?.querySelector('.rule-count-val')?.textContent || '';
+        const allVals = Array.from(updated?.querySelectorAll('.rule-count-val') || []).map(e => e.textContent).join(' ');
         const formula = updated?.querySelector('.rule-formula')?.textContent || '';
-        const hasTB = valText.includes('T:') && valText.includes('B:');
+        const hasTB = allVals.includes('T:') && allVals.includes('B:');
         const hasFormula = formula.includes('T∈') && formula.includes('B∈');
         return isMeasure && hasTB && hasFormula;
     })());

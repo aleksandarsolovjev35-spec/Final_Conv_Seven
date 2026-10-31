@@ -298,23 +298,66 @@ function drawInspectionGeometry(ctx, px, py, pw, ph, rule) {
     return { isFail: Math.abs(dev) > tol, text: `Размер: откл. +${dev} мм (допуск ±${tol} мм)` };
 }
 
+function drawMeasureBboxAndCuts(ctx, px, py, pw, ph, rule) {
+    const cutsH = rule.cutsH ?? 1, cutsV = rule.cutsV ?? 3;
+    ctx.lineWidth = 1.5; ctx.strokeStyle = '#d9a441';
+    ctx.strokeRect(px, py, pw, ph);
+
+    const cLen = Math.min(6, Math.round(pw * 0.15));
+    ctx.strokeStyle = '#f3ca6c';
+    ctx.beginPath();
+    ctx.moveTo(px, py + cLen); ctx.lineTo(px, py); ctx.lineTo(px + cLen, py);
+    ctx.moveTo(px + pw - cLen, py); ctx.lineTo(px + pw); ctx.lineTo(px + pw, py + cLen);
+    ctx.moveTo(px, py + ph - cLen); ctx.lineTo(px, py + ph); ctx.lineTo(px + cLen, py + ph);
+    ctx.moveTo(px + pw - cLen, py + ph); ctx.lineTo(px + pw, py + ph); ctx.lineTo(px + pw, py + ph - cLen);
+    ctx.stroke();
+
+    const hStep = ph / (cutsH + 1);
+    ctx.setLineDash([3, 2]); ctx.strokeStyle = 'rgba(217, 164, 65, 0.75)';
+    for (let h = 1; h <= cutsH; h++) {
+        const my = Math.round(py + h * hStep);
+        ctx.beginPath(); ctx.moveTo(px - 3, my); ctx.lineTo(px + pw + 3, my); ctx.stroke();
+    }
+    const vStep = pw / (cutsV + 1);
+    ctx.strokeStyle = 'rgba(243, 202, 108, 0.4)';
+    for (let v = 1; v <= cutsV; v++) {
+        const vx = Math.round(px + v * vStep);
+        ctx.beginPath(); ctx.moveTo(vx, py - 3); ctx.lineTo(vx, py + ph + 3); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+}
+
 function drawInspectionMeasure(ctx, px, py, pw, ph, rule) {
+    drawMeasureBboxAndCuts(ctx, px, py, pw, ph, rule);
+    const cutsV = rule.cutsV ?? 3, cutsH = rule.cutsH ?? 1;
     const tMin = rule.topMin ?? 15, tMax = rule.topMax ?? 45;
     const bMin = rule.bottomMin ?? 15, bMax = rule.bottomMax ?? 45;
-    const tVal = 30, bVal = 28;
-    const midY = Math.round(py + ph / 2);
-    ctx.strokeStyle = '#d9a441';
-    ctx.strokeRect(px - 2, py - 2, pw + 4, ph + 4);
-    ctx.strokeStyle = 'rgba(217, 164, 65, 0.8)';
-    ctx.setLineDash([2, 2]);
-    ctx.beginPath(); ctx.moveTo(px - 2, midY); ctx.lineTo(px + pw + 2, midY); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.font = '7px monospace';
-    ctx.fillStyle = '#d9a441';
-    ctx.fillText(`↑T:${tVal}px`, px + 2, py + 8);
-    ctx.fillText(`↓B:${bVal}px`, px + 2, midY + 10);
-    const fail = tVal < tMin || tVal > tMax || bVal < bMin || bVal > bMax;
-    return { isFail: fail, text: `Окно: T=${tVal}px B=${bVal}px (норма: ${tMin}–${tMax}px)` };
+    const midY = Math.round(py + ph / (cutsH + 1));
+    const vStep = pw / (cutsV + 1);
+    let allOk = true;
+
+    for (let v = 1; v <= cutsV; v++) {
+        const vx = Math.round(px + v * vStep);
+        const tVal = Math.round(midY - py), bVal = Math.round(py + ph - midY);
+        const ok = tVal >= tMin && tVal <= tMax && bVal >= bMin && bVal <= bMax;
+        if (!ok) allOk = false;
+        ctx.strokeStyle = ctx.fillStyle = ok ? '#7ac48c' : '#e06c75';
+        ctx.beginPath(); ctx.moveTo(vx, py); ctx.lineTo(vx, midY); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(vx, midY); ctx.lineTo(vx, py + ph); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(vx - 2, py + 3); ctx.lineTo(vx, py); ctx.lineTo(vx + 2, py + 3);
+        ctx.moveTo(vx - 2, py + ph - 3); ctx.lineTo(vx, py + ph); ctx.lineTo(vx + 2, py + ph - 3);
+        ctx.stroke();
+        ctx.font = '7px monospace';
+        ctx.fillText(`T${v}:${tVal}`, vx + 2, py + Math.round((midY - py) / 2));
+        ctx.fillText(`B${v}:${bVal}`, vx + 2, midY + Math.round((py + ph - midY) / 2));
+    }
+    ctx.font = '7.5px monospace'; ctx.fillStyle = '#f3ca6c';
+    ctx.fillText(`BBox ${pw}×${ph} | ${cutsV}V×${cutsH}H срез`, px, py + ph + 10);
+    return {
+        isFail: !allOk,
+        text: `Замер ${cutsV}V×${cutsH}H: T=${Math.round(midY - py)} B=${Math.round(py + ph - midY)} px`
+    };
 }
 
 function drawInspectionShift(ctx, px, py, pw, ph, rule) {
