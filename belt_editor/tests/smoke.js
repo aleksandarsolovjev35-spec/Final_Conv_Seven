@@ -960,6 +960,16 @@ check('перетаскивание из правой палитры: инстр
         const node = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
         return node !== null;
     })());
+check('вкладка инструментов убрана из интерфейса дока: нет двоения с правой палитрой',
+    (function () {
+        const title = doc.getElementById('side-dock-title');
+        const ruleTabBtn = doc.getElementById('tab-btn-rules');
+        const miniRuleTab = doc.querySelector('.side-dock-tab[data-panel="rules"]');
+        const hasTitle = title !== null && title.textContent.includes('МОДЕЛИ');
+        const isHidden = (ruleTabBtn?.style.display === 'none')
+            && (miniRuleTab?.style.display === 'none');
+        return hasTitle && isHidden;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);

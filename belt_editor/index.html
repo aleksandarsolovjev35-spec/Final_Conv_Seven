@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-    <link rel="stylesheet" href="css/belt-editor.css?v=98">
+    <link rel="stylesheet" href="css/belt-editor.css?v=99">
 </head>
 <body>
 <script>
@@ -107,16 +107,13 @@ window.addEventListener('error', function (e) {
                 <svg id="wires" aria-hidden="true"></svg>
             </div>
 
-            <!-- Правая часть сборки ленты: панель с переключением инструментов и моделей -->
-            <aside class="side-dock show-rules" id="side-dock">
+            <!-- Правая часть сборки ленты: панель моделей нейросетей -->
+            <aside class="side-dock show-models" id="side-dock">
                 <div class="side-dock-head">
                     <div class="side-dock-tabs" role="tablist">
-                        <button type="button" class="side-dock-tab-btn active" id="tab-btn-rules" data-tab="rules" role="tab" aria-selected="true" title="Инструменты инспекции">
-                            ИНСТРУМЕНТЫ
-                        </button>
-                        <button type="button" class="side-dock-tab-btn" id="tab-btn-models" data-tab="models" role="tab" aria-selected="false" title="Показать модели">
-                            МОДЕЛИ
-                        </button>
+                        <button type="button" class="side-dock-tab-btn" id="tab-btn-rules" data-tab="rules" role="tab" aria-selected="false" style="display: none;" aria-hidden="true">ИНСТРУМЕНТЫ</button>
+                        <button type="button" class="side-dock-tab-btn active" id="tab-btn-models" data-tab="models" role="tab" aria-selected="true" style="display: none;" aria-hidden="true">МОДЕЛИ</button>
+                        <span class="side-dock-title" id="side-dock-title">МОДЕЛИ НЕЙРОСЕТЕЙ</span>
                     </div>
                     <button type="button" class="side-dock-collapse" id="btn-side-collapse" title="Свернуть боковую панель">
                         <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -190,8 +187,8 @@ window.addEventListener('error', function (e) {
                             <path d="M10 3L5 8l5 5"/>
                         </svg>
                     </button>
-                    <div class="side-dock-tab active" data-panel="rules" title="Инструменты">И</div>
-                    <div class="side-dock-tab" data-panel="models" title="Модели">М</div>
+                    <div class="side-dock-tab" data-panel="rules" style="display: none;" aria-hidden="true">И</div>
+                    <div class="side-dock-tab active" data-panel="models" title="Модели нейросетей">М</div>
                 </div>
             </aside>
         </div>
@@ -200,8 +197,8 @@ window.addEventListener('error', function (e) {
 
 <div id="toasts" class="toasts"></div>
 
-    <script src="js/cameras.js?v=98"></script>
-    <script src="js/belt-view.js?v=98"></script>
-    <script src="js/builder.js?v=98"></script>
+    <script src="js/cameras.js?v=99"></script>
+    <script src="js/belt-view.js?v=99"></script>
+    <script src="js/builder.js?v=99"></script>
 </body>
 </html>

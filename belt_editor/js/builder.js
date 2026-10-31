@@ -1080,10 +1080,10 @@ function wireSideDock() {
     const dock = $('side-dock');
     if (!dock) return;
     const KEY_COL = 'belt_side_dock_collapsed', KEY_TAB = 'belt_side_dock_tab';
-    let currentTab = 'rules';
+    let currentTab = 'models';
 
     function setTab(tab, save) {
-        currentTab = tab === 'models' ? 'models' : 'rules';
+        currentTab = tab === 'rules' ? 'rules' : 'models';
         dock.classList.toggle('show-rules', currentTab === 'rules');
         dock.classList.toggle('show-models', currentTab === 'models');
         ['rules', 'models'].forEach(t => {
@@ -1105,7 +1105,7 @@ function wireSideDock() {
     }
 
     try { if (localStorage.getItem(KEY_COL) === '1') setCollapsed(true, false); } catch (e) {}
-    try { setTab(localStorage.getItem(KEY_TAB) === 'models' ? 'models' : 'rules', false); } catch (e) { setTab('rules', false); }
+    try { setTab(localStorage.getItem(KEY_TAB) === 'rules' ? 'rules' : 'models', false); } catch (e) { setTab('models', false); }
 
     $('tab-btn-rules')?.addEventListener('click', e => { e.stopPropagation(); setTab('rules', true); $('rule-search')?.focus(); });
     $('tab-btn-models')?.addEventListener('click', e => { e.stopPropagation(); setTab('models', true); $('model-search')?.focus(); });
