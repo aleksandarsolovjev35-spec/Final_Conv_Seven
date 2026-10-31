@@ -434,10 +434,10 @@ function drawLiveRuleInspection(ctx, w, h, inField, p, size, railY, t, rule) {
     ctx.fillRect(8, 8, Math.min(w - 16, 310), 36);
     ctx.strokeStyle = res.isFail ? '#e06c75' : '#58b79a';
     ctx.strokeRect(8, 8, Math.min(w - 16, 310), 36);
-    ctx.font = '9.5px monospace';
+    ctx.font = 'bold 9.5px monospace';
     ctx.fillStyle = rule.color || '#fff';
     ctx.fillText(`● ИНСТРУМЕНТ: ${rule.name.toUpperCase()}`, 14, 21);
-    ctx.font = '9px sans-serif';
+    ctx.font = 'bold 9px monospace';
     ctx.fillStyle = res.isFail ? '#e06c75' : '#58b79a';
     ctx.fillText(`${res.text} ➔ ${res.isFail ? 'БРАК' : 'ГОДНАЯ (ОК)'}`, 14, 34);
     return res.isFail;

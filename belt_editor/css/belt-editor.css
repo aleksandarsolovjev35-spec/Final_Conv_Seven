@@ -2,8 +2,9 @@
  * Тёмная HMI-тема, токены как у основной панели (vision/ui/static/css/base.css). */
 
 :root {
-    --font-ui: 'Segoe UI', Arial, sans-serif;
+    --font-ui: 'Consolas', 'Courier New', monospace;
     --font-mono: 'Consolas', 'Courier New', monospace;
+    --mono: 'Consolas', 'Courier New', monospace;
 
     --bg-0: #0f1317;
     --bg-1: #13191e;
@@ -39,8 +40,15 @@ html, body {
     height: 100%;
     background: var(--bg-0);
     color: var(--text);
-    font-family: var(--font-ui);
-    font-size: 14px;
+    font-family: var(--font-mono, monospace);
+    font-weight: bold;
+    font-size: 13px;
+    letter-spacing: 0.3px;
+}
+
+button, input, select, textarea {
+    font-family: var(--font-mono, monospace);
+    font-weight: bold;
 }
 
 body {
@@ -899,8 +907,7 @@ body.node-moving { cursor: grabbing; }
 }
 
 .btn-belt-run {
-    font: 9.5px/1 var(--font-ui, sans-serif);
-    font-weight: bold;
+    font: bold 10px/1 var(--font-mono, monospace);
     padding: 4px 10px;
     border-radius: 3px;
     border: 1px solid transparent;
@@ -1838,7 +1845,8 @@ body.node-moving .wire-hitbox,
 
 .folder-input::placeholder {
     color: var(--text-muted);
-    font-family: var(--font-ui);
+    font-family: var(--font-mono, monospace);
+    font-weight: bold;
     font-size: 11px;
 }
 
@@ -1853,8 +1861,8 @@ body.node-moving .wire-hitbox,
     border-radius: 4px;
     color: var(--text-dim);
     font-size: 10.5px;
-    font-weight: 600;
-    font-family: var(--font-ui);
+    font-weight: bold;
+    font-family: var(--font-mono, monospace);
     cursor: pointer;
     transition: all 120ms ease;
     user-select: none;
