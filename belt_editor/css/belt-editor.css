@@ -933,6 +933,20 @@ body.node-moving { cursor: grabbing; }
     box-shadow: 0 0 10px rgba(79, 163, 209, 0.4);
 }
 
+.tool-tag-pill {
+    font: 8px/1 var(--font-mono, monospace);
+    font-weight: 600;
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    padding: 1px 4px;
+    border-radius: 2px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-right: auto;
+    margin-left: 4px;
+}
+
 .rule-card-body {
     padding: 2px 6px 6px;
     display: flex;

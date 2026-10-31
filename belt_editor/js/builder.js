@@ -466,12 +466,12 @@ function renderRuleConditionBlock(rule, rid) {
     }
 
     const toggleBtn = el('button', 'rule-logic-toggle ' + (isDefect ? 'is-defect' : 'is-presence'),
-        isDefect ? 'Сменить на: НАЛИЧИЕ (N шт)' : 'Сменить на: ДЕФЕКТ (0 шт)');
+        isDefect ? 'Сменить логику: НАЛИЧИЕ (N шт)' : 'Сменить логику: ДЕФЕКТ (0 шт)');
     toggleBtn.type = 'button';
     toggleBtn.onclick = ev => {
         ev.stopPropagation();
         rule.mode = isDefect ? 'presence' : 'defect';
-        toast(`«${rule.name}»: режим «${rule.mode === 'defect' ? 'ДЕФЕКТ' : 'НАЛИЧИЕ'}»`);
+        toast(`Инструмент «${rule.name}»: режим «${rule.mode === 'defect' ? 'ДЕФЕКТ' : 'НАЛИЧИЕ'}»`);
         selectActiveRule(rid); render();
     };
     box.appendChild(toggleBtn);
@@ -489,6 +489,7 @@ function renderRuleNode(rid, at) {
     const head = node.querySelector('.node-head'), sw = el('i', 'g-swatch');
     sw.style.background = rule.color; head.insertBefore(sw, head.firstChild);
     node.querySelector('.pos-label').style.color = rule.color;
+    head.insertBefore(el('span', 'tool-tag-pill', 'ИНСТРУМЕНТ'), node.querySelector('.pos-del'));
 
     node.appendChild(gsock('sock-in', null, 'rule', rid));
     node.appendChild(gsock('sock-out', key));
@@ -498,13 +499,13 @@ function renderRuleNode(rid, at) {
     const body = el('div', 'rule-card-body', null, [
         el('div', 'rule-block', null, [
             el('div', 'rule-block-head', null, [
-                el('span', 'rule-block-tag', 'МОДЕЛЬ'),
+                el('span', 'rule-block-tag', 'МОДЕЛЬ (ДЕТЕКТОР)'),
                 el('span', 'rule-kind-pill ' + (isDefect ? 'kind-defect' : 'kind-presence'), isDefect ? 'ДЕФЕКТ' : 'НАЛИЧИЕ')
             ]),
             renderRuleModelList(rule, rid)
         ]),
         el('div', 'rule-block', null, [
-            el('div', 'rule-block-head', null, [el('span', 'rule-block-tag', 'УСЛОВИЕ РЕШЕНИЯ')]),
+            el('div', 'rule-block-head', null, [el('span', 'rule-block-tag', 'ЛОГИКА ИНСТРУМЕНТА')]),
             renderRuleConditionBlock(rule, rid)
         ]),
         cams.length
