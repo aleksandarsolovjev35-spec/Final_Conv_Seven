@@ -81,7 +81,7 @@ function getNodeDimensions(keyOrType, domNode) {
     const k = String(keyOrType || '');
     if (k.startsWith('pos') || k === 'position') return { w: 176, h: 96 };
     if (k.startsWith('cam')) return { w: 148, h: 54 };
-    if (k.startsWith('rule')) return { w: 184, h: 165 };
+    if (k.startsWith('rule')) return { w: 210, h: 140 };
     if (k.startsWith('model')) return { w: 128, h: 34 };
     return { w: 128, h: 44 };
 }
@@ -436,10 +436,9 @@ function renderRuleModelSection(rule, rid) {
         chip.title = 'снять деталь'; chip.onclick = ev => { ev.stopPropagation(); togglePart(rid, mid); };
         list.appendChild(chip);
     });
-    if (!rule.models.length) list.appendChild(el('span', 'g-empty', '→ привяжите деталь'));
 
     const sel = el('select', 'rule-model-select');
-    const defOpt = el('option', '', '+ привязать деталь...');
+    const defOpt = el('option', '', rule.models.length ? '+ деталь...' : 'Выбрать деталь...');
     defOpt.value = '';
     sel.appendChild(defOpt);
     MODELS.forEach(m => {
@@ -456,9 +455,7 @@ function renderRuleModelSection(rule, rid) {
     sel.onclick = ev => ev.stopPropagation();
     list.appendChild(sel);
 
-    return el('div', 'tool-section tool-section-model', null, [
-        el('div', 'tool-row', null, [el('span', 'tool-lbl', 'Деталь:'), list])
-    ]);
+    return el('div', 'tool-section tool-section-model', null, [list]);
 }
 
 function stepMeasureTol(rule, which, dir) {
@@ -480,9 +477,11 @@ function stepMeasureTol(rule, which, dir) {
 function makeStepRow(label, value, onDec, onInc, rid) {
     const row = el('div', 'rule-count-row tool-row', null, [
         el('span', 'rule-lbl tool-lbl', label),
-        el('button', 'btn-count-step btn-step', '−'),
-        el('span', 'rule-count-val tool-val', value),
-        el('button', 'btn-count-step btn-step', '+')
+        el('div', 'tool-step-ctrl', null, [
+            el('button', 'btn-count-step btn-step', '−'),
+            el('span', 'rule-count-val tool-val', value),
+            el('button', 'btn-count-step btn-step', '+')
+        ])
     ]);
     const [bDec, bInc] = row.querySelectorAll('.btn-count-step');
     bDec.type = bInc.type = 'button';
@@ -496,14 +495,14 @@ function renderMeasureControl(rule, rid, box) {
     const segGroup = el('div', 'tool-seg-group', null, [
         el('button', 'btn-seg' + (rule.lineMode === 'horiz' ? ' active' : ''), '― Гориз.'),
         el('button', 'btn-seg' + (rule.lineMode === 'vert' ? ' active' : ''), '| Верт.'),
-        el('button', 'btn-seg' + (rule.lineMode === 'none' ? ' active' : ''), '✕ Без линии')
+        el('button', 'btn-seg' + (rule.lineMode === 'none' ? ' active' : ''), 'Без линии')
     ]);
     const [bH, bV, bN] = segGroup.querySelectorAll('.btn-seg');
     bH.onclick = ev => { ev.stopPropagation(); rule.lineMode = 'horiz'; selectActiveRule(rid); render(); };
     bV.onclick = ev => { ev.stopPropagation(); rule.lineMode = 'vert'; selectActiveRule(rid); render(); };
     bN.onclick = ev => { ev.stopPropagation(); rule.lineMode = 'none'; selectActiveRule(rid); render(); };
 
-    box.appendChild(el('div', 'tool-row', null, [el('span', 'tool-lbl', 'Опора:'), segGroup]));
+    box.appendChild(segGroup);
 
     const isLine = rule.lineMode !== 'none';
     const lbl1 = isLine ? 'ДО линии:' : 'Допуск X:';
@@ -567,13 +566,14 @@ function renderRuleNode(rid, at) {
     node.appendChild(gsock('sock-out', key));
 
     const cams = ruleOnCameras(rule);
-    const body = el('div', 'rule-card-body', null, [
+    const bodyItems = [
         renderRuleModelSection(rule, rid),
-        renderRuleControlSection(rule, rid),
-        cams.length
-            ? el('div', 'tool-cam-line', 'камера: ' + cams.map(c => c.name).join(', '))
-            : el('div', 'tool-cam-line empty', '→ соедините с камерой')
-    ]);
+        renderRuleControlSection(rule, rid)
+    ];
+    if (cams.length) {
+        bodyItems.push(el('div', 'tool-cam-line', 'камера: ' + cams.map(c => c.name).join(', ')));
+    }
+    const body = el('div', 'rule-card-body', null, bodyItems);
     node.appendChild(body);
 
     node.onclick = ev => {

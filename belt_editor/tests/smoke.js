@@ -870,7 +870,7 @@ check('перепроектированный блок инструмента: �
         if (!rNode) return false;
         const segs = rNode.querySelectorAll('.btn-seg');
         const rows = rNode.querySelectorAll('.tool-row');
-        return segs.length === 3 && rows.length >= 3;
+        return segs.length === 3 && rows.length === 2;
     })());
 check('камера чиста от управляющих плашек: плашка настройки убрана с видеостены, все изменения только на сборке',
     (function () {
