@@ -70,12 +70,45 @@
         }
     }
 
+    function drawLineTolZone(ctx, xc, yc, scale) {
+        if (labState.lineMode === 'horiz') {
+            const dx = (labState.figW / 2) * scale;
+            const yTopTol = yc - labState.lineTolMax1 * scale;
+            const yBotTol = yc + labState.lineTolMax2 * scale;
+            ctx.strokeRect(xc - dx, yTopTol, dx * 2, yBotTol - yTopTol);
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.08)';
+            ctx.fillRect(xc - dx, yTopTol, dx * 2, yBotTol - yTopTol);
+            ctx.setLineDash([]);
+            ctx.font = 'bold 10.5px monospace';
+            ctx.fillStyle = '#22c55e';
+            ctx.fillText(`допуск ДО: ≤${labState.lineTolMax1}px`, xc - dx, yTopTol - 6);
+            ctx.fillText(`допуск ОТ: ≤${labState.lineTolMax2}px`, xc - dx, yBotTol + 14);
+        } else if (labState.lineMode === 'vert') {
+            const dy = (labState.figH / 2) * scale;
+            const xLeftTol = xc - labState.lineTolMax1 * scale;
+            const xRightTol = xc + labState.lineTolMax2 * scale;
+            ctx.strokeRect(xLeftTol, yc - dy, xRightTol - xLeftTol, dy * 2);
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.08)';
+            ctx.fillRect(xLeftTol, yc - dy, xRightTol - xLeftTol, dy * 2);
+            ctx.setLineDash([]);
+            ctx.font = 'bold 10.5px monospace';
+            ctx.fillStyle = '#22c55e';
+            ctx.fillText(`допуск ДО: ≤${labState.lineTolMax1}px`, xLeftTol - 10, yc - dy - 6);
+            ctx.fillText(`допуск ОТ: ≤${labState.lineTolMax2}px`, xRightTol - 20, yc - dy - 6);
+        }
+    }
+
     function drawToleranceZone(ctx, xc, yc, scale) {
-        if (labState.lineMode !== 'none') return;
-        const tx = labState.tolX * scale, ty = labState.tolY * scale;
         ctx.strokeStyle = '#22c55e';
         ctx.lineWidth = 1.8;
         ctx.setLineDash([5, 4]);
+
+        if (labState.lineMode !== 'none') {
+            drawLineTolZone(ctx, xc, yc, scale);
+            return;
+        }
+
+        const tx = labState.tolX * scale, ty = labState.tolY * scale;
         ctx.strokeRect(xc - tx, yc - ty, tx * 2, ty * 2);
         ctx.setLineDash([]);
 
