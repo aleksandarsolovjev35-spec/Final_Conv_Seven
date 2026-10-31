@@ -15,24 +15,20 @@ const MODELS = ['uneven-heights', 'window-sinks', 'omission-long', 'contacts-lon
 
 const RULES = [
     {
-        id: 'r0', name: 'геометрия', defectName: 'ГЕОМЕТРИЯ ПЛОЩАДКИ', color: '#d9a441',
-        thr: ['площадь', 'перекос', 'высота'], models: [], mode: 'defect',
-        checkType: 'inscribe', inscribeW: 46, inscribeH: 24, areaThreshold: 35, countExpected: 5, gapMax: 10, confidence: 0.50
+        id: 'r0', name: 'геометрия', defectName: 'ДЕФЕКТ ГЕОМЕТРИИ', color: '#d9a441',
+        thr: ['площадь', 'перекос', 'высота'], models: [], mode: 'defect', countExpected: 0
     },
     {
-        id: 'r1', name: 'наличие', defectName: 'НЕДОКОМПЛЕКТ', color: '#58b79a',
-        thr: ['контраст'], models: [], mode: 'presence',
-        checkType: 'count', inscribeW: 40, inscribeH: 20, areaThreshold: 30, countExpected: 5, gapMax: 8, confidence: 0.60
+        id: 'r1', name: 'наличие', defectName: 'НЕКОМПЛЕКТ', color: '#58b79a',
+        thr: ['контраст'], models: [], mode: 'presence', countExpected: 4
     },
     {
-        id: 'r2', name: 'пропуск', defectName: 'ПЯТНО / ПРОПУСК', color: '#cf7aa6',
-        thr: ['окно'], models: [], mode: 'defect',
-        checkType: 'area', inscribeW: 35, inscribeH: 18, areaThreshold: 30, countExpected: 5, gapMax: 12, confidence: 0.45
+        id: 'r2', name: 'дефект трещина', defectName: 'ТРЕЩИНА', color: '#cf7aa6',
+        thr: ['окно'], models: [], mode: 'defect', countExpected: 0
     },
     {
-        id: 'r3', name: 'контакты', defectName: 'ПЕРЕКОС КОНТАКТОВ', color: '#a58ad9',
-        thr: ['нажим', 'смещение'], models: [], mode: 'presence',
-        checkType: 'gap', inscribeW: 50, inscribeH: 22, areaThreshold: 40, countExpected: 5, gapMax: 8, confidence: 0.55
+        id: 'r3', name: 'наличие контактов', defectName: 'ПРОПУСК КОНТАКТА', color: '#a58ad9',
+        thr: ['нажим', 'смещение'], models: [], mode: 'presence', countExpected: 4
     }
 ];
 
@@ -83,7 +79,7 @@ function getNodeDimensions(keyOrType, domNode) {
     const k = String(keyOrType || '');
     if (k.startsWith('pos') || k === 'position') return { w: 176, h: 96 };
     if (k.startsWith('cam')) return { w: 148, h: 54 };
-    if (k.startsWith('rule')) return { w: 204, h: 180 };
+    if (k.startsWith('rule')) return { w: 184, h: 140 };
     if (k.startsWith('model')) return { w: 128, h: 34 };
     return { w: 128, h: 44 };
 }
@@ -250,6 +246,7 @@ function render() {
     const meta = $('belt-meta');
     if (meta) meta.textContent = `позиций: ${belt.positions.length} / ${MAX_POSITIONS}`;
     if (window.Cameras) window.Cameras.sync(cameraViews());
+    updateBeltRunStatus();
     renderAssets(); renderWires();
     $('belt-zone')?.dispatchEvent(new CustomEvent('belt:render'));
 }
@@ -357,9 +354,11 @@ function cameraViews() {
 function renderCard(pos, i) {
     if (!pos.at) pos.at = layoutSlot(i);
     const del = el('button', 'pos-del', '×'); del.type = 'button'; del.draggable = false;
+    const isP0 = i === 0, hasCam = Boolean(pos.inspection?.cameras?.length);
     const badges = el('div', 'pos-badges', null, [
-        pos.inspection ? el('span', 'badge badge-insp', 'инспекция') : null,
-        pos.inspection ? el('span', 'badge badge-cam', pos.inspection.cameras.length ? `камер: ${pos.inspection.cameras.length}` : 'без камер') : null,
+        pos.inspection ? el('span', 'badge badge-insp', isP0 ? 'вход-инспекция' : 'инспекция') : null,
+        pos.inspection ? el('span', 'badge ' + (hasCam ? 'badge-cam' : (isP0 ? 'badge-warn' : 'badge-cam')),
+            hasCam ? `камер: ${pos.inspection.cameras.length}` : (isP0 ? 'нужна камера!' : 'без камер')) : null,
         pos.reset ? el('span', 'badge badge-reset', 'сброс') : null
     ]);
     const card = el('div', `pos-card gnode g-pos${pos.inspection ? ' inspect' : ''}${pos.reset ? ' reset-pt' : ''}`, null, [
@@ -433,87 +432,50 @@ function renderRuleModelList(rule, rid) {
         chip.title = 'снять модель'; chip.onclick = ev => { ev.stopPropagation(); togglePart(rid, mid); };
         return chip;
     }));
-    if (!rule.models.length) list.appendChild(el('span', 'g-empty', '→ тяни модель сюда'));
+    if (!rule.models.length) list.appendChild(el('span', 'g-empty', '→ подключите модель'));
     return list;
 }
 
-function renderRuleLogicToggle(rule) {
+function renderRuleConditionBlock(rule, rid) {
     const isDefect = rule.mode === 'defect';
-    const toggle = el('div', 'rule-logic-toggle ' + (isDefect ? 'is-defect' : 'is-presence'), null, [
-        el('span', 'logic-pill', isDefect ? 'ДЕФЕКТ: ЕСТЬ ЗОНА ➔ БРАК' : 'НАЛИЧИЕ: НЕТ ЗОНЫ ➔ БРАК'),
-        el('span', 'logic-sub', isDefect ? 'найдена область дефекта — брак' : 'обязательная зона отсутствует — брак')
-    ]);
-    toggle.title = 'Клик для переключения режима: дефект (есть ➔ брак) ↔ наличие (нет ➔ брак)';
-    toggle.onclick = ev => {
-        ev.stopPropagation();
-        rule.mode = rule.mode === 'defect' ? 'presence' : 'defect';
-        toast(`«${rule.name}»: ${rule.mode === 'defect' ? 'режим «дефект»' : 'режим «наличие»'}`);
-        render();
-    };
-    return toggle;
-}
+    const box = el('div', 'rule-logic-box ' + (isDefect ? 'is-defect' : 'is-presence'));
 
-function renderRuleSliders(rule, container, rid) {
-    container.textContent = '';
-    const addSlider = (label, key, min, max, step, unit) => {
-        const row = el('div', 'rule-slider-row');
-        row.appendChild(el('span', 'rule-slider-lbl', label));
-        const inp = el('input', 'rule-slider-input');
-        inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step;
-        inp.value = rule[key] != null ? rule[key] : min;
-        const valSpan = el('span', 'rule-slider-val', inp.value + unit);
-        inp.oninput = () => {
-            rule[key] = parseFloat(inp.value);
-            valSpan.textContent = inp.value + unit;
-            selectActiveRule(rid);
-        };
-        ['mousedown', 'pointerdown'].forEach(evName => inp.addEventListener(evName, e => e.stopPropagation()));
-        row.appendChild(inp);
-        row.appendChild(valSpan);
-        container.appendChild(row);
-    };
-
-    if (rule.checkType === 'inscribe') {
-        addSlider('Ширина W:', 'inscribeW', 10, 100, 1, ' px');
-        addSlider('Высота H:', 'inscribeH', 5, 50, 1, ' px');
-    } else if (rule.checkType === 'area') {
-        addSlider('Порог S:', 'areaThreshold', 5, 100, 1, ' px²');
-        addSlider('AI Conf:', 'confidence', 0.1, 0.95, 0.05, '');
-    } else if (rule.checkType === 'count') {
-        addSlider('Кол-во N:', 'countExpected', 1, 8, 1, ' шт');
-    } else {
-        addSlider('Перекос Δ:', 'gapMax', 2, 25, 1, ' px');
-    }
-}
-
-function renderRuleGeomBlock(rule, rid) {
-    const curType = rule.checkType || 'inscribe';
-    const slidersBox = el('div', 'rule-sliders-box');
-    const typesBar = el('div', 'rule-types-bar', null, [
-        { id: 'inscribe', title: 'Вписан.' },
-        { id: 'area', title: 'Площадь' },
-        { id: 'count', title: 'Счётчик' },
-        { id: 'gap', title: 'Зазор' }
-    ].map(t => {
-        const btn = el('button', 'rule-type-btn' + (curType === t.id ? ' active' : ''), t.title);
-        btn.type = 'button';
-        btn.dataset.type = t.id;
-        btn.onclick = ev => {
+    if (!isDefect) {
+        const countRow = el('div', 'rule-count-row', null, [
+            el('span', 'rule-lbl', 'Требуется N:'),
+            el('button', 'btn-count-step', '−'),
+            el('span', 'rule-count-val', (rule.countExpected || 4) + ' шт'),
+            el('button', 'btn-count-step', '+')
+        ]);
+        const [btnMinus, btnPlus] = countRow.querySelectorAll('.btn-count-step');
+        btnMinus.type = btnPlus.type = 'button';
+        btnMinus.onclick = ev => {
             ev.stopPropagation();
-            rule.checkType = t.id;
-            selectActiveRule(rid);
-            render();
+            rule.countExpected = Math.max(1, (rule.countExpected || 4) - 1);
+            selectActiveRule(rid); render();
         };
-        return btn;
-    }));
+        btnPlus.onclick = ev => {
+            ev.stopPropagation();
+            rule.countExpected = Math.min(16, (rule.countExpected || 4) + 1);
+            selectActiveRule(rid); render();
+        };
+        box.appendChild(countRow);
+        box.appendChild(el('div', 'rule-formula', '= N → ГОДНАЯ | < N → БРАК'));
+    } else {
+        box.appendChild(el('div', 'rule-formula', '0 шт → ГОДНАЯ | > 0 → БРАК'));
+    }
 
-    renderRuleSliders(rule, slidersBox, rid);
-
-    return el('div', 'rule-block', null, [
-        el('div', 'rule-block-head', null, [el('span', 'rule-block-tag', 'ГЕОМЕТРИЯ')]),
-        typesBar,
-        slidersBox
-    ]);
+    const toggleBtn = el('button', 'rule-logic-toggle ' + (isDefect ? 'is-defect' : 'is-presence'),
+        isDefect ? 'Сменить на: НАЛИЧИЕ (N шт)' : 'Сменить на: ДЕФЕКТ (0 шт)');
+    toggleBtn.type = 'button';
+    toggleBtn.onclick = ev => {
+        ev.stopPropagation();
+        rule.mode = isDefect ? 'presence' : 'defect';
+        toast(`«${rule.name}»: режим «${rule.mode === 'defect' ? 'ДЕФЕКТ' : 'НАЛИЧИЕ'}»`);
+        selectActiveRule(rid); render();
+    };
+    box.appendChild(toggleBtn);
+    return box;
 }
 
 function renderRuleNode(rid, at) {
@@ -528,25 +490,26 @@ function renderRuleNode(rid, at) {
     sw.style.background = rule.color; head.insertBefore(sw, head.firstChild);
     node.querySelector('.pos-label').style.color = rule.color;
 
-    if (isActive) {
-        head.insertBefore(el('span', 'rule-live-badge', 'ЭФИР'), node.querySelector('.pos-del'));
-    }
-
     node.appendChild(gsock('sock-in', null, 'rule', rid));
     node.appendChild(gsock('sock-out', key));
 
+    const isDefect = rule.mode === 'defect';
     const cams = ruleOnCameras(rule);
     const body = el('div', 'rule-card-body', null, [
         el('div', 'rule-block', null, [
-            el('div', 'rule-block-head', null, [el('span', 'rule-block-tag', 'ОБНАРУЖЕНИЕ')]),
+            el('div', 'rule-block-head', null, [
+                el('span', 'rule-block-tag', 'МОДЕЛЬ'),
+                el('span', 'rule-kind-pill ' + (isDefect ? 'kind-defect' : 'kind-presence'), isDefect ? 'ДЕФЕКТ' : 'НАЛИЧИЕ')
+            ]),
             renderRuleModelList(rule, rid)
         ]),
-        renderRuleGeomBlock(rule, rid),
         el('div', 'rule-block', null, [
-            el('div', 'rule-block-head', null, [el('span', 'rule-block-tag', 'РЕШЕНИЕ')]),
-            renderRuleLogicToggle(rule)
+            el('div', 'rule-block-head', null, [el('span', 'rule-block-tag', 'УСЛОВИЕ РЕШЕНИЯ')]),
+            renderRuleConditionBlock(rule, rid)
         ]),
-        cams.length ? el('div', 'rule-cams-meta', `камеры: ${cams.map(c => c.name).join(', ')}`) : null
+        cams.length
+            ? el('div', 'rule-cams-meta', `камера: ${cams.map(c => c.name).join(', ')}`)
+            : el('div', 'rule-cams-meta empty', '→ подключите к камере')
     ]);
     node.appendChild(body);
 
@@ -944,6 +907,8 @@ window.BeltBridge = {
     syncCameras: () => { if (window.Cameras) window.Cameras.sync(cameraViews()); },
     getActiveRule: () => getActiveTunerRule(),
     selectRule: id => selectActiveRule(id),
+    isBeltRunning: () => beltRunning,
+    canRunBelt: () => canRunBelt(),
     camDragStart(id, dt, ev) {
         dragKind = 'camera'; dragCamId = dragAsset = id;
         if (dt) { dt.setData('text/plain', 'camera:' + id); dt.effectAllowed = 'copy'; }
@@ -1207,9 +1172,62 @@ function selectActiveRule(rid) {
     });
 }
 
+/* ─── Пуск ленты и валидация обязательной камеры на П0 ───────────── */
+let beltRunning = false;
+
+function canRunBelt() {
+    if (!belt.positions.length) return false;
+    const p0 = belt.positions[0];
+    return Boolean(p0 && p0.inspection && p0.inspection.cameras && p0.inspection.cameras.length > 0);
+}
+
+function updateBeltRunStatus() {
+    const btn = $('btn-belt-run'), status = $('belt-run-status');
+    if (!btn || !status) return;
+    const p0 = belt.positions[0];
+    const hasCam = Boolean(p0?.inspection?.cameras?.length);
+    if (!hasCam) {
+        beltRunning = false;
+        btn.className = 'btn-belt-run disabled';
+        btn.textContent = 'ПУСК ЛЕНТЫ';
+        btn.title = 'Нельзя запустить ленту: на первой позиции (П0) нет камеры инспекции!';
+        status.className = 'belt-run-badge locked';
+        status.textContent = !belt.positions.length
+            ? 'ЛЕНТА ПУСТА'
+            : 'П0: НЕТ КАМЕРЫ (ПУСК ЗАБЛОКИРОВАН)';
+    } else {
+        if (beltRunning) {
+            btn.className = 'btn-belt-run running';
+            btn.textContent = 'СТОП ЛЕНТЫ';
+            btn.title = 'Остановить движение ленты';
+            status.className = 'belt-run-badge running';
+            status.textContent = 'ЛЕНТА В РАБОТЕ (' + p0.inspection.cameras.map(camName).join(', ') + ')';
+        } else {
+            btn.className = 'btn-belt-run ready';
+            btn.textContent = 'ПУСК ЛЕНТЫ';
+            btn.title = 'Запустить конвейер';
+            status.className = 'belt-run-badge ready';
+            status.textContent = 'ГОТОВО К ПУСКУ (' + p0.inspection.cameras.map(camName).join(', ') + ')';
+        }
+    }
+}
+
+function wireBeltRun() {
+    $('btn-belt-run')?.addEventListener('click', ev => {
+        ev.stopPropagation();
+        if (!canRunBelt()) {
+            return toast('Нельзя запустить ленту: на первой позиции (П0) нет камеры инспекции!', 'err');
+        }
+        beltRunning = !beltRunning;
+        toast(beltRunning ? 'Лента запущена: инспекция на П0 активна.' : 'Лента остановлена.');
+        updateBeltRunStatus();
+        if (window.BeltBridge?.syncCameras) window.BeltBridge.syncCameras();
+    });
+}
+
 function boot() {
     wirePalette(); wireBelt(); wireSearch(); wireThrClose(); wireLinkEngine();
-    dragGNodes(); wireScrollSnap(); wireSideDock(); wireFolderPickers(); render();
+    dragGNodes(); wireScrollSnap(); wireSideDock(); wireFolderPickers(); wireBeltRun(); render();
 }
 
 if (document.readyState === 'loading') {

@@ -853,25 +853,26 @@ check('наведение на провод: подсветка красным �
     })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
-check('универсальная нода правила: блоки обнаружение, геометрия и логика решения на холсте',
+check('логический блок правила: вход модели, условие решения и выход на камеру',
     (function () {
         const rNode = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
         if (!rNode) return false;
         const hasBody = rNode.querySelector('.rule-card-body') !== null;
         const hasModels = rNode.querySelector('.g-models') !== null;
-        const hasTypes = rNode.querySelector('.rule-types-bar') !== null;
-        const hasSliders = rNode.querySelector('.rule-sliders-box') !== null;
+        const hasLogicBox = rNode.querySelector('.rule-logic-box') !== null;
+        const hasFormula = rNode.querySelector('.rule-formula') !== null;
         const hasToggle = rNode.querySelector('.rule-logic-toggle') !== null;
-        return hasBody && hasModels && hasTypes && hasSliders && hasToggle;
+        return hasBody && hasModels && hasLogicBox && hasFormula && hasToggle;
     })());
-check('логика решения: переключение режима дефект ↔ наличие',
+check('логика решения: переключение режима дефект ↔ наличие с настройкой N шт',
     (function () {
         const toggle = doc.querySelector('.gnode.g-rule[data-rule="r0"] .rule-logic-toggle');
         if (!toggle) return false;
         const wasDefect = toggle.classList.contains('is-defect');
         toggle.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
         const isPresence = doc.querySelector('.gnode.g-rule[data-rule="r0"] .rule-logic-toggle').classList.contains('is-presence');
-        return wasDefect && isPresence;
+        const countRow = doc.querySelector('.gnode.g-rule[data-rule="r0"] .rule-count-row');
+        return wasDefect && isPresence && countRow !== null;
     })());
 check('камера чиста от управляющих плашек: плашка настройки убрана с видеостены, все изменения только на сборке',
     (function () {
@@ -880,15 +881,28 @@ check('камера чиста от управляющих плашек: пла�
         if (tuner !== null || !box) return false;
         return box.querySelectorAll('button, select, input').length === 0;
     })());
-check('продуманная система настройки правил на сборке: переключение геометрии и слайдеры на ноде',
+check('блокировка пуска ленты: без камеры на П0 пуск запрещен, при наличии камеры разрешен',
+    (function () {
+        const btn = doc.getElementById('btn-belt-run');
+        const status = doc.getElementById('belt-run-status');
+        if (!btn || !status) return false;
+        const canRun = window.BeltBridge?.canRunBelt?.();
+        const isReady = btn.classList.contains('ready') && canRun === true;
+        btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const isRunning = btn.classList.contains('running') && window.BeltBridge?.isBeltRunning?.() === true;
+        btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const isStopped = btn.classList.contains('ready') && window.BeltBridge?.isBeltRunning?.() === false;
+        return isReady && isRunning && isStopped;
+    })());
+check('настройка числа N в блоке наличия: кнопки шага меняют требуемое количество',
     (function () {
         const rNode = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
-        const areaBtn = rNode?.querySelector('.rule-type-btn[data-type="area"]');
-        if (!areaBtn) return false;
-        areaBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-        const rule = window.BeltBridge?.getActiveRule?.();
-        const slider = rNode.querySelector('.rule-sliders-box .rule-slider-input');
-        return rule && rule.checkType === 'area' && slider !== null;
+        const plusBtn = rNode?.querySelectorAll('.btn-count-step')?.[1];
+        if (!plusBtn) return false;
+        const valBefore = rNode.querySelector('.rule-count-val').textContent;
+        plusBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const valAfter = doc.querySelector('.gnode.g-rule[data-rule="r0"] .rule-count-val').textContent;
+        return valBefore !== valAfter;
     })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');

@@ -832,28 +832,105 @@ body.node-moving { cursor: grabbing; }
 
 .gnode.free { border-style: dashed; border-color: var(--border-accent); }
 
+/* ─── Кнопка и статус пуска ленты (ограничение П0) ─────────────────── */
+.belt-run-ctrl {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 10px;
+}
+
+.belt-run-badge {
+    font: 9px/1.2 var(--font-mono, monospace);
+    font-weight: 600;
+    padding: 3px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.belt-run-badge.locked {
+    background: rgba(224, 108, 117, 0.15);
+    color: #e06c75;
+    border: 1px solid rgba(224, 108, 117, 0.4);
+}
+
+.belt-run-badge.ready {
+    background: rgba(88, 183, 154, 0.15);
+    color: #58b79a;
+    border: 1px solid rgba(88, 183, 154, 0.4);
+}
+
+.belt-run-badge.running {
+    background: rgba(79, 163, 209, 0.2);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    box-shadow: 0 0 8px rgba(79, 163, 209, 0.4);
+}
+
+.btn-belt-run {
+    font: 9.5px/1 var(--font-ui, sans-serif);
+    font-weight: bold;
+    padding: 4px 10px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-belt-run.disabled {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+    border-color: var(--border);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.btn-belt-run.ready {
+    background: rgba(88, 183, 154, 0.25);
+    color: #58b79a;
+    border-color: #58b79a;
+}
+
+.btn-belt-run.ready:hover {
+    background: #58b79a;
+    color: #111;
+}
+
+.btn-belt-run.running {
+    background: rgba(224, 108, 117, 0.25);
+    color: #e06c75;
+    border-color: #e06c75;
+}
+
+.btn-belt-run.running:hover {
+    background: #e06c75;
+    color: #fff;
+}
+
+.badge-warn {
+    background: rgba(224, 108, 117, 0.2);
+    color: #e06c75;
+    border: 1px solid rgba(224, 108, 117, 0.4);
+    animation: warn-pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes warn-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* ─── Нода логического правила (Наличие / Дефект) ─────────────────── */
 .gnode.g-rule {
-    width: 204px;
+    width: 184px;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .gnode.g-rule.is-active {
     border-color: var(--accent);
     box-shadow: 0 0 10px rgba(79, 163, 209, 0.4);
-}
-
-.rule-live-badge {
-    font: 8px/1 var(--font-mono, monospace);
-    font-weight: bold;
-    padding: 2px 4px;
-    border-radius: 2px;
-    letter-spacing: 0.6px;
-    text-transform: uppercase;
-    background: rgba(79, 163, 209, 0.2);
-    color: var(--accent);
-    border: 1px solid var(--accent);
-    margin-right: auto;
-    margin-left: 4px;
 }
 
 .rule-card-body {
@@ -886,119 +963,116 @@ body.node-moving { cursor: grabbing; }
     text-transform: uppercase;
 }
 
-.rule-types-bar {
-    display: flex;
-    gap: 2px;
-    background: rgba(0, 0, 0, 0.35);
-    border-radius: 3px;
-    padding: 2px;
-}
-
-.rule-type-btn {
-    flex: 1;
-    padding: 2px 1px;
-    font: 8px/1.2 var(--font-mono, monospace);
-    text-align: center;
-    background: transparent;
-    border: none;
-    color: var(--text-dim);
-    border-radius: 2px;
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s;
-}
-
-.rule-type-btn:hover {
-    color: var(--text-bright);
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.rule-type-btn.active {
-    background: var(--accent);
-    color: #fff;
+.rule-kind-pill {
+    font: 8px/1 var(--font-mono, monospace);
     font-weight: bold;
+    padding: 1px 4px;
+    border-radius: 2px;
 }
 
-.rule-sliders-box {
+.rule-kind-pill.kind-defect {
+    background: rgba(224, 108, 117, 0.15);
+    color: #e06c75;
+    border: 1px solid rgba(224, 108, 117, 0.35);
+}
+
+.rule-kind-pill.kind-presence {
+    background: rgba(88, 183, 154, 0.15);
+    color: #58b79a;
+    border: 1px solid rgba(88, 183, 154, 0.35);
+}
+
+.rule-logic-box {
     display: flex;
     flex-direction: column;
     gap: 3px;
-    padding-top: 1px;
 }
 
-.rule-slider-row {
+.rule-count-row {
     display: flex;
     align-items: center;
     gap: 4px;
+    padding: 1px 0;
 }
 
-.rule-slider-lbl {
-    font: 8px/1 var(--font-mono, monospace);
+.rule-lbl {
+    font: 8.5px/1.2 var(--font-mono, monospace);
     color: var(--text-dim);
-    width: 60px;
-    flex-shrink: 0;
-    white-space: nowrap;
-}
-
-.rule-slider-input {
     flex: 1;
-    accent-color: var(--accent);
-    cursor: ew-resize;
-    height: 12px;
-    margin: 0;
 }
 
-.rule-slider-val {
-    font: 8px/1 var(--font-mono, monospace);
+.btn-count-step {
+    width: 18px;
+    height: 18px;
+    line-height: 14px;
+    padding: 0;
+    background: var(--bg-0);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 2px;
+    cursor: pointer;
+    font-weight: bold;
+    text-align: center;
+}
+
+.btn-count-step:hover {
+    border-color: var(--border-accent);
     color: var(--accent);
-    width: 40px;
-    text-align: right;
-    flex-shrink: 0;
+}
+
+.rule-count-val {
+    font: bold 9.5px/1 var(--font-mono, monospace);
+    color: var(--accent);
+    min-width: 34px;
+    text-align: center;
+}
+
+.rule-formula {
+    font: 8.5px/1.2 var(--font-mono, monospace);
+    padding: 3px 4px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--text-dim);
+    text-align: center;
+}
+
+.rule-logic-box.is-presence .rule-formula {
+    color: #58b79a;
+    border: 1px dashed rgba(88, 183, 154, 0.3);
+}
+
+.rule-logic-box.is-defect .rule-formula {
+    color: #e06c75;
+    border: 1px dashed rgba(224, 108, 117, 0.3);
 }
 
 .rule-logic-toggle {
-    display: flex;
-    flex-direction: column;
-    cursor: pointer;
-    padding: 3px 5px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid transparent;
-    transition: background 120ms, border-color 120ms;
+    font: 8.5px/1.2 var(--font-mono, monospace);
+    padding: 3px 4px;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.12s, color 0.12s;
 }
 
 .rule-logic-toggle:hover {
     background: rgba(255, 255, 255, 0.08);
+    color: var(--text-bright);
     border-color: var(--border-accent);
-}
-
-.logic-pill {
-    font: 9px/1.3 var(--font-ui, sans-serif);
-    font-weight: 600;
-}
-
-.rule-logic-toggle.is-defect {
-    background: rgba(224, 108, 117, 0.12);
-    border-color: rgba(224, 108, 117, 0.35);
-}
-
-.rule-logic-toggle.is-defect .logic-pill { color: #e06c75; }
-
-.rule-logic-toggle.is-presence {
-    background: rgba(88, 183, 154, 0.12);
-    border-color: rgba(88, 183, 154, 0.35);
-}
-
-.rule-logic-toggle.is-presence .logic-pill { color: #58b79a; }
-
-.logic-sub {
-    font: 8px/1.1 var(--font-mono, monospace);
-    color: var(--text-dim);
 }
 
 .rule-cams-meta {
     font: 8px/1.2 var(--font-mono, monospace);
-    color: var(--text-dim);
+    color: var(--accent);
     padding-top: 1px;
+}
+
+.rule-cams-meta.empty {
+    color: var(--text-muted);
+    font-style: italic;
 }
 
 .gnode.cam-node { width: 148px; }

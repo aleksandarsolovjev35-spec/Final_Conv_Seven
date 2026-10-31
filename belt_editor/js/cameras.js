@@ -263,43 +263,6 @@ function drawReticleOverlay(ctx, w, h, inField, p, size, railY) {
     }
 }
 
-function drawInscribeTest(ctx, px, py, pw, ph, rule, bw, bh) {
-    const rw = Math.round((rule.inscribeW || 46) * (bw / 130));
-    const rh = Math.round((rule.inscribeH || 24) * (bh / 65));
-    const rx = Math.round(px + (pw - rw) / 2);
-    const ry = Math.round(py + (ph - rh) / 2);
-    const fits = (rw <= pw && rh <= ph);
-    const isFail = (rule.mode === 'defect') ? fits : !fits;
-    ctx.fillStyle = isFail ? 'rgba(224, 108, 117, 0.25)' : 'rgba(88, 183, 154, 0.22)';
-    ctx.fillRect(rx, ry, rw, rh);
-    ctx.strokeStyle = isFail ? '#e06c75' : '#58b79a';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(rx, ry, rw, rh);
-    return { isFail, text: `Rect: ${rule.inscribeW || 46}×${rule.inscribeH || 24}px` };
-}
-
-function drawAreaTest(ctx, bx, by, bw, bh, rule) {
-    const spotR = Math.max(3, Math.round(bw * 0.04));
-    const spotArea = 36;
-    const exceeds = spotArea >= (rule.areaThreshold || 35);
-    const isFail = (rule.mode === 'defect') ? exceeds : !exceeds;
-    ctx.fillStyle = isFail ? '#e06c75' : 'rgba(88, 183, 154, 0.55)';
-    ctx.beginPath();
-    ctx.arc(bx + bw * 0.38, by + bh * 0.42, spotR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = isFail ? '#e06c75' : '#58b79a';
-    ctx.stroke();
-    return { isFail, text: `Пятно S: 36px² (порог ${rule.areaThreshold || 35}px²)` };
-}
-
-function drawCountTest(ctx, bx, by, bw, bh, rule) {
-    const expected = rule.countExpected || 5;
-    const count = 5;
-    const matches = (count === expected);
-    const isFail = (rule.mode === 'presence') ? !matches : matches;
-    return { isFail, text: `Контакты: 5 из ${expected} шт` };
-}
-
 function drawLiveRuleInspection(ctx, w, h, inField, p, size, railY, t, rule) {
     if (!rule || !inField) return false;
     const bw = Math.round(w * size), bh = Math.round(h * 0.30);
@@ -307,32 +270,43 @@ function drawLiveRuleInspection(ctx, w, h, inField, p, size, railY, t, rule) {
     const pw = Math.round(bw * 0.54), ph = Math.round(bh * 0.46);
     const px = Math.round(bx + (bw - pw) / 2), py = Math.round(by + (bh - ph) / 2 + bh * 0.08);
 
-    ctx.strokeStyle = 'rgba(79, 163, 209, 0.35)';
+    ctx.strokeStyle = 'rgba(79, 163, 209, 0.4)';
     ctx.strokeRect(px, py, pw, ph);
 
-    let res = { isFail: false, text: '' };
-    if (rule.checkType === 'area') res = drawAreaTest(ctx, bx, by, bw, bh, rule);
-    else if (rule.checkType === 'count') res = drawCountTest(ctx, bx, by, bw, bh, rule);
-    else res = drawInscribeTest(ctx, px, py, pw, ph, rule, bw, bh);
-
-    window.Cameras.lastFail = res.isFail;
-    const verdictEl = document.getElementById('tuner-verdict');
-    if (verdictEl) {
-        verdictEl.textContent = res.isFail ? 'БРАК' : 'ГОДНАЯ';
-        verdictEl.className = 'tuner-verdict ' + (res.isFail ? 'fail' : 'pass');
+    const isPresence = rule.mode === 'presence';
+    let isFail = false, text = '';
+    if (isPresence) {
+        const expected = rule.countExpected || 4;
+        const actual = expected;
+        const stepX = pw / (expected + 1);
+        for (let i = 1; i <= expected; i++) {
+            const mx = Math.round(px + i * stepX), my = Math.round(py + ph / 2);
+            ctx.fillStyle = '#58b79a';
+            ctx.fillRect(mx - 3, my - 3, 6, 6);
+            ctx.font = '8px monospace';
+            ctx.fillText(String(i), mx - 2, my - 5);
+        }
+        isFail = actual < expected;
+        text = `Наличие: ${actual} из ${expected} шт`;
+    } else {
+        const defectsFound = 0;
+        isFail = defectsFound > 0;
+        text = `Дефекты: ${defectsFound} шт (допустимо: 0)`;
     }
 
-    ctx.fillStyle = 'rgba(15, 19, 23, 0.85)';
-    ctx.fillRect(8, 8, Math.min(w - 16, 330), 38);
-    ctx.strokeStyle = res.isFail ? '#e06c75' : '#58b79a';
-    ctx.strokeRect(8, 8, Math.min(w - 16, 330), 38);
-    ctx.font = '10px monospace';
+    window.Cameras.lastFail = isFail;
+
+    ctx.fillStyle = 'rgba(15, 19, 23, 0.88)';
+    ctx.fillRect(8, 8, Math.min(w - 16, 310), 36);
+    ctx.strokeStyle = isFail ? '#e06c75' : '#58b79a';
+    ctx.strokeRect(8, 8, Math.min(w - 16, 310), 36);
+    ctx.font = '9.5px monospace';
     ctx.fillStyle = rule.color || '#fff';
-    ctx.fillText(`● LIVE: ${rule.name.toUpperCase()} [${rule.checkType || 'inscribe'}]`, 14, 22);
-    ctx.font = '9.5px sans-serif';
-    ctx.fillStyle = res.isFail ? '#e06c75' : '#58b79a';
-    ctx.fillText(`${res.text} ➔ ${res.isFail ? 'БРАК: ' + (rule.defectName || rule.name) : 'ГОДНАЯ (В НОРМЕ)'}`, 14, 35);
-    return res.isFail;
+    ctx.fillText(`● ПРАВИЛО: ${rule.name.toUpperCase()} (${isPresence ? 'НАЛИЧИЕ' : 'ДЕФЕКТ'})`, 14, 21);
+    ctx.font = '9px sans-serif';
+    ctx.fillStyle = isFail ? '#e06c75' : '#58b79a';
+    ctx.fillText(`${text} ➔ ${isFail ? 'БРАК' : 'ГОДНАЯ (ОК)'}`, 14, 34);
+    return isFail;
 }
 
 /* Один кадр «камеры»: шум датчика, лента, идущий корпус.
@@ -381,7 +355,11 @@ function paintMainView(t) {
         if (mainId) {
             const rule = window.BeltBridge?.getActiveRule?.();
             const lastFail = window.Cameras?.lastFail;
-            if (seen && rule) {
+            const canRun = window.BeltBridge ? window.BeltBridge.canRunBelt?.() : true;
+            if (!canRun) {
+                status.textContent = 'П0 без камеры (блокировка)';
+                status.className = 'cam-tag cam-tag-br fail';
+            } else if (seen && rule) {
                 status.textContent = lastFail ? 'брак: ' + rule.name : 'годная';
                 status.className = 'cam-tag cam-tag-br live ' + (lastFail ? 'fail' : 'pass');
             } else if (seen) {
