@@ -996,6 +996,27 @@ body.node-moving { cursor: grabbing; }
     border: 1px solid rgba(88, 183, 154, 0.35);
 }
 
+.rule-kind-pill.kind-geometry {
+    background: rgba(217, 164, 65, 0.15);
+    color: #d9a441;
+    border: 1px solid rgba(217, 164, 65, 0.35);
+}
+
+.rule-kind-pill.kind-shift {
+    background: rgba(165, 138, 217, 0.15);
+    color: #a58ad9;
+    border: 1px solid rgba(165, 138, 217, 0.35);
+}
+
+.rule-mode-tag {
+    font: 8px/1 var(--font-mono, monospace);
+    padding: 1px 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-dim);
+    text-transform: uppercase;
+}
+
 .rule-logic-box {
     display: flex;
     flex-direction: column;

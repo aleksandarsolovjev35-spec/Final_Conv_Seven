@@ -263,6 +263,52 @@ function drawReticleOverlay(ctx, w, h, inField, p, size, railY) {
     }
 }
 
+function drawInspectionPresence(ctx, px, py, pw, ph, rule) {
+    const expected = rule.countExpected || 4, actual = expected;
+    const stepX = pw / (expected + 1);
+    for (let i = 1; i <= expected; i++) {
+        const mx = Math.round(px + i * stepX), my = Math.round(py + ph / 2);
+        ctx.fillStyle = '#58b79a';
+        ctx.fillRect(mx - 3, my - 3, 6, 6);
+        ctx.font = '8px monospace';
+        ctx.fillText(String(i), mx - 2, my - 5);
+    }
+    return { isFail: actual < expected, text: `Наличие: ${actual} из ${expected} шт` };
+}
+
+function drawInspectionDefect(ctx, px, py, pw, ph, rule) {
+    const allowed = rule.maxDefects ?? 0, found = 0;
+    ctx.strokeStyle = 'rgba(207, 122, 166, 0.45)';
+    ctx.setLineDash([2, 2]);
+    ctx.strokeRect(px + 3, py + 3, pw - 6, ph - 6);
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#cf7aa6';
+    ctx.font = '7.5px monospace';
+    ctx.fillText('✓ ЧИСТО', px + 6, py + Math.round(ph / 2) + 3);
+    return { isFail: found > allowed, text: `Дефекты: ${found} шт (допуск: ${allowed})` };
+}
+
+function drawInspectionGeometry(ctx, px, py, pw, ph, rule) {
+    const tol = rule.tolerance ?? 2, dev = 0.4;
+    ctx.strokeStyle = '#d9a441';
+    ctx.strokeRect(px - 2, py - 2, pw + 4, ph + 4);
+    ctx.font = '7.5px monospace';
+    ctx.fillStyle = '#d9a441';
+    ctx.fillText(`W:${pw} H:${ph}`, px + 4, py - 5);
+    return { isFail: Math.abs(dev) > tol, text: `Размер: откл. +${dev} мм (допуск ±${tol} мм)` };
+}
+
+function drawInspectionShift(ctx, px, py, pw, ph, rule) {
+    const maxShift = rule.maxShift ?? 3, shiftVal = 1.2;
+    const cx = Math.round(px + pw / 2), cy = Math.round(py + ph / 2);
+    ctx.strokeStyle = 'rgba(165, 138, 217, 0.6)';
+    ctx.beginPath(); ctx.moveTo(cx - 10, cy); ctx.lineTo(cx + 10, cy);
+    ctx.moveTo(cx, cy - 10); ctx.lineTo(cx, cy + 10); ctx.stroke();
+    ctx.fillStyle = '#a58ad9';
+    ctx.fillRect(cx - 2, cy - 2, 4, 4);
+    return { isFail: shiftVal > maxShift, text: `Смещение: ${shiftVal} px (допуск ≤ ${maxShift} px)` };
+}
+
 function drawLiveRuleInspection(ctx, w, h, inField, p, size, railY, t, rule) {
     if (!rule || !inField) return false;
     const bw = Math.round(w * size), bh = Math.round(h * 0.30);
@@ -273,40 +319,25 @@ function drawLiveRuleInspection(ctx, w, h, inField, p, size, railY, t, rule) {
     ctx.strokeStyle = 'rgba(79, 163, 209, 0.4)';
     ctx.strokeRect(px, py, pw, ph);
 
-    const isPresence = rule.mode === 'presence';
-    let isFail = false, text = '';
-    if (isPresence) {
-        const expected = rule.countExpected || 4;
-        const actual = expected;
-        const stepX = pw / (expected + 1);
-        for (let i = 1; i <= expected; i++) {
-            const mx = Math.round(px + i * stepX), my = Math.round(py + ph / 2);
-            ctx.fillStyle = '#58b79a';
-            ctx.fillRect(mx - 3, my - 3, 6, 6);
-            ctx.font = '8px monospace';
-            ctx.fillText(String(i), mx - 2, my - 5);
-        }
-        isFail = actual < expected;
-        text = `Наличие: ${actual} из ${expected} шт`;
-    } else {
-        const defectsFound = 0;
-        isFail = defectsFound > 0;
-        text = `Дефекты: ${defectsFound} шт (допустимо: 0)`;
-    }
+    let res = null;
+    if (rule.mode === 'presence') res = drawInspectionPresence(ctx, px, py, pw, ph, rule);
+    else if (rule.mode === 'shift') res = drawInspectionShift(ctx, px, py, pw, ph, rule);
+    else if (rule.mode === 'geometry') res = drawInspectionGeometry(ctx, px, py, pw, ph, rule);
+    else res = drawInspectionDefect(ctx, px, py, pw, ph, rule);
 
-    window.Cameras.lastFail = isFail;
+    window.Cameras.lastFail = res.isFail;
 
     ctx.fillStyle = 'rgba(15, 19, 23, 0.88)';
     ctx.fillRect(8, 8, Math.min(w - 16, 310), 36);
-    ctx.strokeStyle = isFail ? '#e06c75' : '#58b79a';
+    ctx.strokeStyle = res.isFail ? '#e06c75' : '#58b79a';
     ctx.strokeRect(8, 8, Math.min(w - 16, 310), 36);
     ctx.font = '9.5px monospace';
     ctx.fillStyle = rule.color || '#fff';
-    ctx.fillText(`● ПРАВИЛО: ${rule.name.toUpperCase()} (${isPresence ? 'НАЛИЧИЕ' : 'ДЕФЕКТ'})`, 14, 21);
+    ctx.fillText(`● ИНСТРУМЕНТ: ${rule.name.toUpperCase()}`, 14, 21);
     ctx.font = '9px sans-serif';
-    ctx.fillStyle = isFail ? '#e06c75' : '#58b79a';
-    ctx.fillText(`${text} ➔ ${isFail ? 'БРАК' : 'ГОДНАЯ (ОК)'}`, 14, 34);
-    return isFail;
+    ctx.fillStyle = res.isFail ? '#e06c75' : '#58b79a';
+    ctx.fillText(`${res.text} ➔ ${res.isFail ? 'БРАК' : 'ГОДНАЯ (ОК)'}`, 14, 34);
+    return res.isFail;
 }
 
 /* Один кадр «камеры»: шум датчика, лента, идущий корпус.

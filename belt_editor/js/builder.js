@@ -16,19 +16,19 @@ const MODELS = ['uneven-heights', 'window-sinks', 'omission-long', 'contacts-lon
 const RULES = [
     {
         id: 'r0', name: 'геометрия', defectName: 'ДЕФЕКТ ГЕОМЕТРИИ', color: '#d9a441',
-        thr: ['площадь', 'перекос', 'высота'], models: [], mode: 'defect', countExpected: 0
+        thr: ['площадь', 'перекос', 'высота'], models: [], mode: 'defect', baseMode: 'geometry', tolerance: 2, countExpected: 0
     },
     {
         id: 'r1', name: 'наличие', defectName: 'НЕКОМПЛЕКТ', color: '#58b79a',
-        thr: ['контраст'], models: [], mode: 'presence', countExpected: 4
+        thr: ['контраст'], models: [], mode: 'presence', baseMode: 'presence', countExpected: 4
     },
     {
-        id: 'r2', name: 'дефект трещина', defectName: 'ТРЕЩИНА', color: '#cf7aa6',
-        thr: ['окно'], models: [], mode: 'defect', countExpected: 0
+        id: 'r2', name: 'дефект', defectName: 'ДЕФЕКТ', color: '#cf7aa6',
+        thr: ['окно'], models: [], mode: 'defect', baseMode: 'defect', maxDefects: 0, countExpected: 0
     },
     {
-        id: 'r3', name: 'наличие контактов', defectName: 'ПРОПУСК КОНТАКТА', color: '#a58ad9',
-        thr: ['нажим', 'смещение'], models: [], mode: 'presence', countExpected: 4
+        id: 'r3', name: 'смещение', defectName: 'СМЕЩЕНИЕ', color: '#a58ad9',
+        thr: ['нажим', 'смещение'], models: [], mode: 'shift', baseMode: 'shift', maxShift: 3, countExpected: 0
     }
 ];
 
@@ -311,7 +311,8 @@ function renderAssets() {
                 const sw = el('span', 'rule-swatch'); sw.style.background = item.color;
                 const nm = el('b', '', item.name); nm.style.color = item.color;
                 tile.appendChild(sw); tile.appendChild(nm);
-                tile.appendChild(el('span', 'rule-mode-tag', item.mode === 'presence' ? 'наличие' : 'дефект'));
+                const modeLabel = item.mode === 'presence' ? 'наличие' : (item.mode === 'shift' ? 'смещение' : (item.mode === 'geometry' ? 'геометрия' : 'дефект'));
+                tile.appendChild(el('span', 'rule-mode-tag', modeLabel));
                 if (item.models.length) tile.appendChild(el('span', 'rule-parts-count', `${item.models.length}м`));
                 if (used) tile.appendChild(el('span', 'asset-use', `кам: ${used}`));
             } else {
@@ -436,42 +437,68 @@ function renderRuleModelList(rule, rid) {
     return list;
 }
 
-function renderRuleConditionBlock(rule, rid) {
-    const isDefect = rule.mode === 'defect';
-    const box = el('div', 'rule-logic-box ' + (isDefect ? 'is-defect' : 'is-presence'));
-
-    if (!isDefect) {
-        const countRow = el('div', 'rule-count-row', null, [
-            el('span', 'rule-lbl', 'Требуется N:'),
-            el('button', 'btn-count-step', '−'),
-            el('span', 'rule-count-val', (rule.countExpected || 4) + ' шт'),
-            el('button', 'btn-count-step', '+')
-        ]);
-        const [btnMinus, btnPlus] = countRow.querySelectorAll('.btn-count-step');
-        btnMinus.type = btnPlus.type = 'button';
-        btnMinus.onclick = ev => {
-            ev.stopPropagation();
-            rule.countExpected = Math.max(1, (rule.countExpected || 4) - 1);
-            selectActiveRule(rid); render();
+function getRuleParamConfig(rule) {
+    if (rule.mode === 'presence') {
+        const val = rule.countExpected || 4;
+        return {
+            lbl: 'Требуется N:', val: val + ' шт',
+            dec: () => { rule.countExpected = Math.max(1, val - 1); },
+            inc: () => { rule.countExpected = Math.min(16, val + 1); },
+            formula: '= N шт → ГОДНАЯ | < N → БРАК'
         };
-        btnPlus.onclick = ev => {
-            ev.stopPropagation();
-            rule.countExpected = Math.min(16, (rule.countExpected || 4) + 1);
-            selectActiveRule(rid); render();
-        };
-        box.appendChild(countRow);
-        box.appendChild(el('div', 'rule-formula', '= N → ГОДНАЯ | < N → БРАК'));
-    } else {
-        box.appendChild(el('div', 'rule-formula', '0 шт → ГОДНАЯ | > 0 → БРАК'));
     }
+    if (rule.mode === 'shift') {
+        const val = rule.maxShift ?? 3;
+        return {
+            lbl: 'Макс. сдвиг:', val: val + ' px',
+            dec: () => { rule.maxShift = Math.max(1, val - 1); },
+            inc: () => { rule.maxShift = Math.min(10, val + 1); },
+            formula: `сдвиг ≤ ${val} px → ГОДНАЯ | > Δ → БРАК`
+        };
+    }
+    if (rule.mode === 'geometry') {
+        const val = rule.tolerance ?? 2;
+        return {
+            lbl: 'Допуск размера:', val: `±${val} мм`,
+            dec: () => { rule.tolerance = Math.max(1, val - 1); },
+            inc: () => { rule.tolerance = Math.min(10, val + 1); },
+            formula: `допуск ±${val} мм → ГОДНАЯ | вылет → БРАК`
+        };
+    }
+    const val = rule.maxDefects ?? 0;
+    return {
+        lbl: 'Допуск брака:', val: val + ' шт',
+        dec: () => { rule.maxDefects = Math.max(0, val - 1); },
+        inc: () => { rule.maxDefects = Math.min(5, val + 1); },
+        formula: val === 0 ? '0 шт → ГОДНАЯ | > 0 → БРАК' : `≤ ${val} шт → ГОДНАЯ | > ${val} → БРАК`
+    };
+}
 
-    const toggleBtn = el('button', 'rule-logic-toggle ' + (isDefect ? 'is-defect' : 'is-presence'),
-        isDefect ? 'Сменить логику: НАЛИЧИЕ (N шт)' : 'Сменить логику: ДЕФЕКТ (0 шт)');
+function renderRuleConditionBlock(rule, rid) {
+    const isPresence = rule.mode === 'presence';
+    const cfg = getRuleParamConfig(rule);
+    const box = el('div', 'rule-logic-box ' + (isPresence ? 'is-presence' : 'is-defect'));
+
+    const countRow = el('div', 'rule-count-row', null, [
+        el('span', 'rule-lbl', cfg.lbl),
+        el('button', 'btn-count-step', '−'),
+        el('span', 'rule-count-val', cfg.val),
+        el('button', 'btn-count-step', '+')
+    ]);
+    const [btnMinus, btnPlus] = countRow.querySelectorAll('.btn-count-step');
+    btnMinus.type = btnPlus.type = 'button';
+    btnMinus.onclick = ev => { ev.stopPropagation(); cfg.dec(); selectActiveRule(rid); render(); };
+    btnPlus.onclick = ev => { ev.stopPropagation(); cfg.inc(); selectActiveRule(rid); render(); };
+    box.appendChild(countRow);
+    box.appendChild(el('div', 'rule-formula', cfg.formula));
+
+    const toggleBtn = el('button', 'rule-logic-toggle ' + (isPresence ? 'is-presence' : 'is-defect'),
+        isPresence ? 'Сменить логику: ДЕФЕКТ / ДОПУСК' : 'Сменить логику: НАЛИЧИЕ (N шт)');
     toggleBtn.type = 'button';
     toggleBtn.onclick = ev => {
         ev.stopPropagation();
-        rule.mode = isDefect ? 'presence' : 'defect';
-        toast(`Инструмент «${rule.name}»: режим «${rule.mode === 'defect' ? 'ДЕФЕКТ' : 'НАЛИЧИЕ'}»`);
+        rule.mode = isPresence ? (rule.baseMode || 'defect') : 'presence';
+        toast(`Инструмент «${rule.name}»: режим «${rule.mode.toUpperCase()}»`);
         selectActiveRule(rid); render();
     };
     box.appendChild(toggleBtn);
@@ -494,13 +521,15 @@ function renderRuleNode(rid, at) {
     node.appendChild(gsock('sock-in', null, 'rule', rid));
     node.appendChild(gsock('sock-out', key));
 
-    const isDefect = rule.mode === 'defect';
+    const isPresence = rule.mode === 'presence';
+    const kindClass = isPresence ? 'kind-presence' : (rule.mode === 'shift' ? 'kind-shift' : (rule.mode === 'geometry' ? 'kind-geometry' : 'kind-defect'));
+    const kindText = isPresence ? 'НАЛИЧИЕ' : (rule.mode === 'shift' ? 'СМЕЩЕНИЕ' : (rule.mode === 'geometry' ? 'ГЕОМЕТРИЯ' : 'ДЕФЕКТ'));
     const cams = ruleOnCameras(rule);
     const body = el('div', 'rule-card-body', null, [
         el('div', 'rule-block', null, [
             el('div', 'rule-block-head', null, [
-                el('span', 'rule-block-tag', 'МОДЕЛЬ (ДЕТЕКТОР)'),
-                el('span', 'rule-kind-pill ' + (isDefect ? 'kind-defect' : 'kind-presence'), isDefect ? 'ДЕФЕКТ' : 'НАЛИЧИЕ')
+                el('span', 'rule-block-tag', 'МОДЕЛЬ (ОБЛАСТЬ)'),
+                el('span', 'rule-kind-pill ' + kindClass, kindText)
             ]),
             renderRuleModelList(rule, rid)
         ]),

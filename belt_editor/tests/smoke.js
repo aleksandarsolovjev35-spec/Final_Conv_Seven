@@ -904,6 +904,39 @@ check('настройка числа N в блоке наличия: кнопк�
         const valAfter = doc.querySelector('.gnode.g-rule[data-rule="r0"] .rule-count-val').textContent;
         return valBefore !== valAfter;
     })());
+check('конструктор инструментов: каталог содержит базовые инструменты геометрия, наличие, дефект, смещение',
+    (function () {
+        const tiles = ruleTiles();
+        const names = Array.from(tiles).map(t => t.querySelector('b')?.textContent.trim());
+        const tags = Array.from(tiles).map(t => t.querySelector('.rule-mode-tag')?.textContent.trim());
+        return names.includes('геометрия') && names.includes('наличие')
+            && names.includes('дефект') && names.includes('смещение')
+            && tags.includes('наличие') && tags.includes('дефект') && tags.includes('смещение');
+    })());
+check('настройка инструмента дефект: кнопки шага регулируют допуск брака',
+    (function () {
+        dragTileToBelt(ruleTiles()[2]);
+        const node = doc.querySelector('.gnode.g-rule[data-rule="r2"]');
+        if (!node) return false;
+        const plusBtn = node.querySelectorAll('.btn-count-step')[1];
+        const valBefore = node.querySelector('.rule-count-val').textContent;
+        plusBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const valAfter = doc.querySelector('.gnode.g-rule[data-rule="r2"] .rule-count-val').textContent;
+        node.querySelector('.pos-del')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        return valBefore !== valAfter && valAfter.includes('1 шт');
+    })());
+check('настройка инструмента смещение: кнопки шага регулируют макс. сдвиг',
+    (function () {
+        dragTileToBelt(ruleTiles()[3]);
+        const node = doc.querySelector('.gnode.g-rule[data-rule="r3"]');
+        if (!node) return false;
+        const plusBtn = node.querySelectorAll('.btn-count-step')[1];
+        const valBefore = node.querySelector('.rule-count-val').textContent;
+        plusBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const valAfter = doc.querySelector('.gnode.g-rule[data-rule="r3"] .rule-count-val').textContent;
+        node.querySelector('.pos-del')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        return valBefore !== valAfter && valAfter.includes('4 px');
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);
