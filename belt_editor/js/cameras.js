@@ -263,6 +263,78 @@ function drawReticleOverlay(ctx, w, h, inField, p, size, railY) {
     }
 }
 
+function drawInscribeTest(ctx, px, py, pw, ph, rule, bw, bh) {
+    const rw = Math.round((rule.inscribeW || 46) * (bw / 130));
+    const rh = Math.round((rule.inscribeH || 24) * (bh / 65));
+    const rx = Math.round(px + (pw - rw) / 2);
+    const ry = Math.round(py + (ph - rh) / 2);
+    const fits = (rw <= pw && rh <= ph);
+    const isFail = (rule.mode === 'defect') ? fits : !fits;
+    ctx.fillStyle = isFail ? 'rgba(224, 108, 117, 0.25)' : 'rgba(88, 183, 154, 0.22)';
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeStyle = isFail ? '#e06c75' : '#58b79a';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(rx, ry, rw, rh);
+    return { isFail, text: `Rect: ${rule.inscribeW || 46}×${rule.inscribeH || 24}px` };
+}
+
+function drawAreaTest(ctx, bx, by, bw, bh, rule) {
+    const spotR = Math.max(3, Math.round(bw * 0.04));
+    const spotArea = 36;
+    const exceeds = spotArea >= (rule.areaThreshold || 35);
+    const isFail = (rule.mode === 'defect') ? exceeds : !exceeds;
+    ctx.fillStyle = isFail ? '#e06c75' : 'rgba(88, 183, 154, 0.55)';
+    ctx.beginPath();
+    ctx.arc(bx + bw * 0.38, by + bh * 0.42, spotR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = isFail ? '#e06c75' : '#58b79a';
+    ctx.stroke();
+    return { isFail, text: `Пятно S: 36px² (порог ${rule.areaThreshold || 35}px²)` };
+}
+
+function drawCountTest(ctx, bx, by, bw, bh, rule) {
+    const expected = rule.countExpected || 5;
+    const count = 5;
+    const matches = (count === expected);
+    const isFail = (rule.mode === 'presence') ? !matches : matches;
+    return { isFail, text: `Контакты: 5 из ${expected} шт` };
+}
+
+function drawLiveRuleInspection(ctx, w, h, inField, p, size, railY, t, rule) {
+    if (!rule || !inField) return false;
+    const bw = Math.round(w * size), bh = Math.round(h * 0.30);
+    const bx = Math.round(w * p - bw / 2), by = railY - bh - Math.round(bh * 0.16);
+    const pw = Math.round(bw * 0.54), ph = Math.round(bh * 0.46);
+    const px = Math.round(bx + (bw - pw) / 2), py = Math.round(by + (bh - ph) / 2 + bh * 0.08);
+
+    ctx.strokeStyle = 'rgba(79, 163, 209, 0.35)';
+    ctx.strokeRect(px, py, pw, ph);
+
+    let res = { isFail: false, text: '' };
+    if (rule.checkType === 'area') res = drawAreaTest(ctx, bx, by, bw, bh, rule);
+    else if (rule.checkType === 'count') res = drawCountTest(ctx, bx, by, bw, bh, rule);
+    else res = drawInscribeTest(ctx, px, py, pw, ph, rule, bw, bh);
+
+    window.Cameras.lastFail = res.isFail;
+    const verdictEl = document.getElementById('tuner-verdict');
+    if (verdictEl) {
+        verdictEl.textContent = res.isFail ? 'БРАК' : 'ГОДНАЯ';
+        verdictEl.className = 'tuner-verdict ' + (res.isFail ? 'fail' : 'pass');
+    }
+
+    ctx.fillStyle = 'rgba(15, 19, 23, 0.85)';
+    ctx.fillRect(8, 8, Math.min(w - 16, 330), 38);
+    ctx.strokeStyle = res.isFail ? '#e06c75' : '#58b79a';
+    ctx.strokeRect(8, 8, Math.min(w - 16, 330), 38);
+    ctx.font = '10px monospace';
+    ctx.fillStyle = rule.color || '#fff';
+    ctx.fillText(`● LIVE: ${rule.name.toUpperCase()} [${rule.checkType || 'inscribe'}]`, 14, 22);
+    ctx.font = '9.5px sans-serif';
+    ctx.fillStyle = res.isFail ? '#e06c75' : '#58b79a';
+    ctx.fillText(`${res.text} ➔ ${res.isFail ? 'БРАК: ' + (rule.defectName || rule.name) : 'ГОДНАЯ (В НОРМЕ)'}`, 14, 35);
+    return res.isFail;
+}
+
 /* Один кадр «камеры»: шум датчика, лента, идущий корпус.
  * Возвращает true, когда корпус в поле зрения. */
 function drawFeed(ctx, w, h, seed, t, large) {
@@ -288,7 +360,12 @@ function drawFeed(ctx, w, h, seed, t, large) {
 
     drawNoiseAndScanline(ctx, w, h, rand, large, t, flick);
 
-    if (large) drawReticleOverlay(ctx, w, h, inField, p, size, railY);
+    if (large) {
+        drawReticleOverlay(ctx, w, h, inField, p, size, railY);
+        if (inField && window.BeltBridge && window.BeltBridge.getActiveRule) {
+            drawLiveRuleInspection(ctx, w, h, inField, p, size, railY, t, window.BeltBridge.getActiveRule());
+        }
+    }
     return inField;
 }
 
@@ -302,16 +379,23 @@ function paintMainView(t) {
         const seen = drawFeed(ctx, main.width, main.height,
             hash('M|' + (mainId || '-')), t, true);
         if (mainId) {
-            status.textContent = seen ? 'деталь' : 'пусто';
-            status.className = 'cam-tag cam-tag-br' + (seen ? ' live' : '');
-        } else {
-            status.textContent = 'нет камер';
-            status.className = 'cam-tag cam-tag-br';
+            const rule = window.BeltBridge?.getActiveRule?.();
+            const lastFail = window.Cameras?.lastFail;
+            if (seen && rule) {
+                status.textContent = lastFail ? 'брак: ' + rule.name : 'годная';
+                status.className = 'cam-tag cam-tag-br live ' + (lastFail ? 'fail' : 'pass');
+            } else if (seen) {
+                status.textContent = 'деталь';
+                status.className = 'cam-tag cam-tag-br live';
+            } else {
+                status.textContent = 'пусто';
+                status.className = 'cam-tag cam-tag-br';
+            }
+            $id('cam-main-time').textContent =
+                new Date().toLocaleTimeString('ru-RU');
+        } else if (status) {
+            status.textContent = mainId ? 'кадр' : 'нет камер';
         }
-        $id('cam-main-time').textContent =
-            new Date().toLocaleTimeString('ru-RU');
-    } else if (status) {
-        status.textContent = mainId ? 'кадр' : 'нет камер';
     }
 }
 

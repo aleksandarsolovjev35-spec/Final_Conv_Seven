@@ -14,10 +14,26 @@ const MODELS = ['uneven-heights', 'window-sinks', 'omission-long', 'contacts-lon
     'shaft-long', 'yoke-drop'].map((name, i) => ({ id: 'm' + i, name }));
 
 const RULES = [
-    { id: 'r0', name: 'геометрия', color: '#d9a441', thr: ['площадь', 'перекос', 'высота'], models: [], mode: 'defect' },
-    { id: 'r1', name: 'наличие', color: '#58b79a', thr: ['контраст'], models: [], mode: 'presence' },
-    { id: 'r2', name: 'пропуск', color: '#cf7aa6', thr: ['окно'], models: [], mode: 'defect' },
-    { id: 'r3', name: 'контакты', color: '#a58ad9', thr: ['нажим', 'смещение'], models: [], mode: 'presence' }
+    {
+        id: 'r0', name: 'геометрия', defectName: 'ГЕОМЕТРИЯ ПЛОЩАДКИ', color: '#d9a441',
+        thr: ['площадь', 'перекос', 'высота'], models: [], mode: 'defect',
+        checkType: 'inscribe', inscribeW: 46, inscribeH: 24, areaThreshold: 35, countExpected: 5, gapMax: 10, confidence: 0.50
+    },
+    {
+        id: 'r1', name: 'наличие', defectName: 'НЕДОКОМПЛЕКТ', color: '#58b79a',
+        thr: ['контраст'], models: [], mode: 'presence',
+        checkType: 'count', inscribeW: 40, inscribeH: 20, areaThreshold: 30, countExpected: 5, gapMax: 8, confidence: 0.60
+    },
+    {
+        id: 'r2', name: 'пропуск', defectName: 'ПЯТНО / ПРОПУСК', color: '#cf7aa6',
+        thr: ['окно'], models: [], mode: 'defect',
+        checkType: 'area', inscribeW: 35, inscribeH: 18, areaThreshold: 30, countExpected: 5, gapMax: 12, confidence: 0.45
+    },
+    {
+        id: 'r3', name: 'контакты', defectName: 'ПЕРЕКОС КОНТАКТОВ', color: '#a58ad9',
+        thr: ['нажим', 'смещение'], models: [], mode: 'presence',
+        checkType: 'gap', inscribeW: 50, inscribeH: 22, areaThreshold: 40, countExpected: 5, gapMax: 8, confidence: 0.55
+    }
 ];
 
 const RULE_COLORS = ['#4fa3d1', '#d9a441', '#58b79a', '#cf7aa6', '#a58ad9', '#e06c75', '#98c379',
@@ -411,6 +427,49 @@ function renderModelNode(mid, at) {
     return node;
 }
 
+function renderRuleModelList(rule, rid) {
+    const list = el('div', 'g-models', null, rule.models.map(mid => {
+        const mod = MODELS.find(m => m.id === mid), chip = el('span', 'g-chip', mod ? mod.name : mid);
+        chip.title = 'снять модель'; chip.onclick = ev => { ev.stopPropagation(); togglePart(rid, mid); };
+        return chip;
+    }));
+    if (!rule.models.length) list.appendChild(el('span', 'g-empty', '→ тяни модель сюда'));
+    return list;
+}
+
+function renderRuleLogicToggle(rule) {
+    const isDefect = rule.mode === 'defect';
+    const toggle = el('div', 'rule-logic-toggle' + (isDefect ? ' is-defect' : ' is-presence'), null, [
+        el('span', 'logic-pill', isDefect ? '🔴 Есть зона ➔ БРАК' : '🟢 Нет зоны ➔ БРАК'),
+        el('span', 'logic-sub', isDefect ? 'дефект: найдено = брак' : 'наличие: пусто = брак')
+    ]);
+    toggle.title = 'Нажмите для переключения: дефект (есть ➔ брак) ↔ наличие (нет ➔ брак)';
+    toggle.onclick = ev => {
+        ev.stopPropagation();
+        rule.mode = rule.mode === 'defect' ? 'presence' : 'defect';
+        toast(`«${rule.name}»: ${rule.mode === 'defect' ? 'режим «дефект» (есть зона ➔ БРАК)' : 'режим «наличие» (нет зоны ➔ БРАК)'}`);
+        updateTunerUI();
+        render();
+    };
+    return toggle;
+}
+
+function renderRuleGeomBadge(rule, rid) {
+    let geomText = '';
+    if (rule.checkType === 'inscribe') geomText = `вписанный ${rule.inscribeW || 46}×${rule.inscribeH || 24}px`;
+    else if (rule.checkType === 'area') geomText = `площадь S ≥ ${rule.areaThreshold || 35}px²`;
+    else if (rule.checkType === 'count') geomText = `счётчик: ${rule.countExpected || 5} шт`;
+    else geomText = `перекос Δ ≤ ${rule.gapMax || 10}px`;
+
+    const badge = el('div', 'rule-block-row', null, [
+        el('span', 'rule-block-tag', 'ГЕОМЕТРИЯ'),
+        el('span', 'rule-geom-val', geomText)
+    ]);
+    badge.title = 'Клик для настройки в эфире';
+    badge.onclick = ev => { ev.stopPropagation(); selectActiveRule(rid); };
+    return badge;
+}
+
 function renderRuleNode(rid, at) {
     const rule = RULES.find(r => r.id === rid);
     if (!rule) return el('div', 'gnode');
@@ -421,40 +480,22 @@ function renderRuleNode(rid, at) {
     const head = node.querySelector('.node-head'), sw = el('i', 'g-swatch');
     sw.style.background = rule.color; head.insertBefore(sw, head.firstChild);
     node.querySelector('.pos-label').style.color = rule.color;
+
+    const tuneBtn = el('button', 'btn-rule-tune', '🎛');
+    tuneBtn.type = 'button'; tuneBtn.title = 'Настроить правило в прямом эфире на камере';
+    tuneBtn.onclick = ev => { ev.stopPropagation(); selectActiveRule(rid); };
+    head.insertBefore(tuneBtn, node.querySelector('.pos-del'));
+
     node.appendChild(gsock('sock-in', null, 'rule', rid));
     node.appendChild(gsock('sock-out', key));
 
-    const list = el('div', 'g-models', null, rule.models.map(mid => {
-        const mod = MODELS.find(m => m.id === mid), chip = el('span', 'g-chip', mod ? mod.name : mid);
-        chip.title = 'снять модель'; chip.onclick = ev => { ev.stopPropagation(); togglePart(rid, mid); };
-        return chip;
-    }));
-    if (!rule.models.length) list.appendChild(el('span', 'g-empty', '→ тяни модель сюда'));
-
-    const isDefect = rule.mode === 'defect';
-    const logicToggle = el('div', 'rule-logic-toggle' + (isDefect ? ' is-defect' : ' is-presence'), null, [
-        el('span', 'logic-pill', isDefect ? '🔴 Есть зона ➔ БРАК' : '🟢 Нет зоны ➔ БРАК'),
-        el('span', 'logic-sub', isDefect ? 'дефект: найдено = брак' : 'наличие: пусто = брак')
-    ]);
-    logicToggle.title = 'Нажмите для переключения: дефект (есть ➔ брак) ↔ наличие (нет ➔ брак)';
-    logicToggle.onclick = ev => {
-        ev.stopPropagation();
-        rule.mode = rule.mode === 'defect' ? 'presence' : 'defect';
-        toast(`«${rule.name}»: ${rule.mode === 'defect' ? 'режим «дефект» (есть зона ➔ БРАК)' : 'режим «наличие» (нет зоны ➔ БРАК)'}`);
-        render();
-    };
-
     const blockBody = el('div', 'rule-blocks-body', null, [
-        el('div', 'rule-block-row', null, [
-            el('span', 'rule-block-tag', 'ОБНАРУЖЕНИЕ'),
-            list
-        ]),
-        el('div', 'rule-block-row', null, [
-            el('span', 'rule-block-tag', 'РЕШЕНИЕ'),
-            logicToggle
-        ])
+        el('div', 'rule-block-row', null, [el('span', 'rule-block-tag', 'ОБНАРУЖЕНИЕ'), renderRuleModelList(rule, rid)]),
+        renderRuleGeomBadge(rule, rid),
+        el('div', 'rule-block-row', null, [el('span', 'rule-block-tag', 'РЕШЕНИЕ'), renderRuleLogicToggle(rule)])
     ]);
     node.appendChild(blockBody);
+    node.onclick = ev => { if (!ev.target.closest('button, .sock, .g-chip')) selectActiveRule(rid); };
 
     const cams = ruleOnCameras(rule);
     if (cams.length) node.appendChild(el('div', 'g-meta', `кам: ${cams.length}`));
@@ -844,6 +885,8 @@ function removeCanvasGhost() { $('canvas-drag-ghost')?.remove(); }
 
 window.BeltBridge = {
     syncCameras: () => { if (window.Cameras) window.Cameras.sync(cameraViews()); },
+    getActiveRule: () => getActiveTunerRule(),
+    selectRule: id => selectActiveRule(id),
     camDragStart(id, dt, ev) {
         dragKind = 'camera'; dragCamId = dragAsset = id;
         if (dt) { dt.setData('text/plain', 'camera:' + id); dt.effectAllowed = 'copy'; }
@@ -1083,9 +1126,111 @@ function wireFolderPickers() {
         n => ['.pt', '.onnx', '.engine', '.tflite', '.weights', '.bin'].some(ext => n.endsWith(ext)), addModelFromFile);
 }
 
+/* ─── Инспектор и настройка правил в прямом эфире ─────────────────── */
+let activeTunerRuleId = 'r0';
+
+function getActiveTunerRule() {
+    return RULES.find(r => r.id === activeTunerRuleId) || RULES[0];
+}
+
+function selectActiveRule(rid) {
+    const r = RULES.find(x => x.id === rid);
+    if (!r) return;
+    activeTunerRuleId = rid;
+    const sel = $('tuner-rule-select');
+    if (sel && sel.value !== rid) sel.value = rid;
+    updateTunerUI();
+}
+
+function renderTunerSliders(rule, container) {
+    container.textContent = '';
+    const addSlider = (name, key, min, max, step, unit) => {
+        const row = el('div', 'tuner-slider-row');
+        row.appendChild(el('span', 'tuner-slider-name', name));
+        const inp = el('input', 'tuner-slider-input');
+        inp.type = 'range';
+        inp.min = min; inp.max = max; inp.step = step;
+        inp.value = rule[key] != null ? rule[key] : min;
+        const valSpan = el('span', 'tuner-slider-val', inp.value + unit);
+        inp.oninput = () => {
+            rule[key] = parseFloat(inp.value);
+            valSpan.textContent = inp.value + unit;
+        };
+        inp.onchange = () => render();
+        row.appendChild(inp);
+        row.appendChild(valSpan);
+        container.appendChild(row);
+    };
+
+    if (rule.checkType === 'inscribe') {
+        addSlider('Ширина W:', 'inscribeW', 10, 100, 1, 'px');
+        addSlider('Высота H:', 'inscribeH', 5, 50, 1, 'px');
+    } else if (rule.checkType === 'area') {
+        addSlider('Порог S:', 'areaThreshold', 5, 100, 1, 'px²');
+        addSlider('AI Conf:', 'confidence', 0.1, 0.95, 0.05, '');
+    } else if (rule.checkType === 'count') {
+        addSlider('Кол-во N:', 'countExpected', 1, 8, 1, ' шт');
+    } else {
+        addSlider('Перекос Δ:', 'gapMax', 2, 25, 1, 'px');
+    }
+}
+
+function updateTunerUI() {
+    const rule = getActiveTunerRule(), container = $('tuner-sliders'), modeBtn = $('tuner-mode-btn');
+    if (!rule || !container) return;
+    document.querySelectorAll('#tuner-types .tuner-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === (rule.checkType || 'inscribe'));
+    });
+    renderTunerSliders(rule, container);
+    if (modeBtn) {
+        const isDef = rule.mode === 'defect';
+        modeBtn.className = 'tuner-mode-btn ' + (isDef ? 'is-defect' : 'is-presence');
+        modeBtn.textContent = isDef ? '🔴 Есть дефект ➔ БРАК' : '🟢 Нет зоны ➔ БРАК';
+    }
+}
+
+function wireLiveTuner() {
+    const tuner = $('cam-rule-tuner'), sel = $('tuner-rule-select');
+    if (!tuner || !sel) return;
+    sel.textContent = '';
+    RULES.forEach(r => {
+        const opt = el('option', '', `${r.name} (${r.defectName || r.name})`);
+        opt.value = r.id;
+        sel.appendChild(opt);
+    });
+    sel.value = activeTunerRuleId;
+    sel.onchange = () => selectActiveRule(sel.value);
+
+    $('btn-tuner-collapse')?.addEventListener('click', () => {
+        tuner.classList.toggle('collapsed');
+        const isC = tuner.classList.contains('collapsed');
+        $('btn-tuner-collapse').textContent = isC ? '+' : '−';
+    });
+
+    document.querySelectorAll('#tuner-types .tuner-btn').forEach(btn => {
+        btn.onclick = () => {
+            const rule = getActiveTunerRule();
+            rule.checkType = btn.dataset.type;
+            updateTunerUI();
+            render();
+        };
+    });
+
+    $('tuner-mode-btn')?.addEventListener('click', () => {
+        const rule = getActiveTunerRule();
+        rule.mode = rule.mode === 'defect' ? 'presence' : 'defect';
+        toast(`«${rule.name}»: ${rule.mode === 'defect' ? 'режим «дефект» (есть зона ➔ БРАК)' : 'режим «наличие» (нет зоны ➔ БРАК)'}`);
+        updateTunerUI();
+        render();
+    });
+
+    updateTunerUI();
+}
+
 function boot() {
     wirePalette(); wireBelt(); wireSearch(); wireThrClose(); wireLinkEngine();
-    dragGNodes(); wireScrollSnap(); wireSideDock(); wireFolderPickers(); render();
+    dragGNodes(); wireScrollSnap(); wireSideDock(); wireFolderPickers();
+    wireLiveTuner(); render();
 }
 
 if (document.readyState === 'loading') {

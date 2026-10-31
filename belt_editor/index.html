@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-<link rel="stylesheet" href="css/belt-editor.css?v=92">
+    <link rel="stylesheet" href="css/belt-editor.css?v=93">
 </head>
 <body>
 <script>
@@ -27,6 +27,32 @@ window.addEventListener('error', function (e) {
             <canvas id="cam-main"></canvas>
             <span class="cam-tag cam-tag-tr" id="cam-main-time"></span>
             <span class="cam-tag cam-tag-br" id="cam-main-status"></span>
+
+            <!-- Панель настройки правил в реальном времени (Live Tuner) -->
+            <div class="cam-rule-tuner" id="cam-rule-tuner">
+                <div class="tuner-header">
+                    <span class="tuner-title">🎛 ЭФИР: НАСТРОЙКА ПРАВИЛА</span>
+                    <select id="tuner-rule-select" class="tuner-select" title="Выберите правило для настройки"></select>
+                    <button type="button" class="tuner-toggle-btn" id="btn-tuner-collapse" title="Свернуть/развернуть панель">−</button>
+                </div>
+                <div class="tuner-body" id="tuner-body">
+                    <div class="tuner-row">
+                        <span class="tuner-label">БЛОК:</span>
+                        <div class="tuner-btn-group" id="tuner-types">
+                            <button type="button" class="tuner-btn active" data-type="inscribe" title="Вписанный прямоугольник в деталь">Вписанный rect</button>
+                            <button type="button" class="tuner-btn" data-type="area" title="Контроль площади пятна/раковины">Площадь</button>
+                            <button type="button" class="tuner-btn" data-type="count" title="Счётчик элементов/контактов">Счётчик</button>
+                            <button type="button" class="tuner-btn" data-type="gap" title="Контроль зазора/перекоса">Перекос</button>
+                        </div>
+                    </div>
+                    <div class="tuner-sliders" id="tuner-sliders"></div>
+                    <div class="tuner-row tuner-footer">
+                        <span class="tuner-label">РЕШЕНИЕ:</span>
+                        <button type="button" class="tuner-mode-btn is-defect" id="tuner-mode-btn">🔴 Есть дефект ➔ БРАК</button>
+                        <span class="tuner-verdict pass" id="tuner-verdict">ГОДНАЯ</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <div class="cam-wall-wrap">
@@ -166,8 +192,8 @@ window.addEventListener('error', function (e) {
 
 <div id="toasts" class="toasts"></div>
 
-    <script src="js/cameras.js?v=92"></script>
-    <script src="js/belt-view.js?v=92"></script>
-    <script src="js/builder.js?v=92"></script>
+    <script src="js/cameras.js?v=93"></script>
+    <script src="js/belt-view.js?v=93"></script>
+    <script src="js/builder.js?v=93"></script>
 </body>
 </html>

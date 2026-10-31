@@ -853,6 +853,44 @@ check('наведение на провод: подсветка красным �
     })());
 check('после dragend визуал чист',
     doc.querySelectorAll('.dragging, .drop-target, .dragging-src').length === 0);
+check('универсальная нода правила: блоки обнаружение, геометрия и логика решения',
+    (function () {
+        const rNode = doc.querySelector('.gnode.g-rule[data-rule="r0"]');
+        if (!rNode) return false;
+        const hasBlocks = rNode.querySelector('.rule-blocks-body') !== null;
+        const hasGeom = rNode.querySelector('.rule-geom-val') !== null;
+        const hasToggle = rNode.querySelector('.rule-logic-toggle') !== null;
+        const hasTuneBtn = rNode.querySelector('.btn-rule-tune') !== null;
+        return hasBlocks && hasGeom && hasToggle && hasTuneBtn;
+    })());
+check('логика решения: переключение режима дефект ↔ наличие',
+    (function () {
+        const toggle = doc.querySelector('.gnode.g-rule[data-rule="r0"] .rule-logic-toggle');
+        if (!toggle) return false;
+        const wasDefect = toggle.classList.contains('is-defect');
+        toggle.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const isPresence = doc.querySelector('.gnode.g-rule[data-rule="r0"] .rule-logic-toggle').classList.contains('is-presence');
+        return wasDefect && isPresence;
+    })());
+check('инспектор в прямом эфире: панель #cam-rule-tuner в зоне камеры',
+    (function () {
+        const tuner = doc.getElementById('cam-rule-tuner');
+        if (!tuner) return false;
+        const hasSelect = doc.getElementById('tuner-rule-select') !== null;
+        const hasTypes = doc.getElementById('tuner-types') !== null;
+        const hasSliders = doc.getElementById('tuner-sliders') !== null;
+        const hasModeBtn = doc.getElementById('tuner-mode-btn') !== null;
+        return hasSelect && hasTypes && hasSliders && hasModeBtn;
+    })());
+check('живая настройка: смена типа геометрии (inscribe, area, count, gap) и синхронизация слайдеров',
+    (function () {
+        const areaBtn = doc.querySelector('#tuner-types .tuner-btn[data-type="area"]');
+        if (!areaBtn) return false;
+        areaBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const rule = window.BeltBridge?.getActiveRule?.();
+        const slider = doc.querySelector('#tuner-sliders .tuner-slider-input');
+        return rule && rule.checkType === 'area' && slider !== null;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);
