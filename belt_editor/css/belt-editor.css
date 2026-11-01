@@ -744,6 +744,7 @@ body {
     max-width: none;
     padding: 0;
     transform-origin: 50% 50%;
+    z-index: 3;
 }
 
 .gnode.g-pos { width: 176px; }
@@ -751,7 +752,7 @@ body {
 /* ─── Ноды холста: модели, правила, камеры ───────────────────────── */
 .gnode {
     position: absolute;
-    z-index: 3;
+    z-index: 4;
     width: 128px;
     background: var(--bg-1);
     border: 1px solid var(--border);
@@ -1216,7 +1217,7 @@ body.node-moving { cursor: grabbing; }
  * роли, тело со строками-сокетами; соседи цепи связаны «проводами» */
 .pos-card {
     position: absolute;          /* нода холста: left/top = координаты поля */
-    z-index: 3;
+    z-index: 4;
     flex: 0 0 auto;
     width: 176px;
     min-height: 82px;
@@ -1425,15 +1426,19 @@ body.node-moving { cursor: grabbing; }
 
 .sock {
     position: absolute;
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     padding: 0;
     border-radius: 50%;
-    background: var(--bg-0, #0d1115);
-    border: 2px solid var(--border-strong);
+    background: #11171f;
+    border: 2px solid #2e3e4e;
+    box-sizing: border-box;
     cursor: crosshair;
-    z-index: 5;
-    transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
 }
 
 /* Расширенная зона захвата (hitbox) — легкий клик без снайперского прицеливания */
@@ -1446,31 +1451,51 @@ body.node-moving { cursor: grabbing; }
 }
 
 .sock:hover {
-    transform: scale(1.3);
+    transform: scale(1.35);
     border-color: var(--accent, #4fa3d1);
-    box-shadow: 0 0 8px rgba(79, 163, 209, 0.6);
+    box-shadow: 0 0 8px rgba(79, 163, 209, 0.7);
+}
+
+.sock.sock-linked {
+    border-color: var(--sock-color, #4fa3d1) !important;
+    box-shadow: 0 0 6px var(--sock-color, rgba(79, 163, 209, 0.5)) !important;
+}
+
+.sock.sock-linked::before {
+    content: '';
+    display: block;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--sock-color, #4fa3d1);
+    box-shadow: 0 0 5px var(--sock-color, #4fa3d1);
 }
 
 .sock-out {
     right: -6px;
     top: 50%;
-    margin-top: -5px;
+    margin-top: -6px;
 }
 
 .sock-in {
-    left: -5px;
+    left: -6px;
     top: 50%;
-    margin-top: -5px;
+    margin-top: -6px;
 }
 
 /* коннекторы цепи: квадратные, снизу ноды — вход слева, выход справа */
 .sock-line-in,
 .sock-line-out {
-    width: 11px;
-    height: 11px;
+    width: 12px;
+    height: 12px;
     top: auto;
     bottom: -6px;
     border-radius: 2px;
+}
+
+.sock-line-in.sock-linked::before,
+.sock-line-out.sock-linked::before {
+    border-radius: 1px;
 }
 
 .sock-line-in { left: -6px; right: auto; }
@@ -1478,7 +1503,7 @@ body.node-moving { cursor: grabbing; }
 .sock-line-out { right: -6px; }
 
 .sock-node {
-    left: -5px;
+    left: -6px;
     top: 12px;
     margin-top: 0;
 }
@@ -1516,16 +1541,19 @@ body.linking {
 }
 
 .wire-chain {
-    stroke-width: 2.5px;
+    stroke: #f59e0b;
+    stroke-width: 2.8px;
     opacity: 0.95;
     stroke-dasharray: none;
+    filter: drop-shadow(0 2px 6px rgba(245, 158, 11, 0.4));
 }
 
 .wire {
     fill: none;
     stroke: var(--border-strong);
-    stroke-width: 2;
-    opacity: 0.8;
+    stroke-width: 2.2px;
+    opacity: 0.92;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.75));
     transition: stroke 140ms ease, stroke-width 140ms ease, opacity 140ms ease, filter 140ms ease;
 }
 
@@ -1537,9 +1565,9 @@ body.linking {
 }
 
 .wire.wire-hover-delete {
-    stroke: #ff5c5c !important;
-    stroke-width: 3.5px !important;
-    filter: drop-shadow(0 0 6px rgba(255, 92, 92, 0.85));
+    stroke: #ff4d4f !important;
+    stroke-width: 3.8px !important;
+    filter: drop-shadow(0 0 8px rgba(255, 77, 79, 0.95)) !important;
     opacity: 1 !important;
 }
 
@@ -1554,8 +1582,15 @@ body.node-moving .wire-hitbox,
 
 .wire-live {
     stroke: var(--accent);
-    stroke-dasharray: 4 4;
+    stroke-dasharray: 6 4;
+    animation: wire-flow 0.5s linear infinite;
     opacity: 1;
+    filter: drop-shadow(0 0 6px var(--accent));
+}
+
+@keyframes wire-flow {
+    from { stroke-dashoffset: 20; }
+    to { stroke-dashoffset: 0; }
 }
 
 .wire-ok {

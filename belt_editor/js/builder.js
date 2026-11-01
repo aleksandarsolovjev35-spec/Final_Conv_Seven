@@ -706,13 +706,30 @@ function sockXY(node) {
 
 function wirePathOrtho(a, b) {
     const x1 = a[0], y1 = a[1], x2 = b[0], y2 = b[1], dx = x2 - x1, dy = y2 - y1;
-    if (Math.abs(dx) < 6 || Math.abs(dy) < 6) return `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
-    const midX = x1 + dx * 0.5, r = Math.min(8, Math.abs(midX - x1) * 0.45, Math.abs(dy) * 0.45);
-    const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
-    return `M${x1.toFixed(1)} ${y1.toFixed(1)}L${(midX - r * sx).toFixed(1)} ${y1.toFixed(1)}` +
-           `Q${midX.toFixed(1)} ${y1.toFixed(1)} ${midX.toFixed(1)} ${(y1 + r * sy).toFixed(1)}` +
-           `L${midX.toFixed(1)} ${(y2 - r * sy).toFixed(1)}` +
-           `Q${midX.toFixed(1)} ${y2.toFixed(1)} ${(midX + r * sx).toFixed(1)} ${y2.toFixed(1)}` +
+    if (Math.abs(dy) < 3) return `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
+    if (Math.abs(dx) < 3) return `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
+
+    if (dx >= 20) {
+        const midX = x1 + dx * 0.5, r = Math.min(8, Math.abs(midX - x1) * 0.48, Math.abs(dy) * 0.48);
+        const sy = dy > 0 ? 1 : -1;
+        return `M${x1.toFixed(1)} ${y1.toFixed(1)}` +
+               `L${(midX - r).toFixed(1)} ${y1.toFixed(1)}` +
+               `Q${midX.toFixed(1)} ${y1.toFixed(1)} ${midX.toFixed(1)} ${(y1 + r * sy).toFixed(1)}` +
+               `L${midX.toFixed(1)} ${(y2 - r * sy).toFixed(1)}` +
+               `Q${midX.toFixed(1)} ${y2.toFixed(1)} ${(midX + r).toFixed(1)} ${y2.toFixed(1)}` +
+               `L${x2.toFixed(1)} ${y2.toFixed(1)}`;
+    }
+
+    const stub = 16, midY = y1 + dy * 0.5, r = Math.min(6, Math.abs(dy) * 0.25), sy = dy > 0 ? 1 : -1;
+    return `M${x1.toFixed(1)} ${y1.toFixed(1)}` +
+           `L${(x1 + stub - r).toFixed(1)} ${y1.toFixed(1)}` +
+           `Q${(x1 + stub).toFixed(1)} ${y1.toFixed(1)} ${(x1 + stub).toFixed(1)} ${(y1 + r * sy).toFixed(1)}` +
+           `L${(x1 + stub).toFixed(1)} ${(midY - r * sy).toFixed(1)}` +
+           `Q${(x1 + stub).toFixed(1)} ${midY.toFixed(1)} ${(x1 + stub - r).toFixed(1)} ${midY.toFixed(1)}` +
+           `L${(x2 - stub + r).toFixed(1)} ${midY.toFixed(1)}` +
+           `Q${(x2 - stub).toFixed(1)} ${midY.toFixed(1)} ${(x2 - stub).toFixed(1)} ${(midY + r * sy).toFixed(1)}` +
+           `L${(x2 - stub).toFixed(1)} ${(y2 - r * sy).toFixed(1)}` +
+           `Q${(x2 - stub).toFixed(1)} ${y2.toFixed(1)} ${(x2 - stub + r).toFixed(1)} ${y2.toFixed(1)}` +
            `L${x2.toFixed(1)} ${y2.toFixed(1)}`;
 }
 
@@ -724,8 +741,11 @@ function calcWirePath(a, b) {
 function svgPath(d, cls, color) {
     const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     p.setAttribute('d', d); p.setAttribute('class', cls);
-    const z = window.BeltView?.state().z || 1, w = (cls.includes('wire-chain') ? 2.5 : 2.0) * Math.min(1.2, Math.sqrt(z));
-    p.style.strokeWidth = Math.max(0.75, w).toFixed(2) + 'px';
+    p.setAttribute('stroke-linecap', 'round');
+    p.setAttribute('stroke-linejoin', 'round');
+    const z = window.BeltView?.state().z || 1, isChain = cls.includes('wire-chain');
+    const w = (isChain ? 2.8 : 2.2) * Math.min(1.2, Math.sqrt(z));
+    p.style.strokeWidth = Math.max(1.0, w).toFixed(2) + 'px';
     if (color) p.style.stroke = color;
     return p;
 }
@@ -739,7 +759,11 @@ function scheduleWires() {
 function createWireLink(svg, from, to, color, cls, onRemove) {
     const a = sockXY(from), b = sockXY(to);
     if (!a || !b) return;
-    const d = calcWirePath(a, b), wire = svgPath(d, cls || 'wire', color);
+    const wireColor = color || (cls?.includes('wire-chain') ? '#f59e0b' : '#4fa3d1');
+    if (from) { from.classList.add('sock-linked'); from.style.setProperty('--sock-color', wireColor); }
+    if (to) { to.classList.add('sock-linked'); to.style.setProperty('--sock-color', wireColor); }
+
+    const d = calcWirePath(a, b), wire = svgPath(d, cls || 'wire', wireColor);
     svg.appendChild(wire);
 
     if (onRemove) {
@@ -759,14 +783,14 @@ function createWireLink(svg, from, to, color, cls, onRemove) {
 
 function renderModelWires(svg, q) {
     RULES.forEach(r => r.models.forEach(m =>
-        createWireLink(svg, q(`.sock[data-link="model:${m}"]`), q(`.sock[data-drop="rule"][data-rid="${r.id}"]`), null, null, () => togglePart(r.id, m))
+        createWireLink(svg, q(`.sock[data-link="model:${m}"]`), q(`.sock[data-drop="rule"][data-rid="${r.id}"]`), '#7c8cf8', 'wire wire-model', () => togglePart(r.id, m))
     ));
 }
 
 function renderRuleWires(svg, q) {
     inventory.forEach(dev => dev.rules.forEach(rid => {
         const r = RULES.find(x => x.id === rid);
-        createWireLink(svg, q(`.sock[data-link="rule:${rid}"]`), q(`.sock[data-drop="cam"][data-cam="${dev.id}"]`), r?.color, null, () => toggleRuleOnCam(dev.id, rid));
+        createWireLink(svg, q(`.sock[data-link="rule:${rid}"]`), q(`.sock[data-drop="cam"][data-cam="${dev.id}"]`), r?.color || '#e5c07b', 'wire wire-rule', () => toggleRuleOnCam(dev.id, rid));
     }));
 }
 
@@ -774,7 +798,7 @@ function renderPosWires(svg, q) {
     belt.positions.forEach((pos, i) => {
         if (pos.inspection) {
             pos.inspection.cameras.forEach(cid =>
-                createWireLink(svg, q(`.cam-node[data-cam="${cid}"] .sock[data-link="camera:${cid}"]`), q(`.pos-card[data-index="${i}"] .sock-node`), null, null, () => {
+                createWireLink(svg, q(`.cam-node[data-cam="${cid}"] .sock[data-link="camera:${cid}"]`), q(`.pos-card[data-index="${i}"] .sock-node`), '#38bdf8', 'wire wire-cam', () => {
                     const idx = pos.inspection.cameras.indexOf(cid);
                     if (idx >= 0) { pos.inspection.cameras.splice(idx, 1); toast(camName(cid) + ' — снята с П' + i + '.'); render(); }
                 })
@@ -782,7 +806,7 @@ function renderPosWires(svg, q) {
         }
         if (pos.nextUid) {
             const tgt = findPosByUid(pos.nextUid);
-            if (tgt) createWireLink(svg, q(`.pos-card[data-index="${i}"] .sock-line-out`), q(`.pos-card[data-index="${belt.positions.indexOf(tgt)}"] .sock-line-in`), null, 'wire wire-chain', () => {
+            if (tgt) createWireLink(svg, q(`.pos-card[data-index="${i}"] .sock-line-out`), q(`.pos-card[data-index="${belt.positions.indexOf(tgt)}"] .sock-line-in`), '#f59e0b', 'wire wire-chain', () => {
                 pos.nextUid = null; toast('Связь разорвана.'); render();
             });
         }
@@ -802,6 +826,10 @@ function renderWires() {
     const svg = $('wires');
     if (!svg) return;
     svg.textContent = '';
+    document.querySelectorAll('.sock-linked').forEach(s => {
+        s.classList.remove('sock-linked');
+        s.style.removeProperty('--sock-color');
+    });
     const q = sel => document.querySelector(sel);
     renderModelWires(svg, q);
     renderRuleWires(svg, q);

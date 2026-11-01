@@ -1046,6 +1046,16 @@ check('линии связи: строго чертёжные углы 90° (к�
         });
         return ctrl === null && btns.length === 0 && hasOrthoWire;
     })());
+check('соединения и сокеты: подключенные сокеты получают класс sock-linked и ядро контакта',
+    (function () {
+        const linkedSocks = doc.querySelectorAll('.sock.sock-linked');
+        const hasLinked = linkedSocks.length > 0;
+        let hasColor = false;
+        linkedSocks.forEach(s => {
+            if (s.style.getPropertyValue('--sock-color')) hasColor = true;
+        });
+        return hasLinked && hasColor;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);
