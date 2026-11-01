@@ -1330,7 +1330,7 @@ function initSevenCamPositions() {
             : (isP4 ? { cameras: ['cam2', 'cam3', 'cam4', 'cam5', 'cam6'], primary: false } : null);
         p.push({
             uid: i + 1,
-            at: { x: 20 + i * 195, y: 240 },
+            at: { x: 40 + i * 205, y: 250 },
             plates: 2,
             inspection: insp,
             reset: isP8,
@@ -1345,16 +1345,13 @@ function applyBeltTemplate() {
     uidSeq = 9;
 
     belt.places = {
-        'cam:cam0': { x: 20, y: 100 },
-        'cam:cam1': { x: 20, y: 165 },
-        'rule:r1': { x: 220, y: 16 },
-        'rule:r2': { x: 420, y: 16 },
-        'rule:r0': { x: 620, y: 16 },
-        'cam:cam2': { x: 740, y: 16 },
-        'cam:cam3': { x: 900, y: 16 },
-        'cam:cam4': { x: 740, y: 80 },
-        'cam:cam5': { x: 900, y: 80 },
-        'cam:cam6': { x: 820, y: 145 }
+        'rule:r1': { x: 40, y: 10 },
+        'rule:r2': { x: 245, y: 10 },
+        'rule:r0': { x: 655, y: 10 },
+        'cam:cam0': { x: 40, y: 175 },
+        'cam:cam1': { x: 245, y: 175 },
+        'cam:cam2': { x: 655, y: 175 },
+        'cam:cam6': { x: 860, y: 175 }
     };
 
     const r1 = RULES.find(r => r.id === 'r1');
@@ -1368,17 +1365,17 @@ function applyBeltTemplate() {
 
     inventory.forEach(c => { c.rules = []; });
     const c0 = invCam('cam0'), c1 = invCam('cam1'), c2 = invCam('cam2'), c6 = invCam('cam6');
-    if (c0) c0.rules = ['r1', 'r2', 'r0'];
-    if (c1) c1.rules = ['r1', 'r0'];
-    if (c2) c2.rules = ['r1', 'r0'];
-    if (c6) c6.rules = ['r0', 'r2'];
+    if (c0) c0.rules = ['r1'];
+    if (c1) c1.rules = ['r2'];
+    if (c2) c2.rules = ['r0'];
+    if (c6) c6.rules = ['r0'];
 
     activeTunerRuleId = 'r1';
     beltRunning = true;
     render();
-    if (window.BeltView?.setZoom) window.BeltView.setZoom(0.68);
+    if (window.BeltView?.setZoom) window.BeltView.setZoom(0.70);
     if (window.BeltBridge?.syncCameras) window.BeltBridge.syncCameras();
-    toast('Семикамерный конвейер: П0 (2 кам.) → П4 (5 кам.) → П8 (сброс), 7 камер в работе.');
+    toast('Семикамерный конвейер: П0 (Вход) → П4 (Спайдер/Топ) → П8 (Сброс), все 7 камер в деле.');
 }
 
 function wireBeltRun() {
