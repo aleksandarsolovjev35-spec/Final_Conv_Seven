@@ -382,8 +382,9 @@ function renderCard(pos, i) {
 function canvasPoint(ev, w, h) {
     const row = $('belt-row'), r = row?.getBoundingClientRect() || { left: 0, top: 0, width: 0, height: 0 };
     const z = window.BeltView?.state().z || 1, maxW = Math.max(row?.offsetWidth || 0, CANVAS_W), maxH = Math.max(row?.offsetHeight || 0, CANVAS_H);
-    const x = r.width ? (ev.clientX - r.left) / z - w / 2 : Math.round(maxW / 2 - w / 2);
-    const y = r.width ? (ev.clientY - r.top) / z - h / 2 : Math.round(maxH / 2 - h / 2);
+    const rawX = r.width ? (ev.clientX - r.left) / z - w / 2 : Math.round(maxW / 2 - w / 2);
+    const rawY = r.width ? (ev.clientY - r.top) / z - h / 2 : Math.round(maxH / 2 - h / 2);
+    const x = Math.round(rawX / 10) * 10, y = Math.round(rawY / 10) * 10;
     return { x: clampN(x, 2, Math.max(2, maxW - w - 2)), y: clampN(y, 2, Math.max(2, maxH - h - 2)) };
 }
 
@@ -972,10 +973,13 @@ function moveNodeDrag(ev) {
     if (!movingG) return;
     const z = window.BeltView?.state().z || 1, row = $('belt-row'), tall = movingG.node.classList.contains('g-pos');
     const maxW = Math.max(row?.offsetWidth || 0, CANVAS_W), maxH = Math.max(row?.offsetHeight || 0, CANVAS_H);
-    const x = clampN(movingG.px + (ev.clientX - movingG.x0) / z, 2, Math.max(2, maxW - (tall ? 180 : 110)));
-    const y = clampN(movingG.py + (ev.clientY - movingG.y0) / z, 2, Math.max(2, maxH - (tall ? 124 : 30)));
+    const rawX = movingG.px + (ev.clientX - movingG.x0) / z;
+    const rawY = movingG.py + (ev.clientY - movingG.y0) / z;
+    const x = clampN(Math.round(rawX / 10) * 10, 2, Math.max(2, maxW - (tall ? 180 : 110)));
+    const y = clampN(Math.round(rawY / 10) * 10, 2, Math.max(2, maxH - (tall ? 124 : 30)));
+    if (x === movingG.at.x && y === movingG.at.y) return;
     movingG.at.x = x; movingG.at.y = y;
-    movingG.node.style.left = Math.round(x) + 'px'; movingG.node.style.top = Math.round(y) + 'px';
+    movingG.node.style.left = x + 'px'; movingG.node.style.top = y + 'px';
     const coll = hasCollision(x, y, movingG.dims.w, movingG.dims.h, movingG.key, 4);
     movingG.hasCollided = coll;
     movingG.node.classList.toggle('collision-warning', coll);
