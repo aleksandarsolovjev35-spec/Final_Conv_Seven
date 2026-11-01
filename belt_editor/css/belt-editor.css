@@ -1448,7 +1448,10 @@ body.node-moving { cursor: grabbing; }
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    will-change: border-color, box-shadow, background;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
 }
 
 /* Расширенная зона захвата (hitbox) — легкий клик без снайперского прицеливания */
@@ -1461,34 +1464,23 @@ body.node-moving { cursor: grabbing; }
 }
 
 .sock:hover {
-    transform: translate(-50%, -50%) scale(1.35) !important;
-    border-color: var(--accent, #4fa3d1);
-    box-shadow: 0 0 8px rgba(79, 163, 209, 0.7);
+    border-color: var(--accent, #4fa3d1) !important;
+    box-shadow: 0 0 10px rgba(79, 163, 209, 0.8) !important;
+}
+
+body.node-moving .sock,
+body.panning .sock {
+    pointer-events: none !important;
 }
 
 .sock.sock-linked {
     border-color: var(--sock-color, #4fa3d1) !important;
+    background: radial-gradient(circle at 50% 50%, var(--sock-color, #4fa3d1) 0, var(--sock-color, #4fa3d1) 2.2px, #11171f 2.4px, #11171f 100%) !important;
     box-shadow: 0 0 6px var(--sock-color, rgba(79, 163, 209, 0.5)) !important;
 }
 
 .sock.sock-linked::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 4px;
-    height: 4px;
-    min-width: 4px;
-    min-height: 4px;
-    max-width: 4px;
-    max-height: 4px;
-    aspect-ratio: 1 / 1;
-    border-radius: 50%;
-    background: var(--sock-color, #4fa3d1);
-    box-shadow: 0 0 4px var(--sock-color, #4fa3d1);
-    pointer-events: none;
-    margin: 0;
+    display: none !important;
 }
 
 .sock-out {
@@ -1525,9 +1517,14 @@ body.node-moving { cursor: grabbing; }
     margin: 0;
 }
 
+.sock-line-in.sock-linked,
+.sock-line-out.sock-linked {
+    background: radial-gradient(circle at 50% 50%, var(--sock-color, #f59e0b) 0, var(--sock-color, #f59e0b) 2.2px, #11171f 2.4px, #11171f 100%) !important;
+}
+
 .sock-line-in.sock-linked::before,
 .sock-line-out.sock-linked::before {
-    border-radius: 1px;
+    display: none !important;
 }
 
 .sock-line-in {
@@ -1557,12 +1554,11 @@ body.node-moving { cursor: grabbing; }
 }
 
 @keyframes sock-pulse {
-    0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 2px rgba(79, 163, 209, 0.35), 0 0 8px rgba(79, 163, 209, 0.4); }
-    50% { transform: translate(-50%, -50%) scale(1.25); box-shadow: 0 0 0 3px rgba(79, 163, 209, 0.55), 0 0 14px rgba(79, 163, 209, 0.75); }
+    0%, 100% { box-shadow: 0 0 0 2px rgba(79, 163, 209, 0.35), 0 0 8px rgba(79, 163, 209, 0.4); }
+    50% { box-shadow: 0 0 0 3px rgba(79, 163, 209, 0.55), 0 0 14px rgba(79, 163, 209, 0.75); }
 }
 
 .sock-hot {
-    transform: translate(-50%, -50%) scale(1.4) !important;
     border-color: #7ac48c !important;
     background: #1c2a20 !important;
     box-shadow: 0 0 0 3px rgba(122, 196, 140, 0.45), 0 0 14px rgba(122, 196, 140, 0.85) !important;

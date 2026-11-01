@@ -756,12 +756,30 @@ function scheduleWires() {
     (window.requestAnimationFrame || (f => f()))(() => { wiresScheduled = false; renderWires(); });
 }
 
-function createWireLink(svg, from, to, color, cls, onRemove) {
+function syncSockLinked(activeMap) {
+    document.querySelectorAll('.sock.sock-linked').forEach(s => {
+        if (!activeMap.has(s)) {
+            s.classList.remove('sock-linked');
+            s.style.removeProperty('--sock-color');
+        }
+    });
+    activeMap.forEach((color, s) => {
+        if (!s.classList.contains('sock-linked')) s.classList.add('sock-linked');
+        if (s.style.getPropertyValue('--sock-color') !== color) s.style.setProperty('--sock-color', color);
+    });
+}
+
+function createWireLink(svg, from, to, color, cls, onRemove, sockMap) {
     const a = sockXY(from), b = sockXY(to);
     if (!a || !b) return;
     const wireColor = color || (cls?.includes('wire-chain') ? '#f59e0b' : '#4fa3d1');
-    if (from) { from.classList.add('sock-linked'); from.style.setProperty('--sock-color', wireColor); }
-    if (to) { to.classList.add('sock-linked'); to.style.setProperty('--sock-color', wireColor); }
+    if (sockMap) {
+        if (from) sockMap.set(from, wireColor);
+        if (to) sockMap.set(to, wireColor);
+    } else {
+        if (from) { from.classList.add('sock-linked'); from.style.setProperty('--sock-color', wireColor); }
+        if (to) { to.classList.add('sock-linked'); to.style.setProperty('--sock-color', wireColor); }
+    }
 
     const d = calcWirePath(a, b), wire = svgPath(d, cls || 'wire', wireColor);
     svg.appendChild(wire);
@@ -781,34 +799,34 @@ function createWireLink(svg, from, to, color, cls, onRemove) {
     }
 }
 
-function renderModelWires(svg, q) {
+function renderModelWires(svg, q, sockMap) {
     RULES.forEach(r => r.models.forEach(m =>
-        createWireLink(svg, q(`.sock[data-link="model:${m}"]`), q(`.sock[data-drop="rule"][data-rid="${r.id}"]`), '#7c8cf8', 'wire wire-model', () => togglePart(r.id, m))
+        createWireLink(svg, q(`.sock[data-link="model:${m}"]`), q(`.sock[data-drop="rule"][data-rid="${r.id}"]`), '#7c8cf8', 'wire wire-model', () => togglePart(r.id, m), sockMap)
     ));
 }
 
-function renderRuleWires(svg, q) {
+function renderRuleWires(svg, q, sockMap) {
     inventory.forEach(dev => dev.rules.forEach(rid => {
         const r = RULES.find(x => x.id === rid);
-        createWireLink(svg, q(`.sock[data-link="rule:${rid}"]`), q(`.sock[data-drop="cam"][data-cam="${dev.id}"]`), r?.color || '#e5c07b', 'wire wire-rule', () => toggleRuleOnCam(dev.id, rid));
+        createWireLink(svg, q(`.sock[data-link="rule:${rid}"]`), q(`.sock[data-drop="cam"][data-cam="${dev.id}"]`), r?.color || '#e5c07b', 'wire wire-rule', () => toggleRuleOnCam(dev.id, rid), sockMap);
     }));
 }
 
-function renderPosWires(svg, q) {
+function renderPosWires(svg, q, sockMap) {
     belt.positions.forEach((pos, i) => {
         if (pos.inspection) {
             pos.inspection.cameras.forEach(cid =>
                 createWireLink(svg, q(`.cam-node[data-cam="${cid}"] .sock[data-link="camera:${cid}"]`), q(`.pos-card[data-index="${i}"] .sock-node`), '#38bdf8', 'wire wire-cam', () => {
                     const idx = pos.inspection.cameras.indexOf(cid);
                     if (idx >= 0) { pos.inspection.cameras.splice(idx, 1); toast(camName(cid) + ' — снята с П' + i + '.'); render(); }
-                })
+                }, sockMap)
             );
         }
         if (pos.nextUid) {
             const tgt = findPosByUid(pos.nextUid);
             if (tgt) createWireLink(svg, q(`.pos-card[data-index="${i}"] .sock-line-out`), q(`.pos-card[data-index="${belt.positions.indexOf(tgt)}"] .sock-line-in`), '#f59e0b', 'wire wire-chain', () => {
                 pos.nextUid = null; toast('Связь разорвана.'); render();
-            });
+            }, sockMap);
         }
     });
 }
@@ -826,15 +844,12 @@ function renderWires() {
     const svg = $('wires');
     if (!svg) return;
     svg.textContent = '';
-    document.querySelectorAll('.sock-linked').forEach(s => {
-        s.classList.remove('sock-linked');
-        s.style.removeProperty('--sock-color');
-    });
-    const q = sel => document.querySelector(sel);
-    renderModelWires(svg, q);
-    renderRuleWires(svg, q);
-    renderPosWires(svg, q);
+    const sockMap = new Map(), q = sel => document.querySelector(sel);
+    renderModelWires(svg, q, sockMap);
+    renderRuleWires(svg, q, sockMap);
+    renderPosWires(svg, q, sockMap);
     renderLiveWire(svg);
+    syncSockLinked(sockMap);
 }
 
 function markTargets(on) {
