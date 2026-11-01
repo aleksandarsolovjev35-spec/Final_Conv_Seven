@@ -174,6 +174,12 @@ function boot() {
 window.BeltView = {
     state: function () { return { z: z, panX: panX, panY: panY }; },
     setZoomLock: function (v) { userZoomed = !!v; },
+    setZoom: function (newZ) {
+        z = clamp(newZ, Z_MIN, Z_MAX);
+        panX = 0; panY = 0;
+        userZoomed = true;
+        apply();
+    }
 };
 
 if (document.readyState === 'loading') {

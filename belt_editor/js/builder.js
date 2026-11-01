@@ -1322,19 +1322,39 @@ function updateBeltRunStatus() {
     }
 }
 
+function initSevenCamPositions() {
+    const p = [];
+    for (let i = 0; i <= 8; i++) {
+        const isP0 = i === 0, isP4 = i === 4, isP8 = i === 8;
+        const insp = isP0 ? { cameras: ['cam0', 'cam1'], primary: true }
+            : (isP4 ? { cameras: ['cam2', 'cam3', 'cam4', 'cam5', 'cam6'], primary: false } : null);
+        p.push({
+            uid: i + 1,
+            at: { x: 20 + i * 195, y: 240 },
+            plates: 2,
+            inspection: insp,
+            reset: isP8,
+            nextUid: isP8 ? null : String(i + 2)
+        });
+    }
+    return p;
+}
+
 function applyBeltTemplate() {
-    belt.positions = [
-        { uid: 1, at: { x: 30, y: 165 }, plates: 2, inspection: { cameras: ['cam0'], primary: true }, reset: false, nextUid: '2' },
-        { uid: 2, at: { x: 236, y: 165 }, plates: 2, inspection: null, reset: false, nextUid: '3' },
-        { uid: 3, at: { x: 442, y: 165 }, plates: 2, inspection: null, reset: true, nextUid: null }
-    ];
-    uidSeq = 3;
+    belt.positions = initSevenCamPositions();
+    uidSeq = 9;
 
     belt.places = {
-        'cam:cam0': { x: 30, y: 30 },
-        'rule:r1': { x: 230, y: 8 },
-        'rule:r2': { x: 440, y: 8 },
-        'rule:r0': { x: 650, y: 8 }
+        'cam:cam0': { x: 20, y: 100 },
+        'cam:cam1': { x: 20, y: 165 },
+        'rule:r1': { x: 220, y: 16 },
+        'rule:r2': { x: 420, y: 16 },
+        'rule:r0': { x: 620, y: 16 },
+        'cam:cam2': { x: 740, y: 16 },
+        'cam:cam3': { x: 900, y: 16 },
+        'cam:cam4': { x: 740, y: 80 },
+        'cam:cam5': { x: 900, y: 80 },
+        'cam:cam6': { x: 820, y: 145 }
     };
 
     const r1 = RULES.find(r => r.id === 'r1');
@@ -1346,13 +1366,19 @@ function applyBeltTemplate() {
     const r0 = RULES.find(r => r.id === 'r0');
     if (r0) { r0.lineMode = 'horiz'; r0.topMax = 35; r0.bottomMax = 35; if (!r0.models.includes('m1')) r0.models = ['m1']; }
 
-    const dev = inventory.find(d => d.id === 'cam0');
-    if (dev) dev.rules = ['r1', 'r2', 'r0'];
+    inventory.forEach(c => { c.rules = []; });
+    const c0 = invCam('cam0'), c1 = invCam('cam1'), c2 = invCam('cam2'), c6 = invCam('cam6');
+    if (c0) c0.rules = ['r1', 'r2', 'r0'];
+    if (c1) c1.rules = ['r1', 'r0'];
+    if (c2) c2.rules = ['r1', 'r0'];
+    if (c6) c6.rules = ['r0', 'r2'];
 
     activeTunerRuleId = 'r1';
     beltRunning = true;
     render();
-    toast('Шаблон ленты: П0 (инспекция) → П1 → П2 (сброс), 3 инструмента подключены.');
+    if (window.BeltView?.setZoom) window.BeltView.setZoom(0.68);
+    if (window.BeltBridge?.syncCameras) window.BeltBridge.syncCameras();
+    toast('Семикамерный конвейер: П0 (2 кам.) → П4 (5 кам.) → П8 (сброс), 7 камер в работе.');
 }
 
 function wireBeltRun() {
