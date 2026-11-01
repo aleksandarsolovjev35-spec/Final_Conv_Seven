@@ -1041,6 +1041,28 @@ check('шаблон ленты: кнопка разворачивает этал
         const isRunning = runBadge && runBadge.textContent.includes('ЛЕНТА В РАБОТЕ');
         return hasPositions && hasRules && hasCam && isRunning;
     })());
+check('стили линий: наличие контроллера в шапке (прямые, углы 90°, безье)',
+    (function () {
+        const ctrl = doc.getElementById('wire-style-ctrl');
+        if (!ctrl) return false;
+        const btns = ctrl.querySelectorAll('.btn-wire-style');
+        return btns.length === 3;
+    })());
+check('стили линий: переключение на прямые и углы 90° через BeltBridge и клик',
+    (function () {
+        const bridge = window.BeltBridge;
+        if (!bridge?.setWireStyle) return false;
+        bridge.setWireStyle('straight');
+        const isStraight = bridge.getWireStyle() === 'straight';
+        const btnOrtho = doc.querySelector('.btn-wire-style[data-style="ortho"]');
+        if (!btnOrtho) return false;
+        btnOrtho.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const isOrtho = bridge.getWireStyle() === 'ortho';
+        const activeBtn = doc.querySelector('.btn-wire-style.active');
+        const hasActiveCls = activeBtn && activeBtn.dataset.style === 'ortho';
+        bridge.setWireStyle('straight');
+        return isStraight && isOrtho && hasActiveCls;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);

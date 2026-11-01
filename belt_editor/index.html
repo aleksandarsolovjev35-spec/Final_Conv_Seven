@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-    <link rel="stylesheet" href="css/belt-editor.css?v=136">
+    <link rel="stylesheet" href="css/belt-editor.css?v=137">
 </head>
 <body>
 <script>
@@ -43,12 +43,18 @@ window.addEventListener('error', function (e) {
     <main class="build">
         <div class="zone-head">СБОРКА ЛЕНТЫ
             <span class="hint" id="belt-meta"></span>
+            <div class="wire-style-ctrl" id="wire-style-ctrl" title="Стиль соединительных линий на поле">
+                <span class="ctrl-lbl">ЛИНИИ:</span>
+                <button type="button" class="btn-wire-style active" data-style="straight" title="Прямые линии без изгибов">Прямые</button>
+                <button type="button" class="btn-wire-style" data-style="ortho" title="Чертёжные прямые углы 90°">Углы 90°</button>
+                <button type="button" class="btn-wire-style" data-style="bezier" title="Плавные кривые Безье">Безье</button>
+            </div>
             <div class="belt-run-ctrl" id="belt-run-ctrl">
                 <span class="belt-run-badge locked" id="belt-run-status">П0: НЕТ КАМЕРЫ (ПУСК ЗАБЛОКИРОВАН)</span>
                 <button type="button" class="btn-belt-template" id="btn-belt-template" onclick="if(window.BeltBridge&&window.BeltBridge.applyTemplate)window.BeltBridge.applyTemplate();" title="Собрать эталонную семикамерную линию конвейера с инспекцией">ШАБЛОН: 7 КАМЕР</button>
                 <button type="button" class="btn-belt-run disabled" id="btn-belt-run" title="Нельзя запустить ленту: на первой позиции (П0) нет камеры инспекции">ПУСК ЛЕНТЫ</button>
             </div>
-            <span class="hint">сб. 104</span>
+            <span class="hint">сб. 137</span>
         </div>
         <div class="build-body">
             <div class="belt-zone" id="belt-zone">
@@ -198,8 +204,8 @@ window.addEventListener('error', function (e) {
 
 <div id="toasts" class="toasts"></div>
 
-<script src="js/cameras.js?v=136"></script>
-    <script src="js/belt-view.js?v=136"></script>
-    <script src="js/builder.js?v=136"></script>
+<script src="js/cameras.js?v=137"></script>
+    <script src="js/belt-view.js?v=137"></script>
+    <script src="js/builder.js?v=137"></script>
 </body>
 </html>

@@ -704,6 +704,27 @@ function sockXY(node) {
     return (r.width || r.height) ? [r.left - z.left + r.width / 2, r.top - z.top + r.height / 2] : null;
 }
 
+let currentWireStyle = 'straight';
+
+function wirePathOrtho(a, b) {
+    const x1 = a[0], y1 = a[1], x2 = b[0], y2 = b[1], dx = x2 - x1, dy = y2 - y1;
+    if (Math.abs(dx) < 6 || Math.abs(dy) < 6) return `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
+    const midX = x1 + dx * 0.5, r = Math.min(8, Math.abs(midX - x1) * 0.45, Math.abs(dy) * 0.45);
+    const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
+    return `M${x1.toFixed(1)} ${y1.toFixed(1)}L${(midX - r * sx).toFixed(1)} ${y1.toFixed(1)}` +
+           `Q${midX.toFixed(1)} ${y1.toFixed(1)} ${midX.toFixed(1)} ${(y1 + r * sy).toFixed(1)}` +
+           `L${midX.toFixed(1)} ${(y2 - r * sy).toFixed(1)}` +
+           `Q${midX.toFixed(1)} ${y2.toFixed(1)} ${(midX + r * sx).toFixed(1)} ${y2.toFixed(1)}` +
+           `L${x2.toFixed(1)} ${y2.toFixed(1)}`;
+}
+
+function calcWirePath(a, b) {
+    if (!a || !b) return '';
+    if (currentWireStyle === 'straight') return `M${a[0].toFixed(1)} ${a[1].toFixed(1)}L${b[0].toFixed(1)} ${b[1].toFixed(1)}`;
+    if (currentWireStyle === 'ortho') return wirePathOrtho(a, b);
+    return bez(a, b);
+}
+
 function bez(a, b) {
     const z = window.BeltView?.state().z || 1, dx = b[0] - a[0], dy = b[1] - a[1], dist = Math.hypot(dx, dy);
     if (dist < 2) return `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`;
@@ -729,7 +750,7 @@ function scheduleWires() {
 function createWireLink(svg, from, to, color, cls, onRemove) {
     const a = sockXY(from), b = sockXY(to);
     if (!a || !b) return;
-    const d = bez(a, b), wire = svgPath(d, cls || 'wire', color);
+    const d = calcWirePath(a, b), wire = svgPath(d, cls || 'wire', color);
     svg.appendChild(wire);
 
     if (onRemove) {
@@ -784,7 +805,7 @@ function renderLiveWire(svg) {
     const fromPt = sockXY(linkDrag.from), toPt = linkDrag.snapPt || [linkDrag.x, linkDrag.y];
     if (fromPt && toPt) {
         const [start, end] = linkDrag.dir === 'out' ? [fromPt, toPt] : [toPt, fromPt];
-        svg.appendChild(svgPath(bez(start, end), 'wire wire-live' + (linkDrag.hot ? ' wire-ok' : '')));
+        svg.appendChild(svgPath(calcWirePath(start, end), 'wire wire-live' + (linkDrag.hot ? ' wire-ok' : '')));
     }
 }
 
@@ -1004,6 +1025,8 @@ window.BeltBridge = {
     selectRule: id => selectActiveRule(id),
     isBeltRunning: () => beltRunning,
     canRunBelt: () => canRunBelt(),
+    setWireStyle: s => setWireStyle(s),
+    getWireStyle: () => currentWireStyle,
     camDragStart(id, dt, ev) {
         dragKind = 'camera'; dragCamId = dragAsset = id;
         if (dt) { dt.setData('text/plain', 'camera:' + id); dt.effectAllowed = 'copy'; }
@@ -1378,6 +1401,31 @@ function applyBeltTemplate() {
     toast('Семикамерный конвейер: П0 (Вход) → П4 (Спайдер/Топ) → П8 (Сброс), все 7 камер в деле.');
 }
 
+function setWireStyle(style) {
+    currentWireStyle = style || 'straight';
+    try { localStorage.setItem('belt_wire_style', currentWireStyle); } catch (e) {}
+    document.querySelectorAll('.btn-wire-style').forEach(b => {
+        b.classList.toggle('active', b.dataset.style === currentWireStyle);
+    });
+    renderWires();
+}
+
+function wireStyleControls() {
+    try {
+        const s = localStorage.getItem('belt_wire_style');
+        if (s && ['straight', 'ortho', 'bezier'].includes(s)) currentWireStyle = s;
+    } catch (e) {}
+    document.querySelectorAll('.btn-wire-style').forEach(b => {
+        b.classList.toggle('active', b.dataset.style === currentWireStyle);
+        b.onclick = ev => {
+            ev.stopPropagation();
+            setWireStyle(b.dataset.style);
+            const lbls = { straight: 'Прямые линии', ortho: 'Углы 90°', bezier: 'Плавные Безье' };
+            toast(`Стиль линий: ${lbls[b.dataset.style] || b.dataset.style}`);
+        };
+    });
+}
+
 function wireBeltRun() {
     $('btn-belt-template')?.addEventListener('click', ev => {
         ev.stopPropagation();
@@ -1398,6 +1446,7 @@ function wireBeltRun() {
 function boot() {
     wirePalette(); wireBelt(); wireSearch(); wireThrClose(); wireLinkEngine();
     dragGNodes(); wireScrollSnap(); wireSideDock(); wireFolderPickers(); wireBeltRun();
+    wireStyleControls();
     const isRealBrowser = typeof window !== 'undefined' &&
         (window.location?.protocol === 'http:' || window.location?.protocol === 'https:');
     if (isRealBrowser && belt.positions.length === 0) {
