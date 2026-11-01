@@ -624,7 +624,7 @@ function renderCamNode(camId, at) {
     const node = gnodeFrame('cam-node g-cam' + (owner < 0 ? ' free' : ''), key, at, '');
     node.dataset.cam = camId; if (owner >= 0) node.dataset.pos = String(owner);
     const head = node.querySelector('.node-head'), cin = gsock('sock-in', null, 'cam');
-    cin.dataset.cam = camId; head.insertBefore(cin, head.firstChild);
+    cin.dataset.cam = camId; node.appendChild(cin);
     node.querySelector('.pos-del').onclick = ev => {
         ev.stopPropagation();
         if (owner >= 0) {
@@ -645,7 +645,7 @@ function renderCamNode(camId, at) {
     }
     chip.ondblclick = ev => { ev.stopPropagation(); renameCamera(camId); };
     node.appendChild(el('div', 'node-body', null, [chip]));
-    head.insertBefore(el('span', 'g-title', 'камера'), head.children[1]);
+    head.insertBefore(el('span', 'g-title', 'камера'), head.firstChild);
     node.appendChild(gsock('sock-out', 'camera:' + camId));
     if (openThrCam === camId && dev.rules.length) node.appendChild(renderThrPop(dev));
     return node;

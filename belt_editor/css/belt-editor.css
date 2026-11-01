@@ -972,10 +972,19 @@ body.node-moving { cursor: grabbing; }
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.gnode.g-rule .sock-in,
+.gnode.g-rule .sock-in {
+    left: 0;
+    top: 14px;
+    margin: 0;
+    transform: translate(-50%, -50%);
+}
+
 .gnode.g-rule .sock-out {
-    top: 12px;
-    margin-top: 0;
+    left: 100%;
+    right: auto;
+    top: 14px;
+    margin: 0;
+    transform: translate(-50%, -50%);
 }
 
 .gnode.g-rule.is-active {
@@ -1451,7 +1460,7 @@ body.node-moving { cursor: grabbing; }
 }
 
 .sock:hover {
-    transform: scale(1.35);
+    transform: translate(-50%, -50%) scale(1.35) !important;
     border-color: var(--accent, #4fa3d1);
     box-shadow: 0 0 8px rgba(79, 163, 209, 0.7);
 }
@@ -1463,24 +1472,33 @@ body.node-moving { cursor: grabbing; }
 
 .sock.sock-linked::before {
     content: '';
-    display: block;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     width: 4px;
     height: 4px;
     border-radius: 50%;
     background: var(--sock-color, #4fa3d1);
     box-shadow: 0 0 5px var(--sock-color, #4fa3d1);
+    pointer-events: none;
+    margin: 0;
 }
 
 .sock-out {
-    right: -6px;
+    left: 100%;
+    right: auto;
     top: 50%;
-    margin-top: -6px;
+    margin: 0;
+    transform: translate(-50%, -50%);
 }
 
 .sock-in {
-    left: -6px;
+    left: 0;
+    right: auto;
     top: 50%;
-    margin-top: -6px;
+    margin: 0;
+    transform: translate(-50%, -50%);
 }
 
 /* коннекторы цепи: квадратные, снизу ноды — вход слева, выход справа */
@@ -1488,9 +1506,10 @@ body.node-moving { cursor: grabbing; }
 .sock-line-out {
     width: 12px;
     height: 12px;
-    top: auto;
-    bottom: -6px;
+    top: 100%;
+    bottom: auto;
     border-radius: 2px;
+    margin: 0;
 }
 
 .sock-line-in.sock-linked::before,
@@ -1498,14 +1517,24 @@ body.node-moving { cursor: grabbing; }
     border-radius: 1px;
 }
 
-.sock-line-in { left: -6px; right: auto; }
+.sock-line-in {
+    left: 0;
+    right: auto;
+    transform: translate(-50%, -50%);
+}
 
-.sock-line-out { right: -6px; }
+.sock-line-out {
+    left: 100%;
+    right: auto;
+    transform: translate(-50%, -50%);
+}
 
 .sock-node {
-    left: -6px;
-    top: 12px;
-    margin-top: 0;
+    left: 0;
+    right: auto;
+    top: 18px;
+    margin: 0;
+    transform: translate(-50%, -50%);
 }
 
 .sock-ok {
@@ -1515,12 +1544,12 @@ body.node-moving { cursor: grabbing; }
 }
 
 @keyframes sock-pulse {
-    0%, 100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(79, 163, 209, 0.35), 0 0 8px rgba(79, 163, 209, 0.4); }
-    50% { transform: scale(1.25); box-shadow: 0 0 0 3px rgba(79, 163, 209, 0.55), 0 0 14px rgba(79, 163, 209, 0.75); }
+    0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 2px rgba(79, 163, 209, 0.35), 0 0 8px rgba(79, 163, 209, 0.4); }
+    50% { transform: translate(-50%, -50%) scale(1.25); box-shadow: 0 0 0 3px rgba(79, 163, 209, 0.55), 0 0 14px rgba(79, 163, 209, 0.75); }
 }
 
 .sock-hot {
-    transform: scale(1.4) !important;
+    transform: translate(-50%, -50%) scale(1.4) !important;
     border-color: #7ac48c !important;
     background: #1c2a20 !important;
     box-shadow: 0 0 0 3px rgba(122, 196, 140, 0.45), 0 0 14px rgba(122, 196, 140, 0.85) !important;
