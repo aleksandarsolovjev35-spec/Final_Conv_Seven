@@ -760,19 +760,13 @@ body {
     box-shadow: 0 5px 12px -6px rgba(0, 0, 0, 0.55);
     user-select: none;
     -webkit-user-select: none;
-    transform: translateZ(0);
-    backface-visibility: hidden;
-    -webkit-backface-visibility: hidden;
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: antialiased;
 }
 
 .gnode .node-head { cursor: grab; }
 body.node-moving .gnode .node-head { cursor: grabbing; }
 body.node-moving { cursor: grabbing; }
-
-body.node-moving .gnode *,
-body.node-moving .pos-card * {
-    pointer-events: none !important;
-}
 
 /* Предотвращение наложения блоков на сборке ленты */
 .gnode.collision-warning {
@@ -835,10 +829,12 @@ body.node-moving .pos-card * {
 }
 
 .gnode .g-title {
-    font: 8px/1 var(--mono, monospace);
+    font: 9px/1.35 var(--font-mono, monospace);
     color: var(--text-dim);
-    opacity: 0.75;
+    opacity: 0.85;
     margin-right: 2px;
+    display: inline-block;
+    vertical-align: middle;
 }
 
 .g-swatch {
@@ -1015,10 +1011,11 @@ body.node-moving .pos-card * {
 }
 
 .gnode.g-rule .pos-label {
-    font: bold 10.5px/1 var(--font-mono, monospace);
+    font: bold 10.5px/1.35 var(--font-mono, monospace);
     letter-spacing: 0.5px;
     text-transform: uppercase;
     flex: 1;
+    padding-bottom: 1px;
 }
 
 .rule-card-body {
@@ -1260,9 +1257,8 @@ body.node-moving .pos-card * {
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
-    transform: translateZ(0);
-    backface-visibility: hidden;
-    -webkit-backface-visibility: hidden;
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: antialiased;
     transition: box-shadow 140ms ease;
 }
 
@@ -1363,9 +1359,10 @@ body.node-moving .pos-card * {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-family: var(--font-mono);
-    font-size: 9.5px;
-    padding: 2px 4px 2px 10px;
+    font-family: var(--font-mono, monospace);
+    font-size: 10px;
+    line-height: 1.35;
+    padding: 3px 6px 3px 10px;
     margin-left: -6px;
     background: transparent;
     color: var(--text-dim);
@@ -1373,6 +1370,7 @@ body.node-moving .pos-card * {
     border-radius: 4px;
     max-width: calc(100% + 6px);
     cursor: pointer;
+    box-sizing: border-box;
 }
 
 .chip:hover {
@@ -1381,10 +1379,14 @@ body.node-moving .pos-card * {
 }
 
 .chip-name {
+    display: inline-block;
+    line-height: 1.35;
+    padding-bottom: 2px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 118px;
+    vertical-align: middle;
 }
 
 .chip-x {
@@ -1542,6 +1544,10 @@ body.panning .sock {
     top: 16px;
     margin: 0;
     transform: translate(-50%, -50%);
+}
+
+.gnode.cam-node .sock-out {
+    top: 16px;
 }
 
 /* коннекторы цепи: квадратные, снизу ноды — вход слева, выход справа */
