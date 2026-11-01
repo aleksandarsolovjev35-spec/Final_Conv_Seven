@@ -975,6 +975,35 @@ check('инструмент наличие: настройка количест�
 
         return val0Before !== val0After && val1Before !== val1After;
     })());
+check('множественные экземпляры инструментов: повторный перенос создает независимый блок со своими настройками',
+    (function () {
+        const toolBtn = doc.querySelector('.tools.tools-right .tool[data-rule="r1"]');
+        if (!toolBtn) return false;
+        const countBefore = doc.querySelectorAll('.gnode.g-rule').length;
+        const dt = mkDT();
+        fire(toolBtn, 'dragstart', dt);
+        fire(zone(), 'dragover', dt, 850);
+        fire(zone(), 'drop', dt, 850);
+        fire(toolBtn, 'dragend', dt);
+
+        const countAfter = doc.querySelectorAll('.gnode.g-rule').length;
+        const node1 = doc.querySelector('.gnode.g-rule[data-rule="r1"]');
+        const nodes = doc.querySelectorAll('.gnode.g-rule');
+        const node2 = nodes[nodes.length - 1];
+        if (countAfter !== countBefore + 1 || !node1 || !node2) return false;
+        const rid2 = node2.dataset.rule;
+
+        const val1 = node1.querySelector('.rule-count-val').textContent;
+        const val2Before = node2.querySelector('.rule-count-val').textContent;
+        node2.querySelectorAll('.btn-count-step')[1].dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const val2After = doc.querySelector(`.gnode.g-rule[data-rule="${rid2}"] .rule-count-val`).textContent;
+        const val1Unchanged = doc.querySelector('.gnode.g-rule[data-rule="r1"] .rule-count-val').textContent === val1;
+
+        doc.querySelector(`.gnode.g-rule[data-rule="${rid2}"] .pos-del`).dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const countFinal = doc.querySelectorAll('.gnode.g-rule').length;
+
+        return val2Before !== val2After && val1Unchanged && countFinal === countBefore;
+    })());
 check('вкладка инструментов убрана из интерфейса дока: нет двоения с правой палитрой',
     (function () {
         const title = doc.getElementById('side-dock-title');

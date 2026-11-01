@@ -582,6 +582,21 @@ function renderRuleControlSection(rule, rid) {
     return box;
 }
 
+function deleteRuleNode(rid) {
+    const key = 'rule:' + rid;
+    delete belt.places[key];
+    inventory.forEach(dev => {
+        const idx = dev.rules.indexOf(rid);
+        if (idx >= 0) dev.rules.splice(idx, 1);
+    });
+    if (activeTunerRuleId === rid) {
+        const remaining = Object.keys(belt.places).find(k => k.startsWith('rule:'));
+        activeTunerRuleId = remaining ? remaining.slice(5) : 'r0';
+    }
+    toast('Инструмент удален.');
+    render();
+}
+
 function renderRuleNode(rid, at) {
     const rule = RULES.find(r => r.id === rid);
     if (!rule) return el('div', 'gnode');
@@ -590,7 +605,7 @@ function renderRuleNode(rid, at) {
     const titleText = (rule.name || (rule.mode === 'measure' ? 'замер' : (rule.mode === 'presence' ? 'наличие' : (rule.mode === 'shift' ? 'смещение' : 'отсутствие')))).toUpperCase();
     const key = 'rule:' + rid, node = gnodeFrame('g-rule' + (isActive ? ' is-active' : ''), key, at, titleText);
     node.dataset.rule = rid;
-    node.querySelector('.pos-del').onclick = ev => { ev.stopPropagation(); delete belt.places[key]; render(); };
+    node.querySelector('.pos-del').onclick = ev => { ev.stopPropagation(); deleteRuleNode(rid); };
     const head = node.querySelector('.node-head'), sw = el('i', 'g-swatch');
     sw.style.background = rule.color; head.insertBefore(sw, head.firstChild);
     node.querySelector('.pos-label').style.color = rule.color;
@@ -1087,14 +1102,27 @@ const acceptsAt = (kind, idx) => {
 
 const cardFromEvent = ev => Number(ev.target?.closest?.('.pos-card')?.dataset.index ?? -1);
 
+function instantiateRule(baseRid) {
+    const base = RULES.find(r => r.id === baseRid);
+    if (!base) return baseRid;
+    const newId = 'r' + (nextRuleId++);
+    const copy = JSON.parse(JSON.stringify(base));
+    copy.id = newId;
+    copy.models = [];
+    RULES.push(copy);
+    return newId;
+}
+
 function addRuleToCanvas(rid) {
-    const key = 'rule:' + rid;
+    const targetRid = belt.places['rule:' + rid] ? instantiateRule(rid) : rid;
+    const key = 'rule:' + targetRid;
     if (!belt.places[key]) {
         const count = Object.keys(belt.places).length;
         belt.places[key] = { x: 30 + (count % 3) * 200, y: 30 + Math.floor(count / 3) * 160 };
     }
-    selectActiveRule(rid);
+    selectActiveRule(targetRid);
     render();
+    return targetRid;
 }
 
 function wirePalette() {
@@ -1150,8 +1178,21 @@ function handleBeltDrop(ev) {
     }
     if (['model-part', 'rule', 'camera'].includes(kind)) {
         if (cardIdx >= 0) { toast('Наложение блоков запрещено.', 'err'); dragAsset = dragCamId = null; return; }
+        if (kind === 'rule') {
+            const baseRid = dragAsset;
+            const targetRid = belt.places['rule:' + baseRid] ? instantiateRule(baseRid) : baseRid;
+            const placed = placeNode('rule:' + targetRid, ev);
+            if (!placed && targetRid !== baseRid) {
+                const idx = RULES.findIndex(r => r.id === targetRid);
+                if (idx >= 0) RULES.splice(idx, 1);
+            } else if (placed) {
+                selectActiveRule(targetRid);
+            }
+            dragAsset = dragCamId = null;
+            return;
+        }
         const id = kind === 'camera' ? (dragCamId || dragAsset) : dragAsset;
-        if (id) placeNode((kind === 'model-part' ? 'model:' : (kind === 'rule' ? 'rule:' : 'cam:')) + id, ev);
+        if (id) placeNode((kind === 'model-part' ? 'model:' : 'cam:') + id, ev);
         dragAsset = dragCamId = null;
         return;
     }
