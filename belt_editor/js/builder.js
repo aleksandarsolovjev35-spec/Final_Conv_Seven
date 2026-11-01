@@ -1353,7 +1353,7 @@ function initSevenCamPositions() {
             : (isP4 ? { cameras: ['cam2', 'cam3', 'cam4', 'cam5', 'cam6'], primary: false } : null);
         p.push({
             uid: i + 1,
-            at: { x: 40 + i * 205, y: 250 },
+            at: { x: 1592 + i * 205, y: 1550 },
             plates: 2,
             inspection: insp,
             reset: isP8,
@@ -1368,13 +1368,13 @@ function applyBeltTemplate() {
     uidSeq = 9;
 
     belt.places = {
-        'rule:r1': { x: 40, y: 10 },
-        'rule:r2': { x: 245, y: 10 },
-        'rule:r0': { x: 655, y: 10 },
-        'cam:cam0': { x: 40, y: 175 },
-        'cam:cam1': { x: 245, y: 175 },
-        'cam:cam2': { x: 655, y: 175 },
-        'cam:cam6': { x: 860, y: 175 }
+        'rule:r1': { x: 1592, y: 1310 },
+        'rule:r2': { x: 1797, y: 1310 },
+        'rule:r0': { x: 2412, y: 1310 },
+        'cam:cam0': { x: 1592, y: 1475 },
+        'cam:cam1': { x: 1797, y: 1475 },
+        'cam:cam2': { x: 2412, y: 1475 },
+        'cam:cam6': { x: 2617, y: 1475 }
     };
 
     const r1 = RULES.find(r => r.id === 'r1');
@@ -1396,9 +1396,16 @@ function applyBeltTemplate() {
     activeTunerRuleId = 'r1';
     beltRunning = true;
     render();
-    if (window.BeltView?.setZoom) window.BeltView.setZoom(0.70);
+    if (window.BeltView?.fitTemplate) {
+        window.BeltView.fitTemplate();
+    } else if (window.BeltView?.centerOn) {
+        window.BeltView.centerOn(2500, 1492.5, 0.65);
+    } else if (window.BeltView?.setZoom) {
+        window.BeltView.setZoom(0.65);
+    }
+    renderWires();
     if (window.BeltBridge?.syncCameras) window.BeltBridge.syncCameras();
-    toast('Семикамерный конвейер: П0 (Вход) → П4 (Спайдер/Топ) → П8 (Сброс), все 7 камер в деле.');
+    toast('Семикамерный конвейер развернут по центру области.');
 }
 
 function setWireStyle(style) {

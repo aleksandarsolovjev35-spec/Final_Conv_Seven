@@ -1063,6 +1063,24 @@ check('стили линий: переключение на прямые и уг
         bridge.setWireStyle('straight');
         return isStraight && isOrtho && hasActiveCls;
     })());
+check('центрирование шаблона: схема развернута по середине поля и камера сцентрирована',
+    (function () {
+        const btn = doc.getElementById('btn-belt-template');
+        if (!btn) return false;
+        btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const p0 = doc.querySelector('.pos-card[data-index="0"]');
+        const p8 = doc.querySelector('.pos-card[data-index="8"]');
+        if (!p0 || !p8) return false;
+        const left0 = parseFloat(p0.style.left || '0');
+        const left8 = parseFloat(p8.style.left || '0');
+        const midX = (left0 + left8 + 176) / 2;
+        const isMidXCentered = Math.abs(midX - 2500) < 50;
+        const top0 = parseFloat(p0.style.top || '0');
+        const isYCentered = top0 > 1200 && top0 < 1800;
+        const view = window.BeltView?.state();
+        const hasZoom = view && view.z > 0.4 && view.z < 1.0;
+        return isMidXCentered && isYCentered && hasZoom;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);

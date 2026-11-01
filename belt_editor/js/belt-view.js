@@ -149,6 +149,36 @@ function wireRender() {
     });
 }
 
+function centerOn(targetX, targetY, newZ) {
+    if (typeof newZ === 'number') {
+        z = clamp(newZ, Z_MIN, Z_MAX);
+    }
+    var cx = chainW() / 2;
+    var cy = chainH() / 2;
+    panX = round((cx - targetX) * z);
+    panY = round((cy - targetY) * z);
+    userZoomed = true;
+    apply();
+}
+
+function fitTemplate() {
+    var aw = availW();
+    var ah = availH();
+    var bw = 1816 + 80;
+    var bh = 370 + 80;
+    var targetZ = 0.65;
+    if (aw > 0 && ah > 0) {
+        targetZ = clamp(Math.min(aw / bw, ah / bh), Z_MIN, 0.85);
+    }
+    z = round(targetZ);
+    var cx = chainW() / 2;
+    var cy = chainH() / 2;
+    panX = round((cx - 2500) * z);
+    panY = round((cy - 1492.5) * z);
+    userZoomed = true;
+    apply();
+}
+
 function boot() {
     zone = document.getElementById('belt-zone');
     row = document.getElementById('belt-row');
@@ -179,7 +209,9 @@ window.BeltView = {
         panX = 0; panY = 0;
         userZoomed = true;
         apply();
-    }
+    },
+    centerOn: centerOn,
+    fitTemplate: fitTemplate
 };
 
 if (document.readyState === 'loading') {
