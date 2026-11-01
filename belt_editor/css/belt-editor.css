@@ -1220,18 +1220,6 @@ body.node-moving { cursor: grabbing; }
     color: #98c379;
 }
 
-.rule-live-badge {
-    font: bold 8.5px/1 var(--font-mono, monospace);
-    color: #e06c75;
-    background: rgba(224, 108, 117, 0.15);
-    border: 1px solid rgba(224, 108, 117, 0.5);
-    border-radius: 2px;
-    padding: 2px 4px 1px;
-    letter-spacing: 0.5px;
-    margin-right: 4px;
-    text-transform: uppercase;
-}
-
 .rule-mode-tag {
     font: 8px/1 var(--font-mono, monospace);
     padding: 1px 4px;

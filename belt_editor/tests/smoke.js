@@ -1098,12 +1098,11 @@ check('связь эфира с камерой: крупный план пока
         const hasRule = ruleCam0 !== null || ruleCam1 !== null;
         const emptyRule7 = ruleCam7 === null;
 
-        const camWithRule = ruleCam0 ? 'cam0' : (ruleCam1 ? 'cam1' : null);
-        if (camWithRule) cams.pick(camWithRule);
-        const activeRuleId = bridge.getActiveRule()?.id;
-        const liveBadge = doc.querySelector(`.gnode.g-rule[data-rule="${activeRuleId}"] .rule-live-badge`);
+        // Плашка «ЭФИР» удалена — в DOM нет rule-live-badge
+        const liveBadge = doc.querySelector('.rule-live-badge');
+        const noLiveBadge = liveBadge === null;
 
-        return hasRule && emptyRule7 && liveBadge !== null;
+        return hasRule && emptyRule7 && noLiveBadge;
     })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');

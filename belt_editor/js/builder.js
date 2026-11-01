@@ -611,7 +611,6 @@ function renderRuleNode(rid, at) {
     const head = node.querySelector('.node-head'), sw = el('i', 'g-swatch');
     sw.style.background = rule.color; head.insertBefore(sw, head.firstChild);
     node.querySelector('.pos-label').style.color = rule.color;
-    if (isActive) head.insertBefore(el('span', 'rule-live-badge', 'ЭФИР'), node.querySelector('.pos-del'));
 
     node.appendChild(gsock('sock-in', null, 'rule', rid));
     node.appendChild(gsock('sock-out', key));
@@ -1374,12 +1373,9 @@ function getActiveRuleForCam(camId) {
 function getActiveTunerRule(camId) {
     const targetCamId = camId || (window.Cameras?.getMainId ? window.Cameras.getMainId() : null);
     if (targetCamId) {
-        const camRule = getActiveRuleForCam(targetCamId);
-        if (camRule) return camRule;
-        const dev = invCam(targetCamId);
-        if (dev && (!dev.rules || !dev.rules.length)) return null;
+        return getActiveRuleForCam(targetCamId);
     }
-    return RULES.find(r => r.id === activeTunerRuleId) || RULES[0];
+    return null;
 }
 
 function selectActiveRule(rid) {
@@ -1387,15 +1383,7 @@ function selectActiveRule(rid) {
     if (!r) return;
     activeTunerRuleId = rid;
     document.querySelectorAll('.gnode.g-rule').forEach(n => {
-        const isCur = n.dataset.rule === rid;
-        n.classList.toggle('is-active', isCur);
-        const b = n.querySelector('.rule-live-badge');
-        if (isCur && !b) {
-            const head = n.querySelector('.node-head'), del = n.querySelector('.pos-del');
-            head.insertBefore(el('span', 'rule-live-badge', 'ЭФИР'), del);
-        } else if (!isCur && b) {
-            b.remove();
-        }
+        n.classList.toggle('is-active', n.dataset.rule === rid);
     });
     const cams = ruleOnCameras(r);
     const curMain = window.Cameras?.getMainId ? window.Cameras.getMainId() : null;
