@@ -710,7 +710,7 @@ function wirePathOrtho(a, b) {
     if (Math.abs(dx) < 3) return `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
 
     if (dx >= 20) {
-        const midX = x1 + dx * 0.5, r = Math.min(8, Math.abs(midX - x1) * 0.48, Math.abs(dy) * 0.48);
+        const midX = x1 + dx * 0.5, r = Math.min(22, Math.abs(midX - x1) * 0.48, Math.abs(dy) * 0.48);
         const sy = dy > 0 ? 1 : -1;
         return `M${x1.toFixed(1)} ${y1.toFixed(1)}` +
                `L${(midX - r).toFixed(1)} ${y1.toFixed(1)}` +
@@ -720,7 +720,7 @@ function wirePathOrtho(a, b) {
                `L${x2.toFixed(1)} ${y2.toFixed(1)}`;
     }
 
-    const stub = 16, midY = y1 + dy * 0.5, r = Math.min(6, Math.abs(dy) * 0.25), sy = dy > 0 ? 1 : -1;
+    const stub = 20, midY = y1 + dy * 0.5, r = Math.min(16, Math.abs(dy) * 0.35), sy = dy > 0 ? 1 : -1;
     return `M${x1.toFixed(1)} ${y1.toFixed(1)}` +
            `L${(x1 + stub - r).toFixed(1)} ${y1.toFixed(1)}` +
            `Q${(x1 + stub).toFixed(1)} ${y1.toFixed(1)} ${(x1 + stub).toFixed(1)} ${(y1 + r * sy).toFixed(1)}` +
