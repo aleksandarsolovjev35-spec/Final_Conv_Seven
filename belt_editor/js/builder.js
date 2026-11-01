@@ -1013,6 +1013,7 @@ window.BeltBridge = {
     camDragEnd() { dragKind = dragCamId = dragAsset = null; cleanVisuals(); },
     addModelFromFile: (fileName, path) => addModelFromFile(fileName, path),
     addRuleFromFile: (fileName, path) => addRuleFromFile(fileName, path),
+    applyTemplate: () => applyBeltTemplate(),
 };
 
 function cleanVisuals() {
@@ -1321,7 +1322,44 @@ function updateBeltRunStatus() {
     }
 }
 
+function applyBeltTemplate() {
+    belt.positions = [
+        { uid: 1, at: { x: 30, y: 165 }, plates: 2, inspection: { cameras: ['cam0'], primary: true }, reset: false, nextUid: '2' },
+        { uid: 2, at: { x: 236, y: 165 }, plates: 2, inspection: null, reset: false, nextUid: '3' },
+        { uid: 3, at: { x: 442, y: 165 }, plates: 2, inspection: null, reset: true, nextUid: null }
+    ];
+    uidSeq = 3;
+
+    belt.places = {
+        'cam:cam0': { x: 30, y: 30 },
+        'rule:r1': { x: 230, y: 8 },
+        'rule:r2': { x: 440, y: 8 },
+        'rule:r0': { x: 650, y: 8 }
+    };
+
+    const r1 = RULES.find(r => r.id === 'r1');
+    if (r1) { r1.countExpected = 7; r1.filterX = 30; r1.filterY = 20; if (!r1.models.includes('m0')) r1.models = ['m0']; }
+
+    const r2 = RULES.find(r => r.id === 'r2');
+    if (r2) { r2.maxDefects = 0; if (!r2.models.includes('m3')) r2.models = ['m3']; }
+
+    const r0 = RULES.find(r => r.id === 'r0');
+    if (r0) { r0.lineMode = 'horiz'; r0.topMax = 35; r0.bottomMax = 35; if (!r0.models.includes('m1')) r0.models = ['m1']; }
+
+    const dev = inventory.find(d => d.id === 'cam0');
+    if (dev) dev.rules = ['r1', 'r2', 'r0'];
+
+    activeTunerRuleId = 'r1';
+    beltRunning = true;
+    render();
+    toast('Шаблон ленты: П0 (инспекция) → П1 → П2 (сброс), 3 инструмента подключены.');
+}
+
 function wireBeltRun() {
+    $('btn-belt-template')?.addEventListener('click', ev => {
+        ev.stopPropagation();
+        applyBeltTemplate();
+    });
     $('btn-belt-run')?.addEventListener('click', ev => {
         ev.stopPropagation();
         if (!canRunBelt()) {
@@ -1336,7 +1374,14 @@ function wireBeltRun() {
 
 function boot() {
     wirePalette(); wireBelt(); wireSearch(); wireThrClose(); wireLinkEngine();
-    dragGNodes(); wireScrollSnap(); wireSideDock(); wireFolderPickers(); wireBeltRun(); render();
+    dragGNodes(); wireScrollSnap(); wireSideDock(); wireFolderPickers(); wireBeltRun();
+    const isRealBrowser = typeof window !== 'undefined' &&
+        (window.location?.protocol === 'http:' || window.location?.protocol === 'https:');
+    if (isRealBrowser && belt.positions.length === 0) {
+        applyBeltTemplate();
+    } else {
+        render();
+    }
 }
 
 if (document.readyState === 'loading') {

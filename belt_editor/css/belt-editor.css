@@ -947,6 +947,26 @@ body.node-moving { cursor: grabbing; }
     color: #fff;
 }
 
+.btn-belt-template {
+    font: bold 10px/1 var(--font-mono, monospace);
+    padding: 4px 9px;
+    border-radius: 3px;
+    background: #1c232d;
+    color: var(--accent, #4fa3d1);
+    border: 1px solid rgba(79, 163, 209, 0.45);
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    margin-right: 6px;
+}
+
+.btn-belt-template:hover {
+    background: rgba(79, 163, 209, 0.2);
+    border-color: var(--accent, #4fa3d1);
+    color: #fff;
+}
+
 .badge-warn {
     background: rgba(224, 108, 117, 0.2);
     color: #e06c75;

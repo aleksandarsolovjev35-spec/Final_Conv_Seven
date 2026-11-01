@@ -1026,6 +1026,21 @@ check('настройка инструмента замер: опорная ба
         const isHoriz = doc.querySelector('.gnode.g-rule[data-rule="r0"] .btn-seg').classList.contains('active');
         return isVert && isHoriz;
     })());
+check('шаблон ленты: кнопка разворачивает эталонную сборку с 3 инструментами',
+    (function () {
+        const btn = doc.getElementById('btn-belt-template');
+        if (!btn) return false;
+        btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        const cards = doc.querySelectorAll('.pos-card');
+        const rNodes = doc.querySelectorAll('.gnode.g-rule');
+        const camNode = doc.querySelector('.cam-node');
+        const runBadge = doc.getElementById('belt-run-status');
+        const hasPositions = cards.length >= 3;
+        const hasRules = rNodes.length >= 3;
+        const hasCam = camNode !== null;
+        const isRunning = runBadge && runBadge.textContent.includes('ЛЕНТА В РАБОТЕ');
+        return hasPositions && hasRules && hasCam && isRunning;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);

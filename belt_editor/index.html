@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сборка ленты</title>
-    <link rel="stylesheet" href="css/belt-editor.css?v=132">
+    <link rel="stylesheet" href="css/belt-editor.css?v=133">
 </head>
 <body>
 <script>
@@ -45,6 +45,7 @@ window.addEventListener('error', function (e) {
             <span class="hint" id="belt-meta"></span>
             <div class="belt-run-ctrl" id="belt-run-ctrl">
                 <span class="belt-run-badge locked" id="belt-run-status">П0: НЕТ КАМЕРЫ (ПУСК ЗАБЛОКИРОВАН)</span>
+                <button type="button" class="btn-belt-template" id="btn-belt-template" title="Собрать эталонный производственный шаблон ленты с инспекцией">ШАБЛОН ЛЕНТЫ</button>
                 <button type="button" class="btn-belt-run disabled" id="btn-belt-run" title="Нельзя запустить ленту: на первой позиции (П0) нет камеры инспекции">ПУСК ЛЕНТЫ</button>
             </div>
             <span class="hint">сб. 104</span>
@@ -197,8 +198,8 @@ window.addEventListener('error', function (e) {
 
 <div id="toasts" class="toasts"></div>
 
-<script src="js/cameras.js?v=132"></script>
-    <script src="js/belt-view.js?v=132"></script>
-    <script src="js/builder.js?v=132"></script>
+<script src="js/cameras.js?v=133"></script>
+    <script src="js/belt-view.js?v=133"></script>
+    <script src="js/builder.js?v=133"></script>
 </body>
 </html>
