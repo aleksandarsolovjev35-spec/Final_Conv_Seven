@@ -586,7 +586,7 @@ function renderRuleNode(rid, at) {
     if (!rule) return el('div', 'gnode');
     if (!rule.mode) rule.mode = 'defect';
     const isActive = activeTunerRuleId === rid;
-    const titleText = rule.mode === 'measure' ? 'ЗАМЕР' : (rule.mode === 'presence' ? 'НАЛИЧИЕ' : (rule.mode === 'shift' ? 'СМЕЩЕНИЕ' : 'ДЕФЕКТ'));
+    const titleText = (rule.name || (rule.mode === 'measure' ? 'замер' : (rule.mode === 'presence' ? 'наличие' : (rule.mode === 'shift' ? 'смещение' : 'отсутствие')))).toUpperCase();
     const key = 'rule:' + rid, node = gnodeFrame('g-rule' + (isActive ? ' is-active' : ''), key, at, titleText);
     node.dataset.rule = rid;
     node.querySelector('.pos-del').onclick = ev => { ev.stopPropagation(); delete belt.places[key]; render(); };
@@ -1030,8 +1030,23 @@ const acceptsAt = (kind, idx) => {
 
 const cardFromEvent = ev => Number(ev.target?.closest?.('.pos-card')?.dataset.index ?? -1);
 
+function addRuleToCanvas(rid) {
+    const key = 'rule:' + rid;
+    if (!belt.places[key]) {
+        const count = Object.keys(belt.places).length;
+        belt.places[key] = { x: 30 + (count % 3) * 200, y: 30 + Math.floor(count / 3) * 160 };
+    }
+    selectActiveRule(rid);
+    render();
+}
+
 function wirePalette() {
     document.querySelectorAll('.tool').forEach(tool => {
+        tool.onclick = ev => {
+            ev.stopPropagation();
+            const rid = tool.dataset.rule || tool.dataset.ruleId;
+            if (tool.dataset.kind === 'rule' && rid) addRuleToCanvas(rid);
+        };
         tool.ondragstart = ev => {
             dragKind = tool.dataset.kind; dragFrom = -1;
             dragAsset = tool.dataset.rule || tool.dataset.ruleId || null;
