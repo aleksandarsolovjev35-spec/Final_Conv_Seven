@@ -32,6 +32,12 @@ function findCam(list, id) {
  * привязанная; если и таких нет — первая обнаруженная. */
 function entryId(list) {
     for (let i = 0; i < list.length; i += 1) {
+        if (list[i].rules > 0 && list[i].position >= 0) { return list[i].id; }
+    }
+    for (let i = 0; i < list.length; i += 1) {
+        if (list[i].rules > 0) { return list[i].id; }
+    }
+    for (let i = 0; i < list.length; i += 1) {
         if (list[i].primary && list[i].position >= 0) { return list[i].id; }
     }
     for (let i = 0; i < list.length; i += 1) {
@@ -44,26 +50,38 @@ function entryId(list) {
 
 function sync(list) {
     cameras = list || [];
-    if (!findCam(cameras, mainId)) { mainId = entryId(cameras); }
+    const cur = findCam(cameras, mainId);
+    if (!cur || (!cur.rules && cameras.some(c => c.rules > 0))) {
+        mainId = entryId(cameras);
+    }
     buildMain();
     buildWall();
     schedule();
 }
 
 function pick(id) {
+    if (mainId === id) { return; }
     mainId = id;
     buildMain();
     buildWall();
     schedule();
+    const cam = findCam(cameras, id);
+    if (cam && cam.ruleIds && cam.ruleIds.length && window.BeltBridge && window.BeltBridge.selectRule) {
+        window.BeltBridge.selectRule(cam.ruleIds[0]);
+    }
 }
 
 /* ─── Панели ──────────────────────────────────────────────────────── */
 
 function buildMain() {
     const cam = findCam(cameras, mainId);
-    $id('cam-main-role').textContent = cam && cam.position >= 0
+    let role = cam && cam.position >= 0
         ? cam.name + ' · П' + cam.position + (cam.primary ? ' · вход' : '')
         : cam ? cam.name + ' · свободна' : 'камер нет';
+    if (cam && cam.rules > 0) {
+        role += ' · инстр: ' + cam.rules;
+    }
+    $id('cam-main-role').textContent = role;
 }
 
 function appendThumbBadges(tile, cam) {
@@ -459,8 +477,9 @@ function drawFeed(ctx, w, h, seed, t, large) {
 
     if (large) {
         drawReticleOverlay(ctx, w, h, inField, p, size, railY);
-        if (inField && window.BeltBridge && window.BeltBridge.getActiveRule) {
-            drawLiveRuleInspection(ctx, w, h, inField, p, size, railY, t, window.BeltBridge.getActiveRule());
+        const rule = window.BeltBridge?.getActiveRule ? window.BeltBridge.getActiveRule(mainId) : null;
+        if (inField && rule) {
+            drawLiveRuleInspection(ctx, w, h, inField, p, size, railY, t, rule);
         }
     }
     return inField;
@@ -476,18 +495,18 @@ function paintMainView(t) {
         const seen = drawFeed(ctx, main.width, main.height,
             hash('M|' + (mainId || '-')), t, true);
         if (mainId) {
-            const rule = window.BeltBridge?.getActiveRule?.();
+            const rule = window.BeltBridge?.getActiveRule ? window.BeltBridge.getActiveRule(mainId) : null;
             const lastFail = window.Cameras?.lastFail;
             const canRun = window.BeltBridge ? window.BeltBridge.canRunBelt?.() : true;
             if (!canRun) {
                 status.textContent = 'П0 без камеры (блокировка)';
                 status.className = 'cam-tag cam-tag-br fail';
+            } else if (!rule) {
+                status.textContent = seen ? 'деталь (без инспекции)' : 'без инструментов';
+                status.className = 'cam-tag cam-tag-br';
             } else if (seen && rule) {
                 status.textContent = lastFail ? 'брак: ' + rule.name : 'годная';
                 status.className = 'cam-tag cam-tag-br live ' + (lastFail ? 'fail' : 'pass');
-            } else if (seen) {
-                status.textContent = 'деталь';
-                status.className = 'cam-tag cam-tag-br live';
             } else {
                 status.textContent = 'пусто';
                 status.className = 'cam-tag cam-tag-br';
@@ -540,7 +559,7 @@ function loop(now) {
     schedule();
 }
 
-window.Cameras = { sync: sync, pick: pick };
+window.Cameras = { sync: sync, pick: pick, getMainId: function () { return mainId; } };
 if (window.BeltBridge && window.BeltBridge.syncCameras) {
     window.BeltBridge.syncCameras();
 }

@@ -292,6 +292,8 @@ function toggleRuleOnCam(camId, ruleId) {
         if (!dev.thr) dev.thr = Object.create(null);
         dev.thr[ruleId] = rule.thr.map(() => THR_DEFAULT);
         toast(`${dev.name}: «${rule.name}» подключено, ${rule.thr.length} порог(а) = ${THR_DEFAULT.toFixed(2)}.`);
+        selectActiveRule(ruleId);
+        if (window.Cameras?.pick) window.Cameras.pick(camId);
     }
     render();
 }
@@ -349,7 +351,7 @@ function cameraViews() {
     return inventory.map(cam => ({
         id: cam.id, name: cam.name, dev: cam.dev,
         position: bound[cam.id]?.position ?? -1, primary: !!bound[cam.id]?.primary,
-        rules: cam.rules.length, ruleColors: cam.rules.map(ruleColor),
+        rules: cam.rules.length, ruleIds: [...cam.rules], ruleColors: cam.rules.map(ruleColor),
         mods: loadedModels(cam).length,
     }));
 }
@@ -609,6 +611,7 @@ function renderRuleNode(rid, at) {
     const head = node.querySelector('.node-head'), sw = el('i', 'g-swatch');
     sw.style.background = rule.color; head.insertBefore(sw, head.firstChild);
     node.querySelector('.pos-label').style.color = rule.color;
+    if (isActive) head.insertBefore(el('span', 'rule-live-badge', 'ЭФИР'), node.querySelector('.pos-del'));
 
     node.appendChild(gsock('sock-in', null, 'rule', rid));
     node.appendChild(gsock('sock-out', key));
@@ -1072,7 +1075,7 @@ function removeCanvasGhost() { $('canvas-drag-ghost')?.remove(); }
 
 window.BeltBridge = {
     syncCameras: () => { if (window.Cameras) window.Cameras.sync(cameraViews()); },
-    getActiveRule: () => getActiveTunerRule(),
+    getActiveRule: camId => getActiveTunerRule(camId),
     selectRule: id => selectActiveRule(id),
     isBeltRunning: () => beltRunning,
     canRunBelt: () => canRunBelt(),
@@ -1358,7 +1361,24 @@ function wireFolderPickers() {
 /* ─── Инспектор и активное правило для предпросмотра на камере ────── */
 let activeTunerRuleId = 'r0';
 
-function getActiveTunerRule() {
+function getActiveRuleForCam(camId) {
+    if (!camId) return null;
+    const dev = invCam(camId);
+    if (!dev || !dev.rules || !dev.rules.length) return null;
+    if (dev.rules.includes(activeTunerRuleId)) {
+        return RULES.find(r => r.id === activeTunerRuleId) || null;
+    }
+    return RULES.find(r => r.id === dev.rules[0]) || null;
+}
+
+function getActiveTunerRule(camId) {
+    const targetCamId = camId || (window.Cameras?.getMainId ? window.Cameras.getMainId() : null);
+    if (targetCamId) {
+        const camRule = getActiveRuleForCam(targetCamId);
+        if (camRule) return camRule;
+        const dev = invCam(targetCamId);
+        if (dev && (!dev.rules || !dev.rules.length)) return null;
+    }
     return RULES.find(r => r.id === activeTunerRuleId) || RULES[0];
 }
 
@@ -1377,6 +1397,11 @@ function selectActiveRule(rid) {
             b.remove();
         }
     });
+    const cams = ruleOnCameras(r);
+    const curMain = window.Cameras?.getMainId ? window.Cameras.getMainId() : null;
+    if (cams.length && window.Cameras?.pick && curMain !== cams[0].id) {
+        window.Cameras.pick(cams[0].id);
+    }
 }
 
 /* ─── Пуск ленты и валидация обязательной камеры на П0 ───────────── */

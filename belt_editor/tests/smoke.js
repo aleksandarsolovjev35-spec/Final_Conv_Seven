@@ -1085,6 +1085,26 @@ check('соединения и сокеты: подключенные сокет
         });
         return hasLinked && hasColor;
     })());
+check('связь эфира с камерой: крупный план показывает привязанный инструмент, пустая камера без ложных оверлеев',
+    (function () {
+        const bridge = window.BeltBridge;
+        const cams = window.Cameras;
+        if (!bridge || !cams) return false;
+
+        const ruleCam0 = bridge.getActiveRule('cam0');
+        const ruleCam1 = bridge.getActiveRule('cam1');
+        const ruleCam7 = bridge.getActiveRule('cam7');
+
+        const hasRule = ruleCam0 !== null || ruleCam1 !== null;
+        const emptyRule7 = ruleCam7 === null;
+
+        const camWithRule = ruleCam0 ? 'cam0' : (ruleCam1 ? 'cam1' : null);
+        if (camWithRule) cams.pick(camWithRule);
+        const activeRuleId = bridge.getActiveRule()?.id;
+        const liveBadge = doc.querySelector(`.gnode.g-rule[data-rule="${activeRuleId}"] .rule-live-badge`);
+
+        return hasRule && emptyRule7 && liveBadge !== null;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);
