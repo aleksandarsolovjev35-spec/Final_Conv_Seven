@@ -704,8 +704,6 @@ function sockXY(node) {
     return (r.width || r.height) ? [r.left - z.left + r.width / 2, r.top - z.top + r.height / 2] : null;
 }
 
-let currentWireStyle = 'straight';
-
 function wirePathOrtho(a, b) {
     const x1 = a[0], y1 = a[1], x2 = b[0], y2 = b[1], dx = x2 - x1, dy = y2 - y1;
     if (Math.abs(dx) < 6 || Math.abs(dy) < 6) return `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
@@ -720,16 +718,7 @@ function wirePathOrtho(a, b) {
 
 function calcWirePath(a, b) {
     if (!a || !b) return '';
-    if (currentWireStyle === 'straight') return `M${a[0].toFixed(1)} ${a[1].toFixed(1)}L${b[0].toFixed(1)} ${b[1].toFixed(1)}`;
-    if (currentWireStyle === 'ortho') return wirePathOrtho(a, b);
-    return bez(a, b);
-}
-
-function bez(a, b) {
-    const z = window.BeltView?.state().z || 1, dx = b[0] - a[0], dy = b[1] - a[1], dist = Math.hypot(dx, dy);
-    if (dist < 2) return `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`;
-    const h = dx > 0 ? Math.min(dx * 0.5, Math.max(4 * z, dist * 0.35)) : Math.min(50 * z, Math.max(6 * z, dist * 0.35));
-    return `M${a[0].toFixed(1)} ${a[1].toFixed(1)}C${(a[0] + h).toFixed(1)} ${a[1].toFixed(1)},${(b[0] - h).toFixed(1)} ${b[1].toFixed(1)},${b[0].toFixed(1)} ${b[1].toFixed(1)}`;
+    return wirePathOrtho(a, b);
 }
 
 function svgPath(d, cls, color) {
@@ -1025,8 +1014,6 @@ window.BeltBridge = {
     selectRule: id => selectActiveRule(id),
     isBeltRunning: () => beltRunning,
     canRunBelt: () => canRunBelt(),
-    setWireStyle: s => setWireStyle(s),
-    getWireStyle: () => currentWireStyle,
     camDragStart(id, dt, ev) {
         dragKind = 'camera'; dragCamId = dragAsset = id;
         if (dt) { dt.setData('text/plain', 'camera:' + id); dt.effectAllowed = 'copy'; }
@@ -1036,7 +1023,6 @@ window.BeltBridge = {
     camDragEnd() { dragKind = dragCamId = dragAsset = null; cleanVisuals(); },
     addModelFromFile: (fileName, path) => addModelFromFile(fileName, path),
     addRuleFromFile: (fileName, path) => addRuleFromFile(fileName, path),
-    applyTemplate: () => applyBeltTemplate(),
 };
 
 function cleanVisuals() {
@@ -1345,99 +1331,7 @@ function updateBeltRunStatus() {
     }
 }
 
-function initSevenCamPositions() {
-    const p = [];
-    for (let i = 0; i <= 8; i++) {
-        const isP0 = i === 0, isP4 = i === 4, isP8 = i === 8;
-        const insp = isP0 ? { cameras: ['cam0', 'cam1'], primary: true }
-            : (isP4 ? { cameras: ['cam2', 'cam3', 'cam4', 'cam5', 'cam6'], primary: false } : null);
-        p.push({
-            uid: i + 1,
-            at: { x: 1592 + i * 205, y: 1550 },
-            plates: 2,
-            inspection: insp,
-            reset: isP8,
-            nextUid: isP8 ? null : String(i + 2)
-        });
-    }
-    return p;
-}
-
-function applyBeltTemplate() {
-    belt.positions = initSevenCamPositions();
-    uidSeq = 9;
-
-    belt.places = {
-        'rule:r1': { x: 1592, y: 1310 },
-        'rule:r2': { x: 1797, y: 1310 },
-        'rule:r0': { x: 2412, y: 1310 },
-        'cam:cam0': { x: 1592, y: 1475 },
-        'cam:cam1': { x: 1797, y: 1475 },
-        'cam:cam2': { x: 2412, y: 1475 },
-        'cam:cam6': { x: 2617, y: 1475 }
-    };
-
-    const r1 = RULES.find(r => r.id === 'r1');
-    if (r1) { r1.countExpected = 7; r1.filterX = 30; r1.filterY = 20; if (!r1.models.includes('m0')) r1.models = ['m0']; }
-
-    const r2 = RULES.find(r => r.id === 'r2');
-    if (r2) { r2.maxDefects = 0; if (!r2.models.includes('m3')) r2.models = ['m3']; }
-
-    const r0 = RULES.find(r => r.id === 'r0');
-    if (r0) { r0.lineMode = 'horiz'; r0.topMax = 35; r0.bottomMax = 35; if (!r0.models.includes('m1')) r0.models = ['m1']; }
-
-    inventory.forEach(c => { c.rules = []; });
-    const c0 = invCam('cam0'), c1 = invCam('cam1'), c2 = invCam('cam2'), c6 = invCam('cam6');
-    if (c0) c0.rules = ['r1'];
-    if (c1) c1.rules = ['r2'];
-    if (c2) c2.rules = ['r0'];
-    if (c6) c6.rules = ['r0'];
-
-    activeTunerRuleId = 'r1';
-    beltRunning = true;
-    render();
-    if (window.BeltView?.fitTemplate) {
-        window.BeltView.fitTemplate();
-    } else if (window.BeltView?.centerOn) {
-        window.BeltView.centerOn(2500, 1492.5, 0.65);
-    } else if (window.BeltView?.setZoom) {
-        window.BeltView.setZoom(0.65);
-    }
-    renderWires();
-    if (window.BeltBridge?.syncCameras) window.BeltBridge.syncCameras();
-    toast('Семикамерный конвейер развернут по центру области.');
-}
-
-function setWireStyle(style) {
-    currentWireStyle = style || 'straight';
-    try { localStorage.setItem('belt_wire_style', currentWireStyle); } catch (e) {}
-    document.querySelectorAll('.btn-wire-style').forEach(b => {
-        b.classList.toggle('active', b.dataset.style === currentWireStyle);
-    });
-    renderWires();
-}
-
-function wireStyleControls() {
-    try {
-        const s = localStorage.getItem('belt_wire_style');
-        if (s && ['straight', 'ortho', 'bezier'].includes(s)) currentWireStyle = s;
-    } catch (e) {}
-    document.querySelectorAll('.btn-wire-style').forEach(b => {
-        b.classList.toggle('active', b.dataset.style === currentWireStyle);
-        b.onclick = ev => {
-            ev.stopPropagation();
-            setWireStyle(b.dataset.style);
-            const lbls = { straight: 'Прямые линии', ortho: 'Углы 90°', bezier: 'Плавные Безье' };
-            toast(`Стиль линий: ${lbls[b.dataset.style] || b.dataset.style}`);
-        };
-    });
-}
-
 function wireBeltRun() {
-    $('btn-belt-template')?.addEventListener('click', ev => {
-        ev.stopPropagation();
-        applyBeltTemplate();
-    });
     $('btn-belt-run')?.addEventListener('click', ev => {
         ev.stopPropagation();
         if (!canRunBelt()) {
@@ -1453,14 +1347,7 @@ function wireBeltRun() {
 function boot() {
     wirePalette(); wireBelt(); wireSearch(); wireThrClose(); wireLinkEngine();
     dragGNodes(); wireScrollSnap(); wireSideDock(); wireFolderPickers(); wireBeltRun();
-    wireStyleControls();
-    const isRealBrowser = typeof window !== 'undefined' &&
-        (window.location?.protocol === 'http:' || window.location?.protocol === 'https:');
-    if (isRealBrowser && belt.positions.length === 0) {
-        applyBeltTemplate();
-    } else {
-        render();
-    }
+    render();
 }
 
 if (document.readyState === 'loading') {

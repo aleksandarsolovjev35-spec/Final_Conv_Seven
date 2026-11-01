@@ -1026,60 +1026,25 @@ check('настройка инструмента замер: опорная ба
         const isHoriz = doc.querySelector('.gnode.g-rule[data-rule="r0"] .btn-seg').classList.contains('active');
         return isVert && isHoriz;
     })());
-check('шаблон ленты: кнопка разворачивает эталонную сборку с 3 инструментами',
+check('отказ от шаблона: кнопка шаблона удалена из UI, лента стартует чистой',
     (function () {
         const btn = doc.getElementById('btn-belt-template');
-        if (!btn) return false;
-        btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-        const cards = doc.querySelectorAll('.pos-card');
-        const rNodes = doc.querySelectorAll('.gnode.g-rule');
-        const camNode = doc.querySelector('.cam-node');
-        const runBadge = doc.getElementById('belt-run-status');
-        const hasPositions = cards.length >= 3;
-        const hasRules = rNodes.length >= 3;
-        const hasCam = camNode !== null;
-        const isRunning = runBadge && runBadge.textContent.includes('ЛЕНТА В РАБОТЕ');
-        return hasPositions && hasRules && hasCam && isRunning;
+        const btnClass = doc.querySelector('.btn-belt-template');
+        return btn === null && btnClass === null;
     })());
-check('стили линий: наличие контроллера в шапке (прямые, углы 90°, безье)',
+check('линии связи: строго чертёжные углы 90° (контроллер удалён, единый стандарт)',
     (function () {
         const ctrl = doc.getElementById('wire-style-ctrl');
-        if (!ctrl) return false;
-        const btns = ctrl.querySelectorAll('.btn-wire-style');
-        return btns.length === 3;
-    })());
-check('стили линий: переключение на прямые и углы 90° через BeltBridge и клик',
-    (function () {
-        const bridge = window.BeltBridge;
-        if (!bridge?.setWireStyle) return false;
-        bridge.setWireStyle('straight');
-        const isStraight = bridge.getWireStyle() === 'straight';
-        const btnOrtho = doc.querySelector('.btn-wire-style[data-style="ortho"]');
-        if (!btnOrtho) return false;
-        btnOrtho.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-        const isOrtho = bridge.getWireStyle() === 'ortho';
-        const activeBtn = doc.querySelector('.btn-wire-style.active');
-        const hasActiveCls = activeBtn && activeBtn.dataset.style === 'ortho';
-        bridge.setWireStyle('straight');
-        return isStraight && isOrtho && hasActiveCls;
-    })());
-check('центрирование шаблона: схема развернута по середине поля и камера сцентрирована',
-    (function () {
-        const btn = doc.getElementById('btn-belt-template');
-        if (!btn) return false;
-        btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-        const p0 = doc.querySelector('.pos-card[data-index="0"]');
-        const p8 = doc.querySelector('.pos-card[data-index="8"]');
-        if (!p0 || !p8) return false;
-        const left0 = parseFloat(p0.style.left || '0');
-        const left8 = parseFloat(p8.style.left || '0');
-        const midX = (left0 + left8 + 176) / 2;
-        const isMidXCentered = Math.abs(midX - 2500) < 50;
-        const top0 = parseFloat(p0.style.top || '0');
-        const isYCentered = top0 > 1200 && top0 < 1800;
-        const view = window.BeltView?.state();
-        const hasZoom = view && view.z > 0.4 && view.z < 1.0;
-        return isMidXCentered && isYCentered && hasZoom;
+        const btns = doc.querySelectorAll('.btn-wire-style');
+        const wires = doc.querySelectorAll('#wires path.wire');
+        let hasOrthoWire = false;
+        wires.forEach(w => {
+            const d = w.getAttribute('d') || '';
+            if (d.includes('Q') || (d.includes('M') && d.includes('L') && !d.includes('C'))) {
+                hasOrthoWire = true;
+            }
+        });
+        return ctrl === null && btns.length === 0 && hasOrthoWire;
     })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
