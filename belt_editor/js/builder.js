@@ -761,9 +761,8 @@ function svgPath(d, cls, color) {
     p.setAttribute('d', d); p.setAttribute('class', cls);
     p.setAttribute('stroke-linecap', 'round');
     p.setAttribute('stroke-linejoin', 'round');
-    const z = window.BeltView?.state().z || 1, isChain = cls.includes('wire-chain');
-    const w = (isChain ? 2.8 : 2.2) * Math.min(1.2, Math.sqrt(z));
-    p.style.strokeWidth = Math.max(1.0, w).toFixed(2) + 'px';
+    const isChain = cls.includes('wire-chain');
+    p.style.strokeWidth = isChain ? '2.8px' : '2.2px';
     if (color) p.style.stroke = color;
     return p;
 }

@@ -1104,6 +1104,14 @@ check('связь эфира с камерой: крупный план пока
 
         return hasRule && emptyRule7 && noLiveBadge;
     })());
+check('соединения не масштабируются: толщина линий связей стабильна и не зависит от зума',
+    (function () {
+        const builderSrc = fs.readFileSync(ROOT + '/js/builder.js', 'utf8');
+        const hasSvgPath = builderSrc.includes('function svgPath(');
+        const noSqrtZ = !builderSrc.includes('Math.sqrt(z)');
+        const hasFixedStroke = builderSrc.includes("isChain ? '2.8px' : '2.2px'");
+        return hasSvgPath && noSqrtZ && hasFixedStroke;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);
