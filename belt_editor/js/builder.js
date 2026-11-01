@@ -25,7 +25,7 @@ const RULES = [
         thr: ['контраст'], models: [], mode: 'presence', baseMode: 'presence', countExpected: 7
     },
     {
-        id: 'r2', name: 'дефект', defectName: 'ДЕФЕКТ', color: '#cf7aa6',
+        id: 'r2', name: 'отсутствие', defectName: 'ОТСУТСТВИЕ', color: '#cf7aa6',
         thr: ['окно'], models: [], mode: 'defect', baseMode: 'defect', maxDefects: 0, countExpected: 0
     },
     {
@@ -313,7 +313,7 @@ function renderAssets() {
                 const sw = el('span', 'rule-swatch'); sw.style.background = item.color;
                 const nm = el('b', '', item.name); nm.style.color = item.color;
                 tile.appendChild(sw); tile.appendChild(nm);
-                const modeLabel = item.mode === 'presence' ? 'наличие' : (item.mode === 'shift' ? 'смещение' : (item.mode === 'geometry' ? 'геометрия' : 'дефект'));
+                const modeLabel = item.mode === 'presence' ? 'наличие' : (item.mode === 'shift' ? 'смещение' : (item.mode === 'geometry' ? 'геометрия' : 'отсутствие'));
                 tile.appendChild(el('span', 'rule-mode-tag', modeLabel));
                 if (item.models.length) tile.appendChild(el('span', 'rule-parts-count', `${item.models.length}м`));
                 if (used) tile.appendChild(el('span', 'asset-use', `кам: ${used}`));
@@ -565,7 +565,7 @@ function getRuleParamConfig(rule) {
     }
     const val = rule.maxDefects ?? 0;
     return {
-        lbl: 'Порог:', val: val + ' шт',
+        lbl: 'Количество:', val: val + ' шт',
         dec: () => { rule.maxDefects = Math.max(0, val - 1); },
         inc: () => { rule.maxDefects = Math.min(5, val + 1); }
     };

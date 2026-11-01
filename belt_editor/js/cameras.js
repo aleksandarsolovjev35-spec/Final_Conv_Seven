@@ -303,8 +303,9 @@ function drawInspectionDefect(ctx, px, py, pw, ph, rule) {
     ctx.setLineDash([]);
     ctx.fillStyle = '#cf7aa6';
     ctx.font = '7.5px monospace';
-    ctx.fillText('✓ ЧИСТО', px + 6, py + Math.round(ph / 2) + 3);
-    return { isFail: found > allowed, text: `Дефекты: ${found} шт (допуск: ${allowed})` };
+    ctx.fillText('✓ ОТСУТСТВУЕТ', px + 6, py + Math.round(ph / 2) + 3);
+    const isFail = found > allowed;
+    return { isFail, text: `Отсутствие: ${found} шт (допустимо: ${allowed})` };
 }
 
 function drawInspectionGeometry(ctx, px, py, pw, ph, rule) {

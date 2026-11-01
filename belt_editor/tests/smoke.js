@@ -902,16 +902,16 @@ check('настройка числа N в блоке наличия: кнопк�
         const valAfter = doc.querySelector('.gnode.g-rule[data-rule="r0"] .rule-count-val').textContent;
         return valBefore !== valAfter;
     })());
-check('конструктор инструментов: каталог содержит базовые инструменты замер, наличие, дефект, смещение',
+check('конструктор инструментов: каталог содержит базовые инструменты замер, наличие, отсутствие, смещение',
     (function () {
         const tiles = ruleTiles();
         const names = Array.from(tiles).map(t => t.querySelector('b')?.textContent.trim());
         const tags = Array.from(tiles).map(t => t.querySelector('.rule-mode-tag')?.textContent.trim());
         return names.includes('замер') && names.includes('наличие')
-            && names.includes('дефект') && names.includes('смещение')
-            && tags.includes('наличие') && tags.includes('дефект') && tags.includes('смещение');
+            && names.includes('отсутствие') && names.includes('смещение')
+            && tags.includes('наличие') && tags.includes('отсутствие') && tags.includes('смещение');
     })());
-check('настройка инструмента дефект: кнопки шага регулируют допуск брака',
+check('настройка инструмента отсутствие: кнопки шага регулируют количество',
     (function () {
         dragTileToBelt(ruleTiles()[2]);
         const node = doc.querySelector('.gnode.g-rule[data-rule="r2"]');
@@ -935,7 +935,7 @@ check('настройка инструмента смещение: кнопки 
         node.querySelector('.pos-del')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
         return valBefore !== valAfter && valAfter.includes('4 px');
     })());
-check('правая палитра инструментов: на сборке ленты справа размещены продуманные блоки геометрия, наличие, дефект, смещение',
+check('правая палитра инструментов: на сборке ленты справа размещены продуманные блоки геометрия, наличие, отсутствие, смещение',
     (function () {
         const p = doc.querySelector('.tools.tools-right');
         if (!p) return false;
