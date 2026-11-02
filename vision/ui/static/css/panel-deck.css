@@ -14,6 +14,8 @@
  */
 
 .stats-panel {
+    /* Панель перекрывает ручку: та наполовину утоплена за её кромку. */
+    z-index: 30;
     transform-origin: center center;
     backface-visibility: hidden;
 }
@@ -49,21 +51,23 @@
     column-gap: 0;
 }
 
-/* Ручка: в покое — узкая полоска на кромке панели, при наведении
-   раскрывается в кнопку с шевроном. Видимая часть ::before, сама
-   кнопка шире — попасть по ней легко и мышью, и пальцем. */
+/* Ручка: в покое — узкая полоска, наполовину утопленная за панель,
+   при наведении раскрывается в кнопку с шевроном. Видимая часть
+   ::before, кнопка шире — попасть легко и мышью, и пальцем. */
 .panel-toggle {
     position: absolute;
     top: 50%;
-    /* Стоит на кромке панели, чуть заходя на неё. */
-    right: calc(var(--gap) + var(--panel-col) + 3px);
-    z-index: 60;
+    /* Наполовину уходит за панель: правый край кнопки — внутри неё,
+       видно только выглядывающую половину. */
+    right: calc(var(--gap) + var(--panel-col) + 5px);
+    z-index: 26;
     display: flex;
     align-items: center;
     justify-content: center;
     width: 18px;
     height: 56px;
-    padding: 0;
+    /* Отступ справа — шеврон центрируется по видимой половине. */
+    padding: 0 5px 0 0;
     transform: translateY(-50%);
     font-family: var(--font-ui);
     font-size: 12px;
@@ -83,9 +87,9 @@
     right: 0;
     bottom: 0;
     z-index: -1;
-    width: 6px;
+    width: 10px;
     background: var(--border-strong);
-    border-radius: 3px;
+    border-radius: 5px;
     transition:
         width 160ms var(--ease),
         border-radius 160ms var(--ease),
@@ -127,6 +131,7 @@
 }
 .body.panel-collapsed .panel-toggle {
     right: 0;
+    padding-right: 0;
 }
 
 /* ─── Шторка правой панели ────────────────────────────────────── */
