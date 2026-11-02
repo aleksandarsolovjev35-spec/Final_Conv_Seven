@@ -10,6 +10,7 @@ stop the simulated conveyor.
 from __future__ import annotations
 
 import argparse
+import math
 import signal
 import threading
 from dataclasses import dataclass
@@ -101,6 +102,9 @@ class LineSimulation:
         # Ручной ход (JOG) двигает ЛЕНТУ, а не распределитель. Это отдельная
         # координата виртуального конвейера, ограниченная как физическая ось.
         self.conveyor_speed = 18000
+        # Паузы инспекции меняются из HMI и живут до перезапуска симулятора.
+        self.settle_seconds = float(self.SETTLE_SECONDS)
+        self.review_seconds = float(self.REVIEW_SECONDS)
         self.conveyor_position = 0
         self.conveyor_max = 340
         self.jog_active = False
@@ -195,6 +199,42 @@ class LineSimulation:
             self.conveyor_speed = speed
         self._publish(self._rest_phase())
         return True
+
+    def set_inspection_timings(
+        self,
+        settle_time: float,
+        review_time: float,
+    ) -> bool:
+        """Изменить паузы до и после инспекции из интерфейса."""
+        settle = self._normalise_pause(
+            settle_time, maximum=5.0, label="Пауза перед инспекцией",
+        )
+        review = self._normalise_pause(
+            review_time, maximum=30.0, label="Пауза после инспекции",
+        )
+        with self._lock:
+            if self.state not in ("IDLE", "STOPPED") or self.jog_busy:
+                return False
+            self.settle_seconds = settle
+            self.review_seconds = review
+        self._publish(self._rest_phase())
+        return True
+
+    @staticmethod
+    def _normalise_pause(value: float, *, maximum: float, label: str) -> float:
+        if isinstance(value, bool):
+            raise ValueError(f"{label}: требуется число секунд")
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{label}: требуется число секунд") from exc
+        if not math.isfinite(seconds):
+            raise ValueError(f"{label}: требуется конечное число")
+        if not 0.0 <= seconds <= maximum:
+            raise ValueError(
+                f"{label}: допустимый диапазон 0..{maximum:g} с"
+            )
+        return round(seconds, 2)
 
     def jog_hold_start(self, direction: str) -> bool:
         with self._lock:
@@ -439,7 +479,7 @@ class LineSimulation:
             return False
 
         self._publish("ANALYSIS_REVIEW", captured_roles)
-        if self._stop.wait(self.REVIEW_SECONDS):
+        if self._stop.wait(self.review_seconds):
             return False
         self._publish("PUBLISH", captured_roles)
         if self._stop.wait(self.CAMERA_STAGE_SECONDS):
@@ -587,7 +627,19 @@ class LineSimulation:
                 "dist2_target": "CLEANUP" if self.dist2_position else "BAD",
                 "last_distributor_action": self.last_distributor_action,
                 "conveyor_speed": self.conveyor_speed,
+                "conveyor_speed_percent": round(
+                    self.conveyor_speed / 20000 * 100,
+                ),
+                "conveyor_speed_min": 5000,
+                "conveyor_speed_max": 20000,
                 "speed_allowed": speed_allowed,
+                "inspection_timings": {
+                    "settle_time": round(self.settle_seconds, 2),
+                    "review_time": round(self.review_seconds, 2),
+                    "settle_max": 5.0,
+                    "review_max": 30.0,
+                },
+                "timings_allowed": speed_allowed,
                 # Production start is available while JOG is open: issuing
                 # start closes JOG and transfers control to the cycle.
                 "controls": {"start": state in ("IDLE", "STOPPED") and self.selected_role is None,
@@ -727,7 +779,7 @@ class LineSimulation:
                     part.position += 1
                 self.step += 1
             self._publish("SETTLE")
-            if self._stop.wait(self.SETTLE_SECONDS):
+            if self._stop.wait(self.settle_seconds):
                 break
             with self._lock:
                 if self.state not in ("RUNNING", "STOPPING"):
@@ -824,6 +876,7 @@ def main() -> None:
     server.on_resume = simulation.resume
     server.on_exit = simulation.close
     server.on_conveyor_speed = simulation.set_conveyor_speed
+    server.on_inspection_timings = simulation.set_inspection_timings
     server.on_jog_enter = simulation.enter_jog
     server.on_jog_exit = simulation.exit_jog
     server.on_jog_hold_start = simulation.jog_hold_start

@@ -1,5 +1,6 @@
 import json
 import math
+import os
 
 
 DEFAULTS = {
@@ -93,3 +94,44 @@ def load_calibration(path: str = "calibration.json") -> dict:
     result = _validate(data)
     print(f"[CALIB] Loaded and validated from {path}")
     return result
+
+
+def save_calibration_timings(
+    path: str,
+    settle_time: float,
+    review_time: float,
+) -> dict:
+    """Сохранить паузы инспекции в calibration.json атомарной заменой.
+
+    Остальные поля файла не меняются. Перед записью выполняется та же
+    полная валидация, что и при загрузке, поэтому HMI не может записать
+    значение, из-за которого следующий запуск не поднимется.
+    """
+    try:
+        with open(path, encoding="utf-8") as stream:
+            data = json.load(stream)
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"Файл калибровки не найден: {path}") from exc
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Ошибка чтения {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError("calibration.json должен содержать объект")
+
+    data = {**OPTIONAL_DEFAULTS, **data}
+    data["settle_time"] = float(settle_time)
+    data["review_time"] = float(review_time)
+    validated = _validate(data)
+
+    temporary = f"{path}.tmp"
+    try:
+        with open(temporary, "w", encoding="utf-8") as stream:
+            json.dump(validated, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+        os.replace(temporary, path)
+    except OSError as exc:
+        try:
+            os.remove(temporary)
+        except OSError:
+            pass
+        raise RuntimeError(f"Ошибка записи {path}: {exc}") from exc
+    return validated

@@ -239,6 +239,39 @@ class CycleBehaviorTest(unittest.TestCase):
         self.assertEqual(cycle.part_counter, 1)
         self.assertEqual(len(cycle.parts), 1)
 
+    def test_set_inspection_timings_updates_pauses(self):
+        cycle, _log = make_cycle()
+        self.assertTrue(cycle.set_inspection_timings(1.25, 4.5))
+        self.assertEqual(cycle.stages.settle_seconds, 1.25)
+        self.assertEqual(cycle.review_seconds, 4.5)
+        status = cycle._build_status()
+        self.assertEqual(status["inspection_timings"]["settle_time"], 1.25)
+        self.assertEqual(status["inspection_timings"]["review_time"], 4.5)
+        self.assertTrue(status["timings_allowed"])
+
+    def test_set_inspection_timings_rejected_while_running(self):
+        cycle, _log = make_cycle()
+        cycle.sm._state = State.RUNNING
+        self.assertFalse(cycle.set_inspection_timings(1.0, 2.0))
+        self.assertEqual(cycle.stages.settle_seconds, 0.0)
+        self.assertEqual(cycle.review_seconds, 0.0)
+
+    def test_set_inspection_timings_validates_ranges(self):
+        cycle, _log = make_cycle()
+        for settle, review in ((-0.1, 1), (5.1, 1), (1, -1), (1, 30.1)):
+            with self.subTest(settle=settle, review=review):
+                with self.assertRaises(ValueError):
+                    cycle.set_inspection_timings(settle, review)
+
+    def test_status_reports_speed_percent(self):
+        cycle, _log = make_cycle()
+        cycle.conveyor.speed = 18000
+        status = cycle._build_status()
+        self.assertEqual(status["conveyor_speed"], 18000)
+        self.assertEqual(status["conveyor_speed_percent"], 90)
+        self.assertEqual(status["conveyor_speed_min"], 5000)
+        self.assertEqual(status["conveyor_speed_max"], 20000)
+
     def test_second_step_moves_belt(self):
         cycle, log = make_cycle()
         cycle.request_start()

@@ -10,6 +10,7 @@ from application.constants import (
     CYCLE_JOIN_TIMEOUT,
     GRACEFUL_EXIT_TIMEOUT,
 )
+from config.calibration_loader import save_calibration_timings
 
 
 class ExitCoordinator:
@@ -243,6 +244,8 @@ def bind_cycle_callbacks(
     monitor,
     cycle,
     exit_callback: Callable[[], None],
+    *,
+    calibration_path: str = "calibration.json",
 ) -> None:
     """Подключает публичный API ProductionCycle к HMI."""
 
@@ -265,6 +268,38 @@ def bind_cycle_callbacks(
     monitor.active_camera_callback = lambda _role: cycle._refresh_monitor()
 
     monitor.conveyor_speed_callback = cycle.set_conveyor_speed
+
+    # Паузы инспекции применяются в работающем цикле и сохраняются в
+    # calibration.json, чтобы значение пережило перезапуск приложения.
+    apply_inspection_timings = getattr(
+        cycle, "set_inspection_timings", None,
+    )
+
+    def update_inspection_timings(settle_time, review_time):
+        if apply_inspection_timings is None:
+            return False
+        accepted = apply_inspection_timings(settle_time, review_time)
+        if accepted is False:
+            return False
+        if calibration_path:
+            try:
+                save_calibration_timings(
+                    calibration_path,
+                    settle_time,
+                    review_time,
+                )
+                print(
+                    "[HMI] Паузы инспекции сохранены в "
+                    f"{calibration_path}: до {settle_time:g} с, "
+                    f"после {review_time:g} с"
+                )
+            except Exception as exc:
+                # Пауза уже применена в текущем цикле. Ошибка записи не
+                # должна отменять действие — только сообщаем оператору.
+                print(f"[HMI] Не удалось сохранить паузы: {exc}")
+        return True
+
+    monitor.inspection_timings_callback = update_inspection_timings
     monitor.jog_enter_callback = cycle.enter_jog
     monitor.jog_exit_callback = cycle.exit_jog
     monitor.jog_hold_start_callback = cycle.jog_hold_start

@@ -301,6 +301,7 @@ function updateLineStatus(ls) {
     setIfChanged(els.metricStep, ls.step || 0);
 
     updateConveyorSpeed(ls);
+    updateInspectionTimings(ls);
     state.backendControls = ls.controls || {};
     applyButtonsForState(lineState, exitRequested, state.backendControls);
     updateViewModeControls();

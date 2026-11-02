@@ -22,6 +22,7 @@ from config.calibration_loader import (
     DEFAULTS as CALIBRATION_DEFAULTS,
     OPTIONAL_DEFAULTS,
     load_calibration,
+    save_calibration_timings,
 )
 from config.camera_mapping import (
     REQUIRED_ROLES,
@@ -203,6 +204,36 @@ class CalibrationLoaderTest(unittest.TestCase):
     def test_not_a_dict_raises(self):
         with self.assertRaisesRegex(ValueError, "объект"):
             load_calibration(self.write([1, 2, 3]))
+
+    def test_save_timings_round_trip(self):
+        path = self.write(_valid_calibration())
+        updated = save_calibration_timings(path, 1.25, 6.5)
+        self.assertEqual(updated["settle_time"], 1.25)
+        self.assertEqual(updated["review_time"], 6.5)
+        loaded = load_calibration(path)
+        self.assertEqual(loaded["settle_time"], 1.25)
+        self.assertEqual(loaded["review_time"], 6.5)
+        self.assertFalse(os.path.exists(path + ".tmp"))
+
+    def test_save_timings_keeps_other_fields(self):
+        path = self.write(_valid_calibration())
+        save_calibration_timings(path, 0.0, 0.0)
+        loaded = load_calibration(path)
+        self.assertEqual(
+            loaded["conveyor_speed"],
+            CALIBRATION_DEFAULTS["conveyor_speed"],
+        )
+
+    def test_save_timings_rejects_invalid_range(self):
+        path = self.write(_valid_calibration())
+        with self.assertRaisesRegex(ValueError, "settle_time"):
+            save_calibration_timings(path, 9.0, 1.0)
+        with self.assertRaisesRegex(ValueError, "review_time"):
+            save_calibration_timings(path, 1.0, 99.0)
+
+    def test_save_timings_missing_file(self):
+        with self.assertRaisesRegex(RuntimeError, "не найден"):
+            save_calibration_timings(self.path("nope.json"), 1.0, 1.0)
 
 
 def _valid_mapping(**overrides):
