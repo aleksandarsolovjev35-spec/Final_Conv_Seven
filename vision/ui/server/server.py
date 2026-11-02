@@ -129,6 +129,8 @@ class UIServer:
         self.on_selected_model_release: callable | None = None
 
         self.on_conveyor_speed: callable | None = None
+        # Паузы до/после инспекции: callback(settle_time, review_time).
+        self.on_inspection_timings: callable | None = None
         self.on_jog_enter: callable | None = None
         self.on_jog_exit: callable | None = None
         self.on_jog_hold_start: callable | None = None

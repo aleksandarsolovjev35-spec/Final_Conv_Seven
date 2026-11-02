@@ -119,6 +119,37 @@ class SimulationApiTest(unittest.TestCase):
         self.assertEqual(self.sim.state, "PAUSED")
         self.sim.close()
 
+    def test_inspection_timings_adjustable(self):
+        self.assertTrue(self.sim.set_inspection_timings(1.5, 7.25))
+        self.assertEqual(self.sim.settle_seconds, 1.5)
+        self.assertEqual(self.sim.review_seconds, 7.25)
+        status = self.server.line_status
+        self.assertEqual(status["inspection_timings"]["settle_time"], 1.5)
+        self.assertEqual(status["inspection_timings"]["review_time"], 7.25)
+        self.assertTrue(status["timings_allowed"])
+
+    def test_inspection_timings_rejected_while_running(self):
+        self.sim.start()
+        self.assertFalse(self.sim.set_inspection_timings(1.0, 3.0))
+        self.assertEqual(self.sim.settle_seconds, self.sim.SETTLE_SECONDS)
+        self.sim.close()
+
+    def test_inspection_timings_validate_ranges(self):
+        for settle, review in ((-0.1, 1), (5.1, 1), (1, -1), (1, 30.1)):
+            with self.subTest(settle=settle, review=review):
+                with self.assertRaises(ValueError):
+                    self.sim.set_inspection_timings(settle, review)
+
+    def test_status_reports_speed_percent(self):
+        self.sim.start()
+        self.sim._publish("MOTION")
+        status = self.server.line_status
+        self.assertEqual(status["conveyor_speed"], 18000)
+        self.assertEqual(status["conveyor_speed_percent"], 90)
+        self.assertEqual(status["conveyor_speed_min"], 5000)
+        self.assertEqual(status["conveyor_speed_max"], 20000)
+        self.sim.close()
+
     def test_selected_analysis(self):
         self.assertFalse(self.sim.selected_analysis("NOPE"))
         self.assertTrue(self.sim.selected_analysis("TOP"))

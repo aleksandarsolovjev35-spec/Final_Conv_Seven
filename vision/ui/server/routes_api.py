@@ -1,7 +1,19 @@
 import asyncio
+import math
 
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
+
+from vision.ui.server.constants import (
+    CONVEYOR_SPEED_MAX,
+    CONVEYOR_SPEED_MIN,
+    CONVEYOR_SPEED_PERCENT_MIN,
+    REVIEW_TIME_MAX,
+    REVIEW_TIME_MIN,
+    SETTLE_TIME_MAX,
+    SETTLE_TIME_MIN,
+    percent_to_speed,
+)
 
 
 def setup_api_routes(app, server):
@@ -286,9 +298,54 @@ def setup_api_routes(app, server):
     @app.post("/api/conveyor/speed")
     async def api_conveyor_speed(payload: dict):
         speed = payload.get("speed")
-        if type(speed) is not int or not 5000 <= speed <= 20000:
-            raise HTTPException(400, "Скорость должна быть целым числом от 5000 до 20000")
+        percent = payload.get("percent")
+        if speed is None and percent is not None:
+            if type(percent) is not int or not (
+                CONVEYOR_SPEED_PERCENT_MIN <= percent <= 100
+            ):
+                raise HTTPException(
+                    400,
+                    "Скорость в процентах должна быть целым числом от "
+                    f"{CONVEYOR_SPEED_PERCENT_MIN} до 100",
+                )
+            speed = percent_to_speed(percent)
+        if type(speed) is not int or not (
+            CONVEYOR_SPEED_MIN <= speed <= CONVEYOR_SPEED_MAX
+        ):
+            raise HTTPException(
+                400,
+                "Скорость должна быть целым числом от "
+                f"{CONVEYOR_SPEED_MIN} до {CONVEYOR_SPEED_MAX}",
+            )
         return await invoke("СКОРОСТЬ ЛЕНТЫ", server.on_conveyor_speed, speed)
+
+    @app.post("/api/inspection/timings")
+    async def api_inspection_timings(payload: dict):
+        settle_time = payload.get("settle_time")
+        review_time = payload.get("review_time")
+        for value, minimum, maximum, label in (
+            (settle_time, SETTLE_TIME_MIN, SETTLE_TIME_MAX,
+             "Пауза перед инспекцией"),
+            (review_time, REVIEW_TIME_MIN, REVIEW_TIME_MAX,
+             "Пауза после инспекции"),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                or not minimum <= float(value) <= maximum
+            ):
+                raise HTTPException(
+                    400,
+                    f"{label} должна быть числом от {minimum:g} "
+                    f"до {maximum:g} секунд",
+                )
+        return await invoke(
+            "ПАУЗЫ ИНСПЕКЦИИ",
+            server.on_inspection_timings,
+            round(float(settle_time), 2),
+            round(float(review_time), 2),
+        )
 
     # JOG
 

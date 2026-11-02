@@ -126,6 +126,50 @@
     visibility: hidden;
 }
 
+/* ─── Измерительная сетка поверх кадра ─────────────────────────────
+   Сетка живёт только в DOM браузера: кадр, архив и разметка моделей
+   остаются без изменений. Мелкая клетка — 1/8 × 1/6 кадра, крупная —
+   половина кадра: по центру получается перекрестие. */
+.camera-grid {
+    position: absolute;
+    inset: 0;
+    /* Сетка видна и поверх затемняющего state-overlay (z-index 20):
+       иначе в IDLE она была бы скрыта и переключатель выглядел бы
+       неработающим. Кнопка переключателя лежит ещё выше (25). */
+    z-index: 21;
+    opacity: 0.85;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+        opacity 160ms var(--ease),
+        visibility 0s linear 160ms;
+    background-image:
+        linear-gradient(to right, rgba(120, 153, 165, 0.30) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(120, 153, 165, 0.30) 1px, transparent 1px),
+        linear-gradient(to right, rgba(224, 229, 233, 0.48) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(224, 229, 233, 0.48) 1px, transparent 1px);
+    background-size:
+        12.5% 100%,
+        100% 16.6667%,
+        50% 100%,
+        100% 50%;
+    background-position: 0 0, 0 0, 0 0, 0 0;
+}
+
+.camera-grid.is-visible {
+    opacity: 0.85;
+    visibility: visible;
+    transition:
+        opacity 160ms var(--ease),
+        visibility 0s linear 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .camera-grid,
+    .camera-grid.is-visible { transition-duration: 1ms; }
+}
+
 .camera-label {
     position: absolute;
     top: 10px;
@@ -253,7 +297,8 @@
 
 /* Компактная кнопка по размеру совпадает с информационными плашками камеры.
    Обе подписи имеют одну ширину и остаются строго по центру. */
-#view-mode-toggle {
+#view-mode-toggle,
+#grid-toggle {
     width: 88px;
     min-width: 88px;
     height: 27px;
@@ -263,6 +308,26 @@
     letter-spacing: 0.55px;
     line-height: 1;
     text-align: center;
+}
+
+/* Отдельное место в левом нижнем углу: не пересекается с кнопками
+   режима/анализа и доступно на любом состоянии линии. */
+.camera-grid-toggle {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    z-index: 25;
+}
+
+/* Включённая сетка: кнопка залита акцентом, чтобы состояние читалось
+   боковым зрением и не зависело только от цвета линий на видео. */
+#grid-toggle.is-on {
+    --btn-color:       var(--bg-0);
+    --btn-border:      var(--accent);
+    --btn-invert:      var(--text);
+    --btn-invert-text: var(--bg-0);
+    background: var(--accent);
+    border-color: var(--accent);
 }
 
 #analyze-selected-frame {
