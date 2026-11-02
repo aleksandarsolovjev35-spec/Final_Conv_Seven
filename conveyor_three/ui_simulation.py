@@ -802,6 +802,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Hardware-free Conveyor Three UI simulator")
     parser.add_argument("--host", default="0.0.0.0", help="Bind host (0.0.0.0 for Arena preview)")
     parser.add_argument("--port", default=8000, type=int)
+    parser.add_argument(
+        "--no-cameras",
+        action="store_true",
+        help="запуск без назначенных камер (как на новой линии)",
+    )
     args = parser.parse_args()
 
     server = UIServer()
@@ -831,9 +836,10 @@ def main() -> None:
     # Имитируем camera_mapping.json: роль -> физический Camera ID. Маппинг
     # отдаётся в /api/cameras как в production (в названиях камер в UI
     # Camera ID не показывается).
-    server.set_camera_roles({
-        role: index for index, role in enumerate(CAMERA_ORDER)
-    })
+    if not args.no_cameras:
+        server.set_camera_roles({
+            role: index for index, role in enumerate(CAMERA_ORDER)
+        })
     # Мастер назначения камер: физических USB-устройств в симуляторе нет,
     # поэтому «скан» возвращает те же виртуальные камеры, что и на линии,
     # а сохранение привязки меняет только состояние симуляции.
