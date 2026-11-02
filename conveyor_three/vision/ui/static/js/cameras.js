@@ -358,7 +358,8 @@ function returnSelectedCameraToLive() {
     state.mainCamStreamView = null;
     state.mainCamAnalysisKey = null;
     mainBufferLoading = false;
-    if (els.mainCamera) els.mainCamera.removeAttribute('src');
+    // Кадр не гасим: последний стоп-кадр остаётся на экране, пока не
+    // придёт первый live-кадр, — иначе изображение моргает пустотой.
     applyMainCameraSource();
 }
 
@@ -407,7 +408,6 @@ function applyMainCameraSource() {
         state.mainCamStreamRole = null;
         state.mainCamStreamView = null;
         state.mainCamAnalysisKey = null;
-        if (els.mainCamera) els.mainCamera.removeAttribute('src');
         maybeRequestMainFrame();
     }
 }
