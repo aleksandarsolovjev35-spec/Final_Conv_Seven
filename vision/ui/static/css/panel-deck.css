@@ -97,28 +97,27 @@
     width: 18px;
 }
 
-/* Сглаживание стыка: вогнутые «галтели» сверху и снизу закладки.
-   Материал галтели заходит на 2 px внутрь закладки и перекрывает её
-   рамку, поэтому силуэт один: линия рамки перетекает в дугу, а не
-   упирается в отдельную деталь. */
-.panel-toggle::after {
-    content: "";
+/* Сглаживание стыка: вогнутые «галтели» сверху и снизу закладки —
+   дуги 9 px, по которым край закладки плавно переходит в кромку
+   панели. Материал галтели заходит на 2 px внутрь закладки и
+   перекрывает её рамку, поэтому силуэт один. */
+.panel-toggle-joint {
     position: absolute;
     top: -9px;
     right: 0;
-    bottom: -9px;
-    z-index: -1;
     width: 9px;
-    background:
-        radial-gradient(circle 9px at 0 0,
-            transparent 8px,
-            var(--border-strong) 8px,
-            var(--panel) 9px) left 2px / 9px 9px no-repeat,
-        radial-gradient(circle 9px at 0 9px,
-            transparent 8px,
-            var(--border-strong) 8px,
-            var(--panel) 9px) left bottom 2px / 9px 9px no-repeat;
+    height: calc(100% + 18px);
+    pointer-events: none;
 }
+.panel-toggle-joint path {
+    fill: var(--panel);
+}
+.panel-toggle-joint .arc {
+    fill: none;
+    stroke: var(--border-strong);
+    stroke-width: 1;
+}
+
 .panel-toggle:hover,
 .panel-toggle:focus-visible {
     color: var(--text);
