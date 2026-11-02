@@ -134,6 +134,7 @@ function init() {
 
     setupButtons();
     setupHotkeys();
+    if (typeof setupPanelToggle === 'function') setupPanelToggle();
     setupGallery();
     if (typeof setupArchiveSettings === 'function') setupArchiveSettings();
     setupCameraHover();

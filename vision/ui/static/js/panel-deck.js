@@ -122,6 +122,29 @@ function flipPanelTo(face) {
     }, PANEL_FLIP_TOTAL_MS + 40);
 }
 
+// Сворачивание правой панели вправо: в свёрнутом виде остаётся узкая
+// полоса с кнопкой, клик по ней возвращает панель.
+function setupPanelToggle() {
+    const toggle = document.getElementById('panel-toggle');
+    const body = document.querySelector('.body');
+    if (!toggle || !body) return;
+    const apply = (collapsed) => {
+        body.classList.toggle('panel-collapsed', collapsed);
+        toggle.setAttribute('aria-expanded', String(!collapsed));
+        toggle.title = collapsed ? 'Показать панель' : 'Свернуть панель';
+        const chevron = toggle.querySelector('.panel-toggle-chevron');
+        if (chevron) chevron.textContent = collapsed ? '\u2039' : '\u203a';
+    };
+    toggle.addEventListener('click', () => {
+        apply(!body.classList.contains('panel-collapsed'));
+    });
+    apply(false);
+}
+
+if (typeof window !== 'undefined') {
+    window.setupPanelToggle = setupPanelToggle;
+}
+
 // Вызывается из status.js.updateLineStatus после обновления состояния.
 function updatePanelFace(ls) {
     _lastLineStatus = ls || null;

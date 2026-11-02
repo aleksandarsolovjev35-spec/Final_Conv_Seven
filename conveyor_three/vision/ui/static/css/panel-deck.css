@@ -32,6 +32,75 @@
     transition-timing-function: cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
 
+/* ─── Сворачивание правой панели ──────────────────────────────── */
+
+/* Панель уезжает вправо: колонка сетки сужается до полосы, в которой
+   остаётся кнопка возврата. */
+.body {
+    transition: grid-template-columns 200ms var(--ease);
+}
+.body.panel-collapsed {
+    grid-template-columns: minmax(0, 1fr) 22px;
+}
+
+.panel-toggle {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    font-family: var(--font-ui);
+    font-size: 14px;
+    line-height: 1;
+    color: var(--text-dim);
+    background: var(--panel-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: color 120ms var(--ease), border-color 120ms var(--ease);
+}
+.panel-toggle:hover,
+.panel-toggle:focus-visible {
+    color: var(--text);
+    border-color: var(--border-accent);
+    outline: none;
+}
+.panel-toggle-label {
+    display: none;
+}
+
+/* Свёрнутое состояние: панель — узкая полоса, вся полоса это кнопка. */
+.body.panel-collapsed #stats-panel {
+    padding: 0;
+    overflow: hidden;
+}
+.body.panel-collapsed #stats-panel > * {
+    display: none;
+}
+.body.panel-collapsed #stats-panel > .panel-toggle {
+    display: flex;
+    inset: 0;
+    width: auto;
+    height: auto;
+    flex-direction: column;
+    gap: 8px;
+    padding: 7px 0 8px;
+    border-radius: var(--radius);
+}
+.body.panel-collapsed .panel-toggle-label {
+    display: block;
+    writing-mode: vertical-rl;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: var(--text-muted);
+}
+
 /* ─── Шторка правой панели ────────────────────────────────────── */
 
 /* Падает вниз на время переключения интерфейса (анализ кадра): блоки
