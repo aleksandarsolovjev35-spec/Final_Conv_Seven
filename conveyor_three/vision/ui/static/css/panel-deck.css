@@ -40,10 +40,13 @@
     --panel-col: 360px;
     position: relative;
     grid-template-columns: minmax(0, 1fr) var(--panel-col);
-    transition: grid-template-columns 200ms var(--ease);
+    transition:
+        grid-template-columns 200ms var(--ease),
+        column-gap 200ms var(--ease);
 }
 .body.panel-collapsed {
-    --panel-col: 22px;
+    --panel-col: 0px;
+    column-gap: 0;
 }
 
 .panel-toggle {
@@ -134,12 +137,22 @@
     opacity: 1;
 }
 
-/* В свёрнутом виде панель — узкая полоса, закладка продолжает её. */
+/* В свёрнутом виде панель убрана целиком: остаётся только закладка,
+   приклеенная к правому краю окна. Соединять её не с чем, поэтому
+   галтели и рамка карточки скрыты. */
 .body.panel-collapsed #stats-panel {
     padding: 0;
     overflow: hidden;
+    background: none;
+    border: 0;
 }
 .body.panel-collapsed #stats-panel > * {
+    display: none;
+}
+.body.panel-collapsed .panel-toggle {
+    right: 0;
+}
+.body.panel-collapsed .panel-toggle-joint {
     display: none;
 }
 
