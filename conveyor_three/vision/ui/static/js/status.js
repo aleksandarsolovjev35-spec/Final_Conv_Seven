@@ -23,11 +23,11 @@ function updateOperationalAccordions() {
 }
 
 // Стрелка кругового индикатора распределителя: 0 % — положение
-// «10 часов», 100 % — «14 часов» (развёртка ±60° от вертикали).
+// «11 часов», 100 % — «13 часов» (развёртка ±30° от вертикали).
 function setBladeMarkerPosition(marker, percent) {
     if (!marker) return;
     const normalized = Math.max(0, Math.min(100, Number(percent) || 0));
-    marker.style.transform = `rotate(${-60 + normalized * 1.2}deg)`;
+    marker.style.transform = `rotate(${-30 + normalized * 0.6}deg)`;
 }
 
 // Очередность запросов статуса — избегаем наложения
