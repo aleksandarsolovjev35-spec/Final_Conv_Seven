@@ -57,15 +57,6 @@ class CoreLayeringTest(unittest.TestCase):
                         )
         self.assertEqual(offenders, [], "core импортирует прикладные пакеты")
 
-    def test_rule_report_exports_resolve(self):
-        import core.rule_report as rule_report
-
-        missing = [
-            name for name in rule_report.__all__
-            if not hasattr(rule_report, name)
-        ]
-        self.assertEqual(missing, [])
-
 
 class LiveCaptureGateTest(unittest.TestCase):
     """Инспекция забирает камеры целиком и дожидается активных чтений."""
@@ -247,7 +238,7 @@ class DiagnosticsFactoryTest(unittest.TestCase):
     """Форма отчёта диагностики задаётся в одном месте."""
 
     REQUIRED = (
-        "status", "kind", "message", "cameras", "models", "rules", "updated_at",
+        "status", "kind", "message", "cameras", "models", "updated_at",
     )
 
     @staticmethod
@@ -264,7 +255,6 @@ class DiagnosticsFactoryTest(unittest.TestCase):
         self.assertIsNone(report["kind"])
         self.assertEqual(report["cameras"], [])
         self.assertEqual(report["models"], [])
-        self.assertEqual(report["rules"], [])
 
     def test_extra_fields_are_passed_through(self):
         report = self._make(
@@ -299,87 +289,6 @@ class StateMachineSnapshotTest(unittest.TestCase):
         self.assertTrue(snapshot["exit_requested"])
         # STOP применяется сразу, чтобы линия начала опустошаться.
         self.assertEqual(snapshot["state"], State.STOPPING.value)
-
-
-class UnevenHeightsMetricsTest(unittest.TestCase):
-    """Карточки замера правила uneven_heights (трёхкамерная линия).
-
-    Метрики строятся из ``details["per_role"][role]``: высоты ячеек,
-    макс/мин/разброс с порогами. Карточка обязана переживать отсутствие
-    данных без исключения.
-    """
-
-    @staticmethod
-    def _metrics(role_details):
-        from core.rule_report.cards import _role_metrics
-
-        return _role_metrics("uneven_heights", role_details)
-
-    def _by_key(self, role_details):
-        return {item["key"]: item for item in self._metrics(role_details)}
-
-    def test_empty_details_produce_no_metrics(self):
-        self.assertEqual(self._metrics({}), [])
-
-    def test_each_window_measured_with_limits(self):
-        all_metrics = self._metrics({
-            "heights": [30.0, 35.5],
-            "height_min_px": 20,
-            "height_max_px": 42,
-            "height_difference_px": 11,
-            "h_max": 35.5,
-            "h_min": 30.0,
-            "spread": 5.5,
-        })
-        window_values = [
-            metric["value"] for metric in all_metrics
-            if metric["key"] == "height_px"
-        ]
-        self.assertEqual(window_values, ["30", "35.5"])
-        self.assertTrue(all(
-            metric["ok"] for metric in all_metrics
-            if metric["key"] == "height_px"
-        ))
-        by_key = {item["key"]: item for item in all_metrics}
-        self.assertEqual(by_key["height_max_px"]["value"], "35.5")
-        self.assertTrue(by_key["height_max_px"]["ok"])
-        self.assertEqual(by_key["height_min_px"]["value"], "30")
-        self.assertTrue(by_key["height_min_px"]["ok"])
-        self.assertEqual(by_key["height_difference_px"]["value"], "5.5")
-        self.assertTrue(by_key["height_difference_px"]["ok"])
-
-    def test_out_of_range_height_is_marked(self):
-        metrics = self._by_key({
-            "heights": [80.0],
-            "height_min_px": 20,
-            "height_max_px": 42,
-            "height_difference_px": 11,
-            "h_max": 80.0,
-            "h_min": 80.0,
-            "spread": 0.0,
-        })
-        self.assertFalse(metrics["height_max_px"]["ok"])
-
-    def test_spread_exceeds_difference(self):
-        metrics = self._by_key({
-            "heights": [25.0, 45.0],
-            "height_min_px": 20,
-            "height_max_px": 42,
-            "height_difference_px": 11,
-            "h_max": 45.0,
-            "h_min": 25.0,
-            "spread": 20.0,
-        })
-        self.assertFalse(metrics["height_difference_px"]["ok"])
-
-    def test_counted_rules_use_found_metric(self):
-        from core.rule_report.cards import _role_metrics
-
-        metrics = _role_metrics("window_sinks", {"found": 2, "min_confidence": 0.8})
-        self.assertEqual(len(metrics), 1)
-        self.assertEqual(metrics[0]["key"], "found")
-        self.assertEqual(metrics[0]["value"], "2")
-        self.assertFalse(metrics[0]["ok"])
 
 
 if __name__ == "__main__":

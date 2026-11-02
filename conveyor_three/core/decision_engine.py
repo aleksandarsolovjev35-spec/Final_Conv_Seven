@@ -1,6 +1,5 @@
 from domain.threshold_loader import ThresholdLoader
 from domain.defect_rules import (
-    BaseRule,
     UnevenHeightsRule,
     WindowSinksRule,
     BottomGlassRule,
@@ -22,14 +21,14 @@ class DecisionEngine:
         # вроде PartPresenceRule без пересоздания загрузчика).
         self.thresholds = thresholds
 
-        all_rules: list[BaseRule] = [
+        all_rules: list = [
             UnevenHeightsRule(thresholds),
             WindowSinksRule(thresholds),
             BottomGlassRule(thresholds),
             WeldingRule(thresholds),
         ]
 
-        self.rules: list[BaseRule] = [
+        self.rules: list = [
             r for r in all_rules if r.enabled
         ]
 
@@ -39,13 +38,6 @@ class DecisionEngine:
         if not self.rules:
             raise RuntimeError("No active defect rules; production inspection blocked")
         print(f"[RULES] Active: {[r.name for r in self.rules]}")
-
-    def evaluate_all_detailed(self, vision_results, frames=None):
-        return self.evaluate_rules_detailed(
-            self.rules,
-            vision_results,
-            frames=frames,
-        )
 
     def rules_for_roles(self, roles):
         """Активные правила, у которых есть хотя бы одна из ролей стадии."""

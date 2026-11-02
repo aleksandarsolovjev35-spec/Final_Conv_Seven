@@ -19,7 +19,6 @@
 Правило находится на SPIDER-стадии: сработавший дефект добавляется в
 ``spider_defects`` и ведёт в маршрут ``BAD`` (не входит в ``CLEANUP_DEFECTS``).
 """
-
 from __future__ import annotations
 
 import math
@@ -27,16 +26,41 @@ import math
 import cv2
 import numpy as np
 
-from domain.defect_rules.base import BaseRule, RuleResult
+from domain.defect_rules.result import RuleResult
 
 
-class SpiderBlackSpotsOmissionRule(BaseRule):
+class SpiderBlackSpotsOmissionRule:
     """Чёрные пятна, подтверждённые пересечением с областью short omission."""
 
     name = "black_spots_omission"
     ROLES = ("SPIDER_IN", "SPIDER_OUT")
     TARGET_CLASS = "black-spot"
     OMISSION_CLASS = "omission-short"
+
+    def __init__(self, thresholds: dict):
+        self.thresholds = thresholds
+        self._enabled = self.name not in thresholds.get(
+            "disabled_rules", []
+        )
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    def _get(self, key, default=None, role=None):
+        """Порог этого правила: сначала ROLE.key, затем key, затем default."""
+        if role:
+            role_key = f"{role}.{key}"
+            if role_key in self.thresholds:
+                return self.thresholds[role_key]
+        return self.thresholds.get(key, default)
+
+    def _make_skip(self, rule_name):
+        """Результат для отключённого правила."""
+        return RuleResult(
+            rule_name, False,
+            details={"skipped": "rule disabled"},
+        )
 
     def check(self, vision_results: dict, **kwargs) -> RuleResult:
         if not self.enabled:

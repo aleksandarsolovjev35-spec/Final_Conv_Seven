@@ -1,7 +1,9 @@
-"""Геометрические хелперы ``domain.geometry`` и ``domain.defect_rules.top_geometry``.
+"""Локальная геометрия правил дефектов.
 
-Чистая математика без внешних зависимостей: пересечения bbox, центроиды
-по маскам, подбор ряда контактов и вписывание эталонного прямоугольника.
+Чистая математика без внешних зависимостей: точки и маски детекций,
+вписывание эталонного прямоугольника, ориентация масок. Каждое правило
+держит собственную копию используемых функций, поэтому импорт идёт из
+того правила, которое эту копию использует.
 """
 
 from __future__ import annotations
@@ -11,111 +13,24 @@ import unittest
 import cv2
 import numpy as np
 
-from domain.geometry.fitting import split_top_row
-from domain.geometry.primitives import (
-    bbox_intersect,
-    bbox_intersection_rect,
-    centroid_from_det,
-    mask_area,
-)
-from domain.defect_rules.top_geometry import (
+from domain.defect_rules.rule_top_glass import (
     infer_shape,
     largest_valid_mask,
-    mask_orientation,
     mask_points,
-    oriented_rectangle_points,
     overlap_mask,
     rasterize_mask,
+)
+from domain.defect_rules.rule_top_platform import (
     try_inscribe_center_then_nearest,
+)
+from domain.defect_rules.rule_top_platform_overlap import (
+    mask_orientation,
+    oriented_rectangle_points,
 )
 
 
 def rect_mask(x1, y1, x2, y2):
     return [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
-
-
-class BboxPrimitivesTest(unittest.TestCase):
-    def test_intersect_overlapping(self):
-        self.assertTrue(bbox_intersect([0, 0, 10, 10], [5, 5, 20, 20]))
-
-    def test_intersect_disjoint(self):
-        self.assertFalse(bbox_intersect([0, 0, 10, 10], [20, 20, 30, 30]))
-
-    def test_intersect_touching_edges_is_not_overlap(self):
-        self.assertFalse(bbox_intersect([0, 0, 10, 10], [10, 0, 20, 10]))
-
-    def test_intersection_rect(self):
-        self.assertEqual(
-            bbox_intersection_rect([0, 0, 10, 10], [5, 5, 20, 20]),
-            [5, 5, 10, 10],
-        )
-
-    def test_intersection_rect_none_when_disjoint(self):
-        self.assertIsNone(
-            bbox_intersection_rect([0, 0, 10, 10], [20, 20, 30, 30])
-        )
-
-    def test_intersection_rect_none_when_line(self):
-        self.assertIsNone(
-            bbox_intersection_rect([0, 0, 10, 10], [10, 0, 20, 10])
-        )
-
-    def test_centroid_from_mask(self):
-        det = {"mask": rect_mask(0, 0, 10, 10)}
-        self.assertEqual(centroid_from_det(det), (5, 5))
-
-    def test_centroid_bbox_fallback(self):
-        det = {"bbox": [0, 0, 10, 20]}
-        self.assertEqual(centroid_from_det(det), (5, 10))
-
-    def test_centroid_short_mask_falls_to_bbox(self):
-        det = {"mask": [[0, 0]], "bbox": [0, 0, 4, 4]}
-        self.assertEqual(centroid_from_det(det), (2, 2))
-
-    def test_centroid_none_when_no_geometry(self):
-        self.assertIsNone(centroid_from_det({"confidence": 0.9}))
-
-    def test_mask_area_from_mask(self):
-        det = {"mask": rect_mask(0, 0, 10, 10)}
-        self.assertEqual(mask_area(det), 100)
-
-    def test_mask_area_from_bbox(self):
-        det = {"bbox": [0, 0, 10, 20]}
-        self.assertEqual(mask_area(det), 200)
-
-    def test_mask_area_zero_without_geometry(self):
-        self.assertEqual(mask_area({}), 0)
-
-
-class SplitTopRowTest(unittest.TestCase):
-    def test_fewer_or_equal_points_returned_as_is(self):
-        points = [(i * 10, 5) for i in range(5)]
-        kept, rejected = split_top_row(points, expected_count=5)
-        self.assertEqual(kept, points)
-        self.assertEqual(rejected, [])
-
-    def test_extra_points_rejected(self):
-        points = [(0, 5), (10, 6), (20, 5), (30, 7), (40, 5), (50, 5)]
-        kept, rejected = split_top_row(points, expected_count=5)
-        self.assertEqual(len(kept), 5)
-        self.assertEqual(len(rejected), 1)
-        self.assertIn(rejected[0], points)
-
-    def test_outlier_far_by_y_is_rejected(self):
-        points = [(0, 5), (10, 6), (20, 5), (30, 7), (40, 5), (500, 300)]
-        kept, rejected = split_top_row(points, expected_count=5)
-        self.assertEqual(len(kept), 5)
-        self.assertEqual(rejected, [(500, 300)])
-
-    def test_more_than_max_points_pre_rejected(self):
-        points = [(i * 10, i % 3) for i in range(20)]
-        kept, rejected = split_top_row(points, expected_count=5)
-        self.assertEqual(len(kept), 5)
-        self.assertGreater(len(rejected), 0)
-
-    def test_single_point_row(self):
-        kept, rejected = split_top_row([(5, 5)], expected_count=5)
-        self.assertEqual(kept, [(5, 5)])
 
 
 class TopGeometryHelpersTest(unittest.TestCase):

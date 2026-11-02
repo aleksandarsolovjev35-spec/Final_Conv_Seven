@@ -1,25 +1,205 @@
+from __future__ import annotations
+
 import math
+from itertools import combinations
 
 import cv2
 import numpy as np
 
-from domain.defect_rules.base import BaseRule, RuleResult
-from domain.defect_rules.rule_top_contacts import TopContactsRule
-from domain.defect_rules.top_geometry import (
-    infer_shape,
-    largest_valid_mask,
-    mask_points,
-    rasterize_mask,
-)
+from domain.defect_rules.result import RuleResult
 
 
-class TopSinksRule(BaseRule):
+def mask_points(detection):
+    mask = detection.get("mask")
+    if mask is None or len(mask) < 3:
+        return None
+    points = np.asarray(mask, dtype=np.float32)
+    if (
+        points.ndim != 2
+        or points.shape[1] != 2
+        or len(points) < 3
+        or not np.isfinite(points).all()
+    ):
+        return None
+    if abs(float(cv2.contourArea(points))) <= 0.0:
+        return None
+    return points
+
+
+def mask_area(detection):
+    points = mask_points(detection)
+    return 0.0 if points is None else abs(float(cv2.contourArea(points)))
+
+
+def largest_valid_mask(detections):
+    valid = [detection for detection in detections if mask_points(detection) is not None]
+    if not valid:
+        return None
+    return max(valid, key=mask_area)
+
+
+def infer_shape(*detection_lists):
+    max_x = 1
+    max_y = 1
+    for detections in detection_lists:
+        for detection in detections:
+            points = mask_points(detection)
+            if points is not None:
+                max_x = max(max_x, int(np.ceil(points[:, 0].max())) + 2)
+                max_y = max(max_y, int(np.ceil(points[:, 1].max())) + 2)
+            bbox = detection.get("bbox")
+            if bbox and len(bbox) == 4:
+                max_x = max(max_x, int(np.ceil(float(bbox[2]))) + 2)
+                max_y = max(max_y, int(np.ceil(float(bbox[3]))) + 2)
+    return max_y, max_x
+
+
+def rasterize_mask(detection, shape):
+    points = mask_points(detection)
+    if points is None:
+        return None
+    canvas = np.zeros(shape, dtype=np.uint8)
+    cv2.fillPoly(canvas, [points.astype(np.int32)], 255)
+    return canvas
+
+
+class _ContactsLayout:
+    """Локальная копия разметки контактов TOP для этого правила."""
+
+    EXPECTED_GROUPS = {"L": 5, "R": 5, "T": 2, "B": 2}
+
+    @classmethod
+    def _group_candidates(cls, detections, platform_bbox):
+        groups = {group: [] for group in cls.EXPECTED_GROUPS}
+        unassigned = []
+        for detection in detections:
+            parameters = cls._contact_parameters(detection)
+            candidates = cls._side_candidates(parameters, platform_bbox)
+            if not candidates:
+                unassigned.append(detection)
+                continue
+            _distance, group = min(candidates, key=lambda item: item[0])
+            groups[group].append(detection)
+        return groups, unassigned
+
+    @classmethod
+    def _select_consistent_group(
+        cls,
+        detections,
+        expected,
+        group,
+        platform_bbox,
+    ):
+        if len(detections) == expected:
+            return list(detections), []
+        scored = []
+        for subset in combinations(detections, expected):
+            parameters = [cls._contact_parameters(item) for item in subset]
+            distances = [
+                cls._distance_to_side(item, group, platform_bbox)
+                for item in parameters
+            ]
+            scale_values = [
+                item["width" if group in ("L", "R") else "height"]
+                for item in parameters
+            ]
+            median_distance = float(np.median(distances))
+            scale = max(1.0, float(np.median(scale_values)))
+            deviation_ratio = max(
+                abs(float(distance) - median_distance)
+                for distance in distances
+            ) / scale
+            mean_confidence = float(np.mean([
+                float(item.get("confidence", 0.0)) for item in subset
+            ]))
+            scored.append((deviation_ratio, -mean_confidence, subset))
+        _ratio, _negative_confidence, best = min(
+            scored,
+            key=lambda item: (item[0], item[1]),
+        )
+        selected_ids = {id(item) for item in best}
+        extras = [item for item in detections if id(item) not in selected_ids]
+        return list(best), extras
+
+    @staticmethod
+    def _sort_group(detections, group):
+        axis = 1 if group in ("L", "R") else 0
+        return sorted(
+            detections,
+            key=lambda detection: (
+                float(detection["bbox"][axis])
+                + float(detection["bbox"][axis + 2])
+            ) / 2.0,
+        )
+
+    @staticmethod
+    def _side_candidates(parameters, platform_bbox):
+        x1, y1, x2, y2 = map(float, platform_bbox)
+        cx = parameters["center_x"]
+        cy = parameters["center_y"]
+        candidates = []
+        if cx < x1:
+            candidates.append((x1 - cx, "L"))
+        if cx > x2:
+            candidates.append((cx - x2, "R"))
+        if cy < y1:
+            candidates.append((y1 - cy, "T"))
+        if cy > y2:
+            candidates.append((cy - y2, "B"))
+        return candidates
+
+    @classmethod
+    def _distance_to_side(cls, parameters, group, platform_bbox):
+        candidates = {
+            side: distance
+            for distance, side in cls._side_candidates(parameters, platform_bbox)
+        }
+        return float(candidates[group])
+
+    @staticmethod
+    def _contact_parameters(contact):
+        bbox = contact["bbox"]
+        x1, y1, x2, y2 = map(float, bbox)
+        return {
+            "center_x": (x1+x2)/2.0,
+            "center_y": (y1+y2)/2.0,
+            "width": abs(x2-x1),
+            "height": abs(y2-y1),
+        }
+
+
+class TopSinksRule:
     name = "sinks"
     ROLES = ("TOP",)
     SINK_CLASS = "shells"
     PLATFORM_CLASS = "platform"
     CONTACTS_CLASS = "contacts"
     CENTRAL_CLASS = "case_central"
+
+    def __init__(self, thresholds: dict):
+        self.thresholds = thresholds
+        self._enabled = self.name not in thresholds.get(
+            "disabled_rules", []
+        )
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    def _get(self, key, default=None, role=None):
+        """Порог этого правила: сначала ROLE.key, затем key, затем default."""
+        if role:
+            role_key = f"{role}.{key}"
+            if role_key in self.thresholds:
+                return self.thresholds[role_key]
+        return self.thresholds.get(key, default)
+
+    def _make_skip(self, rule_name):
+        """Результат для отключённого правила."""
+        return RuleResult(
+            rule_name, False,
+            details={"skipped": "rule disabled"},
+        )
 
     def check(self, vision_results: dict, **kwargs) -> RuleResult:
         if not self.enabled:
@@ -300,23 +480,23 @@ class TopSinksRule(BaseRule):
                 "reason": "insufficient_valid_contacts",
                 "message": f"CONTACTS REF {len(valid)}/14",
             }
-        groups, _unassigned = TopContactsRule._group_candidates(
+        groups, _unassigned = _ContactsLayout._group_candidates(
             valid,
             platform_bbox,
         )
         counts = {
             group: len(groups[group])
-            for group in TopContactsRule.EXPECTED_GROUPS
+            for group in _ContactsLayout.EXPECTED_GROUPS
         }
         insufficient = [
             group
-            for group, expected in TopContactsRule.EXPECTED_GROUPS.items()
+            for group, expected in _ContactsLayout.EXPECTED_GROUPS.items()
             if len(groups[group]) < expected
         ]
         if insufficient:
             text = " ".join(
                 f"{group}{counts[group]}/{expected}"
-                for group, expected in TopContactsRule.EXPECTED_GROUPS.items()
+                for group, expected in _ContactsLayout.EXPECTED_GROUPS.items()
             )
             return None, {
                 "reason": "invalid_contact_layout",
@@ -325,13 +505,13 @@ class TopSinksRule(BaseRule):
             }
         selected = []
         for group in ("L", "R", "T", "B"):
-            group_selected, _extras = TopContactsRule._select_consistent_group(
+            group_selected, _extras = _ContactsLayout._select_consistent_group(
                 groups[group],
-                TopContactsRule.EXPECTED_GROUPS[group],
+                _ContactsLayout.EXPECTED_GROUPS[group],
                 group,
                 platform_bbox,
             )
-            selected.extend(TopContactsRule._sort_group(group_selected, group))
+            selected.extend(_ContactsLayout._sort_group(group_selected, group))
         return selected, None
 
     @staticmethod

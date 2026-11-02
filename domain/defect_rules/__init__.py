@@ -1,4 +1,10 @@
-from domain.defect_rules.base import BaseRule, RuleResult
+"""Правила дефектов.
+
+Каждое правило — автономный модуль: своя геометрия, свои пороги и своя
+проверка включённости. Общим остаётся только тип результата ``RuleResult``.
+"""
+
+from domain.defect_rules.result import RuleResult
 
 from domain.defect_rules.rule_input_part_presence   import InputPartPresenceRule
 from domain.defect_rules.rule_input_window_geometry import InputWindowGeometryRule
@@ -16,7 +22,6 @@ from domain.defect_rules.rule_top_glass_on_contacts import TopGlassOnContactsRul
 from domain.defect_rules.rule_top_platform_overlap  import TopPlatformOverlapRule
 
 __all__ = [
-    "BaseRule",
     "RuleResult",
     "InputPartPresenceRule",
     "InputWindowGeometryRule",

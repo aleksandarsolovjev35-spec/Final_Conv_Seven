@@ -1,4 +1,4 @@
-"""Inspector трёхкамерной линии: контракт стадии INSPECT и карточки замера.
+"""Inspector трёхкамерной линии: контракт стадии INSPECT.
 
 Vision подменяется фейком, правила — реальные (пороги из thresholds.json).
 """
@@ -14,7 +14,6 @@ from core.decision_engine import DecisionEngine
 from domain.threshold_loader import ThresholdLoader
 from inspection.debug_recorder import DebugRecorder
 from inspection.inspector import Inspector
-from inspection.run_report import prepare_rule_results, summarize_model_health
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THRESHOLDS_PATH = os.path.join(REPO_ROOT, "thresholds.json")
@@ -136,9 +135,7 @@ class InspectStageTest(unittest.TestCase):
         # Только служебное part_presence без defect rules.
         self.assertEqual(len(result.rule_results), 1)
         self.assertEqual(result.rule_results[0].rule_name, "part_presence")
-        self.assertTrue(
-            result.rule_results[0].details["measurement_cards"],
-        )
+        self.assertTrue(result.rule_results[0].details["empty_tray"])
 
     def test_good_part_full_pipeline(self):
         vision = FakeVision({
@@ -230,21 +227,6 @@ class DiagnosticsApiTest(unittest.TestCase):
             ["bottom_glass", "welding"],
         )
 
-    def test_summarize_model_health(self):
-        rows = summarize_model_health([
-            {"role": "LEFT", "model": "a.pt", "ok": True,
-             "elapsed_ms": 2.5, "detections": 3, "error": None},
-        ])
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["detections"], 3)
-
-    def test_prepare_rule_results_rejects_non_bool(self):
-        from domain.defect_rules.base import RuleResult
-
-        with self.assertRaisesRegex(RuntimeError, "не-bool"):
-            prepare_rule_results([
-                RuleResult("uneven_heights", triggered="yes"),
-            ])
 
 
 if __name__ == "__main__":

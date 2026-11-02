@@ -1,7 +1,8 @@
-"""DecisionEngine и базовые классы правил.
+"""DecisionEngine и автономные правила дефектов.
 
 Проверяются: состав активных правил, фильтрация по ``disabled_rules``,
-выбор правил по ролям стадии и контракт ``RuleResult`` / ``BaseRule``.
+выбор правил по ролям стадии, контракт ``RuleResult`` и то, что каждое
+правило само несёт свои пороги, проверку включённости и геометрию.
 """
 
 from __future__ import annotations
@@ -11,9 +12,21 @@ import unittest
 
 from core.decision_engine import DecisionEngine
 from domain.defect_rules import (
-    BaseRule,
     InputPartPresenceRule,
+    InputWindowGeometryRule,
+    InputWindowSinksRule,
     RuleResult,
+    SpiderBlackSpotsOmissionRule,
+    SpiderContactsLongRule,
+    SpiderContactsShortRule,
+    SpiderLongOmissionRule,
+    SpiderShortOmissionRule,
+    TopContactsRule,
+    TopGlassOnContactsRule,
+    TopGlassRule,
+    TopPlatformOverlapRule,
+    TopPlatformRule,
+    TopSinksRule,
 )
 from domain.threshold_loader import ThresholdLoader
 
@@ -42,52 +55,101 @@ class RuleResultTest(unittest.TestCase):
         self.assertEqual(result.drawings, [])
 
 
-class BaseRuleTest(unittest.TestCase):
-    class StubRule(BaseRule):
-        name = "stub_rule"
+class RuleContractTest(unittest.TestCase):
+    """Каждое правило автономно: все методы контракта определены у него."""
 
-        def check(self, vision_results, **kwargs):
-            return RuleResult(self.name, True)
+    RULE_CLASSES = (
+        InputPartPresenceRule,
+        InputWindowGeometryRule,
+        InputWindowSinksRule,
+        SpiderContactsLongRule,
+        SpiderLongOmissionRule,
+        SpiderContactsShortRule,
+        SpiderShortOmissionRule,
+        SpiderBlackSpotsOmissionRule,
+        TopContactsRule,
+        TopPlatformRule,
+        TopSinksRule,
+        TopGlassRule,
+        TopGlassOnContactsRule,
+        TopPlatformOverlapRule,
+    )
 
     def test_enabled_by_default(self):
-        rule = self.StubRule({})
-        self.assertTrue(rule.enabled)
+        for rule_class in self.RULE_CLASSES:
+            with self.subTest(rule=rule_class.__name__):
+                self.assertTrue(rule_class({}).enabled)
 
     def test_disabled_via_thresholds(self):
-        rule = self.StubRule({"disabled_rules": ["stub_rule"]})
-        self.assertFalse(rule.enabled)
-
-    def test_check_raises_not_implemented(self):
-        class BareRule(BaseRule):
-            name = "bare"
-
-        with self.assertRaises(NotImplementedError):
-            BareRule({}).check({})
+        for rule_class in self.RULE_CLASSES:
+            with self.subTest(rule=rule_class.__name__):
+                name = rule_class.name
+                rule = rule_class({"disabled_rules": [name]})
+                self.assertFalse(rule.enabled)
 
     def test_get_falls_back_to_default(self):
-        rule = self.StubRule({})
-        self.assertEqual(rule._get("missing", 42), 42)
+        for rule_class in self.RULE_CLASSES:
+            with self.subTest(rule=rule_class.__name__):
+                self.assertEqual(rule_class({})._get("missing", 42), 42)
 
     def test_get_common_threshold(self):
-        rule = self.StubRule({"key": 10})
-        self.assertEqual(rule._get("key", 0), 10)
+        for rule_class in self.RULE_CLASSES:
+            with self.subTest(rule=rule_class.__name__):
+                self.assertEqual(rule_class({"key": 10})._get("key", 0), 10)
 
     def test_get_per_role_wins(self):
-        rule = self.StubRule({
-            "key": 10,
-            "ROLE.key": 5,
-        })
-        self.assertEqual(rule._get("key", 0, role="ROLE"), 5)
+        for rule_class in self.RULE_CLASSES:
+            with self.subTest(rule=rule_class.__name__):
+                rule = rule_class({"key": 10, "ROLE.key": 5})
+                self.assertEqual(rule._get("key", 0, role="ROLE"), 5)
 
     def test_get_per_role_missing_uses_common(self):
-        rule = self.StubRule({"key": 10})
-        self.assertEqual(rule._get("key", 0, role="ROLE"), 10)
+        for rule_class in self.RULE_CLASSES:
+            with self.subTest(rule=rule_class.__name__):
+                rule = rule_class({"key": 10})
+                self.assertEqual(rule._get("key", 0, role="ROLE"), 10)
 
     def test_make_skip(self):
-        result = self.StubRule._make_skip("some_rule")
-        self.assertEqual(result.rule_name, "some_rule")
-        self.assertFalse(result.triggered)
-        self.assertEqual(result.details, {"skipped": "rule disabled"})
+        for rule_class in self.RULE_CLASSES:
+            with self.subTest(rule=rule_class.__name__):
+                result = rule_class({})._make_skip("some_rule")
+                self.assertEqual(result.rule_name, "some_rule")
+                self.assertFalse(result.triggered)
+                self.assertEqual(
+                    result.details, {"skipped": "rule disabled"},
+                )
+
+    def test_rule_modules_are_self_contained(self):
+        """Ни один модуль правила не импортирует другой модуль правил."""
+        import ast
+        import pathlib
+
+        import domain.defect_rules as rules_package
+
+        here = pathlib.Path(rules_package.__file__).parent
+        shared = (
+            "base.py",
+            "omission_boundary.py",
+            "omission_reference.py",
+            "top_geometry.py",
+            "top_glass_context.py",
+        )
+        for name in shared:
+            self.assertFalse((here / name).exists(), name)
+
+        for path in sorted(here.glob("rule_*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ImportFrom) or not node.module:
+                    continue
+                self.assertFalse(
+                    node.module.startswith("domain.defect_rules.rule_"),
+                    f"{path.name} импортирует {node.module}",
+                )
+                self.assertFalse(
+                    node.module.endswith(".base"),
+                    f"{path.name} импортирует {node.module}",
+                )
 
 
 class DecisionEngineTest(unittest.TestCase):
@@ -155,15 +217,18 @@ class DecisionEngineTest(unittest.TestCase):
 
     def test_evaluate_detailed_returns_rule_results(self):
         engine = DecisionEngine(thresholds=self.thresholds)
-        results = engine.evaluate_all_detailed({"TOP": []})
+        results = engine.evaluate_rules_detailed(engine.rules, {"TOP": []})
         self.assertIsInstance(results, list)
         self.assertTrue(all(isinstance(r, RuleResult) for r in results))
 
     def test_evaluate_passes_frames_kwarg(self):
         engine = DecisionEngine(thresholds=self.thresholds)
 
-        class ProbeRule(BaseRule):
+        class ProbeRule:
             name = "probe"
+
+            def __init__(self, thresholds):
+                self.thresholds = thresholds
 
             def check(self, vision_results, **kwargs):
                 return RuleResult("probe", kwargs.get("frames") is not None)

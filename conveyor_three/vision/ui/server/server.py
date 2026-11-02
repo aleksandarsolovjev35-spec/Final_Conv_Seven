@@ -57,18 +57,6 @@ CAMERA_ORDER = [
     "RIGHT",
 ]
 
-# Правило отчёта -> группа порогов (RULE_GROUPS в thresholds.json). Нужна
-# только для ручных названий порогов (_label.*): по полному имени параметра
-# подставляется пользовательское название вместо встроенного перевода.
-RULE_THRESHOLD_GROUPS = {
-    "part_presence": "part_presence",
-    "uneven_heights": "uneven_heights",
-    "window_sinks": "window_sinks",
-    "bottom_glass": "bottom_glass",
-    "welding": "welding",
-}
-
-
 class UIServer:
 
     JPEG_QUALITY        = 70
@@ -316,7 +304,6 @@ class UIServer:
                     rules_overlay_changed = True
             if line_status is not None:
                 self.line_status = line_status
-                self._apply_custom_threshold_labels(line_status)
             if recent_parts is not None:
                 self.recent_parts = list(recent_parts)
             if should_invalidate:
@@ -339,47 +326,6 @@ class UIServer:
                 if stream_overlay_changed:
                     self._latest_stream_jpeg.clear()
                 self._cache_version += 1
-
-    def _apply_custom_threshold_labels(self, line_status: dict) -> None:
-        """Подставить ручные названия порогов (_label.*) в анализ кадра.
-
-        Каждое правило несёт ``measurement_cards`` — замеры текущего кадра
-        с ключами метрик. Для метрик, у которых есть ручное название в
-        thresholds.json (``_label.<параметр>``), заменяем встроенный перевод
-        на пользовательский, как и в панели «Пороги правил».
-        """
-        custom_labels = dict(self.threshold_labels or {})
-        if not custom_labels:
-            return
-        frame_analysis = (line_status or {}).get("frame_analysis")
-        rules = (
-            frame_analysis.get("rules")
-            if isinstance(frame_analysis, dict) else None
-        )
-        if not isinstance(rules, list):
-            return
-        for rule in rules:
-            if not isinstance(rule, dict):
-                continue
-            group_id = RULE_THRESHOLD_GROUPS.get(rule.get("name"))
-            if not group_id:
-                continue
-            for card in rule.get("measurement_cards") or []:
-                if not isinstance(card, dict):
-                    continue
-                role = card.get("role")
-                if not role:
-                    continue
-                for metric in card.get("metrics") or []:
-                    if not isinstance(metric, dict):
-                        continue
-                    key = metric.get("key")
-                    if not key:
-                        continue
-                    full_key = f"{group_id}_{key}"
-                    custom = custom_labels.get(f"{role}.{full_key}")
-                    if custom:
-                        metric["label"] = custom
 
     def set_camera_roles(self, roles) -> None:
         """Опубликовать роли открытых камер без обязательного чтения кадров.

@@ -182,8 +182,6 @@ const els = {
 
     jogPanel:         $('jog-panel'),
 
-    frameAnalysisPanel: $('frame-analysis-panel'),
-
     archiveSettingsOpen: $('archive-settings-open'),
     archiveSettingsGroup: $('archive-settings-group'),
     archiveSettingsModal: $('archive-settings-modal'),

@@ -320,9 +320,6 @@ function updateLineStatus(ls) {
     updateLineCells(ls.line_parts || [], process);
     updateDistributorDiagnosticControls(ls);
     updateSelectedAnalysisStatus(ls);
-    if (!pendingAnalysis && typeof updateNewFrameAnalysisStatus === 'function') {
-        updateNewFrameAnalysisStatus(ls);
-    }
 
     // В блоке распределителя остались только ползунки: бегунки двигаются
     // по координатам осей, текстовые значения из HMI убраны.
@@ -647,10 +644,6 @@ function flushPendingAnalysis() {
     const ls = state.lastLineStatus;
     if (ls) {
         updateLineCells(ls.line_parts || [], ls.process || {});
-        if (typeof updateNewFrameAnalysisStatus === 'function') updateNewFrameAnalysisStatus(ls);
     }
     if (typeof refreshPreviewStrip === 'function') refreshPreviewStrip();
-    if (typeof faSyncScroll === 'function') {
-        try { requestAnimationFrame(() => faSyncScroll()); } catch (_) {}
-    }
 }

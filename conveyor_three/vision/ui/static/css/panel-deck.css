@@ -44,6 +44,12 @@
     display: none;
 }
 
+/* Параметры линии нужны только на остановленной линии: при запуске
+   блок полностью скрывается, а не показывается заблокированным. */
+.stats-panel[data-face="production"] .line-settings {
+    display: none;
+}
+
 /* Ручное управление остаётся видимым, но накрыто шторкой, когда JOG
    заблокирован (RUNNING / STOPPING). На паузе JOG доступен, поэтому
    шторка поднята и блок управления работает. Снимаем схлопывание,
@@ -68,7 +74,7 @@
 .stats-panel[data-face="fault"] .stats-summary,
 .stats-panel[data-face="fault"] .distributor-panel,
 .stats-panel[data-face="fault"] .thresholds-panel,
-.stats-panel[data-face="fault"] .frame-analysis-panel-new,
+.stats-panel[data-face="fault"] .line-settings,
 .stats-panel[data-face="fault"] .jog-deck {
     display: none;
 }

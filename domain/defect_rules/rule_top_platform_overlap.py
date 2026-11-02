@@ -1,24 +1,100 @@
+from __future__ import annotations
+
 import math
 
 import cv2
 import numpy as np
 
-from domain.defect_rules.base import BaseRule, RuleResult
-from domain.defect_rules.top_geometry import (
-    infer_shape,
-    largest_valid_mask,
-    mask_orientation,
-    mask_points,
-    oriented_rectangle_points,
-    rasterize_mask,
-)
+from domain.defect_rules.result import RuleResult
 
 
 CONTACT_CLASS = "contacts"
 SIDES = ("L", "R", "T", "B")
 
 
-class TopPlatformOverlapRule(BaseRule):
+def mask_points(detection):
+    mask = detection.get("mask")
+    if mask is None or len(mask) < 3:
+        return None
+    points = np.asarray(mask, dtype=np.float32)
+    if (
+        points.ndim != 2
+        or points.shape[1] != 2
+        or len(points) < 3
+        or not np.isfinite(points).all()
+    ):
+        return None
+    if abs(float(cv2.contourArea(points))) <= 0.0:
+        return None
+    return points
+
+
+def mask_area(detection):
+    points = mask_points(detection)
+    return 0.0 if points is None else abs(float(cv2.contourArea(points)))
+
+
+def largest_valid_mask(detections):
+    valid = [detection for detection in detections if mask_points(detection) is not None]
+    if not valid:
+        return None
+    return max(valid, key=mask_area)
+
+
+def infer_shape(*detection_lists):
+    max_x = 1
+    max_y = 1
+    for detections in detection_lists:
+        for detection in detections:
+            points = mask_points(detection)
+            if points is not None:
+                max_x = max(max_x, int(np.ceil(points[:, 0].max())) + 2)
+                max_y = max(max_y, int(np.ceil(points[:, 1].max())) + 2)
+            bbox = detection.get("bbox")
+            if bbox and len(bbox) == 4:
+                max_x = max(max_x, int(np.ceil(float(bbox[2]))) + 2)
+                max_y = max(max_y, int(np.ceil(float(bbox[3]))) + 2)
+    return max_y, max_x
+
+
+def rasterize_mask(detection, shape):
+    points = mask_points(detection)
+    if points is None:
+        return None
+    canvas = np.zeros(shape, dtype=np.uint8)
+    cv2.fillPoly(canvas, [points.astype(np.int32)], 255)
+    return canvas
+
+
+def mask_orientation(detection):
+    points = mask_points(detection)
+    if points is None:
+        return None
+    _center, (width, height), angle = cv2.minAreaRect(points)
+    if width < 1.0 or height < 1.0:
+        return None
+    return float(angle + 90.0 if width < height else angle)
+
+
+def oriented_rectangle_points(*, center, width_px, height_px, angle_deg):
+    """Углы прямоугольника в той же системе угла, что и inscribe helper."""
+    center_x, center_y = map(float, center)
+    angle = np.deg2rad(float(angle_deg))
+    width_axis = np.asarray([np.cos(angle), np.sin(angle)], dtype=np.float32)
+    height_axis = np.asarray([-np.sin(angle), np.cos(angle)], dtype=np.float32)
+    half_width = float(width_px) / 2.0
+    half_height = float(height_px) / 2.0
+    center_point = np.asarray([center_x, center_y], dtype=np.float32)
+    points = np.asarray([
+        center_point - half_width * width_axis - half_height * height_axis,
+        center_point + half_width * width_axis - half_height * height_axis,
+        center_point + half_width * width_axis + half_height * height_axis,
+        center_point - half_width * width_axis + half_height * height_axis,
+    ], dtype=np.float32)
+    return points
+
+
+class TopPlatformOverlapRule:
     """Контроль заплыва platform mask за область, построенную по контактам.
 
     Область строится только по контактам TOP: контакты группируются по
@@ -42,6 +118,31 @@ class TopPlatformOverlapRule(BaseRule):
     name = "platform_contacts_overlap"
     ROLES = ("TOP",)
     PLATFORM_CLASS = "platform"
+
+    def __init__(self, thresholds: dict):
+        self.thresholds = thresholds
+        self._enabled = self.name not in thresholds.get(
+            "disabled_rules", []
+        )
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    def _get(self, key, default=None, role=None):
+        """Порог этого правила: сначала ROLE.key, затем key, затем default."""
+        if role:
+            role_key = f"{role}.{key}"
+            if role_key in self.thresholds:
+                return self.thresholds[role_key]
+        return self.thresholds.get(key, default)
+
+    def _make_skip(self, rule_name):
+        """Результат для отключённого правила."""
+        return RuleResult(
+            rule_name, False,
+            details={"skipped": "rule disabled"},
+        )
 
     def check(self, vision_results: dict, **kwargs) -> RuleResult:
         if not self.enabled:

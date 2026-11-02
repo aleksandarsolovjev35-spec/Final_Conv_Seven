@@ -110,14 +110,13 @@ core/
     step.py              фазы шага и единственная стадия INSPECT
     diagnostics.py       предстартовые и сервисные проверки
     jog.py               ручной ход
-    status.py            телеметрия, анализ кадра, публикация в HMI
-  rule_report/           golden-совместимые строки отчёта по правилам
+    status.py            телеметрия, публикация в HMI
   decision_engine.py     оркестратор правил
   live_preview.py        живой просмотр камер (полное замораживание)
   state_machine.py       состояния линии
   step_stages.py         фазы шага и exclusive-передача камер
-domain/                  Part, правила дефектов, геометрия, загрузчик порогов
-inspection/              Inspector (одна стадия), run_report, обязательный архив
+domain/                  Part, автономные правила дефектов, геометрия, пороги
+inspection/              Inspector (одна стадия), консольный лог правил, архив
 vision/                  CameraManager (последовательный), VisionCluster, UI
 ```
 
