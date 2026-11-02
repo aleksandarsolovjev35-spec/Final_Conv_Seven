@@ -14,6 +14,9 @@
  */
 
 .stats-panel {
+    /* Панель перекрывает ручку: в развёрнутом виде та прячется за
+       кромкой, наружу выглядывает только её половина. */
+    z-index: 30;
     transform-origin: center center;
     backface-visibility: hidden;
 }
@@ -55,9 +58,10 @@
 .panel-toggle {
     position: absolute;
     top: 50%;
-    /* Стоит по центру кромки панели: по 3 px снаружи и внутри. */
+    /* Стоит по центру кромки панели: по 3 px снаружи и внутри;
+       внутренняя половина уходит под панель (см. z-index). */
     right: calc(var(--gap) + var(--panel-col) - 3px);
-    z-index: 60;
+    z-index: 26;
     display: flex;
     align-items: center;
     justify-content: center;
