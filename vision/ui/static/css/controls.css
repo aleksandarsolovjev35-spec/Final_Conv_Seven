@@ -309,9 +309,16 @@
     cursor: pointer;
 }
 
+/* Шкала заполненности: тёмный рельс подсвечен от начала до маркера.
+   Доля берётся из переменной --fill, которую обновляет controls.js. */
 .line-setting input[type="range"]::-webkit-slider-runnable-track {
     height: 8px;
-    background: var(--bg-2);
+    background-color: var(--bg-2);
+    background-image: linear-gradient(
+        to right,
+        rgba(120, 153, 165, 0.44) 0 var(--fill, 0%),
+        rgba(120, 153, 165, 0) var(--fill, 0%) 100%
+    );
     border: 1px solid var(--border-strong);
     border-radius: 999px;
 }
@@ -328,11 +335,6 @@
     transition: background-color var(--t-fast) var(--ease);
 }
 
-.line-setting input[type="range"]:hover::-webkit-slider-thumb,
-.line-setting input[type="range"]:focus-visible::-webkit-slider-thumb {
-    background: #40c9b4;
-}
-
 .line-setting input[type="range"]:focus-visible {
     outline: none;
 }
@@ -346,6 +348,12 @@
     height: 8px;
     background: var(--bg-2);
     border: 1px solid var(--border-strong);
+    border-radius: 999px;
+}
+
+.line-setting input[type="range"]::-moz-range-progress {
+    height: 8px;
+    background: rgba(120, 153, 165, 0.44);
     border-radius: 999px;
 }
 
