@@ -99,6 +99,9 @@ const state = {
     selectedAnalysisActive: false,
     // Выход из анализа кадра отправлен: интерфейс уже вернулся в live.
     analysisReleasePending: false,
+    // Шторка правой панели: ждём, когда интерфейс доедет до цели.
+    panelShutterPending: false,
+    panelShutterTarget:  null,
     selectedAnalysisRole:   null,
     selectedAnalysisPending: false,
 

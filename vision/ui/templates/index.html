@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="/static/css/motion.css?v=40">
     <link rel="stylesheet" href="/static/css/thresholds.css?v=24">
     <link rel="stylesheet" href="/static/css/archive.css?v=6">
-    <link rel="stylesheet" href="/static/css/panel-deck.css?v=9">
+    <link rel="stylesheet" href="/static/css/panel-deck.css?v=10">
     <link rel="stylesheet" href="/static/css/camera-wizard.css?v=1">
 </head>
 <body>
@@ -179,6 +179,11 @@
             </section>
 
             <aside id="stats-panel" class="stats-panel" data-face="ready" data-ui-block="right-panel">
+                <!-- Шторка правой панели: опускается на время переключения
+                     анализа кадра, чтобы блоки появлялись вместе. -->
+                <div id="panel-shutter" class="panel-shutter is-hidden" aria-hidden="true">
+                    <span class="panel-shutter-spinner"></span>
+                </div>
                 <div id="control-error" class="control-error is-hidden"></div>
 
                 <!-- Лицо «АВАРИЯ»: заменяет обычные блоки, когда цикл в FAULT. -->
@@ -407,9 +412,9 @@
         </div>
     </div>
 
-    <script src="/static/js/core.js?v=61"></script>
+    <script src="/static/js/core.js?v=62"></script>
     <script src="/static/js/boot.js?v=34"></script>
-    <script src="/static/js/diagnostics.js?v=55"></script>
+    <script src="/static/js/diagnostics.js?v=56"></script>
     <script src="/static/js/status.js?v=63"></script>
     <script src="/static/js/controls.js?v=40"></script>
     <script src="/static/js/thresholds.js?v=20"></script>

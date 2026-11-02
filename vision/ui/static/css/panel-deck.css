@@ -32,6 +32,35 @@
     transition-timing-function: cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
 
+/* ─── Шторка правой панели ────────────────────────────────────── */
+
+/* Опускается на время переключения интерфейса (анализ кадра): блоки
+   правой панели меняются под ней одним кадром, а не по очереди. */
+.panel-shutter {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--panel);
+    border-radius: var(--radius);
+    animation: panelReveal 140ms var(--ease);
+}
+
+.panel-shutter-spinner {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--accent);
+    animation: panelShutterSpin 700ms linear infinite;
+}
+
+@keyframes panelShutterSpin {
+    to { transform: rotate(360deg); }
+}
+
 /* ─── Лицо «ПРОИЗВОДСТВО» ─────────────────────────────────────── */
 
 /* Распределитель без кнопок диагностики. */

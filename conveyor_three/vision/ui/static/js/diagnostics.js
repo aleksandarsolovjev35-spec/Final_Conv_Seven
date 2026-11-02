@@ -105,6 +105,12 @@ function updateSelectedAnalysisStatus(ls) {
     if (typeof applyLiveBadge === 'function') applyLiveBadge(state.jogActive);
     updateViewModeControls();
 
+    // Шторка правой панели: поднимаем, когда целевое состояние анализа уже
+    // в интерфейсе — блоки успели перестроиться под ней.
+    if (state.panelShutterPending && state.selectedAnalysisActive === state.panelShutterTarget) {
+        hidePanelShutter();
+    }
+
     if (state.selectedAnalysisActive) {
         showSelectedAnalysisFrame(state.selectedAnalysisRole);
     } else if (wasActive) {
@@ -113,6 +119,34 @@ function updateSelectedAnalysisStatus(ls) {
 }
 
 // ——— выбранный кадр: кнопки ———
+
+// Шторка правой панели на время переключения анализа кадра: блоки
+// меняются под ней одним кадром, а не по очереди.
+const PANEL_SHUTTER_TAIL = 240;      // переходы блоков .ui-collapse
+const PANEL_SHUTTER_FALLBACK = 5000;  // страховка, если статус не пришёл
+let _panelShutterTimer = null;
+
+function showPanelShutter(targetActive) {
+    const shutter = document.getElementById('panel-shutter');
+    if (!shutter) return;
+    state.panelShutterTarget = targetActive;
+    state.panelShutterPending = true;
+    shutter.classList.remove('is-hidden');
+    clearTimeout(_panelShutterTimer);
+    _panelShutterTimer = setTimeout(hidePanelShutter, PANEL_SHUTTER_FALLBACK);
+}
+
+function hidePanelShutter() {
+    if (!state.panelShutterPending || _panelShutterTimer === null) return;
+    state.panelShutterPending = false;
+    clearTimeout(_panelShutterTimer);
+    // Даём блокам доиграть переход, и только потом поднимаем шторку.
+    _panelShutterTimer = setTimeout(() => {
+        _panelShutterTimer = null;
+        const shutter = document.getElementById('panel-shutter');
+        if (shutter) shutter.classList.add('is-hidden');
+    }, PANEL_SHUTTER_TAIL);
+}
 
 function setupSelectedFrameAnalysis() {
     if (!els.analyzeSelectedFrame) return;
@@ -138,6 +172,7 @@ function setupSelectedFrameAnalysis() {
         clearControlError();
         try {
             if (state.selectedAnalysisActive) {
+                showPanelShutter(false);
                 // Не ждём ответа: бэкенд возвращает поток, последовательно
                 // переснимая кадры всех камер, а интерфейс должен ожить сразу.
                 state.analysisReleasePending = true;
@@ -152,6 +187,7 @@ function setupSelectedFrameAnalysis() {
             } else {
                 const role = state.currentCamera;
                 if (!role) return;
+                showPanelShutter(true);
                 await apiPost(`/api/diagnostics/selected/${encodeURIComponent(role)}`, true);
             }
         } finally {
