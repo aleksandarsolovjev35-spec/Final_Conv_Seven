@@ -30,10 +30,12 @@ function updateOperationalAccordions(lineState) {
     }
 }
 
+// Стрелка кругового индикатора распределителя: 0 % — положение
+// «11 часов», 100 % — «13 часов» (развёртка ±30° от вертикали).
 function setBladeMarkerPosition(marker, percent) {
     if (!marker) return;
     const normalized = Math.max(0, Math.min(100, Number(percent) || 0));
-    marker.style.left = `${normalized}%`;
+    marker.style.transform = `rotate(${-30 + normalized * 0.6}deg)`;
 }
 
 // Очередность запросов статуса — избегаем наложения
@@ -332,8 +334,8 @@ function updateLineStatus(ls) {
     updateDistributorDiagnosticControls(ls);
     updateSelectedAnalysisStatus(ls);
 
-    // В блоке распределителя остались только ползунки: бегунки двигаются
-    // по координатам осей, текстовые значения из HMI убраны.
+    // В блоке распределителя — круговые индикаторы: стрелка ходит по
+    // координате оси от «11» до «13 часов», текстовых значений нет.
     const d1Pos = Math.max(0, Number(ls.dist1_position || 0));
     const d1Max = Math.max(1, Number(ls.dist1_max || 340));
     if (els.dist1Blade) {
