@@ -155,24 +155,6 @@ function updateRangeFill(slider) {
     slider.style.setProperty('--fill', `${percent.toFixed(1)}%`);
 }
 
-function updateLineSettingsState(ls) {
-    const badge = document.getElementById('line-settings-state');
-    if (!badge) return;
-    let text = 'БЛОК';
-    let badgeState = 'locked';
-    if (state.offline) {
-        text = 'НЕТ СВЯЗИ';
-        badgeState = 'offline';
-    } else if (state.controlPending) {
-        text = 'ОЖИДАНИЕ';
-    } else if (ls.speed_allowed === true && ls.timings_allowed === true) {
-        text = 'ДОСТУПНО';
-        badgeState = 'ready';
-    }
-    badge.textContent = text;
-    badge.dataset.state = badgeState;
-}
-
 function formatConveyorSpeed(percent) {
     // В компактной строке показываем главное — проценты. Точная скорость
     // в шаг/с остаётся в подсказке (title) ползунка.
@@ -240,7 +222,6 @@ function updateInspectionTimings(ls) {
         updateRangeFill(slider);
         output.textContent = formatSeconds(value);
     });
-    updateLineSettingsState(ls);
 }
 
 function readInspectionTimings() {
