@@ -8,7 +8,7 @@
     /* Гибкая высота: заполняет пустое пространство правой колонки,
        оставшееся после distributor. Jog опущен ниже. */
     flex: 1 1 auto;
-    min-height: 180px;
+    min-height: 150px;
     max-height: 560px;
     height: auto;
     overflow: hidden;
