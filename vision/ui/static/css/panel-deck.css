@@ -47,7 +47,7 @@
     background: var(--panel);
     border-radius: var(--radius);
     transform: translateY(-100%);
-    transition: transform 220ms var(--ease);
+    transition: transform 420ms var(--ease);
     pointer-events: none;
 }
 .panel-shutter.is-down {

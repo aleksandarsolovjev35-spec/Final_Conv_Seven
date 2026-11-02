@@ -123,8 +123,8 @@ function updateSelectedAnalysisStatus(ls) {
 // Шторка правой панели на время переключения анализа кадра: блоки
 // меняются под ней одним кадром, а не по очереди. Шторка падает вниз,
 // а после переключения поднимается вверх.
-const PANEL_SHUTTER_MIN_DOWN = 360;   // падение 220 ms + переходы блоков
-const PANEL_SHUTTER_TAIL = 240;       // даём блокам доиграть переход
+const PANEL_SHUTTER_MIN_DOWN = 820;   // падение 420 ms + показ результата
+const PANEL_SHUTTER_TAIL = 300;       // даём блокам доиграть переход
 const PANEL_SHUTTER_FALLBACK = 5000;  // страховка, если статус не пришёл
 let _panelShutterTimer = null;
 let _panelShutterShownAt = 0;
