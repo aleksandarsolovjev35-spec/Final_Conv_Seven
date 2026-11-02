@@ -36,7 +36,10 @@
 
 /* Падает вниз на время переключения интерфейса (анализ кадра): блоки
    правой панели меняются под ней одним кадром, а не по очереди. Затем
-   поднимается вверх, открывая уже готовый интерфейс. */
+   поднимается вверх, открывая уже готовый интерфейс.
+
+   Оформление «металл»: холодный вертикальный градиент, блик у верхней
+   кромки, тонкая светлая полоса с тенью по нижнему краю. */
 .panel-shutter {
     position: absolute;
     inset: 0;
@@ -44,8 +47,18 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--panel);
     border-radius: var(--radius);
+    background:
+        linear-gradient(180deg,
+            rgba(255, 255, 255, 0.045) 0,
+            rgba(255, 255, 255, 0) 16%),
+        repeating-linear-gradient(90deg,
+            rgba(255, 255, 255, 0.014) 0 2px,
+            rgba(0, 0, 0, 0.05) 2px 4px),
+        linear-gradient(180deg,
+            var(--panel-raised) 0,
+            var(--panel) 46%,
+            var(--bg-1) 100%);
     transform: translateY(-100%);
     transition: transform 420ms var(--ease);
     pointer-events: none;
@@ -55,12 +68,31 @@
     pointer-events: auto;
 }
 
+/* Нижняя кромка: тонкая светлая полоса и тень под ней — видно, что это
+   опущенная шторка, а не просто затемнённая панель. */
+.panel-shutter::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: linear-gradient(90deg,
+        transparent 0,
+        var(--border-strong) 16%,
+        var(--accent) 50%,
+        var(--border-strong) 84%,
+        transparent 100%);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.55);
+}
+
 .panel-shutter-spinner {
     width: 26px;
     height: 26px;
     border-radius: 50%;
     border: 2px solid var(--border-strong);
     border-top-color: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
     animation: panelShutterSpin 700ms linear infinite;
 }
 
