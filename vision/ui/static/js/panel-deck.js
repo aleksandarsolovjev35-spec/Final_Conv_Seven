@@ -132,8 +132,6 @@ function setupPanelToggle() {
         body.classList.toggle('panel-collapsed', collapsed);
         toggle.setAttribute('aria-expanded', String(!collapsed));
         toggle.title = collapsed ? 'Показать панель' : 'Свернуть панель';
-        const chevron = toggle.querySelector('.panel-toggle-chevron');
-        if (chevron) chevron.textContent = collapsed ? '\u2039' : '\u203a';
     };
     toggle.addEventListener('click', () => {
         apply(!body.classList.contains('panel-collapsed'));

@@ -49,32 +49,23 @@
     column-gap: 0;
 }
 
-/* Ручка: в покое — узкая полоска на кромке панели, при наведении
-   раскрывается в кнопку с шевроном. Видимая часть ::before, сама
-   кнопка шире — попасть по ней легко и мышью, и пальцем. */
+/* Ручка: узкая полоска на кромке панели. Форма при наведении не
+   меняется — только светлеет. Видимая часть ::before, сама кнопка
+   шире — попасть по ней легко и мышью, и пальцем. */
 .panel-toggle {
     position: absolute;
     top: 50%;
     /* Стоит по центру кромки панели: по 3 px снаружи и внутри. */
     right: calc(var(--gap) + var(--panel-col) - 3px);
     z-index: 60;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     width: 18px;
     height: 56px;
     padding: 0;
     transform: translateY(-50%);
-    font-family: var(--font-ui);
-    font-size: 12px;
-    line-height: 1;
-    color: var(--text-dim);
     background: none;
     border: 0;
     cursor: pointer;
-    transition:
-        right 200ms var(--ease),
-        color 120ms var(--ease);
+    transition: right 200ms var(--ease);
 }
 .panel-toggle::before {
     content: "";
@@ -86,33 +77,15 @@
     width: 6px;
     background: var(--border-strong);
     border-radius: 3px;
-    transition:
-        width 160ms var(--ease),
-        border-radius 160ms var(--ease),
-        background 120ms var(--ease),
-        box-shadow 120ms var(--ease);
+    transition: background 120ms var(--ease);
 }
-.panel-toggle:hover::before,
+.panel-toggle:hover::before {
+    background: var(--text-dim);
+}
+/* С клавиатуры ручка ещё и обводится — шеврона больше нет. */
 .panel-toggle:focus-visible::before {
-    width: 18px;
-    background: var(--panel-raised);
-    border-radius: 9px;
+    background: var(--text-dim);
     box-shadow: 0 0 0 1px var(--border-accent);
-}
-.panel-toggle:hover,
-.panel-toggle:focus-visible {
-    color: var(--text);
-    outline: none;
-}
-
-/* Шеврон показываем только у раскрытой ручки. */
-.panel-toggle-chevron {
-    opacity: 0;
-    transition: opacity 120ms var(--ease);
-}
-.panel-toggle:hover .panel-toggle-chevron,
-.panel-toggle:focus-visible .panel-toggle-chevron {
-    opacity: 1;
 }
 
 /* Свёрнутое состояние: панели нет, ручка — у правого края окна. */
