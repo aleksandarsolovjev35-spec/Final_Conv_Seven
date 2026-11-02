@@ -145,6 +145,34 @@ function conveyorSpeedToPercent(speed) {
     return Math.max(0, Math.min(100, value));
 }
 
+function updateRangeFill(slider) {
+    const min = Number(slider.min) || 0;
+    const max = Number(slider.max) || 100;
+    const value = Number(slider.value) || 0;
+    const percent = max > min
+        ? Math.max(0, Math.min(100, (value - min) / (max - min) * 100))
+        : 0;
+    slider.style.setProperty('--fill', `${percent.toFixed(1)}%`);
+}
+
+function updateLineSettingsState(ls) {
+    const badge = document.getElementById('line-settings-state');
+    if (!badge) return;
+    let text = 'БЛОК';
+    let badgeState = 'locked';
+    if (state.offline) {
+        text = 'НЕТ СВЯЗИ';
+        badgeState = 'offline';
+    } else if (state.controlPending) {
+        text = 'ОЖИДАНИЕ';
+    } else if (ls.speed_allowed === true && ls.timings_allowed === true) {
+        text = 'ДОСТУПНО';
+        badgeState = 'ready';
+    }
+    badge.textContent = text;
+    badge.dataset.state = badgeState;
+}
+
 function formatConveyorSpeed(percent) {
     // В компактной строке показываем главное — проценты. Точная скорость
     // в шаг/с остаётся в подсказке (title) ползунка.
@@ -172,6 +200,7 @@ function updateConveyorSpeed(ls) {
         ? Number(ls.conveyor_speed_percent)
         : conveyorSpeedToPercent(ls.conveyor_speed);
     slider.value = String(percent);
+    updateRangeFill(slider);
     output.textContent = formatConveyorSpeed(percent);
     const speedText = conveyorSpeedTitle(ls.conveyor_speed);
     output.title = speedText;
@@ -208,8 +237,10 @@ function updateInspectionTimings(ls) {
             return;
         }
         slider.value = String(value);
+        updateRangeFill(slider);
         output.textContent = formatSeconds(value);
     });
+    updateLineSettingsState(ls);
 }
 
 function readInspectionTimings() {
@@ -230,6 +261,7 @@ function setupButtons() {
             const speedText = conveyorSpeedTitle(conveyorPercentToSpeed(percent));
             output.title = speedText;
             speedSlider.title = speedText;
+            updateRangeFill(speedSlider);
         });
         speedSlider.addEventListener('change', async () => {
             conveyorSpeedEditing = false;
@@ -255,6 +287,7 @@ function setupButtons() {
         if (!slider || !output) return;
         slider.addEventListener('input', () => {
             inspectionTimingEditing[key] = true;
+            updateRangeFill(slider);
             output.textContent = formatSeconds(slider.value);
         });
         slider.addEventListener('change', async () => {

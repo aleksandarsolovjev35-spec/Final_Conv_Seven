@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/static/css/history-strip.css?v=47">
     <link rel="stylesheet" href="/static/css/stats.css?v=50">
     <link rel="stylesheet" href="/static/css/jog.css?v=36">
-    <link rel="stylesheet" href="/static/css/controls.css?v=40">
+    <link rel="stylesheet" href="/static/css/controls.css?v=41">
     <link rel="stylesheet" href="/static/css/gallery.css?v=34">
     <link rel="stylesheet" href="/static/css/process.css?v=56">
     <link rel="stylesheet" href="/static/css/motion.css?v=39">
@@ -267,11 +267,17 @@
                     </div>
                 </section>
 
-                <!-- Скорость ленты — в процентах от максимума; паузы
-                     инспекции — в секундах. Все три параметра меняются
-                     только на остановленной линии (IDLE / STOPPED). -->
+                <!-- Приборный блок параметров ленты: скорость в процентах
+                     от максимума, паузы инспекции — в секундах. Все три
+                     параметра меняются только на остановленной линии
+                     (IDLE / STOPPED); состояние доступа показано в шапке. -->
                 <div class="line-settings" data-ui-block="line-settings">
+                    <div class="line-settings-head">
+                        <span class="line-settings-title">ПАРАМЕТРЫ ЛИНИИ</span>
+                        <span id="line-settings-state" class="line-settings-state" data-state="locked">БЛОК</span>
+                    </div>
                     <div class="line-setting">
+                        <span class="line-setting-code" aria-hidden="true">V</span>
                         <label for="conveyor-speed">СКОРОСТЬ ЛЕНТЫ
                             <output id="conveyor-speed-value" for="conveyor-speed">—</output>
                         </label>
@@ -279,6 +285,7 @@
                                aria-describedby="line-settings-hint">
                     </div>
                     <div class="line-setting">
+                        <span class="line-setting-code" aria-hidden="true">t&#8321;</span>
                         <label for="settle-time">ПАУЗА ДО ИНСПЕКЦИИ
                             <output id="settle-time-value" for="settle-time">—</output>
                         </label>
@@ -286,13 +293,14 @@
                                aria-describedby="line-settings-hint">
                     </div>
                     <div class="line-setting">
+                        <span class="line-setting-code" aria-hidden="true">t&#8322;</span>
                         <label for="review-time">ПАУЗА ПОСЛЕ ИНСПЕКЦИИ
                             <output id="review-time-value" for="review-time">—</output>
                         </label>
                         <input id="review-time" type="range" min="0" max="30" step="0.1" value="0.5" disabled
                                aria-describedby="line-settings-hint">
                     </div>
-                    <small id="line-settings-hint">Настройка после остановки линии</small>
+                    <small id="line-settings-hint">Доступно после остановки линии</small>
                 </div>
                 <div class="jog-deck">
                     <section id="jog-panel" class="jog-panel jog-panel-embedded ui-collapse" data-ui-block="jog">
@@ -410,7 +418,7 @@
     <script src="/static/js/boot.js?v=33"></script>
     <script src="/static/js/diagnostics.js?v=51"></script>
     <script src="/static/js/status.js?v=63"></script>
-    <script src="/static/js/controls.js?v=37"></script>
+    <script src="/static/js/controls.js?v=38"></script>
     <script src="/static/js/thresholds.js?v=20"></script>
     <script src="/static/js/cameras.js?v=43"></script>
     <script src="/static/js/frame-analysis.js?v=14"></script>
