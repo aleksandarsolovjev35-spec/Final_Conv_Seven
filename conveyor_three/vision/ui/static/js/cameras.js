@@ -243,6 +243,41 @@ function cameraIdSuffix(role) {
     return Number.isInteger(cameraId) ? ` \u00b7 ID ${cameraId}` : '';
 }
 
+// ─── Центрирование плиток в сетке камер ──────────────────────────
+// Последний ряд бывает неполным: сдвигаем его на половину остатка,
+// чтобы камеры стояли по центру сетки, а не липли к левому краю.
+function centerPreviewStripLastRow() {
+    if (!els.previewStrip) return;
+    const cards = [...els.previewStrip.querySelectorAll('.preview-cam')];
+    if (!cards.length) return;
+    cards.forEach(card => { card.style.transform = ''; });
+    const gap = parseFloat(getComputedStyle(els.previewStrip).columnGap) || 0;
+    const tile = cards[0].getBoundingClientRect().width;
+    const width = els.previewStrip.clientWidth;
+    // Плитки скрыты (камера развёрнута на всю зону) — считать нечего.
+    if (tile <= 0 || width <= 0) return;
+    const columns = Math.max(1, Math.round((width + gap) / (tile + gap)));
+    const tail = cards.length % columns;
+    if (!tail) return;
+    // Свободное место справа от неполного ряда делим пополам: сдвиг
+    // плиток на половину остатка и есть центрирование.
+    const shift = (columns - tail) * (tile + gap) / 2;
+    for (let i = cards.length - tail; i < cards.length; i += 1) {
+        cards[i].style.transform = `translateX(${shift}px)`;
+    }
+}
+
+let _previewCenterFrame = 0;
+
+function schedulePreviewStripCentering() {
+    // Ширины плиток известны только после пересчёта раскладки.
+    if (_previewCenterFrame) cancelAnimationFrame(_previewCenterFrame);
+    _previewCenterFrame = requestAnimationFrame(() => {
+        _previewCenterFrame = 0;
+        centerPreviewStripLastRow();
+    });
+}
+
 function renderPreviewStrip() {
     if (!els.previewStrip) return;
     els.previewStrip.innerHTML = state.cameras.map((role, i) => `
@@ -261,6 +296,7 @@ function renderPreviewStrip() {
     // Первичная загрузка превью сразу после построения списка камер:
     // тот же защищённый механизм, что и плановое обновление.
     els.previewStrip.querySelectorAll('.preview-cam img').forEach(requestPreviewImage);
+    schedulePreviewStripCentering();
 }
 
 function selectCamera(role) {
@@ -302,6 +338,7 @@ function collapseCameraDeck() {
     const column = cameraDeckColumn();
     if (!column) return;
     column.classList.remove('camera-expanded');
+    schedulePreviewStripCentering();
     // Возврат к сетке — это и возврат live-потока: анализ кадра завершаем.
     if (state.selectedAnalysisActive && els.analyzeSelectedFrame) {
         els.analyzeSelectedFrame.click();
@@ -315,6 +352,12 @@ function setupCameraDeck() {
     }
     const button = document.getElementById('camera-collapse');
     if (button) button.addEventListener('click', () => collapseCameraDeck());
+    window.addEventListener('resize', schedulePreviewStripCentering);
+    // Сетка появляется после заставки и при выходе из развёрнутой камеры:
+    // следим за размером, чтобы центрировать плитки в нужный момент.
+    if (typeof ResizeObserver === 'function' && els.previewStrip) {
+        new ResizeObserver(schedulePreviewStripCentering).observe(els.previewStrip);
+    }
 }
 
 function navigateCamera(direction) {
