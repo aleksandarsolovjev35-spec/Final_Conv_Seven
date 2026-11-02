@@ -132,7 +132,7 @@ async function submitControl(path) {
 const CONVEYOR_SPEED_MIN = 5000;
 const CONVEYOR_SPEED_MAX = 20000;
 const CONVEYOR_SPEED_STEP = 5;
-const CONVEYOR_GAUGE_SWEEP = 75;
+const CONVEYOR_GAUGE_SWEEP = 120;
 
 const conveyorSpeed = {percent: 90, percentMin: 25, allowed: false};
 let conveyorSpeedPending = false;
@@ -184,11 +184,12 @@ function renderConveyorSpeed() {
     const output = document.getElementById('conveyor-speed-value');
     if (fill) fill.style.strokeDashoffset = (100 - fraction * 100).toFixed(2);
     if (knob) {
-        knob.setAttribute('cx', (32 + Math.sin(angle) * 24).toFixed(2));
-        knob.setAttribute('cy', (30 - Math.cos(angle) * 24).toFixed(2));
+        // Кольцо: центр (56, 38), радиус 24 — см. viewBox 0 0 112 64.
+        knob.setAttribute('cx', (56 + Math.sin(angle) * 24).toFixed(2));
+        knob.setAttribute('cy', (38 - Math.cos(angle) * 24).toFixed(2));
     }
     if (output) {
-        output.textContent = formatConveyorSpeed(conveyorSpeed.percent);
+        output.textContent = String(Math.round(conveyorSpeed.percent));
         output.title = conveyorSpeedTitle(conveyorPercentToSpeed(conveyorSpeed.percent));
     }
     const locked = conveyorSpeedLocked();
@@ -257,10 +258,9 @@ function conveyorPercentFromPointer(event) {
     if (!gauge) return conveyorSpeed.percent;
     const rect = gauge.getBoundingClientRect();
     if (!rect.width || !rect.height) return conveyorSpeed.percent;
-    // Центр шкалы: середина по X и 30/36 высоты по Y — там сходятся дуга
-    // и радиусы делений (см. viewBox 0 0 64 36).
+    // Центр кольца: середина по X и 38/64 высоты по Y (viewBox 0 0 112 64).
     const dx = event.clientX - (rect.left + rect.width / 2);
-    const dy = event.clientY - (rect.top + rect.height * (30 / 36));
+    const dy = event.clientY - (rect.top + rect.height * (38 / 64));
     const angle = Math.atan2(dx, -dy) * 180 / Math.PI;
     const clamped = Math.max(
         -CONVEYOR_GAUGE_SWEEP,

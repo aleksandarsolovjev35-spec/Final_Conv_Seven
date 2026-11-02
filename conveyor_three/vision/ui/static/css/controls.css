@@ -331,8 +331,9 @@
 }
 
 /* ─── Параметры линии: спидометр скорости и паузы инспекции ────────
-   Две колонки: слева спидометр, справа паузы. Скорость ставится прямо
-   на шкале — тапом или перетаскиванием бегунка, значение в центре. */
+   Две колонки: слева кольцевая шкала, справа паузы. Скорость ставится
+   прямо на шкале — тапом или перетаскиванием бегунка; значение в центре
+   кольца, поэтому оно не пересекается ни с заливкой, ни с бегунком. */
 .line-settings-body {
     display: flex;
     align-items: center;
@@ -343,8 +344,8 @@
 .line-gauge {
     position: relative;
     flex: 0 0 auto;
-    width: 96px;
-    height: 54px;
+    width: 112px;
+    height: 64px;
     cursor: pointer;
     touch-action: none;
     user-select: none;
@@ -367,50 +368,64 @@
     width: 100%;
     height: 100%;
     fill: none;
-    stroke-width: 2.5;
     stroke-linecap: round;
 }
 
-.line-gauge-range {
-    stroke: var(--border-strong);
+.line-gauge-track {
+    stroke: var(--border);
+    stroke-width: 7;
 }
 
 .line-gauge-fill {
     stroke: var(--accent);
+    stroke-width: 7;
     stroke-dasharray: 100;
     stroke-dashoffset: 100;
 }
 
-.line-gauge-tick {
-    stroke: var(--border-strong);
-    stroke-width: 1.5;
-}
-
-/* Бегунок на шкале: единственная подвижная часть, поэтому значение можно
-   держать по центру диска и оно не пересекается с указателем. */
+/* Бегунок на конце заливки: единственная подвижная часть кольца. */
 .line-gauge-knob {
-    fill: var(--accent);
+    fill: var(--text);
     stroke: var(--bg-0);
-    stroke-width: 1.5;
+    stroke-width: 2;
 }
 
 .line-gauge.is-locked .line-gauge-knob {
     fill: var(--border-strong);
 }
 
-.line-gauge-value {
+.line-gauge-scale {
+    fill: var(--text-muted);
+    font: 700 7px var(--font-ui);
+    text-anchor: middle;
+}
+
+.line-gauge-center {
     position: absolute;
-    top: 16px;
+    top: 38px;
     left: 0;
     right: 0;
-    color: var(--text);
-    font: 700 13px/1 var(--font-ui);
-    font-variant-numeric: tabular-nums;
-    text-align: center;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 2px;
+    transform: translateY(-50%);
     pointer-events: none;
 }
 
-.line-gauge.is-locked .line-gauge-value {
+.line-gauge-number {
+    color: var(--text);
+    font: 700 14px/1 var(--font-ui);
+    font-variant-numeric: tabular-nums;
+}
+
+.line-gauge-unit {
+    color: var(--text-dim);
+    font: 700 10px/1 var(--font-ui);
+}
+
+.line-gauge.is-locked .line-gauge-number,
+.line-gauge.is-locked .line-gauge-unit {
     color: var(--text-dim);
 }
 
@@ -464,5 +479,5 @@
     .line-settings-head { padding-bottom: 4px; }
     .line-settings-title { font-size: 10px; line-height: 1.1; }
     .line-setting-name { font-size: 9.5px; }
-    .line-gauge-value { font-size: 12px; }
+    .line-gauge-number { font-size: 14px; }
 }
