@@ -121,31 +121,38 @@ function updateSelectedAnalysisStatus(ls) {
 // ——— выбранный кадр: кнопки ———
 
 // Шторка правой панели на время переключения анализа кадра: блоки
-// меняются под ней одним кадром, а не по очереди.
-const PANEL_SHUTTER_TAIL = 240;      // переходы блоков .ui-collapse
+// меняются под ней одним кадром, а не по очереди. Шторка падает вниз,
+// а после переключения поднимается вверх.
+const PANEL_SHUTTER_MIN_DOWN = 360;   // падение 220 ms + переходы блоков
+const PANEL_SHUTTER_TAIL = 240;       // даём блокам доиграть переход
 const PANEL_SHUTTER_FALLBACK = 5000;  // страховка, если статус не пришёл
 let _panelShutterTimer = null;
+let _panelShutterShownAt = 0;
 
 function showPanelShutter(targetActive) {
     const shutter = document.getElementById('panel-shutter');
     if (!shutter) return;
     state.panelShutterTarget = targetActive;
     state.panelShutterPending = true;
-    shutter.classList.remove('is-hidden');
+    _panelShutterShownAt = Date.now();
     clearTimeout(_panelShutterTimer);
+    shutter.classList.add('is-down');
     _panelShutterTimer = setTimeout(hidePanelShutter, PANEL_SHUTTER_FALLBACK);
 }
 
 function hidePanelShutter() {
-    if (!state.panelShutterPending || _panelShutterTimer === null) return;
+    if (!state.panelShutterPending) return;
     state.panelShutterPending = false;
     clearTimeout(_panelShutterTimer);
-    // Даём блокам доиграть переход, и только потом поднимаем шторку.
+    // Не дёргаем шторку обратно, пока она не дошла до низа и блоки не
+    // доиграли переход.
+    const elapsed = Date.now() - _panelShutterShownAt;
+    const hold = Math.max(PANEL_SHUTTER_TAIL, PANEL_SHUTTER_MIN_DOWN - elapsed);
     _panelShutterTimer = setTimeout(() => {
         _panelShutterTimer = null;
         const shutter = document.getElementById('panel-shutter');
-        if (shutter) shutter.classList.add('is-hidden');
-    }, PANEL_SHUTTER_TAIL);
+        if (shutter) shutter.classList.remove('is-down');
+    }, hold);
 }
 
 function setupSelectedFrameAnalysis() {
