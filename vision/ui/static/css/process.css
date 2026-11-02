@@ -171,7 +171,7 @@
     position: relative;
     align-self: center;
     width: 56px;
-    height: 56px;
+    height: 35px;
     margin: 6px 0 2px;
 }
 .blade-dial-face {
@@ -198,7 +198,7 @@
 .blade-needle {
     position: absolute;
     left: 50%;
-    bottom: 50%;
+    bottom: 7px;
     width: 0;
     height: 0;
     margin-left: -4px;
@@ -214,11 +214,11 @@
 .blade-dial::after {
     content: "";
     position: absolute;
-    top: 50%;
+    bottom: 4px;
     left: 50%;
     width: 6px;
     height: 6px;
-    margin: -3px 0 0 -3px;
+    margin-left: -3px;
     border-radius: 50%;
     background: var(--accent);
     pointer-events: none;
