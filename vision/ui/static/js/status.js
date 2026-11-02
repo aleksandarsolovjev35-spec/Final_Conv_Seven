@@ -17,17 +17,9 @@ function isInspectionDisplayPhase(phase) {
         || value === 'PUBLISH';
 }
 
-function updateOperationalAccordions(lineState) {
-    const fullyStopped = lineState === 'IDLE' || lineState === 'STOPPED';
+function updateOperationalAccordions() {
     if (els.statsBody) els.statsBody.classList.remove('is-collapsed');
     if (els.statsSummary) els.statsSummary.classList.add('is-open');
-    if (els.distributorDiagnostics) {
-        const compact = !fullyStopped;
-        els.distributorDiagnostics.classList.toggle('controls-collapsed', compact);
-        els.distributorDiagnostics.querySelectorAll('.blade-diagnostic-grid').forEach(grid => {
-            grid.classList.toggle('is-collapsed', compact);
-        });
-    }
 }
 
 // Стрелка кругового индикатора распределителя: 0 % — положение

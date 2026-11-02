@@ -203,7 +203,7 @@
     transition: transform 100ms linear;
     will-change: transform;
 }
-/* Ступица в центре круга. */
+/* Ступица в центре круга: кликов не перехватывает. */
 .blade-dial::after {
     content: "";
     position: absolute;
@@ -214,6 +214,45 @@
     margin: -3px 0 0 -3px;
     border-radius: 50%;
     background: var(--accent);
+    pointer-events: none;
+}
+
+/* Два индикатора стоят рядом; отдельных кнопок нет — команда
+   отправляется нажатием на половину круга: левая половина — первое
+   положение, правая — второе. */
+.distributor-dials {
+    display: flex;
+    gap: 8px;
+}
+.distributor-dials .blade-card {
+    flex: 1 1 0;
+    min-width: 0;
+}
+.blade-hit {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 50%;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 120ms var(--ease);
+}
+.blade-hit.is-first {
+    left: 0;
+}
+.blade-hit.is-second {
+    right: 0;
+}
+.blade-hit:hover:not(:disabled) {
+    background: radial-gradient(circle,
+        rgba(255, 255, 255, 0.08),
+        rgba(255, 255, 255, 0) 72%);
+}
+.blade-hit:disabled {
+    cursor: default;
 }
 
 .diagnostic-grid {
@@ -221,11 +260,6 @@
     grid-template-columns: 1fr 1fr;
     gap: 5px;
 }
-.blade-diagnostic-grid {
-    margin-top: 2px;
-}
-/* Кнопки диагностики распределителя наследуют единый стиль
-   .btn .btn-sm (см. controls.css), включая .pending. */
 
 .jog-panel.jog-panel-embedded {
     grid-column: auto;

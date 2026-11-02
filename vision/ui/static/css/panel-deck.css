@@ -174,7 +174,8 @@
 /* ─── Лицо «ПРОИЗВОДСТВО» ─────────────────────────────────────── */
 
 /* Распределитель без кнопок диагностики. */
-.stats-panel[data-face="production"] .blade-diagnostic-grid {
+/* В работе ручное управление распределителем недоступно. */
+.stats-panel[data-face="production"] .blade-hit {
     display: none;
 }
 

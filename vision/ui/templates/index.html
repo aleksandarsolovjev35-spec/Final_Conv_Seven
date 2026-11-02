@@ -14,11 +14,11 @@
     <link rel="stylesheet" href="/static/css/jog.css?v=36">
     <link rel="stylesheet" href="/static/css/controls.css?v=46">
     <link rel="stylesheet" href="/static/css/gallery.css?v=34">
-    <link rel="stylesheet" href="/static/css/process.css?v=57">
-    <link rel="stylesheet" href="/static/css/motion.css?v=40">
+    <link rel="stylesheet" href="/static/css/process.css?v=58">
+    <link rel="stylesheet" href="/static/css/motion.css?v=41">
     <link rel="stylesheet" href="/static/css/thresholds.css?v=24">
     <link rel="stylesheet" href="/static/css/archive.css?v=6">
-    <link rel="stylesheet" href="/static/css/panel-deck.css?v=31">
+    <link rel="stylesheet" href="/static/css/panel-deck.css?v=32">
     <link rel="stylesheet" href="/static/css/camera-wizard.css?v=1">
 </head>
 <body>
@@ -220,42 +220,50 @@
                     <div class="distributor-head">
                         <span class="distributor-title">РАСПРЕДЕЛИТЕЛЬ</span>
                     </div>
-                    <div class="blade-card">
-                        <div class="blade-dial">
-                            <svg class="blade-dial-face" viewBox="0 0 64 64"
-                                 aria-hidden="true">
-                                <circle cx="32" cy="32" r="26"></circle>
-                                <path class="blade-dial-range"
-                                      d="M17,6 A30,30 0 0 1 47,6"></path>
-                            </svg>
-                            <div id="dist1-blade" class="blade-needle"></div>
+                    <div class="distributor-dials">
+                        <div class="blade-card">
+                            <div class="blade-dial">
+                                <svg class="blade-dial-face" viewBox="0 0 64 64"
+                                     aria-hidden="true">
+                                    <circle cx="32" cy="32" r="26"></circle>
+                                    <path class="blade-dial-range"
+                                          d="M17,6 A30,30 0 0 1 47,6"></path>
+                                </svg>
+                                <div id="dist1-blade" class="blade-needle"></div>
+                                <!-- Клик по половине круга — команда положения. -->
+                                <button class="blade-hit is-first" type="button"
+                                        data-distributor-command="DIST1_HOME"
+                                        aria-label="ГОДНО" disabled></button>
+                                <button class="blade-hit is-second" type="button"
+                                        data-distributor-command="DIST1_OPEN"
+                                        aria-label="БРАК" disabled></button>
+                            </div>
+                            <div class="blade-track-labels" aria-hidden="true">
+                                <span>ГОДНО</span>
+                                <span>БРАК</span>
+                            </div>
                         </div>
-                        <div class="blade-track-labels" aria-hidden="true">
-                            <span>ГОДНО</span>
-                            <span>БРАК</span>
-                        </div>
-                        <div class="diagnostic-grid blade-diagnostic-grid ui-collapse">
-                            <button class="btn btn-sm" data-distributor-command="DIST1_HOME" disabled>ГОДНО</button>
-                            <button class="btn btn-sm" data-distributor-command="DIST1_OPEN" disabled>БРАК</button>
-                        </div>
-                    </div>
-                    <div class="blade-card">
-                        <div class="blade-dial">
-                            <svg class="blade-dial-face" viewBox="0 0 64 64"
-                                 aria-hidden="true">
-                                <circle cx="32" cy="32" r="26"></circle>
-                                <path class="blade-dial-range"
-                                      d="M17,6 A30,30 0 0 1 47,6"></path>
-                            </svg>
-                            <div id="dist2-blade" class="blade-needle"></div>
-                        </div>
-                        <div class="blade-track-labels" aria-hidden="true">
-                            <span>БРАК</span>
-                            <span>ЗАЧИСТКА</span>
-                        </div>
-                        <div class="diagnostic-grid blade-diagnostic-grid ui-collapse">
-                            <button class="btn btn-sm" data-distributor-command="DIST2_BAD" disabled>БРАК</button>
-                            <button class="btn btn-sm" data-distributor-command="DIST2_CLEANUP" disabled>ЗАЧИСТКА</button>
+                        <div class="blade-card">
+                            <div class="blade-dial">
+                                <svg class="blade-dial-face" viewBox="0 0 64 64"
+                                     aria-hidden="true">
+                                    <circle cx="32" cy="32" r="26"></circle>
+                                    <path class="blade-dial-range"
+                                          d="M17,6 A30,30 0 0 1 47,6"></path>
+                                </svg>
+                                <div id="dist2-blade" class="blade-needle"></div>
+                                <!-- Клик по половине круга — команда положения. -->
+                                <button class="blade-hit is-first" type="button"
+                                        data-distributor-command="DIST2_BAD"
+                                        aria-label="БРАК" disabled></button>
+                                <button class="blade-hit is-second" type="button"
+                                        data-distributor-command="DIST2_CLEANUP"
+                                        aria-label="ЗАЧИСТКА" disabled></button>
+                            </div>
+                            <div class="blade-track-labels" aria-hidden="true">
+                                <span>БРАК</span>
+                                <span>ЗАЧИСТКА</span>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -430,7 +438,7 @@
     <script src="/static/js/core.js?v=62"></script>
     <script src="/static/js/boot.js?v=34"></script>
     <script src="/static/js/diagnostics.js?v=59"></script>
-    <script src="/static/js/status.js?v=64"></script>
+    <script src="/static/js/status.js?v=65"></script>
     <script src="/static/js/controls.js?v=40"></script>
     <script src="/static/js/thresholds.js?v=20"></script>
     <script src="/static/js/cameras.js?v=47"></script>
