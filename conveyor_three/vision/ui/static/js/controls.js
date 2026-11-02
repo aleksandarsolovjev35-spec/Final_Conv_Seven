@@ -7,10 +7,11 @@ function applyButtonsForState(lineState, exitRequested, controls = {}) {
     const offline = state.offline || lineState === 'OFFLINE';
     const pending = state.controlPending;
     const lockSettings = offline || pending || !['IDLE', 'STOPPED'].includes(lineState);
-    ['conveyor-speed', 'settle-time', 'review-time'].forEach(id => {
-        const slider = document.getElementById(id);
-        if (slider && lockSettings) slider.disabled = true;
-    });
+    const speedSlider = document.getElementById('conveyor-speed');
+    if (speedSlider && lockSettings) speedSlider.disabled = true;
+    // Паузы инспекции — степпер: блокировку ведёт renderInspectionTimings().
+    inspectionTimingsLockedByState = lockSettings;
+    renderInspectionTimings();
     const startVisible = (
         (lineState === 'IDLE' || lineState === 'STOPPED')
         && !exitRequested
@@ -185,46 +186,144 @@ function updateConveyorSpeed(ls) {
     slider.title = speedText;
 }
 
-// ─── Паузы инспекции ─────────────────────────────────────────
+// ─── Паузы инспекции: степпер − значение + ───────────────────
+// Ползунок не давал точного значения (0…30 с при шаге 0.1), поэтому
+// паузы задаются кнопками: 0.1 с до инспекции и 0.5 с после, удержание
+// ускоряет набор в пять раз. Набор отправляется одним запросом.
 
 const INSPECTION_TIMING_FIELDS = [
-    {key: 'settle_time', sliderId: 'settle-time', outputId: 'settle-time-value'},
-    {key: 'review_time', sliderId: 'review-time', outputId: 'review-time-value'},
+    {key: 'settle_time', id: 'settle-time', step: 0.1, min: 0, max: 5},
+    {key: 'review_time', id: 'review-time', step: 0.5, min: 0, max: 30},
 ];
 
+const inspectionTimingValues = {settle_time: 0.2, review_time: 0.5};
 let inspectionTimingsPending = false;
-const inspectionTimingEditing = {settle_time: false, review_time: false};
+let inspectionTimingsLockedByState = false;
+let inspectionTimingsAllowed = false;
+let inspectionTimingCommitTimer = null;
 
 function formatSeconds(value) {
     return `${Number(value).toFixed(1)} с`;
 }
 
-function updateInspectionTimings(ls) {
-    const timings = ls.inspection_timings || {};
-    const allowed = ls.timings_allowed === true
-        && !state.offline && !state.controlPending && !inspectionTimingsPending;
-    INSPECTION_TIMING_FIELDS.forEach(({key, sliderId, outputId}) => {
-        const slider = document.getElementById(sliderId);
-        const output = document.getElementById(outputId);
-        if (!slider || !output) return;
-        slider.disabled = !allowed;
-        if (inspectionTimingEditing[key] || inspectionTimingsPending) return;
-        const value = Number(timings[key]);
-        if (!Number.isFinite(value)) {
-            output.textContent = '—';
-            return;
-        }
-        slider.value = String(value);
-        updateRangeFill(slider);
-        output.textContent = formatSeconds(value);
+function inspectionTimingField(key) {
+    return INSPECTION_TIMING_FIELDS.find(field => field.key === key) || null;
+}
+
+function inspectionTimingLocked() {
+    return inspectionTimingsLockedByState
+        || !inspectionTimingsAllowed
+        || inspectionTimingsPending
+        || state.offline;
+}
+
+function inspectionTimingButtons(field) {
+    return {
+        dec: document.getElementById(`${field.id}-dec`),
+        inc: document.getElementById(`${field.id}-inc`),
+        output: document.getElementById(`${field.id}-value`),
+    };
+}
+
+function renderInspectionTimings() {
+    const locked = inspectionTimingLocked();
+    INSPECTION_TIMING_FIELDS.forEach(field => {
+        const {dec, inc, output} = inspectionTimingButtons(field);
+        const value = inspectionTimingValues[field.key];
+        if (output) output.textContent = formatSeconds(value);
+        // Кнопка гаснет и на границе диапазона: дальше шагать некуда.
+        if (dec) dec.disabled = locked || value <= field.min + 1e-9;
+        if (inc) inc.disabled = locked || value >= field.max - 1e-9;
     });
 }
 
-function readInspectionTimings() {
-    return {
-        settle_time: Number(document.getElementById('settle-time').value),
-        review_time: Number(document.getElementById('review-time').value),
-    };
+function updateInspectionTimings(ls) {
+    inspectionTimingsAllowed = ls.timings_allowed === true
+        && !state.controlPending;
+    const timings = ls.inspection_timings || {};
+    // Пока оператор набирает значение, ответ сервера его не перебивает.
+    if (!inspectionTimingsPending && !inspectionTimingCommitTimer) {
+        INSPECTION_TIMING_FIELDS.forEach(field => {
+            const value = Number(timings[field.key]);
+            if (Number.isFinite(value)) inspectionTimingValues[field.key] = value;
+        });
+    }
+    renderInspectionTimings();
+}
+
+function stepInspectionTiming(key, direction, multiplier = 1) {
+    if (inspectionTimingLocked()) return;
+    const field = inspectionTimingField(key);
+    if (!field) return;
+    const raw = inspectionTimingValues[key] + direction * field.step * multiplier;
+    const snapped = Math.round(raw / field.step) * field.step;
+    inspectionTimingValues[key] = Number(
+        Math.min(field.max, Math.max(field.min, snapped)).toFixed(2),
+    );
+    renderInspectionTimings();
+    scheduleInspectionTimingsCommit();
+}
+
+function scheduleInspectionTimingsCommit() {
+    clearTimeout(inspectionTimingCommitTimer);
+    inspectionTimingCommitTimer = setTimeout(commitInspectionTimings, 400);
+}
+
+async function commitInspectionTimings() {
+    inspectionTimingCommitTimer = null;
+    if (inspectionTimingsPending || inspectionTimingLocked()) return;
+    inspectionTimingsPending = true;
+    renderInspectionTimings();
+    try {
+        await apiPostJson(
+            '/api/inspection/timings',
+            {...inspectionTimingValues},
+            true,
+        );
+    } finally {
+        inspectionTimingsPending = false;
+        requestImmediateStatus();
+    }
+}
+
+function setupInspectionTimingSteppers() {
+    INSPECTION_TIMING_FIELDS.forEach(field => {
+        const {dec, inc} = inspectionTimingButtons(field);
+        [[dec, -1], [inc, 1]].forEach(([button, direction]) => {
+            if (!button) return;
+            let holdDelay = null;
+            let holdRepeat = null;
+            let holdTicks = 0;
+            const stopHold = () => {
+                clearTimeout(holdDelay);
+                clearInterval(holdRepeat);
+                holdDelay = null;
+                holdRepeat = null;
+            };
+            button.addEventListener('pointerdown', event => {
+                if (event.button !== 0 || button.disabled) return;
+                stopHold();
+                holdTicks = 0;
+                stepInspectionTiming(field.key, direction);
+                holdDelay = setTimeout(() => {
+                    holdRepeat = setInterval(() => {
+                        holdTicks += 1;
+                        stepInspectionTiming(
+                            field.key, direction, holdTicks > 8 ? 5 : 1,
+                        );
+                    }, 110);
+                }, 400);
+            });
+            ['pointerup', 'pointerleave', 'pointercancel'].forEach(name => {
+                button.addEventListener(name, stopHold);
+            });
+            // С клавиатуры приходит только click (у указателя шаг уже
+            // сделан на pointerdown, иначе было бы двойное срабатывание).
+            button.addEventListener('click', event => {
+                if (event.detail === 0) stepInspectionTiming(field.key, direction);
+            });
+        });
+    });
 }
 
 function setupButtons() {
@@ -258,35 +357,7 @@ function setupButtons() {
         });
     }
 
-    INSPECTION_TIMING_FIELDS.forEach(({key, sliderId, outputId}) => {
-        const slider = document.getElementById(sliderId);
-        const output = document.getElementById(outputId);
-        if (!slider || !output) return;
-        slider.addEventListener('input', () => {
-            inspectionTimingEditing[key] = true;
-            updateRangeFill(slider);
-            output.textContent = formatSeconds(slider.value);
-        });
-        slider.addEventListener('change', async () => {
-            inspectionTimingEditing[key] = false;
-            if (slider.disabled || inspectionTimingsPending || state.offline) return;
-            inspectionTimingsPending = true;
-            INSPECTION_TIMING_FIELDS.forEach(field => {
-                const el = document.getElementById(field.sliderId);
-                if (el) el.disabled = true;
-            });
-            try {
-                await apiPostJson(
-                    '/api/inspection/timings',
-                    readInspectionTimings(),
-                    true,
-                );
-            } finally {
-                inspectionTimingsPending = false;
-                requestImmediateStatus();
-            }
-        });
-    });
+    setupInspectionTimingSteppers();
 
     if (els.splashExit) {
         els.splashExit.addEventListener('click', async () => {

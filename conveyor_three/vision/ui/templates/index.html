@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/static/css/history-strip.css?v=47">
     <link rel="stylesheet" href="/static/css/stats.css?v=53">
     <link rel="stylesheet" href="/static/css/jog.css?v=36">
-    <link rel="stylesheet" href="/static/css/controls.css?v=46">
+    <link rel="stylesheet" href="/static/css/controls.css?v=47">
     <link rel="stylesheet" href="/static/css/gallery.css?v=34">
     <link rel="stylesheet" href="/static/css/process.css?v=62">
     <link rel="stylesheet" href="/static/css/motion.css?v=42">
@@ -247,17 +247,31 @@
                     </div>
                     <div class="line-setting">
                         <div class="line-setting-row">
-                            <label class="line-setting-name" for="settle-time">Пауза до инспекции</label>
-                            <output id="settle-time-value" class="line-setting-value" for="settle-time">—</output>
+                            <span id="settle-time-name" class="line-setting-name">Пауза до инспекции</span>
                         </div>
-                        <input id="settle-time" type="range" min="0" max="5" step="0.1" value="0.2" disabled>
+                        <div class="line-stepper" role="group" aria-labelledby="settle-time-name">
+                            <button id="settle-time-dec" class="line-stepper-btn" type="button"
+                                    data-timing="settle_time" data-direction="-1" disabled
+                                    aria-label="Уменьшить паузу до инспекции">&minus;</button>
+                            <output id="settle-time-value" class="line-stepper-value">—</output>
+                            <button id="settle-time-inc" class="line-stepper-btn" type="button"
+                                    data-timing="settle_time" data-direction="1" disabled
+                                    aria-label="Увеличить паузу до инспекции">+</button>
+                        </div>
                     </div>
                     <div class="line-setting">
                         <div class="line-setting-row">
-                            <label class="line-setting-name" for="review-time">Пауза после инспекции</label>
-                            <output id="review-time-value" class="line-setting-value" for="review-time">—</output>
+                            <span id="review-time-name" class="line-setting-name">Пауза после инспекции</span>
                         </div>
-                        <input id="review-time" type="range" min="0" max="30" step="0.1" value="0.5" disabled>
+                        <div class="line-stepper" role="group" aria-labelledby="review-time-name">
+                            <button id="review-time-dec" class="line-stepper-btn" type="button"
+                                    data-timing="review_time" data-direction="-1" disabled
+                                    aria-label="Уменьшить паузу после инспекции">&minus;</button>
+                            <output id="review-time-value" class="line-stepper-value">—</output>
+                            <button id="review-time-inc" class="line-stepper-btn" type="button"
+                                    data-timing="review_time" data-direction="1" disabled
+                                    aria-label="Увеличить паузу после инспекции">+</button>
+                        </div>
                     </div>
                 </div>
                 <div class="jog-deck">
@@ -379,7 +393,7 @@
     <script src="/static/js/boot.js?v=34"></script>
     <script src="/static/js/diagnostics.js?v=60"></script>
     <script src="/static/js/status.js?v=66"></script>
-    <script src="/static/js/controls.js?v=41"></script>
+    <script src="/static/js/controls.js?v=42"></script>
     <script src="/static/js/thresholds.js?v=21"></script>
     <script src="/static/js/cameras.js?v=49"></script>
     <script src="/static/js/jog.js?v=37"></script>

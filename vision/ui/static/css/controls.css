@@ -295,6 +295,56 @@
     white-space: nowrap;
 }
 
+/* Степпер паузы инспекции: «− значение +». Шаг задаётся в controls.js,
+   удержание кнопки ускоряет набор. */
+.line-stepper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.line-stepper-btn {
+    flex: 0 0 30px;
+    height: 20px;
+    padding: 0;
+    color: var(--text-dim);
+    font: 700 13px/1 var(--font-ui);
+    background: var(--bg-2);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition:
+        color 120ms var(--ease),
+        background 120ms var(--ease),
+        border-color 120ms var(--ease);
+}
+
+.line-stepper-btn:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--bg-1);
+}
+
+.line-stepper-btn:active:not(:disabled) {
+    background: var(--panel-raised);
+}
+
+.line-stepper-btn:disabled {
+    color: var(--text-muted);
+    border-color: var(--border);
+    cursor: default;
+}
+
+.line-stepper-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--text);
+    font: 700 13px/1 var(--font-ui);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    white-space: nowrap;
+}
+
 /* Ползунок: скруглённая тёмная дорожка с рамкой и квадратный маркер
    акцентного цвета, который едет по ней. */
 .line-setting input[type="range"] {
