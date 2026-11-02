@@ -55,8 +55,8 @@
 .panel-toggle {
     position: absolute;
     top: 50%;
-    /* Стоит на кромке панели, чуть заходя на неё. */
-    right: calc(var(--gap) + var(--panel-col) + 3px);
+    /* Стоит по центру кромки панели: по 3 px снаружи и внутри. */
+    right: calc(var(--gap) + var(--panel-col) - 3px);
     z-index: 60;
     display: flex;
     align-items: center;
