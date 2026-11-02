@@ -35,6 +35,18 @@
 /* Не перекрываем ограничение высоты из blocks.css: иначе панель росла
    до полного списка, а внутреннему scroll-контейнеру было нечего прокручивать. */
 
+/* Блоки, которые скрываются целиком (display: none), появляются тем же
+   временем, что и раскрытие .ui-collapse: иначе «Пороги правил» и
+   «Параметры линии» выскакивают раньше остального интерфейса. */
+@keyframes panelReveal {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: none; }
+}
+.thresholds-panel:not(.is-hidden),
+.line-settings {
+    animation: panelReveal 180ms var(--ease);
+}
+
 #view-mode-toggle,
 .mode-badge {
     transition:

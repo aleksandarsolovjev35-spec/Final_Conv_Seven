@@ -144,9 +144,9 @@ function setupSelectedFrameAnalysis() {
                 state.selectedAnalysisActive = false;
                 state.selectedAnalysisPending = false;
                 state.selectedAnalysisRole = null;
-                updateViewModeControls();
                 returnSelectedCameraToLive();
-                if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
+                // Блоки правой панели вернёт ближайший статус — все вместе,
+                // а не по одному (пороги успевали появиться раньше остальных).
                 requestImmediateStatus();
                 await apiPost('/api/diagnostics/selected/release', true);
             } else {
