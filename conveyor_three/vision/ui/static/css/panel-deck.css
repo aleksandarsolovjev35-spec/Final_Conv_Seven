@@ -55,7 +55,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 16px;
+    /* Сама кнопка прозрачная — видно только язычок (::before). Поле
+       наведения шире язычка, чтобы закладку было легко зацепить. */
+    width: 18px;
     height: 58px;
     padding: 0;
     transform: translateY(-50%);
@@ -63,24 +65,51 @@
     font-size: 12px;
     line-height: 1;
     color: var(--text-dim);
-    background: var(--panel);
-    border: 1px solid var(--border-strong);
-    border-right: 0;
-    border-radius: var(--radius) 0 0 var(--radius);
-    box-shadow: -2px 0 6px rgba(0, 0, 0, 0.28);
+    background: none;
+    border: 0;
     cursor: pointer;
     transition:
         right 200ms var(--ease),
-        color 120ms var(--ease),
-        background 120ms var(--ease),
+        color 120ms var(--ease);
+}
+
+/* Язычок: в покое из-за кромки выглядывает 10 px, при наведении
+   закладка выезжает целиком. Скруглён со всех сторон. */
+.panel-toggle::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: -1;
+    width: 10px;
+    background: var(--panel-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: 9px;
+    box-shadow: -2px 0 6px rgba(0, 0, 0, 0.28);
+    transition:
+        width 160ms var(--ease),
         border-color 120ms var(--ease);
+}
+.panel-toggle:hover::before,
+.panel-toggle:focus-visible::before {
+    width: 18px;
+    border-color: var(--border-accent);
 }
 .panel-toggle:hover,
 .panel-toggle:focus-visible {
     color: var(--text);
-    background: var(--panel-raised);
-    border-color: var(--border-accent);
     outline: none;
+}
+
+/* Шеврон показываем только у выехавшей закладки. */
+.panel-toggle-chevron {
+    opacity: 0;
+    transition: opacity 120ms var(--ease);
+}
+.panel-toggle:hover .panel-toggle-chevron,
+.panel-toggle:focus-visible .panel-toggle-chevron {
+    opacity: 1;
 }
 
 /* В свёрнутом виде панель — узкая полоса, закладка продолжает её. */
