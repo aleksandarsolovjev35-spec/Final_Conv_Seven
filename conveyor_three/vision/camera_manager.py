@@ -259,6 +259,30 @@ class CameraManager:
                 print(f"[CAMERA] Ошибка освобождения камеры: {exc}")
         self.cameras.clear()
 
+    def suspend(self) -> None:
+        """Освободить камеры на время мастера назначения ролей."""
+        self.release()
+
+    def resume(self) -> None:
+        """Снова открыть камеры по текущему mapping."""
+        with self._state_lock:
+            self._closed = False
+            self._failed_reason = None
+        self.open_cameras()
+
+    def apply_mapping(self, mapping) -> None:
+        """Заменить mapping и переоткрыть камеры (линия должна стоять)."""
+        normalized = dict(mapping)
+        self.release()
+        with self._state_lock:
+            self._closed = False
+            self._failed_reason = None
+            self.mapping = normalized
+            self._role_locks = {
+                role: threading.Lock() for role in normalized
+            }
+        self.open_cameras()
+
     def _latch_failure(self, reason: str):
         with self._state_lock:
             if self._failed_reason is None:

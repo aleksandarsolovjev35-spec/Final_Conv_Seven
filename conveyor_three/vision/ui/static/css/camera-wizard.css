@@ -1,0 +1,227 @@
+/* camera-wizard.css — мастер назначения физических камер ролям линии. */
+
+.camera-wizard {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(6, 9, 11, 0.82);
+    backdrop-filter: blur(2px);
+}
+
+.camera-wizard.is-hidden { display: none; }
+
+.camera-wizard-dialog {
+    display: flex;
+    flex-direction: column;
+    width: min(1180px, 100%);
+    max-height: 90vh;
+    background: var(--bg-1);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+}
+
+.camera-wizard-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
+}
+
+.camera-wizard-title {
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.camera-wizard-state {
+    flex: 1 1 auto;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-align: right;
+    text-transform: uppercase;
+}
+
+.camera-wizard-state[data-kind="ok"] { color: var(--ok); }
+.camera-wizard-state[data-kind="warn"] { color: var(--warn); }
+.camera-wizard-state[data-kind="error"] { color: var(--bad); }
+
+.camera-wizard-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
+    gap: 16px;
+    padding: 16px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.camera-wizard-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+}
+
+.camera-wizard-subtitle {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+
+.camera-wizard-devices {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 10px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.wizard-device {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color var(--t-fast) var(--ease);
+}
+
+.wizard-device:hover { border-color: var(--border-accent); }
+
+.wizard-device.is-selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.wizard-device.is-failed { opacity: 0.55; }
+
+.wizard-device-frame {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    background: #090c0f;
+    border-radius: 2px;
+}
+
+.wizard-device-frame.is-empty {
+    display: grid;
+    place-items: center;
+    color: var(--text-muted);
+    font-size: 9px;
+    letter-spacing: 0.5px;
+}
+
+.wizard-device-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.wizard-device-id {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+
+.wizard-device-state {
+    color: var(--text-muted);
+    font-size: 9px;
+    font-variant-numeric: tabular-nums;
+}
+
+.wizard-device-role {
+    color: var(--accent);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+}
+
+.wizard-empty {
+    display: grid;
+    place-items: center;
+    min-height: 120px;
+    color: var(--text-muted);
+    font-size: 11px;
+    letter-spacing: 0.5px;
+}
+
+.camera-wizard-roles {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.wizard-role {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 11px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+}
+
+.wizard-role:hover { border-color: var(--border-strong); }
+
+.wizard-role.is-assigned { border-color: var(--border-accent); }
+.wizard-role.is-current { border-color: var(--accent); }
+
+.wizard-role-name {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+.wizard-role-value {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+}
+
+.wizard-role.is-assigned .wizard-role-value { color: var(--ok); }
+
+.camera-wizard-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-2);
+}
+
+@media (max-width: 900px) {
+    .camera-wizard-body {
+        grid-template-columns: minmax(0, 1fr);
+        overflow-y: auto;
+    }
+}

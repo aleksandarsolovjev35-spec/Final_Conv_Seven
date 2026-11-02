@@ -1,5 +1,6 @@
 import asyncio
 import os
+import shutil
 import sys
 import threading
 import time
@@ -15,6 +16,7 @@ from vision.overlay.raw_overlay import RawOverlay
 from vision.overlay.debug_overlay import DebugOverlay
 
 from vision.ui.server.routes_frames  import setup_frame_routes
+from vision.ui.server.routes_cameras import setup_camera_routes
 from vision.ui.server.routes_api     import setup_api_routes
 from vision.ui.server.routes_archive import setup_archive_routes
 
@@ -69,6 +71,8 @@ class UIServer:
         self.camera_roles: list   = []
         # role -> физический Camera ID (индекс устройства) из camera_mapping.json
         self.camera_mapping: dict = {}
+        # CameraManager приложения (нужен мастеру назначения камер)
+        self.camera_manager = None
         self.vision_results: dict = {}
         # Подпись последней опубликованной порции детекций (см.
         # _vision_signature): сравнение под общим lock должно быть дешёвым.
@@ -326,6 +330,75 @@ class UIServer:
                 if stream_overlay_changed:
                     self._latest_stream_jpeg.clear()
                 self._cache_version += 1
+
+
+    # ── Мастер назначения камер ──────────────────────────────────
+
+    @staticmethod
+    def camera_required_roles() -> list:
+        """Полный список ролей линии (из конфигурации проекта)."""
+        from config.camera_mapping import REQUIRED_ROLES
+
+        return sorted(REQUIRED_ROLES)
+
+    def _line_state(self) -> str:
+        status = self.line_status or {}
+        return str(status.get("state") or "").upper()
+
+    def _require_stopped_line(self) -> None:
+        if self._line_state() not in ("IDLE", "STOPPED"):
+            raise RuntimeError(
+                "Назначение камер доступно только на остановленной линии",
+            )
+
+    def set_camera_wizard_active(self, active: bool) -> dict:
+        """Открыть/закрыть мастер: на время работы камеры освобождаются."""
+        self._require_stopped_line()
+        manager = self.camera_manager
+        if manager is None:
+            return {"active": bool(active)}
+        if active:
+            manager.suspend()
+        else:
+            manager.resume()
+        return {"active": bool(active)}
+
+    def scan_camera_devices(self, limit: int = 8) -> list:
+        """Перечислить физические камеры ПК (индексы 0..limit-1)."""
+        from vision.camera_devices import probe_devices
+
+        self._require_stopped_line()
+        return probe_devices(max(1, min(int(limit), 16)))
+
+    def camera_device_frame(self, index: int):
+        """JPEG-снимок с физической камеры для превью в мастере."""
+        from vision.camera_devices import grab_snapshot
+
+        return grab_snapshot(int(index))
+
+    def save_camera_mapping(self, mapping) -> dict:
+        """Проверить, сохранить и применить mapping камер."""
+        from config.camera_mapping import (
+            CAMERA_MAPPING_FILE,
+            validate_camera_mapping,
+        )
+        from vision.camera_calibration_console import atomic_write_mapping
+
+        self._require_stopped_line()
+        validated = validate_camera_mapping(mapping)
+        backup = f"{CAMERA_MAPPING_FILE}.bak"
+        if os.path.exists(CAMERA_MAPPING_FILE):
+            shutil.copyfile(CAMERA_MAPPING_FILE, backup)
+        atomic_write_mapping(CAMERA_MAPPING_FILE, validated)
+
+        applied = False
+        manager = self.camera_manager
+        if manager is not None:
+            manager.apply_mapping(validated)
+            applied = True
+        self.set_camera_roles(validated)
+        print(f"[CAMERA] Mapping сохранён: {validated}")
+        return {"saved": True, "applied": applied, "mapping": validated}
 
     def set_camera_roles(self, roles) -> None:
         """Опубликовать роли открытых камер без обязательного чтения кадров.
@@ -810,6 +883,7 @@ class UIServer:
 
         setup_frame_routes(self.app, self)
         setup_api_routes(self.app, self)
+        setup_camera_routes(self.app, self)
         setup_archive_routes(self.app, self)
 
     # Rendering & caching (pull)

@@ -1,18 +1,74 @@
 /* camera.css — Line Monitor UI module */
 
-/* ─── Preview strip ───────────────────────────────────────────────── */
+/* ─── Сетка камер ─────────────────────────────────────────────────── */
 
-.preview-strip {
+/* Зона камер по умолчанию показывает сетку всех камер, а выбранная
+   камера разворачивается на всю зону (класс на .left-column). */
+.camera-deck {
+    flex: 1 1 auto;
     display: flex;
-    gap: 6px;
-    height: 60px;
-    flex-shrink: 0;
-    flex-grow: 0;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 240px;
+    min-width: 0;
+    padding: 8px;
+    background: var(--panel);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
     overflow: hidden;
 }
 
+.camera-deck-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.camera-deck-title {
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+}
+
+.camera-deck-note {
+    flex: 1 1 auto;
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 9px;
+    letter-spacing: 0.3px;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.camera-deck-setup { flex: 0 0 auto; }
+
+.left-column.camera-expanded .camera-deck { display: none; }
+.left-column:not(.camera-expanded) .camera-container { display: none; }
+
+/* Плитки-камеры: сетка 2–4 колонки в зависимости от ширины. */
+.preview-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    grid-auto-rows: minmax(108px, 1fr);
+    gap: 8px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    align-content: start;
+}
+
 .preview-cam {
-    flex: 1;
+    display: block;
+    width: 100%;
+    min-height: 108px;
+    padding: 0;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -57,7 +113,7 @@
     padding: 5px;
     background: #090c0f;
     color: var(--text-muted);
-    font: 700 7px var(--font-ui);
+    font: 700 9px var(--font-ui);
     letter-spacing: 0.35px;
     text-align: center;
     text-transform: uppercase;
@@ -84,7 +140,7 @@
     padding: 1px 3px;
     background: rgba(15, 19, 23, 0.86);
     border-radius: 2px;
-    font-size: 8px;
+    font-size: 10px;
     font-weight: 650;
     color: var(--text);
     letter-spacing: 0.25px;
@@ -341,12 +397,12 @@
    fixed preview/history strips must not consume the camera's entire row and
    push the process line below the clipped body. */
 @media (max-height: 600px) {
-    .preview-strip { height: 48px; }
+    .preview-strip { grid-auto-rows: minmax(84px, 1fr); }
     .camera-container { min-height: 150px; }
 }
 
 @media (max-height: 500px) {
-    .preview-strip { height: 40px; }
+    .preview-strip { grid-auto-rows: minmax(70px, 1fr); }
     .camera-container { min-height: 110px; }
 }
 

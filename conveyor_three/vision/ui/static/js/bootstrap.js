@@ -137,6 +137,8 @@ function init() {
     setupGallery();
     if (typeof setupArchiveSettings === 'function') setupArchiveSettings();
     setupCameraHover();
+    if (typeof setupCameraDeck === 'function') setupCameraDeck();
+    if (typeof setupCameraWizard === 'function') setupCameraWizard();
     setupGridToggle();
     setupViewModeControls();
     setupJogControls();

@@ -222,9 +222,9 @@ async function fetchCameras() {
 }
 
 function cameraIdSuffix(role) {
-    // Физический Camera ID («CAM <номер>») не показывается в названии
-    // камеры ни в превью, ни в главном окне.
-    return '';
+    // В сетке оператор видит, какое физическое устройство стоит за ролью.
+    const cameraId = state.cameraIds ? state.cameraIds[role] : undefined;
+    return Number.isInteger(cameraId) ? ` \u00b7 ID ${cameraId}` : '';
 }
 
 function renderPreviewStrip() {
@@ -237,7 +237,10 @@ function renderPreviewStrip() {
         </div>
     `).join('');
     els.previewStrip.querySelectorAll('.preview-cam').forEach(el => {
-        el.addEventListener('click', () => selectCamera(el.dataset.role));
+        el.addEventListener('click', () => {
+            selectCamera(el.dataset.role);
+            expandCameraDeck(el.dataset.role);
+        });
     });
     // Первичная загрузка превью сразу после построения списка камер:
     // тот же защищённый механизм, что и плановое обновление.
@@ -259,6 +262,39 @@ function selectCamera(role) {
     if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
     applyMainCameraSource();
     requestImmediateStatus();
+}
+
+// ─── Сетка камер: разворот и сворачивание ─────────────────────
+
+function cameraDeckColumn() {
+    return document.querySelector('.left-column');
+}
+
+function cameraDeckExpanded() {
+    const column = cameraDeckColumn();
+    return !!column && column.classList.contains('camera-expanded');
+}
+
+function expandCameraDeck(role) {
+    const column = cameraDeckColumn();
+    if (!column) return;
+    column.classList.add('camera-expanded');
+    if (role) applyMainCameraSource();
+}
+
+function collapseCameraDeck() {
+    const column = cameraDeckColumn();
+    if (!column) return;
+    column.classList.remove('camera-expanded');
+}
+
+function setupCameraDeck() {
+    // Повторный клик по развёрнутой камере возвращает сетку.
+    if (els.mainCamera) {
+        els.mainCamera.addEventListener('click', () => collapseCameraDeck());
+    }
+    const button = document.getElementById('camera-collapse');
+    if (button) button.addEventListener('click', () => collapseCameraDeck());
 }
 
 function navigateCamera(direction) {

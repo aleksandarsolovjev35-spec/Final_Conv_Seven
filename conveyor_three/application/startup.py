@@ -194,6 +194,7 @@ class SystemInitializer:
         # Публикуем ресурс сразу: shutdown сможет освободить камеры даже если
         # следующий UI-вызов завершится ошибкой.
         self.runtime.cameras = cameras
+        self.monitor.camera_manager = cameras
         self.monitor.set_camera_roles(cameras.mapping)
         return cameras
 

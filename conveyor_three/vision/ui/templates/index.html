@@ -7,7 +7,7 @@
     <title>Роботехнический комплекс конвейерного типа 3</title>
     <link rel="stylesheet" href="/static/css/base.css?v=37">
     <link rel="stylesheet" href="/static/css/blocks.css?v=29">
-    <link rel="stylesheet" href="/static/css/camera.css?v=42">
+    <link rel="stylesheet" href="/static/css/camera.css?v=43">
     <link rel="stylesheet" href="/static/css/axis.css?v=33">
     <link rel="stylesheet" href="/static/css/history-strip.css?v=47">
     <link rel="stylesheet" href="/static/css/stats.css?v=52">
@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="/static/css/thresholds.css?v=24">
     <link rel="stylesheet" href="/static/css/archive.css?v=6">
     <link rel="stylesheet" href="/static/css/panel-deck.css?v=8">
+    <link rel="stylesheet" href="/static/css/camera-wizard.css?v=1">
 </head>
 <body>
 
@@ -45,8 +46,21 @@
 
         <main class="body">
             <section class="left-column">
-                <div id="preview-strip" class="preview-strip" data-ui-block="preview-strip"></div>
+                <!-- Сетка всех подключённых камер: при старте видна
+                     целиком, клик по плитке разворачивает камеру на всю
+                     зону, повторный клик возвращает сетку. -->
+                <section id="camera-deck" class="camera-deck" data-ui-block="camera-deck">
+                    <div class="camera-deck-head">
+                        <span class="camera-deck-title">КАМЕРЫ</span>
+                        <span class="camera-deck-note">нажмите на камеру, чтобы открыть</span>
+                        <button id="camera-setup" class="btn btn-sm camera-deck-setup" type="button"
+                                title="Назначение ролей камерам">НАСТРОЙКИ КАМЕР</button>
+                    </div>
+                    <div id="preview-strip" class="preview-strip" data-ui-block="preview-strip"></div>
+                </section>
                 <div class="camera-container" data-ui-block="main-camera">
+                    <button id="camera-collapse" class="btn btn-overlay btn-grid camera-collapse" type="button"
+                            title="Вернуться к сетке камер">&#8592; ВСЕ КАМЕРЫ</button>
                     <div class="camera-label" id="camera-label">—</div>
                     <div class="mode-badge is-faded" id="mode-badge" aria-live="polite"></div>
                     <img id="main-camera" class="main-camera" alt="Камера">
@@ -391,11 +405,38 @@
     <script src="/static/js/status.js?v=63"></script>
     <script src="/static/js/controls.js?v=39"></script>
     <script src="/static/js/thresholds.js?v=20"></script>
-    <script src="/static/js/cameras.js?v=43"></script>
+    <script src="/static/js/cameras.js?v=44"></script>
     <script src="/static/js/jog.js?v=36"></script>
     <script src="/static/js/history.js?v=37"></script>
     <script src="/static/js/archive.js?v=2"></script>
     <script src="/static/js/panel-deck.js?v=3"></script>
-    <script src="/static/js/bootstrap.js?v=36"></script>
+
+    <!-- Мастер назначения физических камер ролям линии. Открывается
+         кнопкой «НАСТРОЙКИ КАМЕР» и при первом запуске без привязки. -->
+    <div id="camera-wizard" class="camera-wizard is-hidden" data-ui-block="camera-wizard">
+        <div class="camera-wizard-dialog" role="dialog" aria-modal="true" aria-labelledby="camera-wizard-title">
+            <header class="camera-wizard-head">
+                <h2 id="camera-wizard-title" class="camera-wizard-title">НАЗНАЧЕНИЕ КАМЕР</h2>
+                <span id="camera-wizard-state" class="camera-wizard-state">СКАНИРОВАНИЕ…</span>
+                <button id="camera-wizard-close" class="btn btn-sm" type="button">ЗАКРЫТЬ</button>
+            </header>
+            <div class="camera-wizard-body">
+                <section class="camera-wizard-col">
+                    <h3 class="camera-wizard-subtitle">ПОДКЛЮЧЁННЫЕ КАМЕРЫ</h3>
+                    <div id="camera-wizard-devices" class="camera-wizard-devices"></div>
+                </section>
+                <section class="camera-wizard-col">
+                    <h3 class="camera-wizard-subtitle">РОЛИ ЛИНИИ</h3>
+                    <div id="camera-wizard-roles" class="camera-wizard-roles"></div>
+                </section>
+            </div>
+            <footer class="camera-wizard-actions">
+                <button id="camera-wizard-scan" class="btn btn-sm" type="button">СКАНИРОВАТЬ ЗАНОВО</button>
+                <button id="camera-wizard-save" class="btn btn-sm btn-accent" type="button" disabled>СОХРАНИТЬ</button>
+            </footer>
+        </div>
+    </div>
+    <script src="/static/js/camera-wizard.js?v=1"></script>
+    <script src="/static/js/bootstrap.js?v=37"></script>
 </body>
 </html>

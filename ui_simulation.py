@@ -797,6 +797,40 @@ def main() -> None:
     server.set_camera_roles({
         role: index for index, role in enumerate(CAMERA_ORDER)
     })
+    # Мастер назначения камер: физических USB-устройств в симуляторе нет,
+    # поэтому «скан» возвращает те же виртуальные камеры, что и на линии,
+    # а сохранение привязки меняет только состояние симуляции.
+    def _simulate_scan(limit: int = 8) -> list:
+        return [
+            {
+                "index": index,
+                "ok": True,
+                "width": FRAME_WIDTH,
+                "height": FRAME_HEIGHT,
+                "error": None,
+            }
+            for index in range(min(int(limit), len(CAMERA_ORDER)))
+        ]
+
+    def _simulate_device_frame(index: int):
+        if not 0 <= int(index) < len(CAMERA_ORDER):
+            return None
+        frame = server.frames.get(CAMERA_ORDER[int(index)])
+        if frame is None:
+            return None
+        ok, buffer = cv2.imencode(".jpg", frame)
+        return buffer.tobytes() if ok else None
+
+    def _simulate_save_mapping(mapping) -> dict:
+        validated = {
+            role: int(mapping[role]) for role in CAMERA_ORDER
+        }
+        server.set_camera_roles(validated)
+        return {"saved": True, "applied": False, "mapping": validated}
+
+    server.scan_camera_devices = _simulate_scan
+    server.camera_device_frame = _simulate_device_frame
+    server.save_camera_mapping = _simulate_save_mapping
     server.set_active_camera_role(CAMERA_ORDER[0])
     for key, _ in server.BOOT_STEPS:
         server.boot_step_done(key, "Симулятор UI готов")
