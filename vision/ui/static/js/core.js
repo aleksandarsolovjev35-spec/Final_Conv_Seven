@@ -164,8 +164,7 @@ const els = {
     analyzeSelectedFrame: $('analyze-selected-frame'),
     cameraContainer:  null,
 
-    dist1Blade:       $('dist1-blade'),
-    dist2Blade:       $('dist2-blade'),
+    distBlade:        $('dist-blade'),
     distributorDiagnostics: $('distributor-diagnostics'),
     controlError:      $('control-error'),
 
