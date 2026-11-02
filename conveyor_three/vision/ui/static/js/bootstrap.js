@@ -143,7 +143,6 @@ function init() {
     setupGridToggle();
     setupViewModeControls();
     setupJogControls();
-    setupDistributorDiagnostics();
     setupSelectedFrameAnalysis();
     setupThresholdsControls();
 

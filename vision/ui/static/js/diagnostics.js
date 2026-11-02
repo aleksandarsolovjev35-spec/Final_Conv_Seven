@@ -5,49 +5,6 @@ function disableSelectedAnalysisButton() {
     if (els.analyzeSelectedFrame) els.analyzeSelectedFrame.disabled = true;
 }
 
-function updateDistributorDiagnosticControls(ls) {
-    if (!els.distributorDiagnostics) return;
-    const allowed = ls.diagnostic_allowed === true && (!ls.controls || ls.controls.distributor_diagnostic === true) && !state.offline;
-    state.distributorDiagnosticBackendBusy = ls.diagnostic_busy === true;
-    const busy = state.distributorDiagnosticBackendBusy || state.distributorDiagnosticPending;
-    els.distributorDiagnostics.querySelectorAll('button').forEach(button => {
-        button.disabled = !allowed || busy;
-        button.classList.toggle('pending', busy);
-    });
-}
-
-function setupDistributorDiagnostics() {
-    if (!els.distributorDiagnostics) return;
-    els.distributorDiagnostics.querySelectorAll('button').forEach(button => {
-        button.addEventListener('click', async () => {
-            if (button.disabled || state.distributorDiagnosticPending) return;
-            const command = button.dataset.distributorCommand;
-            if (!command) return;
-            state.distributorDiagnosticPending = true;
-            startStatusPolling();
-            updateViewModeControls();
-            state.backendControls = {
-                ...state.backendControls,
-                start: false, exit: false, jog_hold: false,
-                distributor_diagnostic: false, camera_diagnostic: false, vision_rule_diagnostic: false,
-            };
-            applyButtonsForState(state.lineState, state.serverExitRequested, state.backendControls);
-            if (els.jogPanel) els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(b => { b.disabled = true; });
-            disableSelectedAnalysisButton();
-            updateDistributorDiagnosticControls({diagnostic_allowed: false, diagnostic_busy: true});
-            try {
-                clearControlError();
-                await apiPost(`/api/distributor/diagnostic/${command}`, true);
-            } finally {
-                state.distributorDiagnosticPending = false;
-                startStatusPolling();
-                updateViewModeControls();
-                requestImmediateStatus();
-            }
-        });
-    });
-}
-
 function updateSelectedAnalysisStatus(ls) {
     if (!els.analyzeSelectedFrame) return;
     const selected = ls.selected_analysis || {};
@@ -70,7 +27,6 @@ function updateSelectedAnalysisStatus(ls) {
     }
     const selectedActive = state.selectedAnalysisActive && JOG_ALLOWED_STATES.includes(state.lineState);
     if (els.statsSummary) els.statsSummary.classList.toggle('is-collapsed', selectedActive);
-    if (els.distributorDiagnostics) els.distributorDiagnostics.classList.toggle('is-collapsed', selectedActive);
 
     const live = ls.live || {};
     state.liveFps = Number(live.fps || (ls.jog || {}).live_fps || 0);
@@ -190,7 +146,6 @@ function setupSelectedFrameAnalysis() {
             camera_diagnostic: false, vision_rule_diagnostic: false, selected_model_analysis: false,
         };
         applyButtonsForState(state.lineState, state.serverExitRequested, state.backendControls);
-        if (els.distributorDiagnostics) els.distributorDiagnostics.querySelectorAll('button').forEach(b => { b.disabled = true; });
         if (els.jogPanel) {
             els.jogPanel.classList.add('is-collapsed');
             els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(b => { b.disabled = true; });

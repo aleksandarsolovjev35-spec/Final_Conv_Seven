@@ -173,12 +173,6 @@
 
 /* ─── Лицо «ПРОИЗВОДСТВО» ─────────────────────────────────────── */
 
-/* Распределитель без кнопок диагностики. */
-/* В работе ручное управление распределителем недоступно. */
-.stats-panel[data-face="production"] .blade-hit {
-    display: none;
-}
-
 /* Пороги правил видны только на остановленной линии. */
 .stats-panel[data-face="production"] #thresholds-panel {
     display: none;
@@ -218,7 +212,6 @@
 }
 
 .stats-panel[data-face="fault"] .stats-summary,
-.stats-panel[data-face="fault"] .distributor-panel,
 .stats-panel[data-face="fault"] .thresholds-panel,
 .stats-panel[data-face="fault"] .line-settings,
 .stats-panel[data-face="fault"] .jog-deck {

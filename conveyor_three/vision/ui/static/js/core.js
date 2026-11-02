@@ -93,8 +93,6 @@ const state = {
     jogHeartbeatBusy:    false,
     jogReleasePending:   false,
     jogStartPromise:     null,
-    distributorDiagnosticPending: false,
-    distributorDiagnosticBackendBusy: false,
 
     selectedAnalysisActive: false,
     // Выход из анализа кадра отправлен: интерфейс уже вернулся в live.
@@ -167,9 +165,6 @@ const els = {
     analyzeSelectedFrame: $('analyze-selected-frame'),
     cameraContainer:  null,
 
-    dist1Blade:       $('dist1-blade'),
-    dist2Blade:       $('dist2-blade'),
-    distributorDiagnostics: $('distributor-diagnostics'),
     controlError:      $('control-error'),
 
     statsSummary:         $('stats-summary'),
@@ -428,7 +423,7 @@ async function sendActiveCameraIfChanged(role) {
 
 function getStatusInterval() {
     const s = state.lineState;
-    if (state.controlPending || state.distributorDiagnosticPending || state.distributorDiagnosticBackendBusy) return STATUS_INTERVAL_MOTION;
+    if (state.controlPending) return STATUS_INTERVAL_MOTION;
     if (s === 'RUNNING' || s === 'PAUSED' || s === 'STOPPING') return STATUS_INTERVAL_FAST;
     if (state.serverExitRequested) return STATUS_INTERVAL_FAST;
     if (state.jogActive) return STATUS_INTERVAL_FAST;

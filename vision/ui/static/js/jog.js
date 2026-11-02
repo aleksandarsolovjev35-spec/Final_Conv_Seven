@@ -38,8 +38,6 @@ function updateJogState(jog) {
             btn.disabled = (
                 !state.jogActive
                 || state.backendControls.jog_hold !== true
-                || state.distributorDiagnosticBackendBusy
-                || state.distributorDiagnosticPending
                 || (state.jogBusy && !sameDirection)
             );
             btn.classList.toggle(
@@ -179,8 +177,6 @@ async function beginJogHold(direction, btn) {
         || state.jogBusy
         || state.offline
         || state.backendControls.jog_hold !== true
-        || state.distributorDiagnosticPending
-        || state.distributorDiagnosticBackendBusy
     ) return;
     if (direction !== '+' && direction !== '-') return;
     if (state.jogHoldDirection) return;
@@ -200,11 +196,6 @@ async function beginJogHold(direction, btn) {
         state.serverExitRequested,
         state.backendControls,
     );
-    if (els.distributorDiagnostics) {
-        els.distributorDiagnostics.querySelectorAll('button').forEach(
-            diagnosticButton => { diagnosticButton.disabled = true; }
-        );
-    }
     disableSelectedAnalysisButton();
     btn.classList.add('jog-active');
     clearControlError();
@@ -305,8 +296,6 @@ function clearJogHoldLocalState() {
             btn.disabled = (
                 !state.jogActive
                 || state.backendControls.jog_hold !== true
-                || state.distributorDiagnosticBackendBusy
-                || state.distributorDiagnosticPending
             );
         });
     }

@@ -14,8 +14,7 @@
     justify-content: space-between;
     gap: 12px;
 }
-.process-line-title,
-.distributor-title {
+.process-line-title {
     color: var(--text-dim);
     font-size: 9px;
     font-weight: 700;
@@ -81,187 +80,6 @@
     font-weight: 700;
 }
 
-/* ─── Persistent distributor panel in right column ──────────────
-   Вся панель — единый блок-индикатор маршрута детали: она целиком
-   заливается полупрозрачным цветом того канала, куда сейчас уходит
-   деталь (годное/брак/зачистка). Карточки DIST1/DIST2 внутри остаются
-   тёмными и читаемыми. */
-.distributor-panel {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 7px 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    transition:
-        background-color var(--t-slow) var(--ease),
-        border-color var(--t-slow) var(--ease);
-}
-
-/* Маршрут распределителя: заливка панели показывает текущий маршрут
-   детали на +7 (или положение заслонок, если детали нет). При переходе
-   в route-good/bad/cleanup цвет панели сменяется автоматически. */
-.distributor-panel.route-good { background: var(--ok-fill); border-color: var(--ok); }
-.distributor-panel.route-bad { background: var(--bad-fill); border-color: var(--bad); }
-.distributor-panel.route-cleanup { background: var(--warn-fill); border-color: var(--warn); }
-.distributor-head { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; position: relative; }
-.distributor-panel.route-good .distributor-title { color: var(--ok); }
-.distributor-panel.route-bad .distributor-title { color: var(--bad); }
-.distributor-panel.route-cleanup .distributor-title { color: var(--warn); }
-.blade-card {
-    display: flex;
-    flex-direction: column;
-    /* Полупрозрачная тёмная подложка: заливка панели просвечивает
-       сквозь карточку, а ползунок остаётся контрастным. Высота
-       определяется содержимым, поэтому карточки одинаковы и на
-       остановке, и во время работы. */
-    background: rgba(15, 19, 23, 0.62);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 6px;
-}
-.blade-track {
-    position: relative;
-    align-self: stretch;
-    flex: 0 0 8px;
-    height: 8px;
-    margin: 6px;
-    background: var(--bg-2);
-    border: 1px solid var(--border-strong);
-    border-radius: 999px;
-}
-
-/* Подписи концов ползунка: левый край — первое положение, правый —
-   второе. Строка всегда видна (и на остановке, и во время работы),
-   поэтому блок распределителя выглядит одинаково в любом состоянии. */
-.blade-track-labels {
-    display: flex;
-    flex: 0 0 10px;
-    align-items: center;
-    justify-content: space-between;
-    margin: 0 7px 2px;
-    padding: 0;
-    color: var(--text-dim);
-    font: 700 8px var(--font-ui);
-    letter-spacing: 0.4px;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-
-.blade-marker {
-    position: absolute;
-    top: 50%;
-    left: 0;
-    width: 12px;
-    height: 14px;
-    border-radius: 2px;
-    transform: translate(-50%, -50%);
-    will-change: left;
-    transition: left 100ms linear;
-    box-shadow: none;
-    /* Оба ползунка одного цвета: маршрут детали показывает заливка всей
-       панели, а не раскраска маркеров. */
-    color: var(--accent);
-    background: var(--accent);
-}
-/* Круговой индикатор распределителя вместо линейного рельса: круг со
-   шкалой от «11 часов» до «13 часов» и стрелка, которая ходит между
-   крайними положениями по координате оси. */
-.blade-dial {
-    position: relative;
-    align-self: center;
-    width: 56px;
-    height: 35px;
-    margin: 6px 0 2px;
-}
-.blade-dial-face {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    fill: none;
-    stroke: var(--border-strong);
-    stroke-width: 1.6;
-}
-.blade-dial-range {
-    stroke: var(--border);
-    stroke-width: 1;
-}
-/* Вертикальные упоры по бокам: в крайних положениях кончик стрелки
-   ровно касается упора (координаты посчитаны под ход ±30°). */
-.blade-dial-stop {
-    stroke: var(--border-strong);
-    stroke-width: 1.5;
-    stroke-linecap: round;
-}
-/* Стрелка-треугольник вращается вокруг своего основания — центра круга. */
-.blade-needle {
-    position: absolute;
-    left: 50%;
-    bottom: 7px;
-    width: 0;
-    height: 0;
-    margin-left: -4px;
-    border-right: 4px solid transparent;
-    border-bottom: 22px solid var(--accent);
-    border-left: 4px solid transparent;
-    transform: rotate(-30deg);
-    transform-origin: 50% 100%;
-    transition: transform 100ms linear;
-    will-change: transform;
-}
-/* Ступица в центре круга: кликов не перехватывает. */
-.blade-dial::after {
-    content: "";
-    position: absolute;
-    bottom: 4px;
-    left: 50%;
-    width: 6px;
-    height: 6px;
-    margin-left: -3px;
-    border-radius: 50%;
-    background: var(--accent);
-    pointer-events: none;
-}
-
-/* Два индикатора стоят рядом; отдельных кнопок нет — команда
-   отправляется нажатием на половину круга: левая половина — первое
-   положение, правая — второе. */
-.distributor-dials {
-    display: flex;
-    gap: 8px;
-}
-.distributor-dials .blade-card {
-    flex: 1 1 0;
-    min-width: 0;
-}
-.blade-hit {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 50%;
-    padding: 0;
-    background: none;
-    border: 0;
-    border-radius: 50%;
-    cursor: pointer;
-    transition: background 120ms var(--ease);
-}
-.blade-hit.is-first {
-    left: 0;
-}
-.blade-hit.is-second {
-    right: 0;
-}
-.blade-hit:hover:not(:disabled) {
-    background: radial-gradient(circle,
-        rgba(255, 255, 255, 0.08),
-        rgba(255, 255, 255, 0) 72%);
-}
-.blade-hit:disabled {
-    cursor: default;
-}
-
 .diagnostic-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -290,7 +108,7 @@
     padding-bottom: 0;
 }
 /* Внутренняя рамка вокруг кнопок ручного хода: кнопки собраны в
-   отдельный блок внутри карточки (как blade-card у распределителя). */
+   отдельный блок внутри карточки. */
 .jog-panel-embedded .jog-dpad {
     padding: 5px 6px;
     background: var(--bg-1);
@@ -343,7 +161,6 @@
     align-content: flex-start;
 }
 .stats-summary,
-.distributor-panel,
 .thresholds-panel,
 .jog-panel.jog-panel-embedded {
     flex: 0 0 auto;
@@ -367,14 +184,12 @@
    Все надписи блоков выровнены по центру вертикали (flex center)
    с одинаковым min-height, чтобы визуально стояли на одном уровне. */
 .process-line-head,
-.distributor-head,
 .thresholds-head,
 .jog-header,
 .history {
     min-height: 16px;
 }
 .process-line-title,
-.distributor-title,
 .history-title,
 .process-phase-title,
 .thresholds-title,

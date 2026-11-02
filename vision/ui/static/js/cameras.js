@@ -82,8 +82,6 @@ function viewModeAllowed() {
         && !state.offline
         && !state.modePending
         && !state.jogBusy
-        && !state.distributorDiagnosticPending
-        && !state.distributorDiagnosticBackendBusy
         && !state.selectedAnalysisPending
     );
 }

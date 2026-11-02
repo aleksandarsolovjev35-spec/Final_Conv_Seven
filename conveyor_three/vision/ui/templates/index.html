@@ -6,19 +6,19 @@
     <meta charset="UTF-8">
     <title>Роботехнический комплекс конвейерного типа 3</title>
     <link rel="stylesheet" href="/static/css/base.css?v=37">
-    <link rel="stylesheet" href="/static/css/blocks.css?v=29">
+    <link rel="stylesheet" href="/static/css/blocks.css?v=30">
     <link rel="stylesheet" href="/static/css/camera.css?v=43">
     <link rel="stylesheet" href="/static/css/axis.css?v=33">
     <link rel="stylesheet" href="/static/css/history-strip.css?v=47">
-    <link rel="stylesheet" href="/static/css/stats.css?v=52">
+    <link rel="stylesheet" href="/static/css/stats.css?v=53">
     <link rel="stylesheet" href="/static/css/jog.css?v=36">
     <link rel="stylesheet" href="/static/css/controls.css?v=46">
     <link rel="stylesheet" href="/static/css/gallery.css?v=34">
-    <link rel="stylesheet" href="/static/css/process.css?v=61">
-    <link rel="stylesheet" href="/static/css/motion.css?v=41">
-    <link rel="stylesheet" href="/static/css/thresholds.css?v=24">
+    <link rel="stylesheet" href="/static/css/process.css?v=62">
+    <link rel="stylesheet" href="/static/css/motion.css?v=42">
+    <link rel="stylesheet" href="/static/css/thresholds.css?v=25">
     <link rel="stylesheet" href="/static/css/archive.css?v=6">
-    <link rel="stylesheet" href="/static/css/panel-deck.css?v=32">
+    <link rel="stylesheet" href="/static/css/panel-deck.css?v=33">
     <link rel="stylesheet" href="/static/css/camera-wizard.css?v=1">
 </head>
 <body>
@@ -208,64 +208,6 @@
                     </div>
                 </section>
 
-                <section id="distributor-diagnostics" class="distributor-panel ui-collapse" data-ui-block="distributor">
-                    <div class="distributor-head">
-                        <span class="distributor-title">РАСПРЕДЕЛИТЕЛЬ</span>
-                    </div>
-                    <div class="distributor-dials">
-                        <div class="blade-card">
-                            <div class="blade-dial">
-                                <svg class="blade-dial-face" viewBox="0 0 64 40"
-                                     aria-hidden="true">
-                                    <path class="blade-dial-range"
-                                          d="M17,6 A30,30 0 0 1 47,6"></path>
-                                    <path class="blade-dial-stop"
-                                          d="M19.4,3 L19.4,32"></path>
-                                    <path class="blade-dial-stop"
-                                          d="M44.6,3 L44.6,32"></path>
-                                </svg>
-                                <div id="dist1-blade" class="blade-needle"></div>
-                                <!-- Клик по половине индикатора — команда положения. -->
-                                <button class="blade-hit is-first" type="button"
-                                        data-distributor-command="DIST1_HOME"
-                                        aria-label="ГОДНО" disabled></button>
-                                <button class="blade-hit is-second" type="button"
-                                        data-distributor-command="DIST1_OPEN"
-                                        aria-label="БРАК" disabled></button>
-                            </div>
-                            <div class="blade-track-labels" aria-hidden="true">
-                                <span>ГОДНО</span>
-                                <span>БРАК</span>
-                            </div>
-                        </div>
-                        <div class="blade-card">
-                            <div class="blade-dial">
-                                <svg class="blade-dial-face" viewBox="0 0 64 40"
-                                     aria-hidden="true">
-                                    <path class="blade-dial-range"
-                                          d="M17,6 A30,30 0 0 1 47,6"></path>
-                                    <path class="blade-dial-stop"
-                                          d="M19.4,3 L19.4,32"></path>
-                                    <path class="blade-dial-stop"
-                                          d="M44.6,3 L44.6,32"></path>
-                                </svg>
-                                <div id="dist2-blade" class="blade-needle"></div>
-                                <!-- Клик по половине индикатора — команда положения. -->
-                                <button class="blade-hit is-first" type="button"
-                                        data-distributor-command="DIST2_BAD"
-                                        aria-label="БРАК" disabled></button>
-                                <button class="blade-hit is-second" type="button"
-                                        data-distributor-command="DIST2_CLEANUP"
-                                        aria-label="ЗАЧИСТКА" disabled></button>
-                            </div>
-                            <div class="blade-track-labels" aria-hidden="true">
-                                <span>БРАК</span>
-                                <span>ЗАЧИСТКА</span>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
                 <!-- Пороги правил выбранной (главной) камеры: над кнопками
                      ручного управления лентой. Высота блока фиксирована —
                      правая колонка HMI не прокручивается. Каждое правило —
@@ -433,14 +375,14 @@
         </div>
     </div>
 
-    <script src="/static/js/core.js?v=64"></script>
+    <script src="/static/js/core.js?v=65"></script>
     <script src="/static/js/boot.js?v=34"></script>
-    <script src="/static/js/diagnostics.js?v=59"></script>
-    <script src="/static/js/status.js?v=65"></script>
-    <script src="/static/js/controls.js?v=40"></script>
-    <script src="/static/js/thresholds.js?v=20"></script>
-    <script src="/static/js/cameras.js?v=47"></script>
-    <script src="/static/js/jog.js?v=36"></script>
+    <script src="/static/js/diagnostics.js?v=60"></script>
+    <script src="/static/js/status.js?v=66"></script>
+    <script src="/static/js/controls.js?v=41"></script>
+    <script src="/static/js/thresholds.js?v=21"></script>
+    <script src="/static/js/cameras.js?v=48"></script>
+    <script src="/static/js/jog.js?v=37"></script>
     <script src="/static/js/history.js?v=37"></script>
     <script src="/static/js/archive.js?v=2"></script>
     <script src="/static/js/panel-deck.js?v=6"></script>
@@ -471,6 +413,6 @@
         </div>
     </div>
     <script src="/static/js/camera-wizard.js?v=1"></script>
-    <script src="/static/js/bootstrap.js?v=39"></script>
+    <script src="/static/js/bootstrap.js?v=40"></script>
 </body>
 </html>
