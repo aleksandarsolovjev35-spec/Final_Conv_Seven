@@ -500,6 +500,66 @@ class UIServerTest(unittest.TestCase):
         response = self.client.post("/api/conveyor/speed", json={"speed": 12000})
         self.assertEqual(response.status_code, 503)
 
+    def test_api_conveyor_speed_accepts_percent(self):
+        self.server.on_conveyor_speed = mock.Mock(return_value=True)
+        response = self.client.post(
+            "/api/conveyor/speed", json={"percent": 60},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.server.on_conveyor_speed.assert_called_once_with(12000)
+
+    def test_api_conveyor_speed_accepts_absolute_step_rate(self):
+        self.server.on_conveyor_speed = mock.Mock(return_value=True)
+        response = self.client.post(
+            "/api/conveyor/speed", json={"speed": 18000, "percent": 90},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.server.on_conveyor_speed.assert_called_once_with(18000)
+
+    def test_api_conveyor_speed_rejects_out_of_range_percent(self):
+        self.server.on_conveyor_speed = mock.Mock(return_value=True)
+        for percent in (0, 24, 101):
+            with self.subTest(percent=percent):
+                response = self.client.post(
+                    "/api/conveyor/speed", json={"percent": percent},
+                )
+                self.assertEqual(response.status_code, 400)
+        self.server.on_conveyor_speed.assert_not_called()
+
+    def test_api_inspection_timings_applies_both_pauses(self):
+        self.server.on_inspection_timings = mock.Mock(return_value=True)
+        response = self.client.post(
+            "/api/inspection/timings",
+            json={"settle_time": 1.25, "review_time": 4.5},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.server.on_inspection_timings.assert_called_once_with(1.25, 4.5)
+
+    def test_api_inspection_timings_validates_ranges(self):
+        self.server.on_inspection_timings = mock.Mock(return_value=True)
+        bad_values = (
+            {"settle_time": -0.1, "review_time": 1},
+            {"settle_time": 5.1, "review_time": 1},
+            {"settle_time": 1, "review_time": -1},
+            {"settle_time": 1, "review_time": 30.1},
+            {"settle_time": True, "review_time": 1},
+            {"settle_time": "1", "review_time": 1},
+        )
+        for payload in bad_values:
+            with self.subTest(payload=payload):
+                response = self.client.post(
+                    "/api/inspection/timings", json=payload,
+                )
+                self.assertEqual(response.status_code, 400)
+        self.server.on_inspection_timings.assert_not_called()
+
+    def test_api_inspection_timings_503_without_callback(self):
+        response = self.client.post(
+            "/api/inspection/timings",
+            json={"settle_time": 0.2, "review_time": 2.0},
+        )
+        self.assertEqual(response.status_code, 503)
+
     def test_api_jog(self):
         self.server.on_jog_enter = mock.Mock(return_value=True)
         self.assertEqual(self.client.post("/api/jog/enter").status_code, 200)

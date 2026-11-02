@@ -4,7 +4,11 @@ from config.archive_config import (
     normalise_archive_config,
     save_archive_config,
 )
-from config.calibration_loader import load_calibration, DEFAULTS
+from config.calibration_loader import (
+    load_calibration,
+    save_calibration_timings,
+    DEFAULTS,
+)
 from config.camera_mapping import (
     CAMERA_MAPPING_FILE,
     REQUIRED_ROLES,
@@ -14,6 +18,7 @@ from config.camera_mapping import (
 
 __all__ = [
     "load_calibration",
+    "save_calibration_timings",
     "DEFAULTS",
     "ARCHIVE_CONFIG_FILE",
     "load_archive_config",

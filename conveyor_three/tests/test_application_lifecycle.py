@@ -3,14 +3,26 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+import json
+import os
+import tempfile
 import unittest
 
-from application.callbacks import ExitCoordinator, ThresholdCallbacks
+from application.callbacks import (
+    ExitCoordinator,
+    ThresholdCallbacks,
+    bind_cycle_callbacks,
+)
 from application.lifecycle import ProductionApplication
 from application.runtime import RuntimeState
 from application.shutdown import ShutdownManager
 from application.startup import SystemInitializer
 from application.ui import DesktopUI
+from config.calibration_loader import (
+    DEFAULTS,
+    OPTIONAL_DEFAULTS,
+    load_calibration,
+)
 from json_sender import scan_and_send_all_batches
 
 
@@ -401,6 +413,47 @@ class ApplicationStartupTest(unittest.TestCase):
             for event in events
         ))
         self.assertNotIn("boot.complete", events)
+
+
+class CycleTimingsCallbackTest(unittest.TestCase):
+    def test_cycle_timings_callback_applies_and_persists(self):
+        events = []
+        monitor = FakeMonitor(events)
+        cycle = FakeCycle(events)
+        applied = []
+        cycle.set_inspection_timings = (
+            lambda settle, review: applied.append((settle, review)) or True
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "calibration.json")
+            with open(path, "w", encoding="utf-8") as stream:
+                json.dump({**DEFAULTS, **OPTIONAL_DEFAULTS}, stream)
+            bind_cycle_callbacks(
+                monitor, cycle, lambda: None, calibration_path=path,
+            )
+            self.assertTrue(monitor.inspection_timings_callback(1.25, 6.5))
+            self.assertEqual(applied, [(1.25, 6.5)])
+            loaded = load_calibration(path)
+            self.assertEqual(loaded["settle_time"], 1.25)
+            self.assertEqual(loaded["review_time"], 6.5)
+
+    def test_cycle_timings_callback_rejected_does_not_write(self):
+        events = []
+        monitor = FakeMonitor(events)
+        cycle = FakeCycle(events)
+        cycle.set_inspection_timings = lambda settle, review: False
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "calibration.json")
+            with open(path, "w", encoding="utf-8") as stream:
+                json.dump({**DEFAULTS, **OPTIONAL_DEFAULTS}, stream)
+            bind_cycle_callbacks(
+                monitor, cycle, lambda: None, calibration_path=path,
+            )
+            self.assertFalse(monitor.inspection_timings_callback(1.25, 6.5))
+            loaded = load_calibration(path)
+            self.assertEqual(
+                loaded["settle_time"], OPTIONAL_DEFAULTS["settle_time"],
+            )
 
 
 class ThresholdCallbacksTest(unittest.TestCase):

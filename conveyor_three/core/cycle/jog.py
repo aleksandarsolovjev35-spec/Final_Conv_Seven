@@ -21,6 +21,55 @@ class CycleJogMixin:
         self._refresh_monitor()
         return True
 
+    def set_inspection_timings(
+        self,
+        settle_time: float,
+        review_time: float,
+    ) -> bool:
+        """Изменить паузы до и после инспекции из HMI.
+
+        ``settle_time`` — пауза после подтверждённой остановки ленты перед
+        захватом кадров, ``review_time`` — просмотр результата после анализа.
+        Как и скорость, паузы меняются только на остановленной линии.
+        """
+        settle = self._normalise_pause(
+            settle_time,
+            maximum=5.0,
+            label="Пауза перед инспекцией",
+        )
+        review = self._normalise_pause(
+            review_time,
+            maximum=30.0,
+            label="Пауза после инспекции",
+        )
+        if not self._operation_lock.acquire(blocking=False):
+            return False
+        try:
+            if (self.state not in ("IDLE", "STOPPED") or self.exit_requested
+                    or self._shutdown or self._selected_analysis_active
+                    or (self.jog is not None and self.jog.status.get("busy"))):
+                return False
+            self.stages.set_settle_seconds(settle)
+            self.review_seconds = review
+        finally:
+            self._operation_lock.release()
+        self._refresh_monitor()
+        return True
+
+    @staticmethod
+    def _normalise_pause(value: float, *, maximum: float, label: str) -> float:
+        if isinstance(value, bool):
+            raise ValueError(f"{label}: требуется число секунд")
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{label}: требуется число секунд") from exc
+        if not 0.0 <= seconds <= maximum:
+            raise ValueError(
+                f"{label}: допустимый диапазон 0..{maximum:g} с"
+            )
+        return round(seconds, 2)
+
     # JOG mode
 
     def can_enter_jog(self) -> bool:

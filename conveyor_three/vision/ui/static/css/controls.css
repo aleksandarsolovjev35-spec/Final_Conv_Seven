@@ -220,36 +220,218 @@
 }
 
 
-/* Скорость ленты: настройка только на остановленной линии. */
-.conveyor-speed-control {
-    padding: 12px 16px;
-    border-top: 1px solid #344155;
+/* ─── Приборный блок «Параметры линии» ─────────────────────────────
+   Компактная панель в стиле инженерного пульта: тёмная вставка, шапка
+   с состоянием доступа, трёхбуквенные коды параметров и тонкие
+   ползунки с насечками. Значение всегда рядом с подписью. */
+.line-settings {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 5px 12px 6px;
+    background:
+        linear-gradient(180deg, rgba(9, 12, 15, 0.52), rgba(24, 32, 39, 0.22));
+    border-top: 1px solid var(--border-strong);
+    border-bottom: 1px solid var(--border);
 }
 
-.conveyor-speed-control label {
+.line-settings-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+    margin-bottom: 2px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--border);
+}
+
+.line-settings-title {
+    overflow: hidden;
+    color: var(--accent);
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 1.1px;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.line-settings-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 0 auto;
+    color: var(--warn);
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.line-settings-state::before {
+    content: '';
+    width: 4px;
+    height: 4px;
+    background: currentColor;
+    border-radius: 50%;
+    box-shadow: 0 0 4px currentColor;
+}
+
+.line-settings-state[data-state="ready"] { color: var(--ok); }
+.line-settings-state[data-state="offline"] { color: var(--bad); }
+
+.line-setting {
+    display: grid;
+    grid-template-columns: 14px minmax(0, 1fr) 108px;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    min-height: 15px;
+}
+
+.line-setting-code {
+    color: var(--text-muted);
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    text-align: center;
+    text-transform: none;
+}
+
+.line-setting label {
     display: flex;
     justify-content: space-between;
-    gap: 12px;
-    font-size: 12px;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    color: var(--text-dim);
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: 0.35px;
+    text-transform: uppercase;
+    white-space: nowrap;
 }
 
-.conveyor-speed-control output {
+.line-setting output {
+    flex: 0 0 auto;
+    min-width: 0;
+    color: var(--text);
+    font-size: 9px;
     font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
 }
 
-.conveyor-speed-control input {
+/* Ползунок-«рельс»: тонкая дорожка с насечками и заливкой до текущего
+   значения, квадратный бегунок. Ширина дорожки фиксирована, чтобы
+   подписи и числа не прыгали при перетаскивании. */
+.line-setting input[type="range"] {
+    --fill: 0%;
     width: 100%;
-    margin: 12px 0 6px;
-    accent-color: #40c9b4;
+    height: 15px;
+    margin: 0;
+    padding: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
     cursor: pointer;
 }
 
-.conveyor-speed-control input:disabled {
-    opacity: .4;
-    cursor: not-allowed;
+.line-setting input[type="range"]::-webkit-slider-runnable-track {
+    height: 4px;
+    background-image:
+        repeating-linear-gradient(
+            to right,
+            rgba(15, 19, 23, 0.82) 0 1px,
+            transparent 1px 10%
+        ),
+        linear-gradient(
+            to right,
+            #40c9b4 0 var(--fill),
+            rgba(120, 153, 165, 0.24) var(--fill) 100%
+        );
+    border: 1px solid rgba(120, 153, 165, 0.20);
+    border-radius: 1px;
 }
 
-.conveyor-speed-control small {
-    font-size: 11px;
-    opacity: .65;
+.line-setting input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 9px;
+    height: 15px;
+    margin-top: -6px;
+    background: var(--bg-1);
+    border: 1px solid #40c9b4;
+    border-radius: 1px;
+    box-shadow: 0 0 0 1px rgba(9, 12, 15, 0.55);
+    transition: background-color var(--t-fast) var(--ease);
+}
+
+.line-setting input[type="range"]:hover::-webkit-slider-thumb,
+.line-setting input[type="range"]:focus-visible::-webkit-slider-thumb {
+    background: #40c9b4;
+}
+
+.line-setting input[type="range"]:focus-visible {
+    outline: none;
+}
+
+.line-setting input[type="range"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.38;
+}
+
+.line-setting input[type="range"]::-moz-range-track {
+    height: 3px;
+    background: rgba(120, 153, 165, 0.24);
+    border: 1px solid rgba(120, 153, 165, 0.20);
+    border-radius: 1px;
+}
+
+.line-setting input[type="range"]::-moz-range-progress {
+    height: 3px;
+    background: #40c9b4;
+}
+
+.line-setting input[type="range"]::-moz-range-thumb {
+    width: 9px;
+    height: 15px;
+    background: var(--bg-1);
+    border: 1px solid #40c9b4;
+    border-radius: 1px;
+}
+
+.line-settings small {
+    color: var(--text-muted);
+    font-size: 7px;
+    line-height: 1.2;
+    letter-spacing: 0.3px;
+    text-align: right;
+}
+
+/* Стандартное окно HMI — 1280×720. На низком экране убираем подсказку
+   и ещё немного сжимаем блок, чтобы настройки оставались видимыми. */
+@media (max-height: 800px) {
+    .line-settings { gap: 0; padding: 2px 12px 3px; }
+    .line-settings-head {
+        margin-bottom: 0;
+        padding-bottom: 1px;
+    }
+    .line-settings-title { font-size: 7px; line-height: 1; }
+    .line-settings-state { font-size: 6.5px; line-height: 1; }
+    .line-setting {
+        grid-template-columns: 14px minmax(0, 1fr) 106px;
+        min-height: 13px;
+    }
+    .line-setting input[type="range"] { height: 12px; }
+    .line-setting input[type="range"]::-webkit-slider-thumb {
+        height: 12px;
+        margin-top: -4px;
+    }
+    .line-settings small { display: none; }
 }

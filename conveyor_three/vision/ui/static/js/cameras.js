@@ -3,6 +3,47 @@
 // - mainBuffer sequence для избежания перекрёстных загрузок
 'use strict';
 
+// ─── Измерительная сетка на основном кадре ─────────────────────
+// Сетка рисуется CSS-слоем поверх видео: кадры, архив и разметка
+// моделей остаются чистыми. Состояние запоминается в браузере.
+
+const CAMERA_GRID_STORAGE_KEY = 'hmi.cameraGrid';
+
+function cameraGridEnabled() {
+    try {
+        const stored = localStorage.getItem(CAMERA_GRID_STORAGE_KEY);
+        return stored === null ? true : stored === '1';
+    } catch (_) {
+        return true;
+    }
+}
+
+function applyCameraGrid(enabled) {
+    const grid = document.getElementById('camera-grid');
+    const button = document.getElementById('grid-toggle');
+    if (grid) grid.classList.toggle('is-visible', enabled);
+    if (button) {
+        button.classList.toggle('is-on', enabled);
+        button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    }
+}
+
+function setCameraGrid(enabled) {
+    applyCameraGrid(enabled);
+    try {
+        localStorage.setItem(CAMERA_GRID_STORAGE_KEY, enabled ? '1' : '0');
+    } catch (_) { /* приватный режим браузера */ }
+}
+
+function setupGridToggle() {
+    const button = document.getElementById('grid-toggle');
+    applyCameraGrid(cameraGridEnabled());
+    if (!button) return;
+    button.addEventListener('click', () => {
+        setCameraGrid(!button.classList.contains('is-on'));
+    });
+}
+
 function setupCameraHover() {
     const container = els.cameraContainer;
     if (!container) return;
@@ -430,7 +471,7 @@ function refreshPreviewStrip() {
     if (state.pendingAnalysisVersion !== null) return;
 
     // Миниатюры загружаются и под splash: основной интерфейс откроется уже
-    // с декодированными кадрами всех трёх камер, а не с пустыми карточками.
+    // с декодированными кадрами всех семи камер, а не с пустыми карточками.
     els.previewStrip.querySelectorAll('.preview-cam img').forEach(requestPreviewImage);
 }
 

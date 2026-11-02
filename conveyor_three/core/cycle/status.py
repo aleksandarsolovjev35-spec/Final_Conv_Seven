@@ -240,6 +240,21 @@ class CycleStatusMixin:
         jog_snapshot = self.jog.status if self.jog is not None else {}
 
         operation_busy = self._operation_lock.locked()
+        speed_allowed = (
+            state_name in ("IDLE", "STOPPED")
+            and not sm_snap["exit_requested"] and not self._shutdown
+            and not operation_busy and not jog_snapshot.get("busy", False)
+            and not self._selected_analysis_active
+        )
+        # Проценты на ползунке HMI считаются от максимальной скорости
+        # конкретной ленты. Для production это 20000 шаг/с (25 % = 5000).
+        speed_min = int(getattr(self.conveyor, "MIN_SPEED", 5000))
+        speed_max = int(getattr(self.conveyor, "MAX_SPEED", 20000))
+        conveyor_speed = int(self.conveyor.speed)
+        speed_percent = (
+            max(0, min(100, round(conveyor_speed / speed_max * 100)))
+            if speed_max > 0 else 0
+        )
         controls, diagnostic_allowed = self._build_controls({
             "state": state_name,
             "exit_requested": sm_snap["exit_requested"],
@@ -262,13 +277,22 @@ class CycleStatusMixin:
             "cleanup": self.cleanup_count,
             "empty": self.empty_count,
             **self.distributor.status,
-            "conveyor_speed": int(self.conveyor.speed),
-            "speed_allowed": (
-                state_name in ("IDLE", "STOPPED")
-                and not sm_snap["exit_requested"] and not self._shutdown
-                and not operation_busy and not jog_snapshot.get("busy", False)
-                and not self._selected_analysis_active
-            ),
+            "conveyor_speed": conveyor_speed,
+            "conveyor_speed_percent": speed_percent,
+            "conveyor_speed_min": speed_min,
+            "conveyor_speed_max": speed_max,
+            "speed_allowed": speed_allowed,
+            "inspection_timings": {
+                "settle_time": round(
+                    float(self.stages.settle_seconds), 2,
+                ),
+                "review_time": round(
+                    float(self.review_seconds), 2,
+                ),
+                "settle_max": 5.0,
+                "review_max": 30.0,
+            },
+            "timings_allowed": speed_allowed,
             "process": dict(self._process),
             "diagnostic_allowed": diagnostic_allowed,
             "diagnostic_busy": operation_busy,
