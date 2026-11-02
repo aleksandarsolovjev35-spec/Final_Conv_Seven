@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/static/css/history-strip.css?v=47">
     <link rel="stylesheet" href="/static/css/stats.css?v=53">
     <link rel="stylesheet" href="/static/css/jog.css?v=36">
-    <link rel="stylesheet" href="/static/css/controls.css?v=47">
+    <link rel="stylesheet" href="/static/css/controls.css?v=48">
     <link rel="stylesheet" href="/static/css/gallery.css?v=34">
     <link rel="stylesheet" href="/static/css/process.css?v=61">
     <link rel="stylesheet" href="/static/css/motion.css?v=42">
@@ -246,39 +246,56 @@
                     <div class="line-settings-head">
                         <span class="line-settings-title">ПАРАМЕТРЫ ЛИНИИ</span>
                     </div>
-                    <div class="line-setting">
-                        <div class="line-setting-row">
-                            <label class="line-setting-name" for="conveyor-speed">Скорость ленты</label>
-                            <output id="conveyor-speed-value" class="line-setting-value" for="conveyor-speed">—</output>
+                    <div class="line-settings-body">
+                        <!-- Скорость ленты: спидометр. Кнопки −/+ меняют
+                             шаг 5 %, стрелка ходит по шкале. -->
+                        <div class="line-speed">
+                            <output id="conveyor-speed-value" class="line-speed-value">—</output>
+                            <div class="line-speed-row">
+                                <button id="conveyor-speed-dec" class="line-stepper-btn" type="button"
+                                        disabled aria-label="Уменьшить скорость ленты">&minus;</button>
+                                <div class="line-gauge">
+                                    <svg class="line-gauge-face" viewBox="0 0 64 36" aria-hidden="true">
+                                        <path class="line-gauge-range"
+                                              d="M8.82,23.79 A24,24 0 0 1 55.18,23.79"></path>
+                                        <path id="conveyor-speed-fill" class="line-gauge-fill"
+                                              pathLength="100"
+                                              d="M8.82,23.79 A24,24 0 0 1 55.18,23.79"></path>
+                                        <path class="line-gauge-tick" d="M11.72,24.56 L8.82,23.79"></path>
+                                        <path class="line-gauge-tick" d="M19.22,13.34 L17.39,10.96"></path>
+                                        <path class="line-gauge-tick" d="M32,9 L32,6"></path>
+                                        <path class="line-gauge-tick" d="M44.78,13.34 L46.61,10.96"></path>
+                                        <path class="line-gauge-tick" d="M52.28,24.56 L55.18,23.79"></path>
+                                    </svg>
+                                    <div id="conveyor-speed-needle" class="line-gauge-needle"></div>
+                                </div>
+                                <button id="conveyor-speed-inc" class="line-stepper-btn" type="button"
+                                        disabled aria-label="Увеличить скорость ленты">+</button>
+                            </div>
                         </div>
-                        <input id="conveyor-speed" type="range" min="25" max="100" step="5" value="90" disabled>
-                    </div>
-                    <div class="line-setting">
-                        <div class="line-setting-row">
-                            <span id="settle-time-name" class="line-setting-name">Пауза до инспекции</span>
-                        </div>
-                        <div class="line-stepper" role="group" aria-labelledby="settle-time-name">
-                            <button id="settle-time-dec" class="line-stepper-btn" type="button"
-                                    data-timing="settle_time" data-direction="-1" disabled
-                                    aria-label="Уменьшить паузу до инспекции">&minus;</button>
-                            <output id="settle-time-value" class="line-stepper-value">—</output>
-                            <button id="settle-time-inc" class="line-stepper-btn" type="button"
-                                    data-timing="settle_time" data-direction="1" disabled
-                                    aria-label="Увеличить паузу до инспекции">+</button>
-                        </div>
-                    </div>
-                    <div class="line-setting">
-                        <div class="line-setting-row">
-                            <span id="review-time-name" class="line-setting-name">Пауза после инспекции</span>
-                        </div>
-                        <div class="line-stepper" role="group" aria-labelledby="review-time-name">
-                            <button id="review-time-dec" class="line-stepper-btn" type="button"
-                                    data-timing="review_time" data-direction="-1" disabled
-                                    aria-label="Уменьшить паузу после инспекции">&minus;</button>
-                            <output id="review-time-value" class="line-stepper-value">—</output>
-                            <button id="review-time-inc" class="line-stepper-btn" type="button"
-                                    data-timing="review_time" data-direction="1" disabled
-                                    aria-label="Увеличить паузу после инспекции">+</button>
+                        <!-- Паузы инспекции: степперы − значение +, секунды. -->
+                        <div class="line-pauses">
+                            <span class="line-pauses-caption">Паузы инспекции, с</span>
+                            <div class="line-pause">
+                                <span id="settle-time-name" class="line-setting-name">До</span>
+                                <div class="line-stepper" role="group" aria-labelledby="settle-time-name">
+                                    <button id="settle-time-dec" class="line-stepper-btn" type="button"
+                                            disabled aria-label="Уменьшить паузу перед инспекцией">&minus;</button>
+                                    <output id="settle-time-value" class="line-stepper-value">—</output>
+                                    <button id="settle-time-inc" class="line-stepper-btn" type="button"
+                                            disabled aria-label="Увеличить паузу перед инспекцией">+</button>
+                                </div>
+                            </div>
+                            <div class="line-pause">
+                                <span id="review-time-name" class="line-setting-name">После</span>
+                                <div class="line-stepper" role="group" aria-labelledby="review-time-name">
+                                    <button id="review-time-dec" class="line-stepper-btn" type="button"
+                                            disabled aria-label="Уменьшить паузу после инспекции">&minus;</button>
+                                    <output id="review-time-value" class="line-stepper-value">—</output>
+                                    <button id="review-time-inc" class="line-stepper-btn" type="button"
+                                            disabled aria-label="Увеличить паузу после инспекции">+</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -401,7 +418,7 @@
     <script src="/static/js/boot.js?v=34"></script>
     <script src="/static/js/diagnostics.js?v=60"></script>
     <script src="/static/js/status.js?v=66"></script>
-    <script src="/static/js/controls.js?v=42"></script>
+    <script src="/static/js/controls.js?v=43"></script>
     <script src="/static/js/thresholds.js?v=21"></script>
     <script src="/static/js/cameras.js?v=49"></script>
     <script src="/static/js/jog.js?v=38"></script>

@@ -230,8 +230,8 @@
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 8px 12px 9px;
+    gap: 5px;
+    padding: 7px 10px 8px;
     background:
         linear-gradient(180deg, rgba(9, 12, 15, 0.55), rgba(24, 32, 39, 0.22));
     border-top: 1px solid var(--border-strong);
@@ -257,21 +257,6 @@
     text-overflow: ellipsis;
     text-transform: uppercase;
     white-space: nowrap;
-}
-
-.line-setting {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-
-.line-setting-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-    min-width: 0;
 }
 
 .line-setting-name {
@@ -345,73 +330,143 @@
     white-space: nowrap;
 }
 
-/* Ползунок: скруглённая тёмная дорожка с рамкой и квадратный маркер
-   акцентного цвета, который едет по ней. */
-.line-setting input[type="range"] {
+/* ─── Параметры линии: спидометр скорости и паузы инспекции ────────
+   Две колонки: слева спидометр, справа паузы. Так панель занимает
+   минимум высоты в правом столбце. */
+.line-settings-body {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.line-speed {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+}
+
+.line-speed-row {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.line-speed .line-stepper-btn {
+    flex: 0 0 24px;
+}
+
+.line-speed-value {
+    color: var(--text);
+    font: 700 12px/1 var(--font-ui);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Спидометр: дуга 150° с делениями, заливка до стрелки и сама стрелка. */
+.line-gauge {
+    position: relative;
+    width: 64px;
+    height: 36px;
+}
+
+.line-gauge-face {
+    position: absolute;
+    inset: 0;
     width: 100%;
-    height: 16px;
-    margin: 0;
-    padding: 0;
-    -webkit-appearance: none;
-    appearance: none;
-    background: transparent;
-    cursor: pointer;
+    height: 100%;
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
 }
 
-/* Шкала заполненности: тёмный рельс подсвечен от начала до маркера.
-   Доля берётся из переменной --fill, которую обновляет controls.js. */
-.line-setting input[type="range"]::-webkit-slider-runnable-track {
-    height: 8px;
-    background-color: var(--bg-2);
-    background-image: linear-gradient(
-        to right,
-        rgba(120, 153, 165, 0.44) 0 var(--fill, 0%),
-        rgba(120, 153, 165, 0) var(--fill, 0%) 100%
-    );
-    border: 1px solid var(--border-strong);
-    border-radius: 999px;
+.line-gauge-range {
+    stroke: var(--border-strong);
 }
 
-.line-setting input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 12px;
-    height: 14px;
-    margin-top: -4px;
+.line-gauge-fill {
+    stroke: var(--accent);
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+}
+
+.line-gauge-tick {
+    stroke: var(--border-strong);
+    stroke-width: 1.5;
+}
+
+.line-gauge-needle {
+    position: absolute;
+    left: 50%;
+    bottom: 6px;
+    width: 0;
+    height: 0;
+    margin-left: -4px;
+    border-right: 4px solid transparent;
+    border-bottom: 20px solid var(--accent);
+    border-left: 4px solid transparent;
+    transform: rotate(-75deg);
+    transform-origin: 50% 100%;
+    transition: transform 160ms var(--ease);
+    will-change: transform;
+}
+
+.line-gauge::after {
+    content: "";
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: 50%;
     background: var(--accent);
-    border: 0;
-    border-radius: 2px;
-    transition: background-color var(--t-fast) var(--ease);
+    pointer-events: none;
 }
 
-.line-setting input[type="range"]:focus-visible {
-    outline: none;
+.line-pauses {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
 }
 
-.line-setting input[type="range"]:disabled {
-    cursor: not-allowed;
-    opacity: 0.38;
+.line-pauses-caption {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
 }
 
-.line-setting input[type="range"]::-moz-range-track {
-    height: 8px;
-    background: var(--bg-2);
-    border: 1px solid var(--border-strong);
-    border-radius: 999px;
+.line-pause {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
 }
 
-.line-setting input[type="range"]::-moz-range-progress {
-    height: 8px;
-    background: rgba(120, 153, 165, 0.44);
-    border-radius: 999px;
+.line-pause .line-setting-name {
+    flex: 0 0 42px;
 }
 
-.line-setting input[type="range"]::-moz-range-thumb {
-    width: 12px;
-    height: 14px;
-    background: var(--accent);
-    border: 0;
-    border-radius: 2px;
+.line-pause .line-stepper {
+    flex: 1 1 auto;
+    max-width: 120px;
+}
+
+.line-pause .line-stepper-btn {
+    flex: 0 0 24px;
+}
+
+.line-pause .line-stepper-value {
+    font-size: 12px;
 }
 
 /* Стандартное окно HMI — 1280×720: строки чуть плотнее, но текст
@@ -420,7 +475,6 @@
     .line-settings { gap: 5px; padding: 6px 12px 7px; }
     .line-settings-head { padding-bottom: 4px; }
     .line-settings-title { font-size: 10px; line-height: 1.1; }
-    .line-setting { gap: 2px; }
     .line-setting-name { font-size: 9.5px; }
-    .line-setting-value { font-size: 12px; }
+    .line-speed-value { font-size: 11px; }
 }

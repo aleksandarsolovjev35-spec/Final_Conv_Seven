@@ -7,9 +7,9 @@ function applyButtonsForState(lineState, exitRequested, controls = {}) {
     const offline = state.offline || lineState === 'OFFLINE';
     const pending = state.controlPending;
     const lockSettings = offline || pending || !['IDLE', 'STOPPED'].includes(lineState);
-    const speedSlider = document.getElementById('conveyor-speed');
-    if (speedSlider && lockSettings) speedSlider.disabled = true;
-    // Паузы инспекции — степпер: блокировку ведёт renderInspectionTimings().
+    // Спидометр скорости и степперы пауз: блокировку ведут их render-функции.
+    conveyorSpeedLockedByState = lockSettings;
+    renderConveyorSpeed();
     inspectionTimingsLockedByState = lockSettings;
     renderInspectionTimings();
     const startVisible = (
@@ -123,15 +123,21 @@ async function submitControl(path) {
     }
 }
 
-// ─── Скорость ленты (в процентах) ────────────────────────────
+// ─── Скорость ленты: спидометр ───────────────────────────────
+// Аппаратные пределы совпадают с hardware.conveyor.Conveyor: шкала в
+// процентах от максимальной скорости (25 % = 5000 шаг/с). Стрелка ходит
+// на ±75° от вертикали, кнопки −/+ меняют шаг 5 %.
 
-// Аппаратные пределы совпадают с hardware.conveyor.Conveyor. Ползунок
-// показывает проценты от максимальной скорости: 25 % = 5000 шаг/с.
 const CONVEYOR_SPEED_MIN = 5000;
 const CONVEYOR_SPEED_MAX = 20000;
+const CONVEYOR_SPEED_STEP = 5;
+const CONVEYOR_GAUGE_SWEEP = 75;
 
+const conveyorSpeed = {percent: 90, percentMin: 25, allowed: false};
 let conveyorSpeedPending = false;
 let conveyorSpeedEditing = false;
+let conveyorSpeedLockedByState = false;
+let conveyorSpeedCommitTimer = null;
 
 function conveyorPercentToSpeed(percent) {
     return Math.round(CONVEYOR_SPEED_MAX * Number(percent) / 100);
@@ -142,19 +148,7 @@ function conveyorSpeedToPercent(speed) {
     return Math.max(0, Math.min(100, value));
 }
 
-function updateRangeFill(slider) {
-    const min = Number(slider.min) || 0;
-    const max = Number(slider.max) || 100;
-    const value = Number(slider.value) || 0;
-    const percent = max > min
-        ? Math.max(0, Math.min(100, (value - min) / (max - min) * 100))
-        : 0;
-    slider.style.setProperty('--fill', `${percent.toFixed(1)}%`);
-}
-
 function formatConveyorSpeed(percent) {
-    // В компактной строке показываем главное — проценты. Точная скорость
-    // в шаг/с остаётся в подсказке (title) ползунка.
     return `${Math.round(percent)} %`;
 }
 
@@ -162,28 +156,92 @@ function conveyorSpeedTitle(speed) {
     return `${Math.round(speed).toLocaleString('ru-RU')} шаг/с`;
 }
 
-function updateConveyorSpeed(ls) {
-    const slider = document.getElementById('conveyor-speed');
+function conveyorSpeedLocked() {
+    return conveyorSpeedLockedByState
+        || !conveyorSpeed.allowed
+        || conveyorSpeedPending
+        || state.offline;
+}
+
+function renderConveyorSpeed() {
+    const percent = conveyorSpeed.percent;
+    const percentMin = conveyorSpeed.percentMin;
+    const span = Math.max(1, 100 - percentMin);
+    const fraction = Math.max(0, Math.min(1, (percent - percentMin) / span));
+    const sweep = -CONVEYOR_GAUGE_SWEEP + fraction * CONVEYOR_GAUGE_SWEEP * 2;
+    const needle = document.getElementById('conveyor-speed-needle');
+    const fill = document.getElementById('conveyor-speed-fill');
     const output = document.getElementById('conveyor-speed-value');
-    if (!slider || !output) return;
+    const dec = document.getElementById('conveyor-speed-dec');
+    const inc = document.getElementById('conveyor-speed-inc');
+    if (needle) needle.style.transform = `rotate(${sweep.toFixed(2)}deg)`;
+    if (fill) fill.style.strokeDashoffset = (100 - fraction * 100).toFixed(2);
+    if (output) {
+        output.textContent = formatConveyorSpeed(percent);
+        output.title = conveyorSpeedTitle(conveyorPercentToSpeed(percent));
+    }
+    const locked = conveyorSpeedLocked();
+    if (dec) dec.disabled = locked || percent <= percentMin;
+    if (inc) inc.disabled = locked || percent >= 100;
+}
+
+function updateConveyorSpeed(ls) {
     const maxSpeed = Number.isFinite(ls.conveyor_speed_max)
         ? Number(ls.conveyor_speed_max) : CONVEYOR_SPEED_MAX;
     const minSpeed = Number.isFinite(ls.conveyor_speed_min)
         ? Number(ls.conveyor_speed_min) : CONVEYOR_SPEED_MIN;
-    const percentMin = Math.max(1, Math.round(minSpeed / maxSpeed * 100));
-    slider.min = String(percentMin);
-    slider.max = '100';
-    slider.disabled = !ls.speed_allowed || state.offline || state.controlPending || conveyorSpeedPending;
-    if (conveyorSpeedEditing || conveyorSpeedPending || !Number.isFinite(ls.conveyor_speed)) return;
-    const percent = Number.isFinite(ls.conveyor_speed_percent)
-        ? Number(ls.conveyor_speed_percent)
-        : conveyorSpeedToPercent(ls.conveyor_speed);
-    slider.value = String(percent);
-    updateRangeFill(slider);
-    output.textContent = formatConveyorSpeed(percent);
-    const speedText = conveyorSpeedTitle(ls.conveyor_speed);
-    output.title = speedText;
-    slider.title = speedText;
+    conveyorSpeed.percentMin = Math.max(1, Math.round(minSpeed / maxSpeed * 100));
+    conveyorSpeed.allowed = ls.speed_allowed === true;
+    const idle = !conveyorSpeedEditing && !conveyorSpeedPending;
+    if (idle && Number.isFinite(ls.conveyor_speed)) {
+        conveyorSpeed.percent = Number.isFinite(ls.conveyor_speed_percent)
+            ? Number(ls.conveyor_speed_percent)
+            : conveyorSpeedToPercent(ls.conveyor_speed);
+    }
+    renderConveyorSpeed();
+}
+
+function stepConveyorSpeed(direction) {
+    if (conveyorSpeedLocked()) return;
+    const next = conveyorSpeed.percent + direction * CONVEYOR_SPEED_STEP;
+    conveyorSpeed.percent = Math.max(
+        conveyorSpeed.percentMin,
+        Math.min(100, next),
+    );
+    conveyorSpeedEditing = true;
+    renderConveyorSpeed();
+    clearTimeout(conveyorSpeedCommitTimer);
+    conveyorSpeedCommitTimer = setTimeout(commitConveyorSpeed, 400);
+}
+
+async function commitConveyorSpeed() {
+    conveyorSpeedCommitTimer = null;
+    if (conveyorSpeedPending || conveyorSpeedLocked()) {
+        conveyorSpeedEditing = false;
+        return;
+    }
+    conveyorSpeedPending = true;
+    renderConveyorSpeed();
+    try {
+        await apiPostJson('/api/conveyor/speed', {
+            speed: conveyorPercentToSpeed(conveyorSpeed.percent),
+            percent: conveyorSpeed.percent,
+        }, true);
+    } finally {
+        conveyorSpeedPending = false;
+        conveyorSpeedEditing = false;
+        requestImmediateStatus();
+    }
+}
+
+function setupConveyorSpeedButtons() {
+    [
+        [document.getElementById('conveyor-speed-dec'), -1],
+        [document.getElementById('conveyor-speed-inc'), 1],
+    ].forEach(([button, direction]) => {
+        if (!button) return;
+        button.addEventListener('click', () => stepConveyorSpeed(direction));
+    });
 }
 
 // ─── Паузы инспекции: степпер − значение + ───────────────────
@@ -327,36 +385,7 @@ function setupInspectionTimingSteppers() {
 }
 
 function setupButtons() {
-    const speedSlider = document.getElementById('conveyor-speed');
-    if (speedSlider) {
-        speedSlider.addEventListener('input', () => {
-            conveyorSpeedEditing = true;
-            const percent = Number(speedSlider.value);
-            const output = document.getElementById('conveyor-speed-value');
-            output.textContent = formatConveyorSpeed(percent);
-            const speedText = conveyorSpeedTitle(conveyorPercentToSpeed(percent));
-            output.title = speedText;
-            speedSlider.title = speedText;
-            updateRangeFill(speedSlider);
-        });
-        speedSlider.addEventListener('change', async () => {
-            conveyorSpeedEditing = false;
-            if (speedSlider.disabled || conveyorSpeedPending || state.offline) return;
-            const percent = Number(speedSlider.value);
-            conveyorSpeedPending = true;
-            speedSlider.disabled = true;
-            try {
-                await apiPostJson('/api/conveyor/speed', {
-                    speed: conveyorPercentToSpeed(percent),
-                    percent,
-                }, true);
-            } finally {
-                conveyorSpeedPending = false;
-                requestImmediateStatus();
-            }
-        });
-    }
-
+    setupConveyorSpeedButtons();
     setupInspectionTimingSteppers();
 
     if (els.splashExit) {
