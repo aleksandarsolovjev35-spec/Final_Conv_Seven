@@ -6,8 +6,11 @@
 function applyButtonsForState(lineState, exitRequested, controls = {}) {
     const offline = state.offline || lineState === 'OFFLINE';
     const pending = state.controlPending;
-    const speedSlider = document.getElementById('conveyor-speed');
-    if (speedSlider && (offline || pending || !['IDLE', 'STOPPED'].includes(lineState))) speedSlider.disabled = true;
+    const lockSettings = offline || pending || !['IDLE', 'STOPPED'].includes(lineState);
+    ['conveyor-speed', 'settle-time', 'review-time'].forEach(id => {
+        const slider = document.getElementById(id);
+        if (slider && lockSettings) slider.disabled = true;
+    });
     const startVisible = (
         (lineState === 'IDLE' || lineState === 'STOPPED')
         && !exitRequested
@@ -123,16 +126,97 @@ async function submitControl(path) {
     }
 }
 
+// ─── Скорость ленты (в процентах) ────────────────────────────
+
+// Аппаратные пределы совпадают с hardware.conveyor.Conveyor. Ползунок
+// показывает проценты от максимальной скорости: 25 % = 5000 шаг/с.
+const CONVEYOR_SPEED_MIN = 5000;
+const CONVEYOR_SPEED_MAX = 20000;
+
 let conveyorSpeedPending = false;
 let conveyorSpeedEditing = false;
+
+function conveyorPercentToSpeed(percent) {
+    return Math.round(CONVEYOR_SPEED_MAX * Number(percent) / 100);
+}
+
+function conveyorSpeedToPercent(speed) {
+    const value = Math.round(Number(speed) / CONVEYOR_SPEED_MAX * 100);
+    return Math.max(0, Math.min(100, value));
+}
+
+function formatConveyorSpeed(percent) {
+    // В компактной строке показываем главное — проценты. Точная скорость
+    // в шаг/с остаётся в подсказке (title) ползунка.
+    return `${Math.round(percent)} %`;
+}
+
+function conveyorSpeedTitle(speed) {
+    return `${Math.round(speed).toLocaleString('ru-RU')} шаг/с`;
+}
+
 function updateConveyorSpeed(ls) {
     const slider = document.getElementById('conveyor-speed');
-    if (!slider) return;
+    const output = document.getElementById('conveyor-speed-value');
+    if (!slider || !output) return;
+    const maxSpeed = Number.isFinite(ls.conveyor_speed_max)
+        ? Number(ls.conveyor_speed_max) : CONVEYOR_SPEED_MAX;
+    const minSpeed = Number.isFinite(ls.conveyor_speed_min)
+        ? Number(ls.conveyor_speed_min) : CONVEYOR_SPEED_MIN;
+    const percentMin = Math.max(1, Math.round(minSpeed / maxSpeed * 100));
+    slider.min = String(percentMin);
+    slider.max = '100';
     slider.disabled = !ls.speed_allowed || state.offline || state.controlPending || conveyorSpeedPending;
-    if (!conveyorSpeedEditing && !conveyorSpeedPending && Number.isFinite(ls.conveyor_speed)) {
-        slider.value = ls.conveyor_speed;
-        document.getElementById('conveyor-speed-value').textContent = ls.conveyor_speed.toLocaleString('ru-RU');
-    }
+    if (conveyorSpeedEditing || conveyorSpeedPending || !Number.isFinite(ls.conveyor_speed)) return;
+    const percent = Number.isFinite(ls.conveyor_speed_percent)
+        ? Number(ls.conveyor_speed_percent)
+        : conveyorSpeedToPercent(ls.conveyor_speed);
+    slider.value = String(percent);
+    output.textContent = formatConveyorSpeed(percent);
+    const speedText = conveyorSpeedTitle(ls.conveyor_speed);
+    output.title = speedText;
+    slider.title = speedText;
+}
+
+// ─── Паузы инспекции ─────────────────────────────────────────
+
+const INSPECTION_TIMING_FIELDS = [
+    {key: 'settle_time', sliderId: 'settle-time', outputId: 'settle-time-value'},
+    {key: 'review_time', sliderId: 'review-time', outputId: 'review-time-value'},
+];
+
+let inspectionTimingsPending = false;
+const inspectionTimingEditing = {settle_time: false, review_time: false};
+
+function formatSeconds(value) {
+    return `${Number(value).toFixed(1)} с`;
+}
+
+function updateInspectionTimings(ls) {
+    const timings = ls.inspection_timings || {};
+    const allowed = ls.timings_allowed === true
+        && !state.offline && !state.controlPending && !inspectionTimingsPending;
+    INSPECTION_TIMING_FIELDS.forEach(({key, sliderId, outputId}) => {
+        const slider = document.getElementById(sliderId);
+        const output = document.getElementById(outputId);
+        if (!slider || !output) return;
+        slider.disabled = !allowed;
+        if (inspectionTimingEditing[key] || inspectionTimingsPending) return;
+        const value = Number(timings[key]);
+        if (!Number.isFinite(value)) {
+            output.textContent = '—';
+            return;
+        }
+        slider.value = String(value);
+        output.textContent = formatSeconds(value);
+    });
+}
+
+function readInspectionTimings() {
+    return {
+        settle_time: Number(document.getElementById('settle-time').value),
+        review_time: Number(document.getElementById('review-time').value),
+    };
 }
 
 function setupButtons() {
@@ -140,21 +224,59 @@ function setupButtons() {
     if (speedSlider) {
         speedSlider.addEventListener('input', () => {
             conveyorSpeedEditing = true;
-            document.getElementById('conveyor-speed-value').textContent = Number(speedSlider.value).toLocaleString('ru-RU');
+            const percent = Number(speedSlider.value);
+            const output = document.getElementById('conveyor-speed-value');
+            output.textContent = formatConveyorSpeed(percent);
+            const speedText = conveyorSpeedTitle(conveyorPercentToSpeed(percent));
+            output.title = speedText;
+            speedSlider.title = speedText;
         });
         speedSlider.addEventListener('change', async () => {
             conveyorSpeedEditing = false;
             if (speedSlider.disabled || conveyorSpeedPending || state.offline) return;
+            const percent = Number(speedSlider.value);
             conveyorSpeedPending = true;
             speedSlider.disabled = true;
             try {
-                await apiPostJson('/api/conveyor/speed', {speed: Number(speedSlider.value)}, true);
+                await apiPostJson('/api/conveyor/speed', {
+                    speed: conveyorPercentToSpeed(percent),
+                    percent,
+                }, true);
             } finally {
                 conveyorSpeedPending = false;
                 requestImmediateStatus();
             }
         });
     }
+
+    INSPECTION_TIMING_FIELDS.forEach(({key, sliderId, outputId}) => {
+        const slider = document.getElementById(sliderId);
+        const output = document.getElementById(outputId);
+        if (!slider || !output) return;
+        slider.addEventListener('input', () => {
+            inspectionTimingEditing[key] = true;
+            output.textContent = formatSeconds(slider.value);
+        });
+        slider.addEventListener('change', async () => {
+            inspectionTimingEditing[key] = false;
+            if (slider.disabled || inspectionTimingsPending || state.offline) return;
+            inspectionTimingsPending = true;
+            INSPECTION_TIMING_FIELDS.forEach(field => {
+                const el = document.getElementById(field.sliderId);
+                if (el) el.disabled = true;
+            });
+            try {
+                await apiPostJson(
+                    '/api/inspection/timings',
+                    readInspectionTimings(),
+                    true,
+                );
+            } finally {
+                inspectionTimingsPending = false;
+                requestImmediateStatus();
+            }
+        });
+    });
 
     if (els.splashExit) {
         els.splashExit.addEventListener('click', async () => {

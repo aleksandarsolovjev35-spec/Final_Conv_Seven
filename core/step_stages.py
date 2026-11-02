@@ -116,6 +116,32 @@ class StepSequencer:
             return self._stage
 
     @property
+    def settle_seconds(self) -> float:
+        """Пауза между подтверждённой остановкой и захватом кадров."""
+        with self._lock:
+            return self._settle_seconds
+
+    def set_settle_seconds(self, value: float) -> None:
+        """Изменить паузу перед инспекцией на границе шага.
+
+        Вызывается из HMI только в безопасных состояниях (IDLE/STOPPED).
+        Значение читается в ``enter_settle`` уже после остановки ленты,
+        поэтому не влияет на текущее движение.
+        """
+        if isinstance(value, bool):
+            raise ValueError("Пауза перед инспекцией должна быть числом")
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "Пауза перед инспекцией должна быть числом"
+            ) from exc
+        if not 0.0 <= seconds <= 5.0:
+            raise ValueError("Пауза перед инспекцией должна быть 0..5 с")
+        with self._lock:
+            self._settle_seconds = seconds
+
+    @property
     def static(self) -> bool:
         """True, когда камеры принадлежат inspection, а не live."""
         with self._lock:
