@@ -5,7 +5,6 @@
 
 import time
 
-from core.rule_report import build_rule_report_row, build_rule_report_rows
 from domain.part import CATEGORY_BAD, CATEGORY_CLEANUP
 
 
@@ -16,7 +15,6 @@ def make_diagnostics(
     *,
     cameras=None,
     models=None,
-    rules=None,
     updated_at=None,
     **extra,
 ) -> dict:
@@ -32,7 +30,6 @@ def make_diagnostics(
         "message": message,
         "cameras": list(cameras or []),
         "models": list(models or []),
-        "rules": list(rules or []),
         "updated_at": updated_at,
     }
     report.update(extra)
@@ -139,10 +136,6 @@ class CycleDiagnosticsMixin:
             vision_results, rule_results, model_rows = (
                 self.inspector.evaluate_all(frames)
             )
-            rule_rows = [
-                self._rule_report_row(result)
-                for result in rule_results
-            ]
             camera_rows = []
             for role, frame in frames.items():
                 height, width = frame.shape[:2]
@@ -155,16 +148,17 @@ class CycleDiagnosticsMixin:
                 })
             self._last_vision_results = vision_results
             self._last_rule_results = rule_results
-            triggered = sum(row["triggered"] for row in rule_rows)
+            triggered = sum(
+                1 for result in rule_results if result.triggered
+            )
             self._diagnostics = make_diagnostics(
                 "PASSED", "VISION_RULES",
                 (
                     f"Модели: {len(model_rows)} исправны; "
-                    f"правил: {len(rule_rows)}, сработало: {triggered}"
+                    f"правил: {len(rule_results)}, сработало: {triggered}"
                 ),
                 cameras=camera_rows,
                 models=model_rows,
-                rules=rule_rows,
                 updated_at=time.time(),
             )
             self._set_process(
@@ -202,14 +196,6 @@ class CycleDiagnosticsMixin:
             updated_at=time.time(),
         )
         self._refresh_monitor()
-
-    @staticmethod
-    def _rule_report_row(result) -> dict:
-        return build_rule_report_row(result)
-
-    @staticmethod
-    def _rule_report_rows(results, role: str | None = None) -> list:
-        return build_rule_report_rows(results, role=role)
 
     def diagnostic_analyze_selected_camera(self, role: str) -> bool:
         if not self._operation_lock.acquire(blocking=False):
@@ -285,12 +271,9 @@ class CycleDiagnosticsMixin:
                     f"Нет полного комплекта model health для камеры {role}"
                 )
 
-            rule_rows = []
+            rules_total = len(rule_results)
             if is_input and presence_result is not None:
-                rule_rows.append(self._rule_report_row(presence_result))
-            rule_rows.extend(
-                self._rule_report_row(result) for result in rule_results
-            )
+                rules_total += 1
 
             height, width = frame.shape[:2]
             camera_rows = [{
@@ -308,11 +291,10 @@ class CycleDiagnosticsMixin:
                 "PASSED", "SELECTED_MODEL",
                 (
                     f"{role}: свежий кадр; моделей {len(model_rows)}; "
-                    f"правил {len(rule_rows)}; объекты {detection_count}"
+                    f"правил {rules_total}; объекты {detection_count}"
                 ),
                 cameras=camera_rows,
                 models=model_rows,
-                rules=rule_rows,
                 updated_at=time.time(),
                 selected_role=role,
             )
@@ -346,7 +328,6 @@ class CycleDiagnosticsMixin:
             self._selected_analysis_role = None
             self._last_vision_results = {}
             self._last_rule_results = []
-            self._reset_frame_analysis()
             self._diagnostics = make_diagnostics(
                 message="Анализ кадра не выполнялся",
             )

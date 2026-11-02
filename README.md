@@ -526,11 +526,10 @@ UI использует упорядоченные классические бр
 5. `controls.js` — START/STOP/EXIT, ошибки и overlay состояния.
 6. `thresholds.js` — панель порогов, inline-редактирование и сохранение.
 7. `cameras.js` — выбор камеры, режимы МОДЕЛИ/ПРАВИЛА и обновление кадров.
-8. `frame-analysis.js` — структурные метрики по объектам и карточка анализа.
-9. `jog.js` — dead-man hold/heartbeat/release логика.
-10. `history.js` — последние детали, архивная галерея и полноэкранный просмотр.
-11. `archive.js` — выбор и проверка папки обязательного архива.
-12. `bootstrap.js` — горячие клавиши, инициализация и test-only hook.
+8. `jog.js` — dead-man hold/heartbeat/release логика.
+9. `history.js` — последние детали, архивная галерея и полноэкранный просмотр.
+10. `archive.js` — выбор и проверка папки обязательного архива.
+11. `bootstrap.js` — горячие клавиши, инициализация и test-only hook.
 
 Функции могут вызывать функции из более поздних модулей только после загрузки всех скриптов, когда `bootstrap.js` запускает UI. **Не меняйте порядок** в `vision/ui/templates/index.html`.
 
@@ -562,7 +561,7 @@ UI использует упорядоченные классические бр
 - `history-strip` — последние детали.
 - `process-phase` — панель состояния ленты.
 - `right-panel` — прокручиваемая правая колонка.
-- `cycle-stats`, `defects`, `service-stats`, `distributor`, `thresholds`, `frame-analysis`, `jog` — независимые блоки правой колонки.
+- `cycle-stats`, `defects`, `service-stats`, `distributor`, `thresholds`, `jog` — независимые блоки правой колонки.
 - `controls-footer` — кнопки ПУСК/СТОП/ВЫХОД и горячие клавиши.
 - `footer-archive` — сервисная группа футера: кнопка `АРХИВ` вынесена из основного ряда кнопок в правый край, за вертикальный разделитель.
 - `gallery` — архивная галерея детали.
@@ -688,15 +687,6 @@ core/                   ядро линии: состояние, фазы шаг
     diagnostics.py      предстартовые проверки камер, правил и DIST
     jog.py              ручной ход ленты
     status.py           снимок линии и публикация в HMI
-  rule_report/          строки и карточки отчёта по правилам для HMI
-    constants.py        подписи метрик, роли камер, детальные правила
-    row.py              сборка строки отчёта одного правила
-    cards.py            карточки замера для панели «Анализ кадра»
-    scope.py            срез результата правила до одной камеры
-    summary.py          статус, skip-итоги и строки сводки
-    thresholds.py       превышения порогов и вывод по ним
-    human_cause.py      человекочитаемые причины дефектов
-    details/            форматтеры телеметрии по каждому правилу
   state_machine.py      конечный автомат линии (потокобезопасный)
   step_stages.py        фазы шага и передача камер между live и инспекцией
   live_preview.py       живой просмотр камер и gate доступа к ним
@@ -706,7 +696,7 @@ domain/
   defect_rules/         автономные правила дефектов и маршрутизация
   geometry/             геометрические примитивы и fitting
 hardware/               COM-транспорт, лента, оси, распределитель, JOG
-inspection/             инспектор, результат, архив и карточки замеров
+inspection/             инспектор, результат, консольный лог правил и архив
 vision/                 камеры, модели, калибратор и оверлеи
 vision/overlay/         RAW- и debug-разметка кадров, общий каталог цветов (palette), рендеры по правилам
 vision/ui/server/       FastAPI backend (API, кадры, архив)
@@ -739,7 +729,7 @@ camera_check.bat        консольная диагностика камер (
 
 **Упрощено:**
 
-1. **Один кадр на стадию** — production анализирует один свежий набор кадров; `inspection/inspector.py` принимает словарь ролей, `inspection/run_report.py` собирает плоские карточки замеров для HMI.
+1. **Один кадр на стадию** — production анализирует один свежий набор кадров; `inspection/inspector.py` принимает словарь ролей, а результаты правил печатаются в консоль (`inspection/rule_log.py`).
 2. **Камеры (`vision/camera_manager.py`)** — при старте каждая роль один раз открывается обычным `cv2.VideoCapture(id)` и принимается по `isOpened()`. Перебор API и повторные открытия отсутствуют. На этапе `ready` запускается штатный live-поток: splash снимается только после первого валидного кадра всех семи ролей и предварительной загрузки миниатюр в HMI. Ошибка рабочего захвата переводит production-cycle в `FAULT`.
 3. **Архив (`inspection/part_archive.py`)** — обязательный: сохраняются `<ROLE>.jpg`, `<ROLE>_raw.jpg`, `<ROLE>_debug.jpg` и `meta.json` в `GOOD/BAD/CLEANUP/part_NNNN/`, ведутся `batch.json` и накопительный `stats.json`. Политика не настраивается: JPEG `98`, при выходе всегда создаётся ZIP Deflate, проверяется CRC и удаляется исходная папка партии.
 4. **Пороги (`domain/threshold_loader.py`)** — сохранены загрузка `thresholds.json`, секции по камерам, русские подписи, группировка для UI, фиксированные количества, ярлыки `_label.*` и проверка диапазонов. Удалены длинные описания `PARAM_DESCRIPTIONS`, часть дублей и ручная схема.
@@ -793,8 +783,6 @@ python -m pyflakes core
   JSON → сжатие) и таймаут зависшей отправки;
 - `test_application_bootstrap.py` — composition root: `bootstrap`, фабрика
   оборудования и callbacks `LiveMonitor` → `UIServer`;
-- `test_rule_report_golden.py` — снапшот строк отчёта по правилам: любое
-  изменение формата данных для HMI обязано быть осознанным;
 - `test_config_loading.py`, `test_threshold_loader.py` — валидация
   `calibration.json`, `camera_mapping.json`, `archive_config.json` и полный
   контракт `thresholds.json` (пороги, метаданные, roundtrip записи);
@@ -806,8 +794,9 @@ python -m pyflakes core
   чёрные пятна на полосе пропуска);
 - `test_hardware.py` — SerialTransport, Axis, Conveyor, Distributor,
   JogController и поиск COM-порта на фейковом serial;
-- `test_inspection.py` — Inspector, DebugRecorder, PartArchive (кадры,
-  `meta.json`, `batch.json`, статистика, ZIP) и карточки отчёта;
+- `test_inspection.py` — Inspector, DebugRecorder и PartArchive (кадры,
+  `meta.json`, `batch.json`, статистика, ZIP);
+- `test_rule_log.py` — формат консольных строк с результатами правил;
 - `test_json_sender.py` — доставка `batch.json` аналитику: локальная
   очередь, догрузка при старте, атомарная перезапись, `CLOSED`-манифест
   до отправки;

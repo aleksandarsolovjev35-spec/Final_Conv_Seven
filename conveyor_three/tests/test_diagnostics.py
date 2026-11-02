@@ -194,7 +194,6 @@ class MakeDiagnosticsTest(unittest.TestCase):
         self.assertEqual(report["status"], "NOT_RUN")
         self.assertEqual(report["cameras"], [])
         self.assertEqual(report["models"], [])
-        self.assertEqual(report["rules"], [])
         self.assertIsNone(report["updated_at"])
 
     def test_custom_values(self):
@@ -202,7 +201,6 @@ class MakeDiagnosticsTest(unittest.TestCase):
             "PASSED", "CAMERAS", "ok",
             cameras=[{"role": "TOP"}],
             models=[{"m": 1}],
-            rules=[{"r": 1}],
             updated_at=123,
             extra_field=5,
         )
@@ -272,7 +270,7 @@ class DiagnosticsMixinTest(unittest.TestCase):
         report = cycle._diagnostics
         self.assertEqual(report["kind"], "VISION_RULES")
         self.assertEqual(report["status"], "PASSED")
-        self.assertGreaterEqual(len(report["rules"]), 1)
+        self.assertGreaterEqual(len(report["models"]), 1)
 
     def test_diagnostic_check_vision_rules_failure(self):
         cycle = make_cycle(inspector=FakeInspector(fail_all=True))
@@ -294,7 +292,7 @@ class DiagnosticsMixinTest(unittest.TestCase):
         cycle = make_cycle()
         self.assertTrue(cycle.diagnostic_analyze_selected_camera("LEFT"))
         report = cycle._diagnostics
-        self.assertGreaterEqual(len(report["rules"]), 1)
+        self.assertGreaterEqual(len(report["models"]), 1)
 
     def test_analyze_unknown_role(self):
         cycle = make_cycle()
@@ -317,27 +315,6 @@ class DiagnosticsMixinTest(unittest.TestCase):
         self.assertTrue(cycle.diagnostic_release_selected_camera())
         self.assertFalse(cycle._selected_analysis_active)
         self.assertEqual(cycle._diagnostics["status"], "NOT_RUN")
-
-    def test_rule_report_row(self):
-        result = RuleResult("bottom_glass", True, details={
-            "per_role": {"MIDDLE": {"triggered": True, "reason": "glass_found"}},
-        })
-        row = make_cycle()._rule_report_row(result)
-        self.assertEqual(row["name"], "bottom_glass")
-        self.assertTrue(row["triggered"])
-
-    def test_rule_report_rows_filter_by_role(self):
-        results = [
-            RuleResult("a", False, details={
-                "per_role": {"MIDDLE": {"triggered": False}},
-            }),
-            RuleResult("b", False, details={
-                "per_role": {"LEFT": {"triggered": False}},
-            }),
-        ]
-        rows = make_cycle()._rule_report_rows(results, role="MIDDLE")
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["name"], "a")
 
     def test_prestart_not_allowed_with_jog_busy(self):
         cycle = make_cycle(jog=FakeJog(busy=True))

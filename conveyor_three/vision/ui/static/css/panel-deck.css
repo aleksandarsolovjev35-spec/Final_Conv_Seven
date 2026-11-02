@@ -68,7 +68,6 @@
 .stats-panel[data-face="fault"] .stats-summary,
 .stats-panel[data-face="fault"] .distributor-panel,
 .stats-panel[data-face="fault"] .thresholds-panel,
-.stats-panel[data-face="fault"] .frame-analysis-panel-new,
 .stats-panel[data-face="fault"] .jog-deck {
     display: none;
 }

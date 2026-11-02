@@ -109,8 +109,7 @@ function revealUi() {
             if (els.main) els.main.classList.remove('is-hidden');
             state.splashActive = false;
             applyMainCameraSource();
-            // После показа UI — сразу синхронизируем скроллы
-            if (typeof faSyncScroll === 'function') requestAnimationFrame(() => faSyncScroll());
+            // После показа UI — сразу синхронизируем скролл порогов
             if (typeof thresholdsSyncScroll === 'function') requestAnimationFrame(() => thresholdsSyncScroll());
         }, 400);
     }, 200);

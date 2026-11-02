@@ -103,34 +103,6 @@ function updateSelectedAnalysisStatus(ls) {
     }
 }
 
-// ——— выбранный кадр: pending UI ———
-
-function showPendingSelectedFrameAnalysis() {
-    // Показываем панель анализа кадра, скрываем остальные блоки правой колонки
-    const panel = els.frameAnalysisPanel || document.getElementById('frame-analysis-panel');
-    if (!panel) return;
-    panel.classList.remove('is-collapsed');
-    if (els.statsSummary) els.statsSummary.classList.add('is-collapsed');
-    if (els.distributorDiagnostics) els.distributorDiagnostics.classList.add('is-collapsed');
-
-    // Плейсхолдер в новом анализе — через основной рендер
-    const tbody = document.getElementById('fa-new-tbody');
-    if (tbody) {
-        tbody.replaceChildren();
-        const empty = document.createElement('div');
-        empty.className = 'fa-new-empty';
-        empty.textContent = 'Подготовка анализа кадра…';
-        tbody.appendChild(empty);
-    }
-    const verdictEl = document.getElementById('fa-new-verdict');
-    if (verdictEl) {
-        verdictEl.className = 'fa-new-verdict warn';
-        setIfChanged(verdictEl, 'АНАЛИЗ');
-    }
-    const ctxEl = document.getElementById('fa-new-context');
-    if (ctxEl) setIfChanged(ctxEl, 'Ожидание моделей');
-}
-
 // ——— выбранный кадр: кнопки ———
 
 function setupSelectedFrameAnalysis() {
@@ -141,7 +113,6 @@ function setupSelectedFrameAnalysis() {
         // Скрываем редактирование порогов сразу: анализируемый стоп-кадр
         // должен оставаться привязанным к уже применённым значениям.
         if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
-        if (!state.selectedAnalysisActive) showPendingSelectedFrameAnalysis();
         updateViewModeControls();
         els.analyzeSelectedFrame.disabled = true;
         state.backendControls = {
@@ -175,5 +146,4 @@ function setupSelectedFrameAnalysis() {
 // Совместимость с тестами — минимальный экспорт
 if (typeof window !== 'undefined') {
     window.updateSelectedAnalysisStatus = updateSelectedAnalysisStatus;
-    window.showPendingSelectedFrameAnalysis = showPendingSelectedFrameAnalysis;
 }

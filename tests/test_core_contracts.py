@@ -57,15 +57,6 @@ class CoreLayeringTest(unittest.TestCase):
                         )
         self.assertEqual(offenders, [], "core импортирует прикладные пакеты")
 
-    def test_rule_report_exports_resolve(self):
-        import core.rule_report as rule_report
-
-        missing = [
-            name for name in rule_report.__all__
-            if not hasattr(rule_report, name)
-        ]
-        self.assertEqual(missing, [])
-
 
 class LiveCaptureGateTest(unittest.TestCase):
     """Инспекция забирает камеры целиком и дожидается активных чтений."""
@@ -247,7 +238,7 @@ class DiagnosticsFactoryTest(unittest.TestCase):
     """Форма отчёта диагностики задаётся в одном месте."""
 
     REQUIRED = (
-        "status", "kind", "message", "cameras", "models", "rules", "updated_at",
+        "status", "kind", "message", "cameras", "models", "updated_at",
     )
 
     @staticmethod
@@ -264,7 +255,6 @@ class DiagnosticsFactoryTest(unittest.TestCase):
         self.assertIsNone(report["kind"])
         self.assertEqual(report["cameras"], [])
         self.assertEqual(report["models"], [])
-        self.assertEqual(report["rules"], [])
 
     def test_extra_fields_are_passed_through(self):
         report = self._make(
@@ -301,109 +291,3 @@ class StateMachineSnapshotTest(unittest.TestCase):
         self.assertEqual(snapshot["state"], State.STOPPING.value)
 
 
-class WindowGeometryMetricsTest(unittest.TestCase):
-    """Замеры окон: разбор телеметрии и границы допуска.
-
-    Правило может прислать значения списком, внутри ``items`` или вовсе
-    строкой от сбойного детектора — карточка замера обязана пережить всё
-    это без исключения.
-    """
-
-    @staticmethod
-    def _metrics(details):
-        from core.rule_report.details.window_geometry import (
-            window_geometry_metrics,
-        )
-
-        return window_geometry_metrics(details)
-
-    def _by_key(self, details):
-        return {item["key"]: item for item in self._metrics(details)}
-
-    def test_empty_details_produce_no_metrics(self):
-        self.assertEqual(self._metrics({}), [])
-
-    def test_min_max_checked_against_limits(self):
-        metrics = self._by_key({
-            "top_limits_px": [10, 20],
-            "top_values_px": [12, 25, 9],
-        })
-        self.assertEqual(metrics["top_px_min"]["value"], "9 px")
-        self.assertFalse(metrics["top_px_min"]["ok"])
-        self.assertEqual(metrics["top_px_max"]["value"], "25 px")
-        self.assertFalse(metrics["top_px_max"]["ok"])
-
-    def test_values_fall_back_to_items(self):
-        metrics = self._by_key({
-            "top_limits_px": [10, 20],
-            "items": [
-                {"index": 2, "top_px": 15, "valid": True},
-                {"index": 1, "top_px": 11, "valid": True},
-            ],
-        })
-        # Порядок берётся по index, а не по позиции в списке.
-        self.assertEqual(metrics["window_1_top_px"]["value"], "11 px")
-        self.assertEqual(metrics["window_2_top_px"]["value"], "15 px")
-
-    def test_window_metric_reports_full_range(self):
-        metrics = self._by_key({
-            "top_limits_px": [10, 20],
-            "top_values_px": [12],
-        })
-        self.assertEqual(metrics["window_1_top_px"]["limit"], "10-20 px")
-        self.assertTrue(metrics["window_1_top_px"]["ok"])
-
-    def test_out_of_range_window_is_marked(self):
-        metrics = self._by_key({
-            "bottom_limits_px": [5, 15],
-            "bottom_values_px": [2],
-        })
-        self.assertFalse(metrics["window_1_bottom_px"]["ok"])
-
-    def test_non_numeric_values_are_skipped(self):
-        metrics = self._by_key({
-            "top_limits_px": [10, 20],
-            "top_values_px": ["мусор", None, 15],
-        })
-        self.assertNotIn("window_1_top_px", metrics)
-        self.assertNotIn("window_2_top_px", metrics)
-        self.assertEqual(metrics["window_3_top_px"]["value"], "15 px")
-
-    def test_window_count_is_capped(self):
-        from core.rule_report.details.window_geometry import MAX_WINDOWS
-
-        details = {
-            "top_limits_px": [1, 40],
-            "items": [
-                {"index": i, "top_px": i, "valid": True}
-                for i in range(1, MAX_WINDOWS + 5)
-            ],
-        }
-        metrics = self._by_key(details)
-        self.assertIn(f"window_{MAX_WINDOWS}_top_px", metrics)
-        self.assertNotIn(f"window_{MAX_WINDOWS + 1}_top_px", metrics)
-
-    def test_out_of_tolerance_windows_are_counted(self):
-        metrics = self._by_key({
-            "items": [
-                {"index": 1, "top_px": 1, "valid": True},
-                {"index": 2, "top_px": 2, "valid": True, "top_fail": True},
-                {"index": 3, "valid": False},
-            ],
-        })
-        self.assertEqual(metrics["windows_out_of_tolerance"]["value"], "2")
-        self.assertFalse(metrics["windows_out_of_tolerance"]["ok"])
-
-    def test_missing_limits_do_not_crash(self):
-        metrics = self._by_key({
-            "top_limits_px": [],
-            "top_values_px": [12],
-            "bottom_limits_px": [None, "x"],
-            "bottom_values_px": [7],
-        })
-        self.assertIsNone(metrics["window_1_top_px"]["ok"])
-        self.assertIsNone(metrics["window_1_bottom_px"]["ok"])
-
-
-if __name__ == "__main__":
-    unittest.main()

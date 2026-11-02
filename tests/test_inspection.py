@@ -1,4 +1,4 @@
-"""Слой инспекции: Inspector, PartArchive, DebugRecorder и карточки отчёта.
+"""Слой инспекции: Inspector, PartArchive и DebugRecorder.
 
 Оборудование и нейросети заменяются дублёрами; кадры — синтетическими
 numpy-массивами. Проверяется полный путь детали: кадры -> модели ->
@@ -19,12 +19,6 @@ from inspection.debug_recorder import DebugRecorder
 from inspection.inspector import Inspector
 from inspection.part_archive import PartArchive
 from inspection.result import InspectionResult
-from inspection.run_report import (
-    InspectionReportError,
-    prepare_presence_result,
-    prepare_rule_results,
-    summarize_model_health,
-)
 
 
 def make_frame(width=64, height=48, value=128):
@@ -84,7 +78,6 @@ class InspectorTest(unittest.TestCase):
         })
         self.assertEqual(result.rule_name, "part_presence")
         self.assertTrue(result.details["empty_tray"])
-        self.assertIn("measurement_cards", result.details)
 
     def test_evaluate_presence_present(self):
         inspector, *_ = self.make_inspector()
@@ -98,7 +91,7 @@ class InspectorTest(unittest.TestCase):
         })
         self.assertFalse(result.details["empty_tray"])
 
-    def test_evaluate_rules_returns_prepared(self):
+    def test_evaluate_rules_returns_results(self):
         rule_result = RuleResult("window_geometry", True, details={
             "per_role": {"INPUT_LEFT": {"triggered": True, "found": 0}},
         })
@@ -107,7 +100,7 @@ class InspectorTest(unittest.TestCase):
             {"INPUT_LEFT": []}, roles=("INPUT_LEFT",),
         )
         self.assertEqual(len(results), 1)
-        self.assertIn("role_status", results[0].details)
+        self.assertIs(results[0], rule_result)
 
     def test_evaluate_all_empty_tray_stops_chain(self):
         inspector, *_ = self.make_inspector()
@@ -229,98 +222,6 @@ class InspectorTest(unittest.TestCase):
         inspector.inspect_input(1, 2, {
             "INPUT_LEFT": make_frame(), "INPUT_RIGHT": make_frame(),
         })  # не должно бросить исключение
-
-
-class RunReportTest(unittest.TestCase):
-    def test_summarize_model_health_filters_non_dicts(self):
-        rows = summarize_model_health([
-            {"role": "TOP", "model": "m", "ok": False, "elapsed_ms": 5.5,
-             "detections": 1, "error": "x"},
-            "garbage",
-            None,
-        ])
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["elapsed_ms"], 5.5)
-        self.assertFalse(rows[0]["ok"])
-
-    def test_prepare_presence_wrong_rule(self):
-        result = RuleResult("not_presence", False)
-        with self.assertRaisesRegex(InspectionReportError, "неверное правило"):
-            prepare_presence_result(result)
-
-    def test_prepare_presence_missing_empty_tray(self):
-        result = RuleResult("part_presence", False, details={})
-        with self.assertRaisesRegex(InspectionReportError, "empty_tray"):
-            prepare_presence_result(result)
-
-    def test_prepare_rule_results_empty(self):
-        self.assertEqual(prepare_rule_results([]), [])
-
-    def test_prepare_rule_results_duplicate_names(self):
-        with self.assertRaisesRegex(InspectionReportError, "дублируются"):
-            prepare_rule_results([
-                RuleResult("same", False),
-                RuleResult("same", False),
-            ])
-
-    def test_prepare_rule_results_missing_name(self):
-        with self.assertRaisesRegex(InspectionReportError, "без имени"):
-            prepare_rule_results([RuleResult("", False)])
-
-    def test_prepare_rule_results_non_bool_triggered(self):
-        result = RuleResult("a", False)
-        result.triggered = "yes"
-        with self.assertRaisesRegex(InspectionReportError, "не-bool"):
-            prepare_rule_results([result])
-
-    def test_prepare_rule_results_attaches_cards(self):
-        result = RuleResult("window_geometry", True, details={
-            "per_role": {"INPUT_LEFT": {"triggered": True, "found": 3}},
-        })
-        prepared = prepare_rule_results([result])[0]
-        self.assertIn("measurement_cards", prepared.details)
-        self.assertIn("role_status", prepared.details)
-        self.assertEqual(
-            prepared.details["role_status"][0]["status"], "ОТКЛОНЕНИЕ",
-        )
-
-    def test_region_missing_status(self):
-        result = RuleResult("top_platform", True, details={
-            "per_role": {"TOP": {
-                "triggered": True, "reason": "no_valid_platform",
-            }},
-        })
-        prepared = prepare_rule_results([result])[0]
-        self.assertEqual(
-            prepared.details["role_status"][0]["status"],
-            "ОБЛАСТЬ НЕ ПОСТРОЕНА",
-        )
-
-    def test_skipped_status(self):
-        result = RuleResult("top_glass", False, details={
-            "per_role": {"TOP": {
-                "triggered": False, "skipped": True,
-                "reason": "reference_invalid: no_valid_platform",
-            }},
-        })
-        prepared = prepare_rule_results([result])[0]
-        self.assertEqual(
-            prepared.details["role_status"][0]["status"], "НЕТ ИЗМЕРЕНИЯ",
-        )
-
-    def test_presence_status(self):
-        result = RuleResult("part_presence", False, details={
-            "empty_tray": False,
-        })
-        prepared = prepare_presence_result(result)
-        self.assertEqual(
-            prepared.details["role_status"][0]["status"], "КОРПУС",
-        )
-        empty = prepare_presence_result(RuleResult("part_presence", False,
-                                                   details={"empty_tray": True}))
-        self.assertEqual(
-            empty.details["role_status"][0]["status"], "ПУСТО",
-        )
 
 
 class DebugRecorderTest(unittest.TestCase):

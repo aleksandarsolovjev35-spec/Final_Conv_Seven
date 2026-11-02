@@ -52,11 +52,6 @@ def make_idle_status(distributor) -> dict:
             "static": False,
             "fps": 0.0,
         },
-        "frame_analysis": {
-            "available": False,
-            "kind": None,
-            "rules": [],
-        },
         "jog": {
             "active": False,
             "can_enter": False,

@@ -6,7 +6,7 @@
     flex-direction: column;
     gap: 5px;
     /* Гибкая высота: заполняет пустое пространство правой колонки,
-       оставшееся после distributor и frame-analysis. Jog опущен ниже. */
+       оставшееся после distributor. Jog опущен ниже. */
     flex: 1 1 auto;
     min-height: 180px;
     max-height: 560px;

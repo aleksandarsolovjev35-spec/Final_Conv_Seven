@@ -232,40 +232,6 @@ class SimulationApiTest(unittest.TestCase):
         raw, rules = self.sim._virtual_overlay_data(["TOP"], line)
         self.assertEqual(raw["TOP"][0]["class"], "glass")
 
-    def test_frame_analysis_payload(self):
-        self.assertFalse(self.sim._frame_analysis_payload()["available"])
-        self.sim.selected_role = "TOP"
-        payload = self.sim._frame_analysis_payload()
-        self.assertTrue(payload["available"])
-        self.assertEqual(payload["kind"], "selected")
-        self.sim.parts = [SimPart(1, position=4, defects=["X"])]
-        payload = self.sim._frame_analysis_payload()
-        self.assertTrue(payload["rules"][1]["triggered"])
-
-    def test_frame_analysis_follows_stage(self):
-        # ВХОД: выбранная входная камера и корпус на +0.
-        self.server.active_camera_role = "INPUT_LEFT"
-        self.sim.parts = [SimPart(1, position=0)]
-        payload = self.sim._frame_analysis_payload()
-        self.assertTrue(payload["available"])
-        self.assertEqual(payload["kind"], "production")
-        self.assertEqual(payload["stage"], "ВХОД")
-        self.assertEqual(payload["role"], "INPUT_LEFT")
-        self.assertEqual(payload["part_id"], 1)
-        self.assertFalse(payload["rules"][1]["triggered"])
-        # КОНТРОЛЬ +4: корпус прошёл контроль, замеры с вердиктом.
-        self.server.active_camera_role = "TOP"
-        inspected = SimPart(1, position=4, defects=["СИМУЛИРОВАННЫЙ ДЕФЕКТ ГЕОМЕТРИИ"], inspected=True)
-        self.sim.parts = [inspected]
-        payload = self.sim._frame_analysis_payload()
-        self.assertTrue(payload["available"])
-        self.assertEqual(payload["stage"], "КОНТРОЛЬ +4")
-        self.assertEqual(payload["role"], "TOP")
-        self.assertTrue(payload["rules"][1]["triggered"])
-        # Пустая линия — панель закрыта.
-        self.sim.parts = []
-        self.assertFalse(self.sim._frame_analysis_payload()["available"])
-
     def test_publish_updates_server(self):
         self.sim.start()
         self.sim._publish("MOTION")

@@ -59,8 +59,6 @@ class ProductionCycle(
 
     JOG_ALLOWED_STATES = ("IDLE", "STOPPED", "PAUSED")
 
-    FRAME_ANALYSIS_GROUPS = ("INSPECT",)
-
     def __init__(
         self,
         conveyor,
@@ -116,7 +114,6 @@ class ProductionCycle(
         """Состояние шага, блокировки и телеметрия для HMI."""
         self._last_vision_results: dict = {}
         self._last_rule_results: list = []
-        self._frame_analysis_groups = self._empty_frame_analysis_groups()
 
         self._drain_start_time: float = 0
         self._fault_reason = None
@@ -273,7 +270,6 @@ class ProductionCycle(
             if accepted:
                 self._drain_start_time = 0
                 self._fault_reason = None
-                self._reset_frame_analysis()
                 # Деталь могла остаться под камерами ещё до пуска:
                 # первый шаг выполняется без движения ленты, чтобы она
                 # попала в учёт, а не уехала дальше непроверенной.

@@ -217,40 +217,6 @@ class SimulationApiTest(unittest.TestCase):
         raw, rules = self.sim._virtual_overlay_data(["MIDDLE"], line)
         self.assertEqual(raw["MIDDLE"][0]["class"], "bottom_glass")
 
-    def test_frame_analysis_payload(self):
-        self.assertFalse(self.sim._frame_analysis_payload()["available"])
-        self.sim.selected_role = "MIDDLE"
-        payload = self.sim._frame_analysis_payload()
-        self.assertTrue(payload["available"])
-        self.assertEqual(payload["kind"], "selected")
-        self.sim.parts = [SimPart(1, position=0, defects=["X"])]
-        payload = self.sim._frame_analysis_payload()
-        self.assertTrue(payload["rules"][1]["triggered"])
-
-    def test_frame_analysis_follows_stage(self):
-        # ИНСПЕКЦИЯ +0: выбранная камера и корпус в зоне инспекции.
-        self.server.active_camera_role = "LEFT"
-        self.sim.parts = [SimPart(1, position=0)]
-        payload = self.sim._frame_analysis_payload()
-        self.assertTrue(payload["available"])
-        self.assertEqual(payload["kind"], "production")
-        self.assertEqual(payload["stage"], "ИНСПЕКЦИЯ +0")
-        self.assertEqual(payload["role"], "LEFT")
-        self.assertEqual(payload["part_id"], 1)
-        self.assertFalse(payload["rules"][1]["triggered"])
-        # Корпус проинспектирован — замеры с вердиктом.
-        self.server.active_camera_role = "MIDDLE"
-        inspected = SimPart(1, position=0, defects=["СИМУЛИРОВАННАЯ РАЗНОВЫСОТНОСТЬ ОКОН"], inspected=True)
-        self.sim.parts = [inspected]
-        payload = self.sim._frame_analysis_payload()
-        self.assertTrue(payload["available"])
-        self.assertEqual(payload["stage"], "ИНСПЕКЦИЯ +0")
-        self.assertEqual(payload["role"], "MIDDLE")
-        self.assertTrue(payload["rules"][1]["triggered"])
-        # Пустая линия — панель закрыта.
-        self.sim.parts = []
-        self.assertFalse(self.sim._frame_analysis_payload()["available"])
-
     def test_publish_updates_server(self):
         self.sim.start()
         self.sim._publish("MOTION")

@@ -3,11 +3,7 @@ from domain.defect_rules import PartPresenceRule
 from vision.overlay.raw_overlay import RawOverlay
 
 from inspection.result import InspectionResult
-from inspection.run_report import (
-    prepare_presence_result,
-    prepare_rule_results,
-    summarize_model_health,
-)
+from inspection.rule_log import log_rule_results
 
 
 class Inspector:
@@ -41,14 +37,20 @@ class Inspector:
     # корпуса -> defect rules» и проверка контракта результата живут здесь,
     # а не в вызывающем коде.
 
-    def evaluate_presence(self, vision_results: dict):
-        """Проверить наличие детали и вернуть результат с карточками."""
-        return prepare_presence_result(
-            self._evaluate_part_presence(vision_results)
-        )
+    def evaluate_presence(self, vision_results: dict, stage: str = "presence"):
+        """Проверить наличие детали и залогировать результат в консоль."""
+        result = self._evaluate_part_presence(vision_results)
+        log_rule_results(stage, [result])
+        return result
 
-    def evaluate_rules(self, vision_results: dict, frames=None, roles=None):
-        """Выполнить defect rules и вернуть их с карточками замера.
+    def evaluate_rules(
+        self,
+        vision_results: dict,
+        frames=None,
+        roles=None,
+        stage: str = "rules",
+    ):
+        """Выполнить defect rules и залогировать результаты в консоль.
 
         ``roles`` ограничивает набор правил камерами стадии; без него
         берутся все активные правила.
@@ -58,11 +60,11 @@ class Inspector:
             if roles is not None
             else self.decision.rules
         )
-        return prepare_rule_results(
-            self.decision.evaluate_rules_detailed(
-                rules, vision_results, frames=frames,
-            )
+        results = self.decision.evaluate_rules_detailed(
+            rules, vision_results, frames=frames,
         )
+        log_rule_results(stage, results)
+        return results
 
     def evaluate_all(self, frames: dict):
         """Полный прогон диагностики по готовым кадрам.
@@ -72,17 +74,31 @@ class Inspector:
         шаге, где defect rules по пустой ячейке не считаются.
         """
         vision_results = self.vision.process_all(frames)
-        presence_result = self.evaluate_presence(vision_results)
+        presence_result = self.evaluate_presence(vision_results, "diagnostic")
         rule_results = [presence_result]
         if not presence_result.details.get("empty_tray"):
             rule_results.extend(
-                self.evaluate_rules(vision_results, frames=frames)
+                self.evaluate_rules(
+                    vision_results, frames=frames, stage="diagnostic",
+                )
             )
         return vision_results, rule_results, self.model_health()
 
     def model_health(self) -> list:
         """Строки состояния моделей последнего прогона для HMI."""
-        return summarize_model_health(self.vision.last_health)
+        summary = []
+        for row in self.vision.last_health or []:
+            if not isinstance(row, dict):
+                continue
+            summary.append({
+                "role": row.get("role"),
+                "model": row.get("model"),
+                "ok": bool(row.get("ok")),
+                "elapsed_ms": float(row.get("elapsed_ms") or 0.0),
+                "detections": int(row.get("detections") or 0),
+                "error": row.get("error"),
+            })
+        return summary
 
     def _notify_progress(self, phase, label, *, part_id=None, roles=()):
         callback = self.on_progress
@@ -122,8 +138,8 @@ class Inspector:
             part_id=part_id,
             roles=self.PRESENCE_ROLES,
         )
-        presence_result = prepare_presence_result(
-            self._evaluate_part_presence(vision_results)
+        presence_result = self.evaluate_presence(
+            vision_results, f"INSPECT part={part_id}",
         )
 
         if bool(presence_result.details.get("empty_tray")):
@@ -158,12 +174,11 @@ class Inspector:
             part_id=part_id,
             roles=self.INSPECT_ROLES,
         )
-        defect_results = prepare_rule_results(
-            self.decision.evaluate_rules_detailed(
-                self.decision.rules_for_roles(self.INSPECT_ROLES),
-                vision_results,
-                frames=frames,
-            )
+        defect_results = self.evaluate_rules(
+            vision_results,
+            frames=frames,
+            roles=self.INSPECT_ROLES,
+            stage=f"INSPECT part={part_id}",
         )
         self._notify_progress(
             "INSPECT_DECISION",

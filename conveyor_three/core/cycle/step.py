@@ -333,7 +333,6 @@ class CycleStepMixin:
         if result.is_empty_tray:
             # Пустая ячейка остаётся нейтральной: Part и архив не создаются.
             self.parts.remove(part)
-            self._record_frame_analysis("INSPECT", None, result)
             self.empty_count += 1
             # Очищаем детекции, чтобы не рисовать разметку на пустой ячейке.
             for role in self.inspector.INSPECT_ROLES:
@@ -355,7 +354,6 @@ class CycleStepMixin:
         # Результат правил становится состоянием Part только после того,
         # как модели и геометрия отработали для этого же набора кадров.
         part.mark_input_done()
-        self._record_frame_analysis("INSPECT", part.id, result)
         print(f"[INSPECT] Деталь #{part.id}")
 
         self._last_vision_results.update(result.vision_results or {})
