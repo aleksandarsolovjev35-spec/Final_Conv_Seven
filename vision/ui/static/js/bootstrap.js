@@ -115,6 +115,15 @@ function setupHotkeys() {
             }
         }
     });
+
+    // Уход из полноэкранного режима (F11, Escape, системный переход) —
+    // это и выход из анализа кадра: стоп-кадр остаётся в прошлом окне.
+    document.addEventListener('fullscreenchange', () => {
+        if (document.fullscreenElement) return;
+        if (state.selectedAnalysisActive && els.analyzeSelectedFrame) {
+            els.analyzeSelectedFrame.click();
+        }
+    });
 }
 
 window.addEventListener('keyup', e => {
