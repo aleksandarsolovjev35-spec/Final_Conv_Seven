@@ -59,6 +59,11 @@ function updateSelectedAnalysisStatus(ls) {
         updateThresholdsPanel();
     }
 
+    // Во время анализа кадра параметры линии не нужны: они уже применены
+    // к показанному результату.
+    if (els.statsPanel) {
+        els.statsPanel.classList.toggle('analysis-active', state.selectedAnalysisActive);
+    }
     const selectedActive = state.selectedAnalysisActive && JOG_ALLOWED_STATES.includes(state.lineState);
     if (els.statsSummary) els.statsSummary.classList.toggle('is-collapsed', selectedActive);
     if (els.distributorDiagnostics) els.distributorDiagnostics.classList.toggle('is-collapsed', selectedActive);
