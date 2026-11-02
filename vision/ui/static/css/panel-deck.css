@@ -34,7 +34,7 @@
 
 /* ─── Сворачивание правой панели ──────────────────────────────── */
 
-/* Панель уезжает вправо; на её левой кромке по центру остаётся закладка,
+/* Панель сворачивается вправо; на её левой кромке остаётся ручка,
    за которую панель возвращается. */
 .body {
     --panel-col: 360px;
@@ -49,21 +49,20 @@
     column-gap: 0;
 }
 
+/* Ручка: в покое — узкая полоска на кромке панели, при наведении
+   раскрывается в кнопку с шевроном. Видимая часть ::before, сама
+   кнопка шире — попасть по ней легко и мышью, и пальцем. */
 .panel-toggle {
     position: absolute;
     top: 50%;
-    /* Прижата к левой кромке панели (с учётом отступа сетки): правый
-       край закладки упирается в рамку панели, и та видна как линия
-       между закладкой и панелью. */
-    right: calc(var(--gap) + var(--panel-col));
+    /* Стоит на кромке панели, чуть заходя на неё. */
+    right: calc(var(--gap) + var(--panel-col) + 3px);
     z-index: 60;
     display: flex;
     align-items: center;
     justify-content: center;
-    /* Сама кнопка прозрачная — видно только язычок (::before). Поле
-       наведения шире язычка, чтобы закладку было легко зацепить. */
     width: 18px;
-    height: 58px;
+    height: 56px;
     padding: 0;
     transform: translateY(-50%);
     font-family: var(--font-ui);
@@ -77,10 +76,6 @@
         right 200ms var(--ease),
         color 120ms var(--ease);
 }
-
-/* Язычок: в покое из-за кромки выглядывает 10 px, при наведении
-   закладка выезжает целиком. Скруглены только левые углы, правые
-   срезаны — закладка встаёт вплотную к рамке панели. */
 .panel-toggle::before {
     content: "";
     position: absolute;
@@ -88,46 +83,29 @@
     right: 0;
     bottom: 0;
     z-index: -1;
-    width: 10px;
-    background: var(--panel);
-    border: 1px solid var(--border-strong);
-    border-right: 0;
-    border-radius: 9px 0 0 9px;
-    transition: width 160ms var(--ease);
+    width: 6px;
+    background: var(--border-strong);
+    border-radius: 3px;
+    transition:
+        width 160ms var(--ease),
+        border-radius 160ms var(--ease),
+        background 120ms var(--ease),
+        box-shadow 120ms var(--ease);
 }
 .panel-toggle:hover::before,
 .panel-toggle:focus-visible::before {
     width: 18px;
+    background: var(--panel-raised);
+    border-radius: 9px;
+    box-shadow: 0 0 0 1px var(--border-accent);
 }
-
-/* Сглаживание стыка: вогнутые «галтели» сверху и снизу закладки —
-   дуги 9 px, по которым край закладки плавно переходит в кромку
-   панели. Материал галтели заходит на 2 px внутрь закладки и
-   перекрывает её рамку, поэтому силуэт один. */
-.panel-toggle-joint {
-    position: absolute;
-    top: -9px;
-    right: 0;
-    width: 9px;
-    height: calc(100% + 18px);
-    pointer-events: none;
-}
-.panel-toggle-joint path {
-    fill: var(--panel);
-}
-.panel-toggle-joint .arc {
-    fill: none;
-    stroke: var(--border-strong);
-    stroke-width: 1;
-}
-
 .panel-toggle:hover,
 .panel-toggle:focus-visible {
     color: var(--text);
     outline: none;
 }
 
-/* Шеврон показываем только у выехавшей закладки. */
+/* Шеврон показываем только у раскрытой ручки. */
 .panel-toggle-chevron {
     opacity: 0;
     transition: opacity 120ms var(--ease);
@@ -137,9 +115,7 @@
     opacity: 1;
 }
 
-/* В свёрнутом виде панель убрана целиком: остаётся только закладка,
-   приклеенная к правому краю окна. Соединять её не с чем, поэтому
-   галтели и рамка карточки скрыты. */
+/* Свёрнутое состояние: панели нет, ручка — у правого края окна. */
 .body.panel-collapsed #stats-panel {
     padding: 0;
     overflow: hidden;
@@ -151,9 +127,6 @@
 }
 .body.panel-collapsed .panel-toggle {
     right: 0;
-}
-.body.panel-collapsed .panel-toggle-joint {
-    display: none;
 }
 
 /* ─── Шторка правой панели ────────────────────────────────────── */
