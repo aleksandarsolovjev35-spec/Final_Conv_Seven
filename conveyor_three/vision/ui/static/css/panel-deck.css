@@ -90,21 +90,17 @@
     border: 1px solid var(--border-strong);
     border-right: 0;
     border-radius: 9px 0 0 9px;
-    box-shadow: -2px 0 6px rgba(0, 0, 0, 0.28);
-    transition:
-        width 160ms var(--ease),
-        background 120ms var(--ease),
-        border-color 120ms var(--ease);
+    transition: width 160ms var(--ease);
 }
 .panel-toggle:hover::before,
 .panel-toggle:focus-visible::before {
     width: 18px;
-    background: var(--panel-raised);
-    border-color: var(--border-accent);
 }
 
-/* Сглаживание стыка: вогнутые «галтели» сверху и снизу закладки —
-   её край плавно переходит в кромку панели, без прямого угла. */
+/* Сглаживание стыка: вогнутые «галтели» сверху и снизу закладки.
+   Материал галтели заходит на 2 px внутрь закладки и перекрывает её
+   рамку, поэтому силуэт один: линия рамки перетекает в дугу, а не
+   упирается в отдельную деталь. */
 .panel-toggle::after {
     content: "";
     position: absolute;
@@ -117,11 +113,11 @@
         radial-gradient(circle 9px at 0 0,
             transparent 8px,
             var(--border-strong) 8px,
-            var(--panel) 9px) left top / 9px 9px no-repeat,
+            var(--panel) 9px) left 2px / 9px 9px no-repeat,
         radial-gradient(circle 9px at 0 9px,
             transparent 8px,
             var(--border-strong) 8px,
-            var(--panel) 9px) left bottom / 9px 9px no-repeat;
+            var(--panel) 9px) left bottom 2px / 9px 9px no-repeat;
 }
 .panel-toggle:hover,
 .panel-toggle:focus-visible {
