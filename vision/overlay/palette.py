@@ -46,7 +46,6 @@ DEFAULT_COLOR = (180, 180, 180)
 COLOR_GLASS          = CLASS_COLORS["glass"]
 COLOR_PLATFORM       = CLASS_COLORS["platform"]
 COLOR_CONTACTS       = CLASS_COLORS["contacts"]
-COLOR_CONTACTS_LONG  = CLASS_COLORS["contacts-long"]
 COLOR_FLATNESS       = CLASS_COLORS["flatness"]
 COLOR_OBJECTS        = CLASS_COLORS["objects"]
 COLOR_SHELLS         = CLASS_COLORS["shells"]

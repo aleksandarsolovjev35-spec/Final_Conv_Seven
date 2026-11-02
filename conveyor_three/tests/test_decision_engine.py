@@ -83,7 +83,7 @@ class DecisionEngineTest(unittest.TestCase):
 
     def test_empty_vision_returns_no_results(self):
         engine = DecisionEngine(_thresholds())
-        self.assertEqual(engine.evaluate_all_detailed({}), [])
+        self.assertEqual(engine.evaluate_rules_detailed(engine.rules, {}), [])
 
     def test_all_disabled_raises(self):
         with self.assertRaises(RuntimeError):

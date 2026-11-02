@@ -217,7 +217,7 @@ class DecisionEngineTest(unittest.TestCase):
 
     def test_evaluate_detailed_returns_rule_results(self):
         engine = DecisionEngine(thresholds=self.thresholds)
-        results = engine.evaluate_all_detailed({"TOP": []})
+        results = engine.evaluate_rules_detailed(engine.rules, {"TOP": []})
         self.assertIsInstance(results, list)
         self.assertTrue(all(isinstance(r, RuleResult) for r in results))
 

@@ -21,12 +21,6 @@ CONVEYOR_SPEED_PERCENT_MIN = round(
 )
 
 
-def speed_to_percent(speed: int) -> int:
-    """Шаги/с -> проценты от ``CONVEYOR_SPEED_MAX`` (для HMI)."""
-    percent = round(int(speed) / CONVEYOR_SPEED_MAX * 100)
-    return max(0, min(100, percent))
-
-
 def percent_to_speed(percent: int) -> int:
     """Проценты от максимума -> шаги/с с округлением до целого."""
     speed = round(CONVEYOR_SPEED_MAX * percent / 100)

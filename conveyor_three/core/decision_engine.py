@@ -39,13 +39,6 @@ class DecisionEngine:
             raise RuntimeError("No active defect rules; production inspection blocked")
         print(f"[RULES] Active: {[r.name for r in self.rules]}")
 
-    def evaluate_all_detailed(self, vision_results, frames=None):
-        return self.evaluate_rules_detailed(
-            self.rules,
-            vision_results,
-            frames=frames,
-        )
-
     def rules_for_roles(self, roles):
         """Активные правила, у которых есть хотя бы одна из ролей стадии."""
         wanted = set(roles or ())
