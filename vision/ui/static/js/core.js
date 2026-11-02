@@ -94,6 +94,8 @@ const state = {
     distributorDiagnosticBackendBusy: false,
 
     selectedAnalysisActive: false,
+    // Выход из анализа кадра отправлен: интерфейс уже вернулся в live.
+    analysisReleasePending: false,
     selectedAnalysisRole:   null,
     selectedAnalysisPending: false,
 

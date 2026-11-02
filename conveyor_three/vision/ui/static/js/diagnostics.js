@@ -53,7 +53,11 @@ function updateSelectedAnalysisStatus(ls) {
     const selected = ls.selected_analysis || {};
     const wasActive = state.selectedAnalysisActive;
     const wasLiveStreaming = state.liveStreaming;
-    state.selectedAnalysisActive = selected.active === true;
+    // Пока бэкенд завершает выход из анализа (он переснимает кадры всех
+    // камер), интерфейс уже в live: не возвращаем стоп-кадр обратно.
+    state.selectedAnalysisActive = (
+        selected.active === true && !state.analysisReleasePending
+    );
     state.selectedAnalysisRole = selected.role || null;
     if (wasActive !== state.selectedAnalysisActive && typeof updateThresholdsPanel === 'function') {
         updateThresholdsPanel();
@@ -134,6 +138,14 @@ function setupSelectedFrameAnalysis() {
         clearControlError();
         try {
             if (state.selectedAnalysisActive) {
+                // Не ждём ответа: бэкенд возвращает поток, последовательно
+                // переснимая кадры всех камер, а интерфейс должен ожить сразу.
+                state.analysisReleasePending = true;
+                state.selectedAnalysisActive = false;
+                state.selectedAnalysisRole = null;
+                returnSelectedCameraToLive();
+                if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
+                requestImmediateStatus();
                 await apiPost('/api/diagnostics/selected/release', true);
             } else {
                 const role = state.currentCamera;
@@ -142,6 +154,7 @@ function setupSelectedFrameAnalysis() {
             }
         } finally {
             state.selectedAnalysisPending = false;
+            state.analysisReleasePending = false;
             updateViewModeControls();
             requestImmediateStatus();
         }
