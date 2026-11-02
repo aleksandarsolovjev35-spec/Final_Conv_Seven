@@ -304,6 +304,10 @@ function collapseCameraDeck() {
     const column = cameraDeckColumn();
     if (!column) return;
     column.classList.remove('camera-expanded');
+    // Возврат к сетке — это и возврат live-потока: анализ кадра завершаем.
+    if (state.selectedAnalysisActive && els.analyzeSelectedFrame) {
+        els.analyzeSelectedFrame.click();
+    }
 }
 
 function setupCameraDeck() {
