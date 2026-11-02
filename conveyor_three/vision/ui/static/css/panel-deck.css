@@ -34,47 +34,56 @@
 
 /* ─── Сворачивание правой панели ──────────────────────────────── */
 
-/* Панель уезжает вправо: колонка сетки сужается до полосы, в которой
-   остаётся кнопка возврата. */
+/* Панель уезжает вправо; на её левой кромке по центру остаётся закладка,
+   за которую панель возвращается. */
 .body {
+    --panel-col: 360px;
+    position: relative;
+    grid-template-columns: minmax(0, 1fr) var(--panel-col);
     transition: grid-template-columns 200ms var(--ease);
 }
 .body.panel-collapsed {
-    grid-template-columns: minmax(0, 1fr) 22px;
+    --panel-col: 22px;
 }
 
 .panel-toggle {
     position: absolute;
-    top: 4px;
-    right: 4px;
-    z-index: 40;
+    top: 50%;
+    /* Прижата к левой кромке панели (с учётом отступа сетки). */
+    right: calc(var(--gap) + var(--panel-col) - 1px);
+    z-index: 60;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 58px;
     padding: 0;
+    transform: translateY(-50%);
     font-family: var(--font-ui);
-    font-size: 14px;
+    font-size: 12px;
     line-height: 1;
     color: var(--text-dim);
-    background: var(--panel-raised);
+    background: var(--panel);
     border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
+    border-right: 0;
+    border-radius: var(--radius) 0 0 var(--radius);
+    box-shadow: -2px 0 6px rgba(0, 0, 0, 0.28);
     cursor: pointer;
-    transition: color 120ms var(--ease), border-color 120ms var(--ease);
+    transition:
+        right 200ms var(--ease),
+        color 120ms var(--ease),
+        background 120ms var(--ease),
+        border-color 120ms var(--ease);
 }
 .panel-toggle:hover,
 .panel-toggle:focus-visible {
     color: var(--text);
+    background: var(--panel-raised);
     border-color: var(--border-accent);
     outline: none;
 }
-.panel-toggle-label {
-    display: none;
-}
 
-/* Свёрнутое состояние: панель — узкая полоса, вся полоса это кнопка. */
+/* В свёрнутом виде панель — узкая полоса, закладка продолжает её. */
 .body.panel-collapsed #stats-panel {
     padding: 0;
     overflow: hidden;
@@ -82,26 +91,9 @@
 .body.panel-collapsed #stats-panel > * {
     display: none;
 }
-.body.panel-collapsed #stats-panel > .panel-toggle {
-    display: flex;
-    inset: 0;
-    width: auto;
-    height: auto;
-    flex-direction: column;
-    gap: 8px;
-    padding: 7px 0 8px;
-    border-radius: var(--radius);
-}
-.body.panel-collapsed .panel-toggle-label {
-    display: block;
-    writing-mode: vertical-rl;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 1.2px;
-    color: var(--text-muted);
-}
 
 /* ─── Шторка правой панели ────────────────────────────────────── */
+
 
 /* Падает вниз на время переключения интерфейса (анализ кадра): блоки
    правой панели меняются под ней одним кадром, а не по очереди. Затем

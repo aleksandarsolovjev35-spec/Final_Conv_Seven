@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="/static/css/motion.css?v=40">
     <link rel="stylesheet" href="/static/css/thresholds.css?v=24">
     <link rel="stylesheet" href="/static/css/archive.css?v=6">
-    <link rel="stylesheet" href="/static/css/panel-deck.css?v=14">
+    <link rel="stylesheet" href="/static/css/panel-deck.css?v=15">
     <link rel="stylesheet" href="/static/css/camera-wizard.css?v=1">
 </head>
 <body>
@@ -179,13 +179,6 @@
             </section>
 
             <aside id="stats-panel" class="stats-panel" data-face="ready" data-ui-block="right-panel">
-                <!-- Свернуть панель вправо: в свёрнутом виде остаётся эта
-                     узкая полоса, клик по ней возвращает панель. -->
-                <button id="panel-toggle" class="panel-toggle" type="button"
-                        title="Свернуть панель" aria-expanded="true">
-                    <span class="panel-toggle-chevron" aria-hidden="true">&#8250;</span>
-                    <span class="panel-toggle-label" aria-hidden="true">ПАНЕЛЬ</span>
-                </button>
                 <!-- Шторка правой панели: опускается на время переключения
                      анализа кадра, чтобы блоки появлялись вместе. -->
                 <div id="panel-shutter" class="panel-shutter" aria-hidden="true">
@@ -342,7 +335,12 @@
                 </div>
             </aside>
 
-            
+            <!-- Закладка правой панели: держится на её левой кромке по
+                 центру, между областью камер и панелью. -->
+            <button id="panel-toggle" class="panel-toggle" type="button"
+                    title="Свернуть панель" aria-expanded="true">
+                <span class="panel-toggle-chevron" aria-hidden="true">&#8250;</span>
+            </button>
         </main>
 
         <footer class="footer" data-ui-block="controls-footer">
@@ -429,7 +427,7 @@
     <script src="/static/js/jog.js?v=37"></script>
     <script src="/static/js/history.js?v=37"></script>
     <script src="/static/js/archive.js?v=2"></script>
-    <script src="/static/js/panel-deck.js?v=4"></script>
+    <script src="/static/js/panel-deck.js?v=5"></script>
 
     <!-- Мастер назначения физических камер ролям линии. Открывается
          кнопкой «НАСТРОЙКИ КАМЕР» и при первом запуске без привязки. -->
