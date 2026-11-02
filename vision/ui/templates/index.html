@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/static/css/history-strip.css?v=47">
     <link rel="stylesheet" href="/static/css/stats.css?v=53">
     <link rel="stylesheet" href="/static/css/jog.css?v=36">
-    <link rel="stylesheet" href="/static/css/controls.css?v=48">
+    <link rel="stylesheet" href="/static/css/controls.css?v=49">
     <link rel="stylesheet" href="/static/css/gallery.css?v=34">
     <link rel="stylesheet" href="/static/css/process.css?v=61">
     <link rel="stylesheet" href="/static/css/motion.css?v=42">
@@ -247,31 +247,26 @@
                         <span class="line-settings-title">ПАРАМЕТРЫ ЛИНИИ</span>
                     </div>
                     <div class="line-settings-body">
-                        <!-- Скорость ленты: спидометр. Кнопки −/+ меняют
-                             шаг 5 %, стрелка ходит по шкале. -->
-                        <div class="line-speed">
-                            <output id="conveyor-speed-value" class="line-speed-value">—</output>
-                            <div class="line-speed-row">
-                                <button id="conveyor-speed-dec" class="line-stepper-btn" type="button"
-                                        disabled aria-label="Уменьшить скорость ленты">&minus;</button>
-                                <div class="line-gauge">
-                                    <svg class="line-gauge-face" viewBox="0 0 64 36" aria-hidden="true">
-                                        <path class="line-gauge-range"
-                                              d="M8.82,23.79 A24,24 0 0 1 55.18,23.79"></path>
-                                        <path id="conveyor-speed-fill" class="line-gauge-fill"
-                                              pathLength="100"
-                                              d="M8.82,23.79 A24,24 0 0 1 55.18,23.79"></path>
-                                        <path class="line-gauge-tick" d="M11.72,24.56 L8.82,23.79"></path>
-                                        <path class="line-gauge-tick" d="M19.22,13.34 L17.39,10.96"></path>
-                                        <path class="line-gauge-tick" d="M32,9 L32,6"></path>
-                                        <path class="line-gauge-tick" d="M44.78,13.34 L46.61,10.96"></path>
-                                        <path class="line-gauge-tick" d="M52.28,24.56 L55.18,23.79"></path>
-                                    </svg>
-                                    <div id="conveyor-speed-needle" class="line-gauge-needle"></div>
-                                </div>
-                                <button id="conveyor-speed-inc" class="line-stepper-btn" type="button"
-                                        disabled aria-label="Увеличить скорость ленты">+</button>
-                            </div>
+                        <!-- Скорость ленты: спидометр с прямой настройкой —
+                             тап или перетаскивание по шкале, значение в центре. -->
+                        <div id="conveyor-speed-gauge" class="line-gauge"
+                             role="slider" tabindex="0" aria-label="Скорость ленты"
+                             aria-valuemin="25" aria-valuemax="100" aria-valuenow="90">
+                            <svg class="line-gauge-face" viewBox="0 0 64 36" aria-hidden="true">
+                                <path class="line-gauge-range"
+                                      d="M8.82,23.79 A24,24 0 0 1 55.18,23.79"></path>
+                                <path id="conveyor-speed-fill" class="line-gauge-fill"
+                                      pathLength="100"
+                                      d="M8.82,23.79 A24,24 0 0 1 55.18,23.79"></path>
+                                <path class="line-gauge-tick" d="M11.72,24.56 L8.82,23.79"></path>
+                                <path class="line-gauge-tick" d="M19.22,13.34 L17.39,10.96"></path>
+                                <path class="line-gauge-tick" d="M32,9 L32,6"></path>
+                                <path class="line-gauge-tick" d="M44.78,13.34 L46.61,10.96"></path>
+                                <path class="line-gauge-tick" d="M52.28,24.56 L55.18,23.79"></path>
+                                <circle id="conveyor-speed-knob" class="line-gauge-knob"
+                                        cx="32" cy="6" r="3.2"></circle>
+                            </svg>
+                            <output id="conveyor-speed-value" class="line-gauge-value">—</output>
                         </div>
                         <!-- Паузы инспекции: степперы − значение +, секунды. -->
                         <div class="line-pauses">
@@ -418,7 +413,7 @@
     <script src="/static/js/boot.js?v=34"></script>
     <script src="/static/js/diagnostics.js?v=60"></script>
     <script src="/static/js/status.js?v=66"></script>
-    <script src="/static/js/controls.js?v=43"></script>
+    <script src="/static/js/controls.js?v=44"></script>
     <script src="/static/js/thresholds.js?v=21"></script>
     <script src="/static/js/cameras.js?v=49"></script>
     <script src="/static/js/jog.js?v=38"></script>

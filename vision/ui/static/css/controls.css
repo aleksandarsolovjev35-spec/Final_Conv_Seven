@@ -331,8 +331,8 @@
 }
 
 /* ─── Параметры линии: спидометр скорости и паузы инспекции ────────
-   Две колонки: слева спидометр, справа паузы. Так панель занимает
-   минимум высоты в правом столбце. */
+   Две колонки: слева спидометр, справа паузы. Скорость ставится прямо
+   на шкале — тапом или перетаскиванием бегунка, значение в центре. */
 .line-settings-body {
     display: flex;
     align-items: center;
@@ -340,36 +340,25 @@
     min-width: 0;
 }
 
-.line-speed {
-    flex: 0 0 auto;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1px;
-}
-
-.line-speed-row {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-}
-
-.line-speed .line-stepper-btn {
-    flex: 0 0 24px;
-}
-
-.line-speed-value {
-    color: var(--text);
-    font: 700 12px/1 var(--font-ui);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
-/* Спидометр: дуга 150° с делениями, заливка до стрелки и сама стрелка. */
 .line-gauge {
     position: relative;
-    width: 64px;
-    height: 36px;
+    flex: 0 0 auto;
+    width: 96px;
+    height: 54px;
+    cursor: pointer;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.line-gauge:focus-visible {
+    outline: 1px solid var(--border-accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+.line-gauge.is-locked {
+    cursor: default;
 }
 
 .line-gauge-face {
@@ -397,33 +386,32 @@
     stroke-width: 1.5;
 }
 
-.line-gauge-needle {
-    position: absolute;
-    left: 50%;
-    bottom: 6px;
-    width: 0;
-    height: 0;
-    margin-left: -4px;
-    border-right: 4px solid transparent;
-    border-bottom: 20px solid var(--accent);
-    border-left: 4px solid transparent;
-    transform: rotate(-75deg);
-    transform-origin: 50% 100%;
-    transition: transform 160ms var(--ease);
-    will-change: transform;
+/* Бегунок на шкале: единственная подвижная часть, поэтому значение можно
+   держать по центру диска и оно не пересекается с указателем. */
+.line-gauge-knob {
+    fill: var(--accent);
+    stroke: var(--bg-0);
+    stroke-width: 1.5;
 }
 
-.line-gauge::after {
-    content: "";
+.line-gauge.is-locked .line-gauge-knob {
+    fill: var(--border-strong);
+}
+
+.line-gauge-value {
     position: absolute;
-    bottom: 4px;
-    left: 50%;
-    width: 4px;
-    height: 4px;
-    margin-left: -2px;
-    border-radius: 50%;
-    background: var(--accent);
+    top: 16px;
+    left: 0;
+    right: 0;
+    color: var(--text);
+    font: 700 13px/1 var(--font-ui);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
     pointer-events: none;
+}
+
+.line-gauge.is-locked .line-gauge-value {
+    color: var(--text-dim);
 }
 
 .line-pauses {
@@ -476,5 +464,5 @@
     .line-settings-head { padding-bottom: 4px; }
     .line-settings-title { font-size: 10px; line-height: 1.1; }
     .line-setting-name { font-size: 9.5px; }
-    .line-speed-value { font-size: 11px; }
+    .line-gauge-value { font-size: 12px; }
 }

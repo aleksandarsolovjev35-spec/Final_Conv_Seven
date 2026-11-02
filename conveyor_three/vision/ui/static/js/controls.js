@@ -123,10 +123,11 @@ async function submitControl(path) {
     }
 }
 
-// ─── Скорость ленты: спидометр ───────────────────────────────
+// ─── Скорость ленты: спидометр с прямой настройкой ───────────
 // Аппаратные пределы совпадают с hardware.conveyor.Conveyor: шкала в
-// процентах от максимальной скорости (25 % = 5000 шаг/с). Стрелка ходит
-// на ±75° от вертикали, кнопки −/+ меняют шаг 5 %.
+// процентах от максимальной скорости (25 % = 5000 шаг/с). Скорость
+// ставится прямо на шкале — тапом или перетаскиванием бегунка; значение
+// показывается в центре диска. Шаг квантования — 5 %.
 
 const CONVEYOR_SPEED_MIN = 5000;
 const CONVEYOR_SPEED_MAX = 20000;
@@ -163,26 +164,41 @@ function conveyorSpeedLocked() {
         || state.offline;
 }
 
+function conveyorSpeedGauge() {
+    return document.getElementById('conveyor-speed-gauge');
+}
+
+function conveyorSpeedFraction() {
+    const span = Math.max(1, 100 - conveyorSpeed.percentMin);
+    const raw = (conveyorSpeed.percent - conveyorSpeed.percentMin) / span;
+    return Math.max(0, Math.min(1, raw));
+}
+
 function renderConveyorSpeed() {
-    const percent = conveyorSpeed.percent;
-    const percentMin = conveyorSpeed.percentMin;
-    const span = Math.max(1, 100 - percentMin);
-    const fraction = Math.max(0, Math.min(1, (percent - percentMin) / span));
-    const sweep = -CONVEYOR_GAUGE_SWEEP + fraction * CONVEYOR_GAUGE_SWEEP * 2;
-    const needle = document.getElementById('conveyor-speed-needle');
+    const fraction = conveyorSpeedFraction();
+    const angle = (-CONVEYOR_GAUGE_SWEEP + fraction * CONVEYOR_GAUGE_SWEEP * 2)
+        * Math.PI / 180;
+    const gauge = conveyorSpeedGauge();
     const fill = document.getElementById('conveyor-speed-fill');
+    const knob = document.getElementById('conveyor-speed-knob');
     const output = document.getElementById('conveyor-speed-value');
-    const dec = document.getElementById('conveyor-speed-dec');
-    const inc = document.getElementById('conveyor-speed-inc');
-    if (needle) needle.style.transform = `rotate(${sweep.toFixed(2)}deg)`;
     if (fill) fill.style.strokeDashoffset = (100 - fraction * 100).toFixed(2);
+    if (knob) {
+        knob.setAttribute('cx', (32 + Math.sin(angle) * 24).toFixed(2));
+        knob.setAttribute('cy', (30 - Math.cos(angle) * 24).toFixed(2));
+    }
     if (output) {
-        output.textContent = formatConveyorSpeed(percent);
-        output.title = conveyorSpeedTitle(conveyorPercentToSpeed(percent));
+        output.textContent = formatConveyorSpeed(conveyorSpeed.percent);
+        output.title = conveyorSpeedTitle(conveyorPercentToSpeed(conveyorSpeed.percent));
     }
     const locked = conveyorSpeedLocked();
-    if (dec) dec.disabled = locked || percent <= percentMin;
-    if (inc) inc.disabled = locked || percent >= 100;
+    if (gauge) {
+        gauge.classList.toggle('is-locked', locked);
+        gauge.setAttribute('aria-valuemin', String(conveyorSpeed.percentMin));
+        gauge.setAttribute('aria-valuenow', String(Math.round(conveyorSpeed.percent)));
+        gauge.setAttribute('aria-valuetext',
+            formatConveyorSpeed(conveyorSpeed.percent));
+    }
 }
 
 function updateConveyorSpeed(ls) {
@@ -201,17 +217,19 @@ function updateConveyorSpeed(ls) {
     renderConveyorSpeed();
 }
 
-function stepConveyorSpeed(direction) {
-    if (conveyorSpeedLocked()) return;
-    const next = conveyorSpeed.percent + direction * CONVEYOR_SPEED_STEP;
+function applyConveyorPercent(percent) {
+    const snapped = Math.round(Number(percent) / CONVEYOR_SPEED_STEP) * CONVEYOR_SPEED_STEP;
     conveyorSpeed.percent = Math.max(
         conveyorSpeed.percentMin,
-        Math.min(100, next),
+        Math.min(100, snapped),
     );
     conveyorSpeedEditing = true;
     renderConveyorSpeed();
+}
+
+function queueConveyorSpeedCommit(delay = 400) {
     clearTimeout(conveyorSpeedCommitTimer);
-    conveyorSpeedCommitTimer = setTimeout(commitConveyorSpeed, 400);
+    conveyorSpeedCommitTimer = setTimeout(commitConveyorSpeed, delay);
 }
 
 async function commitConveyorSpeed() {
@@ -234,13 +252,61 @@ async function commitConveyorSpeed() {
     }
 }
 
-function setupConveyorSpeedButtons() {
-    [
-        [document.getElementById('conveyor-speed-dec'), -1],
-        [document.getElementById('conveyor-speed-inc'), 1],
-    ].forEach(([button, direction]) => {
-        if (!button) return;
-        button.addEventListener('click', () => stepConveyorSpeed(direction));
+function conveyorPercentFromPointer(event) {
+    const gauge = conveyorSpeedGauge();
+    if (!gauge) return conveyorSpeed.percent;
+    const rect = gauge.getBoundingClientRect();
+    if (!rect.width || !rect.height) return conveyorSpeed.percent;
+    // Центр шкалы: середина по X и 30/36 высоты по Y — там сходятся дуга
+    // и радиусы делений (см. viewBox 0 0 64 36).
+    const dx = event.clientX - (rect.left + rect.width / 2);
+    const dy = event.clientY - (rect.top + rect.height * (30 / 36));
+    const angle = Math.atan2(dx, -dy) * 180 / Math.PI;
+    const clamped = Math.max(
+        -CONVEYOR_GAUGE_SWEEP,
+        Math.min(CONVEYOR_GAUGE_SWEEP, angle),
+    );
+    const fraction = (clamped + CONVEYOR_GAUGE_SWEEP) / (CONVEYOR_GAUGE_SWEEP * 2);
+    const span = Math.max(1, 100 - conveyorSpeed.percentMin);
+    return conveyorSpeed.percentMin + fraction * span;
+}
+
+function setupConveyorSpeedGauge() {
+    const gauge = conveyorSpeedGauge();
+    if (!gauge) return;
+    let dragging = false;
+    gauge.addEventListener('pointerdown', event => {
+        if (conveyorSpeedLocked()) return;
+        event.preventDefault();
+        dragging = true;
+        if (gauge.setPointerCapture) gauge.setPointerCapture(event.pointerId);
+        applyConveyorPercent(conveyorPercentFromPointer(event));
+    });
+    gauge.addEventListener('pointermove', event => {
+        if (!dragging || conveyorSpeedLocked()) return;
+        applyConveyorPercent(conveyorPercentFromPointer(event));
+    });
+    const finish = () => {
+        if (!dragging) return;
+        dragging = false;
+        commitConveyorSpeed();
+    };
+    ['pointerup', 'pointercancel'].forEach(name => {
+        gauge.addEventListener(name, finish);
+    });
+    gauge.addEventListener('keydown', event => {
+        if (conveyorSpeedLocked()) return;
+        const step = event.key === 'ArrowRight' ? CONVEYOR_SPEED_STEP
+            : event.key === 'ArrowLeft' ? -CONVEYOR_SPEED_STEP : 0;
+        if (step) {
+            event.preventDefault();
+            applyConveyorPercent(conveyorSpeed.percent + step);
+            queueConveyorSpeedCommit();
+        } else if (event.key === 'Home' || event.key === 'End') {
+            event.preventDefault();
+            applyConveyorPercent(event.key === 'Home' ? conveyorSpeed.percentMin : 100);
+            queueConveyorSpeedCommit();
+        }
     });
 }
 
@@ -385,7 +451,7 @@ function setupInspectionTimingSteppers() {
 }
 
 function setupButtons() {
-    setupConveyorSpeedButtons();
+    setupConveyorSpeedGauge();
     setupInspectionTimingSteppers();
 
     if (els.splashExit) {
