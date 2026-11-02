@@ -59,18 +59,34 @@ class CameraManager:
         return cv2.VideoCapture(camera_id)
 
     def load_config(self):
+        """Прочитать mapping; без файла приложение всё равно запускается.
+
+        Роли назначает оператор в HMI, поэтому отсутствие или порча
+        camera_mapping.json — это «камеры не назначены», а не авария
+        запуска.
+        """
+        self.mapping = {}
         try:
             with open(self._config_file, encoding="utf-8") as stream:
                 mapping = json.load(stream)
-        except FileNotFoundError as exc:
-            raise RuntimeError(
-                f"Файл {self._config_file} не найден. Запусти калибровку."
-            ) from exc
         except (OSError, json.JSONDecodeError) as exc:
-            raise RuntimeError(
-                f"Ошибка чтения {self._config_file}: {exc}"
-            ) from exc
+            print(
+                f"[CAMERA] {self._config_file}: {exc}; "
+                "камеры назначаются в HMI"
+            )
+            return
+        try:
+            self.mapping = self._validate(mapping)
+        except RuntimeError as exc:
+            print(f"[CAMERA] {exc}; камеры назначаются в HMI")
+            self.mapping = {}
+            return
+        print("Конфигурация камер:")
+        for role, cam_id in self.mapping.items():
+            print(f"  {role} -> {cam_id}")
 
+    @staticmethod
+    def _validate(mapping) -> dict:
         if not isinstance(mapping, dict):
             raise RuntimeError("camera_mapping.json должен содержать объект")
         missing = set(_REQUIRED_ROLES) - set(mapping)
@@ -85,11 +101,12 @@ class CameraManager:
             raise RuntimeError("Индексы камер должны быть неотрицательными int")
         if len(ids) != len(set(ids)):
             raise RuntimeError("Индексы камер должны быть уникальными")
-        self.mapping = mapping
+        return mapping
 
-        print("Конфигурация камер:")
-        for role, cam_id in self.mapping.items():
-            print(f"  {role} -> {cam_id}")
+    @property
+    def roles_ready(self) -> bool:
+        """Все роли линии назначены (одна камера — одна роль)."""
+        return set(self.mapping) == set(_REQUIRED_ROLES)
 
     def open_cameras(self):
         """Создать VideoCapture для каждой роли и проверить isOpened()."""

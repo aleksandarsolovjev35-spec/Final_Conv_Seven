@@ -384,6 +384,11 @@ class UIServerTest(unittest.TestCase):
         response = self.client.get("/api/cameras")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["camera_ids"], {"TOP": 2})
+        # Пуск заблокирован, пока роли линии назначены не полностью.
+        self.assertTrue(response.json()["required"])
+        self.assertFalse(response.json()["ready"])
+        self.assign_all_cameras()
+        self.assertTrue(self.client.get("/api/cameras").json()["ready"])
 
     def test_api_boot(self):
         self.server.boot_step_start("cameras")
@@ -432,19 +437,34 @@ class UIServerTest(unittest.TestCase):
         })
         self.assertEqual(response.status_code, 400)
 
+    def assign_all_cameras(self):
+        roles = self.server.camera_required_roles()
+        self.server.set_camera_roles({
+            role: index for index, role in enumerate(roles)
+        })
+
+    def test_api_start_409_without_cameras(self):
+        self.server.archive = mock.Mock(root_folder="/archive")
+        response = self.client.post("/api/start")
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("камеры", response.json()["error"])
+
     def test_api_start_503_without_callback(self):
+        self.assign_all_cameras()
         self.server.archive = mock.Mock(root_folder="/archive")
         response = self.client.post("/api/start")
         self.assertEqual(response.status_code, 503)
         self.assertFalse(response.json()["ok"])
 
     def test_api_start_callback_false_409(self):
+        self.assign_all_cameras()
         self.server.archive = mock.Mock(root_folder="/archive")
         self.server.on_start = lambda: False
         response = self.client.post("/api/start")
         self.assertEqual(response.status_code, 409)
 
     def test_api_start_callback_exception_500(self):
+        self.assign_all_cameras()
         self.server.archive = mock.Mock(root_folder="/archive")
 
         def boom():
@@ -456,6 +476,7 @@ class UIServerTest(unittest.TestCase):
         self.assertIn("cycle broken", response.json()["error"])
 
     def test_api_start_callback_ok(self):
+        self.assign_all_cameras()
         self.server.archive = mock.Mock(root_folder="/archive")
         self.server.on_start = mock.Mock(return_value=True)
         response = self.client.post("/api/start")

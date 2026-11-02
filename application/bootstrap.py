@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import threading
 
 from application.callbacks import ExitCoordinator
@@ -14,23 +13,7 @@ from application.shutdown import ShutdownManager
 from application.startup import SystemInitializer
 from application.ui import DesktopUI
 from json_sender import scan_and_send_all_batches, sync_local_queue
-from vision.camera_calibration_console import launch_camera_calibrator
 from vision.ui import LiveMonitor
-
-
-CAMERA_MAPPING_PATH = "camera_mapping.json"
-
-
-def ensure_camera_mapping(path: str = CAMERA_MAPPING_PATH) -> bool:
-    if os.path.exists(path):
-        return True
-    if launch_camera_calibrator(path):
-        return True
-    print(
-        f"[STARTUP] {path} не создан; "
-        "основное приложение не запускается"
-    )
-    return False
 
 
 def create_application() -> ProductionApplication:
@@ -78,8 +61,8 @@ def start_json_queue_syncer(thread_factory=threading.Thread) -> None:
 
 
 def run_application() -> None:
-    if not ensure_camera_mapping():
-        return
+    # Камеры могут быть не назначены: HMI откроется, а пуск будет
+    # заблокирован до полного назначения ролей (мастер в интерфейсе).
     start_json_queue_syncer()
     try:
         create_application().run()

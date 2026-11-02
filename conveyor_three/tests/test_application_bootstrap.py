@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import os
 import sys
-import tempfile
 import types
 import unittest
 from types import SimpleNamespace
@@ -22,7 +21,6 @@ sys.modules.setdefault("ultralytics", _FAKE_ULTRALYTICS)
 
 from application.bootstrap import (  # noqa: E402
     create_application,
-    ensure_camera_mapping,
     run_application,
     start_json_queue_syncer,
 )
@@ -47,34 +45,6 @@ class FakeWebviewModule:
 
     def start(self):
         self.started += 1
-
-
-class EnsureCameraMappingTest(unittest.TestCase):
-    def test_existing_file_returns_true(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = os.path.join(tmp, "camera_mapping.json")
-            with open(path, "w", encoding="utf-8") as stream:
-                stream.write("{}")
-            self.assertTrue(ensure_camera_mapping(path))
-
-    def test_missing_file_launches_calibrator(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = os.path.join(tmp, "camera_mapping.json")
-            with mock.patch(
-                "application.bootstrap.launch_camera_calibrator",
-                return_value=True,
-            ) as launch:
-                self.assertTrue(ensure_camera_mapping(path))
-            launch.assert_called_once_with(path)
-
-    def test_missing_file_calibrator_failed(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = os.path.join(tmp, "camera_mapping.json")
-            with mock.patch(
-                "application.bootstrap.launch_camera_calibrator",
-                return_value=False,
-            ):
-                self.assertFalse(ensure_camera_mapping(path))
 
 
 class CreateApplicationTest(unittest.TestCase):
@@ -103,26 +73,9 @@ class CreateApplicationTest(unittest.TestCase):
             scan_and_send_all_batches,
         )
 
-    def test_run_application_no_mapping(self):
-        with mock.patch(
-            "application.bootstrap.ensure_camera_mapping",
-            return_value=False,
-        ) as ensure, mock.patch(
-            "application.bootstrap.create_application",
-        ) as create, mock.patch(
-            "application.bootstrap.start_json_queue_syncer",
-        ) as syncer:
-            run_application()
-        ensure.assert_called_once()
-        create.assert_not_called()
-        syncer.assert_not_called()
-
     def test_run_application_runs(self):
         fake_app = mock.Mock()
         with mock.patch(
-            "application.bootstrap.ensure_camera_mapping",
-            return_value=True,
-        ), mock.patch(
             "application.bootstrap.create_application",
             return_value=fake_app,
         ), mock.patch(
@@ -136,9 +89,6 @@ class CreateApplicationTest(unittest.TestCase):
         # После закрытия окна консоль скрыта; при аварии она обязана
         # вернуться, иначе пауза ошибки в run.bat останется невидимой.
         with mock.patch(
-            "application.bootstrap.ensure_camera_mapping",
-            return_value=True,
-        ), mock.patch(
             "application.bootstrap.start_json_queue_syncer",
         ), mock.patch(
             "application.bootstrap.create_application",

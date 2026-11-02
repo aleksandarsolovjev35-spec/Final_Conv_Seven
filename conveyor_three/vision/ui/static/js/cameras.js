@@ -205,7 +205,9 @@ async function fetchCameras() {
     const data = await apiGet('/api/cameras');
     state.camerasFetchBusy = false;
     if (mySeq !== _camerasFetchSeq) return; // пришёл более свежий запрос
-    if (!data || !data.cameras || !data.cameras.length) return;
+    if (!data) return;
+    applyCamerasReady(data.ready !== false);
+    if (!data.cameras || !data.cameras.length) return;
     const changed = state.cameras.length !== data.cameras.length || state.cameras.some((c, i) => c !== data.cameras[i]);
     state.cameraIds = (data.camera_ids && typeof data.camera_ids === 'object') ? data.camera_ids : {};
     if (!changed) return;
@@ -219,6 +221,22 @@ async function fetchCameras() {
     if (!state.splashActive) applyMainCameraSource();
     if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
     checkUiReady();
+}
+
+function applyCamerasReady(ready) {
+    state.camerasReady = ready;
+    const note = document.querySelector('.camera-deck-note');
+    if (note) {
+        note.textContent = ready
+            ? 'нажмите на камеру, чтобы открыть'
+            : 'камеры не назначены — откройте настройки';
+    }
+    // Первый запуск без camera_mapping.json: сразу предлагаем мастер.
+    if (!ready && state.bootDone && !state.cameraWizardAsked
+        && typeof openCameraWizard === 'function') {
+        state.cameraWizardAsked = true;
+        openCameraWizard();
+    }
 }
 
 function cameraIdSuffix(role) {

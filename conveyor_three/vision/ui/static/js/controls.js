@@ -30,6 +30,7 @@ function applyButtonsForState(lineState, exitRequested, controls = {}) {
             || controls.start !== true
             || pending
             || offline
+            || !state.camerasReady
         );
     }
 

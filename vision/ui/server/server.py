@@ -337,6 +337,14 @@ class UIServer:
                 self._cache_version += 1
 
 
+    def cameras_ready(self) -> bool:
+        """Все роли линии назначены: одна камера — одна роль."""
+        mapping = self.camera_mapping or {}
+        return (
+            set(mapping) == set(self.camera_required_roles())
+            and len(set(mapping.values())) == len(mapping)
+        )
+
     # ── Мастер назначения камер ──────────────────────────────────
 
     @staticmethod

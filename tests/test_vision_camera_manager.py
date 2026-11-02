@@ -200,41 +200,57 @@ class CameraManagerTest(unittest.TestCase):
         self.assertTrue(captures[0].released)
         self.assertTrue(captures[2].released)
 
-    def test_config_missing_file(self):
-        with self.assertRaisesRegex(RuntimeError, "не найден"):
-            CameraManager(config_file=os.path.join(self.tmp.name, "nope.json"))
+    def assert_unassigned(self, manager):
+        """Без валидного mapping менеджер поднимается «пустым»."""
+        self.assertEqual(manager.mapping, {})
+        self.assertEqual(manager.cameras, {})
+        self.assertFalse(manager.roles_ready)
 
-    def test_config_invalid_json(self):
+    def test_config_missing_file_starts_without_roles(self):
+        manager = CameraManager(
+            config_file=os.path.join(self.tmp.name, "nope.json"),
+        )
+        self.assert_unassigned(manager)
+
+    def test_config_invalid_json_starts_without_roles(self):
         path = os.path.join(self.tmp.name, "bad.json")
         with open(path, "w", encoding="utf-8") as stream:
             stream.write("{bad")
-        with self.assertRaisesRegex(RuntimeError, "Ошибка чтения"):
-            CameraManager(config_file=path)
+        self.assert_unassigned(CameraManager(config_file=path))
 
-    def test_config_bad_roles(self):
+    def test_config_bad_roles_starts_without_roles(self):
         path = os.path.join(self.tmp.name, "bad_roles.json")
         with open(path, "w", encoding="utf-8") as stream:
             json.dump({"TOP": 0}, stream)
-        with self.assertRaisesRegex(RuntimeError, "Неверный набор камер"):
-            CameraManager(config_file=path)
+        self.assert_unassigned(CameraManager(config_file=path))
 
-    def test_config_duplicate_ids(self):
+    def test_config_duplicate_ids_starts_without_roles(self):
         data = mapping()
         data["TOP"] = 0
         path = os.path.join(self.tmp.name, "dup.json")
         with open(path, "w", encoding="utf-8") as stream:
             json.dump(data, stream)
-        with self.assertRaisesRegex(RuntimeError, "уникальными"):
-            CameraManager(config_file=path)
+        self.assert_unassigned(CameraManager(config_file=path))
 
-    def test_config_non_int_id(self):
+    def test_config_non_int_id_starts_without_roles(self):
         data = mapping()
         data["TOP"] = "2"
         path = os.path.join(self.tmp.name, "str.json")
         with open(path, "w", encoding="utf-8") as stream:
             json.dump(data, stream)
-        with self.assertRaisesRegex(RuntimeError, "неотрицательными int"):
-            CameraManager(config_file=path)
+        self.assert_unassigned(CameraManager(config_file=path))
+
+    def test_apply_mapping_opens_cameras(self):
+        captures = {index: FakeCapture(index) for index in range(7)}
+        factory = FakeCaptureFactory(captures)
+        manager = CameraManager(
+            config_file=os.path.join(self.tmp.name, "nope.json"),
+            capture_factory=factory,
+        )
+        self.assertFalse(manager.roles_ready)
+        manager.apply_mapping(mapping())
+        self.assertTrue(manager.roles_ready)
+        self.assertEqual(set(manager.cameras), set(mapping()))
 
     def test_configure_capture_called(self):
         captures = {index: FakeCapture(index) for index in range(7)}

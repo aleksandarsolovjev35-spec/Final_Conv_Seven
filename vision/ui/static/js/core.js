@@ -55,6 +55,9 @@ const state = {
     cameras:             [],
     // role -> физический Camera ID (из camera_mapping.json), для показа в интерфейсе
     cameraIds:           {},
+    // все роли назначены: до этого пуск заблокирован
+    camerasReady:        true,
+    cameraWizardAsked:   false,
     currentCamera:       null,
     mode:                'RULES',
     modePending:         false,

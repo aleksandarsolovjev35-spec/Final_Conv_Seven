@@ -50,6 +50,8 @@ def setup_api_routes(app, server):
         return JSONResponse({
             "cameras": sorted_roles,
             "camera_ids": camera_ids,
+            "required": server.camera_required_roles(),
+            "ready": server.cameras_ready(),
         })
 
     @app.get("/api/boot")
@@ -219,6 +221,14 @@ def setup_api_routes(app, server):
     @app.post("/api/start")
     async def api_start():
         print("[API] /api/start called")
+        if not server.cameras_ready():
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": "Назначьте камеры на все роли линии",
+                },
+                status_code=409,
+            )
         archive_ready, archive_error = server.archive_ready_for_start()
         if not archive_ready:
             return JSONResponse(

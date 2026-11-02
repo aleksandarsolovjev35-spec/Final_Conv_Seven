@@ -38,7 +38,10 @@ function checkUiReady() {
     if (state.uiRevealed) return;
     if (!state.bootDone) return;
     const timeSinceBoot = Date.now() - state.bootDoneAt;
-    const timedOut = timeSinceBoot > UI_READY_TIMEOUT;
+    // Без назначенных камер ждать кадры бессмысленно: показываем UI
+    // и мастер назначения ролей.
+    const timedOut = state.camerasReady === false
+        || timeSinceBoot > UI_READY_TIMEOUT;
     const framesReady = typeof cameraFramesReady === 'function' && cameraFramesReady();
     const previewsReady = typeof cameraPreviewsReady === 'function' && cameraPreviewsReady();
     const ready = state.statusReceived
