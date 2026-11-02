@@ -1,6 +1,5 @@
 from domain.threshold_loader import ThresholdLoader
 from domain.defect_rules import (
-    BaseRule,
     UnevenHeightsRule,
     WindowSinksRule,
     BottomGlassRule,
@@ -22,14 +21,14 @@ class DecisionEngine:
         # вроде PartPresenceRule без пересоздания загрузчика).
         self.thresholds = thresholds
 
-        all_rules: list[BaseRule] = [
+        all_rules: list = [
             UnevenHeightsRule(thresholds),
             WindowSinksRule(thresholds),
             BottomGlassRule(thresholds),
             WeldingRule(thresholds),
         ]
 
-        self.rules: list[BaseRule] = [
+        self.rules: list = [
             r for r in all_rules if r.enabled
         ]
 

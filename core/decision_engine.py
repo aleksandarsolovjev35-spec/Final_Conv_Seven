@@ -1,6 +1,5 @@
 from domain.threshold_loader import ThresholdLoader
 from domain.defect_rules import (
-    BaseRule,
     InputWindowGeometryRule,
     InputWindowSinksRule,
     SpiderContactsLongRule,
@@ -31,7 +30,7 @@ class DecisionEngine:
         # вроде InputPartPresenceRule без пересоздания загрузчика).
         self.thresholds = thresholds
 
-        all_rules: list[BaseRule] = [
+        all_rules: list = [
             InputWindowGeometryRule(thresholds),
             InputWindowSinksRule(thresholds),
 
@@ -50,7 +49,7 @@ class DecisionEngine:
             TopPlatformOverlapRule(thresholds),
         ]
 
-        self.rules: list[BaseRule] = [
+        self.rules: list = [
             r for r in all_rules if r.enabled
         ]
 

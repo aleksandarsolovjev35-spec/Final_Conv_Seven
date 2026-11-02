@@ -15,6 +15,6 @@ def __getattr__(name):
         from domain.threshold_loader import ThresholdLoader
         return ThresholdLoader
     if name == "RuleResult":
-        from domain.defect_rules.base import RuleResult
+        from domain.defect_rules.result import RuleResult
         return RuleResult
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

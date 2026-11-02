@@ -120,5 +120,39 @@ class RuleAttributesTest(unittest.TestCase):
         self.assertTrue(set(rule.ROLES).issubset({"LEFT", "RIGHT"}))
 
 
+class RuleSelfContainmentTest(unittest.TestCase):
+    """Каждое правило автономно: своих общих модулей и импортов нет."""
+
+    def test_no_shared_rule_modules(self):
+        import pathlib
+
+        import domain.defect_rules as rules_package
+
+        here = pathlib.Path(rules_package.__file__).parent
+        for name in ("base.py", "window_measure.py"):
+            self.assertFalse((here / name).exists(), name)
+
+    def test_rule_modules_do_not_import_each_other(self):
+        import ast
+        import pathlib
+
+        import domain.defect_rules as rules_package
+
+        here = pathlib.Path(rules_package.__file__).parent
+        for path in sorted(here.glob("rule_*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ImportFrom) or not node.module:
+                    continue
+                self.assertFalse(
+                    node.module.startswith("domain.defect_rules.rule_"),
+                    f"{path.name} импортирует {node.module}",
+                )
+                self.assertFalse(
+                    node.module.endswith(".base"),
+                    f"{path.name} импортирует {node.module}",
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

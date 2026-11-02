@@ -239,7 +239,7 @@ class DiagnosticsApiTest(unittest.TestCase):
         self.assertEqual(rows[0]["detections"], 3)
 
     def test_prepare_rule_results_rejects_non_bool(self):
-        from domain.defect_rules.base import RuleResult
+        from domain.defect_rules import RuleResult
 
         with self.assertRaisesRegex(RuntimeError, "не-bool"):
             prepare_rule_results([

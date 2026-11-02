@@ -1,7 +1,9 @@
-"""Геометрические хелперы ``domain.geometry`` и ``domain.defect_rules.top_geometry``.
+"""Геометрические хелперы ``domain.geometry`` и локальная геометрия правил.
 
 Чистая математика без внешних зависимостей: пересечения bbox, центроиды
 по маскам, подбор ряда контактов и вписывание эталонного прямоугольника.
+Каждое правило держит собственную копию используемых функций, поэтому
+импорт идёт из того правила, которое эту копию использует.
 """
 
 from __future__ import annotations
@@ -18,15 +20,19 @@ from domain.geometry.primitives import (
     centroid_from_det,
     mask_area,
 )
-from domain.defect_rules.top_geometry import (
+from domain.defect_rules.rule_top_glass import (
     infer_shape,
     largest_valid_mask,
-    mask_orientation,
     mask_points,
-    oriented_rectangle_points,
     overlap_mask,
     rasterize_mask,
+)
+from domain.defect_rules.rule_top_platform import (
     try_inscribe_center_then_nearest,
+)
+from domain.defect_rules.rule_top_platform_overlap import (
+    mask_orientation,
+    oriented_rectangle_points,
 )
 
 

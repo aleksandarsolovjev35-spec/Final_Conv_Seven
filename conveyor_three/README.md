@@ -116,7 +116,7 @@ core/
   live_preview.py        живой просмотр камер (полное замораживание)
   state_machine.py       состояния линии
   step_stages.py         фазы шага и exclusive-передача камер
-domain/                  Part, правила дефектов, геометрия, загрузчик порогов
+domain/                  Part, автономные правила дефектов, геометрия, пороги
 inspection/              Inspector (одна стадия), run_report, обязательный архив
 vision/                  CameraManager (последовательный), VisionCluster, UI
 ```

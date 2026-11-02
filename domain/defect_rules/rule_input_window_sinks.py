@@ -1,17 +1,98 @@
+from __future__ import annotations
+
 import cv2
 import numpy as np
 
-from domain.defect_rules.base import BaseRule, RuleResult
-from domain.defect_rules.rule_input_window_geometry import InputWindowGeometryRule
+from domain.defect_rules.result import RuleResult
 
 
-class InputWindowSinksRule(BaseRule):
+class _WindowRowReference:
+    """Локальная копия выбора ряда окон INPUT для этого правила."""
+
+    @classmethod
+    def _select_row(cls, candidates, expected_count):
+        count = len(candidates)
+        if count == 0:
+            return [], [], "no detections"
+        if count == expected_count:
+            return list(candidates), [], "exact count"
+
+        ordered = sorted(
+            candidates,
+            key=lambda detection: cls._bbox_center_x(detection["bbox"]),
+        )
+        best_score = float("inf")
+        best_start = None
+        for start in range(count - expected_count + 1):
+            window = ordered[start:start + expected_count]
+            xs = np.asarray([
+                cls._bbox_center_x(detection["bbox"])
+                for detection in window
+            ], dtype=np.float64)
+            spacings = np.diff(xs)
+            if len(spacings) < 1:
+                continue
+            median_step = float(np.median(spacings))
+            if median_step <= 0.0:
+                continue
+            score = float(np.std(spacings)) / median_step
+            if score < best_score:
+                best_score = score
+                best_start = start
+
+        if best_start is None:
+            return (
+                list(ordered[:expected_count]),
+                list(ordered[expected_count:]),
+                "fallback: first N",
+            )
+
+        picked = ordered[best_start:best_start + expected_count]
+        ignored = [detection for detection in ordered if detection not in picked]
+        return (
+            picked,
+            ignored,
+            f"picked {expected_count} of {count} "
+            f"(evenness={best_score:.3f})",
+        )
+
+    @staticmethod
+    def _bbox_center_x(bbox) -> float:
+        return (float(bbox[0]) + float(bbox[2])) / 2.0
+
+
+class InputWindowSinksRule:
     """Раковины objects внутри тех же семи flatness, что и window_geometry."""
 
     name = "window_sinks"
     ROLES = ("INPUT_LEFT", "INPUT_RIGHT")
     SINK_CLASS = "objects"
     WINDOW_CLASS = "flatness"
+
+    def __init__(self, thresholds: dict):
+        self.thresholds = thresholds
+        self._enabled = self.name not in thresholds.get(
+            "disabled_rules", []
+        )
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    def _get(self, key, default=None, role=None):
+        """Порог этого правила: сначала ROLE.key, затем key, затем default."""
+        if role:
+            role_key = f"{role}.{key}"
+            if role_key in self.thresholds:
+                return self.thresholds[role_key]
+        return self.thresholds.get(key, default)
+
+    def _make_skip(self, rule_name):
+        """Результат для отключённого правила."""
+        return RuleResult(
+            rule_name, False,
+            details={"skipped": "rule disabled"},
+        )
 
     def check(self, vision_results: dict, **kwargs) -> RuleResult:
         if not self.enabled:
@@ -101,7 +182,7 @@ class InputWindowSinksRule(BaseRule):
                 "overlap_min_px": overlap_min_px,
             }
 
-        selected, ignored, selection_note = InputWindowGeometryRule._select_row(
+        selected, ignored, selection_note = _WindowRowReference._select_row(
             windows,
             expected_count,
         )

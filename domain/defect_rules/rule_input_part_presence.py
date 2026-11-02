@@ -1,7 +1,9 @@
-from domain.defect_rules.base import BaseRule, RuleResult
+from __future__ import annotations
+
+from domain.defect_rules.result import RuleResult
 
 
-class InputPartPresenceRule(BaseRule):
+class InputPartPresenceRule:
     """Детектор наличия детали по INPUT_LEFT и INPUT_RIGHT.
 
     Для каждой камеры 0..false_positive_max_count найденных flatness считаются
@@ -15,6 +17,31 @@ class InputPartPresenceRule(BaseRule):
     name = "part_presence"
     ROLES = ("INPUT_LEFT", "INPUT_RIGHT")
     TARGET_CLASS = "flatness"
+
+    def __init__(self, thresholds: dict):
+        self.thresholds = thresholds
+        self._enabled = self.name not in thresholds.get(
+            "disabled_rules", []
+        )
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    def _get(self, key, default=None, role=None):
+        """Порог этого правила: сначала ROLE.key, затем key, затем default."""
+        if role:
+            role_key = f"{role}.{key}"
+            if role_key in self.thresholds:
+                return self.thresholds[role_key]
+        return self.thresholds.get(key, default)
+
+    def _make_skip(self, rule_name):
+        """Результат для отключённого правила."""
+        return RuleResult(
+            rule_name, False,
+            details={"skipped": "rule disabled"},
+        )
 
     def check(self, vision_results: dict, **kwargs) -> RuleResult:
         if not self.enabled:

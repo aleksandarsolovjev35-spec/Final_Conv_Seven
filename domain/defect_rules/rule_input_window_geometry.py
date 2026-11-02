@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 import math
 
 import cv2
 import numpy as np
 
-from domain.defect_rules.base import BaseRule, RuleResult
+from domain.defect_rules.result import RuleResult
 
 
-class InputWindowGeometryRule(BaseRule):
+class InputWindowGeometryRule:
     """Проверка геометрии семи областей flatness в абсолютных пикселях.
 
     Для каждой segmentation mask измеряются:
@@ -20,6 +22,31 @@ class InputWindowGeometryRule(BaseRule):
     name = "window_geometry"
     ROLES = ("INPUT_LEFT", "INPUT_RIGHT")
     TARGET_CLASS = "flatness"
+
+    def __init__(self, thresholds: dict):
+        self.thresholds = thresholds
+        self._enabled = self.name not in thresholds.get(
+            "disabled_rules", []
+        )
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    def _get(self, key, default=None, role=None):
+        """Порог этого правила: сначала ROLE.key, затем key, затем default."""
+        if role:
+            role_key = f"{role}.{key}"
+            if role_key in self.thresholds:
+                return self.thresholds[role_key]
+        return self.thresholds.get(key, default)
+
+    def _make_skip(self, rule_name):
+        """Результат для отключённого правила."""
+        return RuleResult(
+            rule_name, False,
+            details={"skipped": "rule disabled"},
+        )
 
     def check(self, vision_results: dict, **kwargs) -> RuleResult:
         if not self.enabled:
