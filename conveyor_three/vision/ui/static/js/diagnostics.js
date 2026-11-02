@@ -98,7 +98,7 @@ function updateSelectedAnalysisStatus(ls) {
     const lineState = state.lineState;
     const showAnalysis = (lineState === 'IDLE' || lineState === 'STOPPED') || state.selectedAnalysisActive;
     els.analyzeSelectedFrame.classList.toggle('is-hidden', !showAnalysis);
-    els.analyzeSelectedFrame.disabled = !allowed || state.selectedAnalysisPending || state.offline || !state.currentCamera;
+    els.analyzeSelectedFrame.disabled = !allowed || state.selectedAnalysisPending || state.analysisReleasePending || state.offline || !state.currentCamera;
     els.analyzeSelectedFrame.textContent = state.selectedAnalysisActive ? 'ВЕРНУТЬ ПОТОК' : 'АНАЛИЗ КАДРА';
     els.analyzeSelectedFrame.classList.toggle('analysis-active', state.selectedAnalysisActive);
 
@@ -142,7 +142,9 @@ function setupSelectedFrameAnalysis() {
                 // переснимая кадры всех камер, а интерфейс должен ожить сразу.
                 state.analysisReleasePending = true;
                 state.selectedAnalysisActive = false;
+                state.selectedAnalysisPending = false;
                 state.selectedAnalysisRole = null;
+                updateViewModeControls();
                 returnSelectedCameraToLive();
                 if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
                 requestImmediateStatus();
