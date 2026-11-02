@@ -74,7 +74,8 @@
 }
 
 /* Язычок: в покое из-за кромки выглядывает 10 px, при наведении
-   закладка выезжает целиком. Скруглён со всех сторон. */
+   закладка выезжает целиком. Скруглены только левые углы, правые
+   срезаны — закладка продолжает кромку панели без стыка. */
 .panel-toggle::before {
     content: "";
     position: absolute;
@@ -83,17 +84,20 @@
     bottom: 0;
     z-index: -1;
     width: 10px;
-    background: var(--panel-raised);
+    background: var(--panel);
     border: 1px solid var(--border-strong);
-    border-radius: 9px;
+    border-right: 0;
+    border-radius: 9px 0 0 9px;
     box-shadow: -2px 0 6px rgba(0, 0, 0, 0.28);
     transition:
         width 160ms var(--ease),
+        background 120ms var(--ease),
         border-color 120ms var(--ease);
 }
 .panel-toggle:hover::before,
 .panel-toggle:focus-visible::before {
     width: 18px;
+    background: var(--panel-raised);
     border-color: var(--border-accent);
 }
 .panel-toggle:hover,
