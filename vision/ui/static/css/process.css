@@ -112,21 +112,67 @@
     display: flex;
     flex-direction: column;
     /* Полупрозрачная тёмная подложка: заливка панели просвечивает
-       сквозь карточку. Высота определяется содержимым, поэтому блок
-       одинаков и на остановке, и во время работы. */
+       сквозь карточку, а ползунок остаётся контрастным. Высота
+       определяется содержимым, поэтому карточки одинаковы и на
+       остановке, и во время работы. */
     background: rgba(15, 19, 23, 0.62);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     padding: 6px;
 }
-/* Индикатор распределителя: стрелка на три положения — по одному на
-   коробку выхода. */
+.blade-track {
+    position: relative;
+    align-self: stretch;
+    flex: 0 0 8px;
+    height: 8px;
+    margin: 6px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+}
+
+/* Подписи концов ползунка: левый край — первое положение, правый —
+   второе. Строка всегда видна (и на остановке, и во время работы),
+   поэтому блок распределителя выглядит одинаково в любом состоянии. */
+.blade-track-labels {
+    display: flex;
+    flex: 0 0 10px;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 7px 2px;
+    padding: 0;
+    color: var(--text-dim);
+    font: 700 8px var(--font-ui);
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.blade-marker {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 12px;
+    height: 14px;
+    border-radius: 2px;
+    transform: translate(-50%, -50%);
+    will-change: left;
+    transition: left 100ms linear;
+    box-shadow: none;
+    /* Оба ползунка одного цвета: маршрут детали показывает заливка всей
+       панели, а не раскраска маркеров. */
+    color: var(--accent);
+    background: var(--accent);
+}
+/* Круговой индикатор распределителя вместо линейного рельса: круг со
+   шкалой от «11 часов» до «13 часов» и стрелка, которая ходит между
+   крайними положениями по координате оси. */
 .blade-dial {
     position: relative;
     align-self: center;
-    width: 112px;
-    height: 70px;
-    margin: 6px 0 4px;
+    width: 56px;
+    height: 35px;
+    margin: 6px 0 2px;
 }
 .blade-dial-face {
     position: absolute;
@@ -141,8 +187,8 @@
     stroke: var(--border);
     stroke-width: 1;
 }
-/* Вертикальные упоры по трём положениям: в крайних кончик стрелки
-   ровно касается упора (координаты посчитаны под ход ±45°). */
+/* Вертикальные упоры по бокам: в крайних положениях кончик стрелки
+   ровно касается упора (координаты посчитаны под ход ±30°). */
 .blade-dial-stop {
     stroke: var(--border-strong);
     stroke-width: 1.5;
@@ -152,14 +198,14 @@
 .blade-needle {
     position: absolute;
     left: 50%;
-    bottom: 14px;
+    bottom: 7px;
     width: 0;
     height: 0;
-    margin-left: -8px;
-    border-right: 8px solid transparent;
-    border-bottom: 44px solid var(--accent);
-    border-left: 8px solid transparent;
-    transform: rotate(0deg);
+    margin-left: -4px;
+    border-right: 4px solid transparent;
+    border-bottom: 22px solid var(--accent);
+    border-left: 4px solid transparent;
+    transform: rotate(-30deg);
     transform-origin: 50% 100%;
     transition: transform 100ms linear;
     will-change: transform;
@@ -168,17 +214,19 @@
 .blade-dial::after {
     content: "";
     position: absolute;
-    bottom: 8px;
+    bottom: 4px;
     left: 50%;
-    width: 12px;
-    height: 12px;
-    margin-left: -6px;
+    width: 6px;
+    height: 6px;
+    margin-left: -3px;
     border-radius: 50%;
     background: var(--accent);
     pointer-events: none;
 }
 
-/* Один индикатор на весь блок: одно положение стрелки — одна коробка. */
+/* Два индикатора стоят рядом; отдельных кнопок нет — команда
+   отправляется нажатием на половину круга: левая половина — первое
+   положение, правая — второе. */
 .distributor-dials {
     display: flex;
     gap: 8px;
@@ -187,51 +235,31 @@
     flex: 1 1 0;
     min-width: 0;
 }
-/* Один вход — три выхода: три коробки под шкалой. Активная получает
-   цвет маршрута, нажатие на коробку подаёт команду положения. */
-.blade-outlets {
-    display: flex;
-    gap: 4px;
-    margin: 0 6px 6px;
-}
-.blade-outlet {
-    flex: 1 1 0;
-    min-width: 0;
-    padding: 3px 0;
-    overflow: hidden;
-    font: 700 8px var(--font-ui);
-    letter-spacing: 0.4px;
-    color: var(--text-dim);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    background: var(--bg-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+.blade-hit {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 50%;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 50%;
     cursor: pointer;
-    transition: color 120ms var(--ease), border-color 120ms var(--ease),
-        background 120ms var(--ease);
+    transition: background 120ms var(--ease);
 }
-.blade-outlet:hover:not(:disabled) {
-    color: var(--text);
-    border-color: var(--border-strong);
+.blade-hit.is-first {
+    left: 0;
 }
-.blade-outlet:disabled {
+.blade-hit.is-second {
+    right: 0;
+}
+.blade-hit:hover:not(:disabled) {
+    background: radial-gradient(circle,
+        rgba(255, 255, 255, 0.08),
+        rgba(255, 255, 255, 0) 72%);
+}
+.blade-hit:disabled {
     cursor: default;
-}
-.distributor-panel.route-good .blade-outlet.is-good {
-    color: var(--ok);
-    border-color: var(--ok);
-    background: var(--ok-bg);
-}
-.distributor-panel.route-bad .blade-outlet.is-bad {
-    color: var(--bad);
-    border-color: var(--bad);
-    background: var(--bad-bg);
-}
-.distributor-panel.route-cleanup .blade-outlet.is-cleanup {
-    color: var(--warn);
-    border-color: var(--warn);
-    background: var(--warn-bg);
 }
 
 .diagnostic-grid {

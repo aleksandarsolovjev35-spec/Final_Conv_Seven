@@ -22,13 +22,12 @@ function updateOperationalAccordions() {
     if (els.statsSummary) els.statsSummary.classList.add('is-open');
 }
 
-// Распределитель «один вход — три выхода»: стрелка встаёт на коробку
-// активного маршрута — ГОДНО (влево), БРАК (прямо), ЗАЧИСТКА (вправо).
-const BLADE_ANGLES = { GOOD: -45, BAD: 0, CLEANUP: 45 };
-
-function setBladeNeedle(marker, category) {
+// Стрелка кругового индикатора распределителя: 0 % — положение
+// «11 часов», 100 % — «13 часов» (развёртка ±30° от вертикали).
+function setBladeMarkerPosition(marker, percent) {
     if (!marker) return;
-    marker.style.transform = `rotate(${BLADE_ANGLES[category] || 0}deg)`;
+    const normalized = Math.max(0, Math.min(100, Number(percent) || 0));
+    marker.style.transform = `rotate(${-30 + normalized * 0.6}deg)`;
 }
 
 // Очередность запросов статуса — избегаем наложения
@@ -327,9 +326,21 @@ function updateLineStatus(ls) {
     updateDistributorDiagnosticControls(ls);
     updateSelectedAnalysisStatus(ls);
 
-    // Три выхода распределителя: стрелка показывает, в какую коробку
-    // уходит деталь, текстовых значений нет.
-    setBladeNeedle(els.distBlade, _resolveDistributorRoute(ls));
+    // В блоке распределителя — круговые индикаторы: стрелка ходит по
+    // координате оси от «11» до «13 часов», текстовых значений нет.
+    const d1Pos = Math.max(0, Number(ls.dist1_position || 0));
+    const d1Max = Math.max(1, Number(ls.dist1_max || 340));
+    if (els.dist1Blade) {
+        const d1Percent = Math.max(0, Math.min(100, d1Pos / d1Max * 100));
+        setBladeMarkerPosition(els.dist1Blade, d1Percent);
+    }
+
+    const d2Pos = Math.max(0, Number(ls.dist2_position || 0));
+    const d2Max = Math.max(1, Number(ls.dist2_max || 340));
+    if (els.dist2Blade) {
+        const d2Percent = Math.max(0, Math.min(100, d2Pos / d2Max * 100));
+        setBladeMarkerPosition(els.dist2Blade, d2Percent);
+    }
 
     updateJogState(ls.jog || null);
     updateStateOverlay(ls);
