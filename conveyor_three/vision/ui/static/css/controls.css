@@ -331,22 +331,34 @@
     background: var(--border-strong);
 }
 
-/* Паузы инспекции: две ячейки с делителем, значения крупно справа. */
+/* Задержки инспекции: одна общая подпись над двумя ячейками, значения
+   крупно справа. */
 .line-fields {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    row-gap: 1px;
+    padding-top: 4px;
     border-top: 1px solid var(--border);
 }
 
+.line-fields-caption {
+    grid-column: 1 / -1;
+    color: var(--text-muted);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
 .line-field {
-    flex: 1 1 0;
     display: flex;
     align-items: center;
     gap: 8px;
     min-width: 0;
-    padding: 5px 0 0;
 }
 
-.line-field:first-child {
+.line-field:nth-of-type(1) {
     padding-right: 10px;
 }
 
@@ -402,6 +414,5 @@
 @media (max-height: 800px) {
     .line-settings { gap: 4px; padding: 5px 7px 6px; }
     .line-slider { margin: 0 0 2px; }
-    .line-field { padding-top: 4px; }
     .line-field-input { font-size: 14px; }
 }
