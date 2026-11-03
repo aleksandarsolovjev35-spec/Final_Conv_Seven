@@ -353,10 +353,12 @@
     text-overflow: ellipsis;
 }
 
+/* Подпись и значение стоят парой по центру своей половины. */
 .line-field {
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    gap: 4px;
     min-width: 0;
 }
 
@@ -379,17 +381,18 @@
     white-space: nowrap;
 }
 
-/* Поле без рамки: цифры читаются как значение, правка — по клику. */
+/* Поле без рамки: цифры читаются как значение, правка — по клику.
+   Ширина в «ch» — под три-четыре знака, чтобы пара не разъезжалась. */
 .line-field-input {
-    flex: 1 1 auto;
-    width: 100%;
+    flex: 0 0 auto;
+    width: 4.5ch;
     min-width: 0;
     height: 20px;
     padding: 0;
     color: var(--text);
     font: 700 15px/1 var(--font-ui);
     font-variant-numeric: tabular-nums;
-    text-align: right;
+    text-align: center;
     background: transparent;
     border: 0;
     border-bottom: 1px solid transparent;
