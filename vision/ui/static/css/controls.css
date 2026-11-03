@@ -221,16 +221,15 @@
 
 
 /* ─── Блок «Параметры линии» ───────────────────────────────────────
-   Три параметра ленты. В каждой строке подпись слева и значение
-   справа, под ними — ползунок во всю ширину панели: так и подписи,
-   и числа читаются, а ползунок даёт точную настройку.
-   Панель видна только на остановленной линии. */
+   Скорость ленты — один ползунок во всю ширину панели, паузы инспекции —
+   два числовых поля в ряд под ним. Панель видна только на остановленной
+   линии. */
 
 .line-settings {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 6px;
     padding: 7px 10px 8px;
     background:
         linear-gradient(180deg, rgba(9, 12, 15, 0.55), rgba(24, 32, 39, 0.22));
@@ -280,204 +279,142 @@
     white-space: nowrap;
 }
 
-/* Степпер паузы инспекции: «− значение +». Шаг задаётся в controls.js,
-   удержание кнопки ускоряет набор. */
-.line-stepper {
+/* Скорость ленты: ползунок с заливкой до текущего значения. */
+.line-slider-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    min-width: 0;
-}
-
-.line-stepper-btn {
-    flex: 0 0 30px;
-    height: 20px;
-    padding: 0;
-    color: var(--text-dim);
-    font: 700 13px/1 var(--font-ui);
-    background: var(--bg-2);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition:
-        color 120ms var(--ease),
-        background 120ms var(--ease),
-        border-color 120ms var(--ease);
-}
-
-.line-stepper-btn:hover:not(:disabled) {
-    color: var(--text);
-    background: var(--bg-1);
-}
-
-.line-stepper-btn:active:not(:disabled) {
-    background: var(--panel-raised);
-}
-
-.line-stepper-btn:disabled {
-    color: var(--text-muted);
-    border-color: var(--border);
-    cursor: default;
-}
-
-.line-stepper-value {
-    flex: 1 1 auto;
-    min-width: 0;
-    color: var(--text);
-    font: 700 13px/1 var(--font-ui);
-    font-variant-numeric: tabular-nums;
-    text-align: center;
-    white-space: nowrap;
-}
-
-/* ─── Параметры линии: спидометр скорости и паузы инспекции ────────
-   Две колонки: слева кольцевая шкала, справа паузы. Скорость ставится
-   прямо на шкале — тапом или перетаскиванием бегунка; значение в центре
-   кольца, поэтому оно не пересекается ни с заливкой, ни с бегунком. */
-.line-settings-body {
-    display: flex;
-    align-items: center;
+    justify-content: space-between;
     gap: 10px;
     min-width: 0;
 }
 
-.line-gauge {
-    position: relative;
-    flex: 0 0 auto;
-    width: 112px;
-    height: 64px;
+.line-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 16px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
     cursor: pointer;
-    touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
 }
 
-.line-gauge:focus-visible {
-    outline: 1px solid var(--border-accent);
+.line-slider::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(90deg,
+        var(--accent) 0 var(--fill, 90%),
+        var(--border) var(--fill, 90%) 100%);
+}
+
+.line-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    margin-top: -5px;
+    background: var(--text);
+    border: 2px solid var(--bg-0);
+    border-radius: 50%;
+}
+
+.line-slider::-moz-range-track {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--border);
+}
+
+.line-slider::-moz-range-progress {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--accent);
+}
+
+.line-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: var(--text);
+    border: 2px solid var(--bg-0);
+    border-radius: 50%;
+}
+
+.line-slider:focus-visible {
+    outline: 1px solid var(--border-strong);
     outline-offset: 2px;
-    border-radius: var(--radius-sm);
 }
 
-.line-gauge.is-locked {
+.line-slider:disabled {
     cursor: default;
 }
 
-.line-gauge-face {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    fill: none;
-    stroke-linecap: round;
+.line-slider:disabled::-webkit-slider-runnable-track {
+    background: var(--border);
 }
 
-.line-gauge-track {
-    stroke: var(--border);
-    stroke-width: 7;
+.line-slider:disabled::-webkit-slider-thumb {
+    background: var(--border-strong);
 }
 
-.line-gauge-fill {
-    stroke: var(--accent);
-    stroke-width: 7;
-    stroke-dasharray: 100;
-    stroke-dashoffset: 100;
-}
-
-/* Бегунок на конце заливки: единственная подвижная часть кольца. */
-.line-gauge-knob {
-    fill: var(--text);
-    stroke: var(--bg-0);
-    stroke-width: 2;
-}
-
-.line-gauge.is-locked .line-gauge-knob {
-    fill: var(--border-strong);
-}
-
-.line-gauge-scale {
-    fill: var(--text-muted);
-    font: 700 7px var(--font-ui);
-    text-anchor: middle;
-}
-
-.line-gauge-center {
-    position: absolute;
-    top: 38px;
-    left: 0;
-    right: 0;
+/* Паузы инспекции: два числовых поля в ряд. */
+.line-fields {
     display: flex;
-    align-items: baseline;
-    justify-content: center;
-    gap: 2px;
-    transform: translateY(-50%);
-    pointer-events: none;
-}
-
-.line-gauge-number {
-    color: var(--text);
-    font: 700 14px/1 var(--font-ui);
-    font-variant-numeric: tabular-nums;
-}
-
-.line-gauge-unit {
-    color: var(--text-dim);
-    font: 700 10px/1 var(--font-ui);
-}
-
-.line-gauge.is-locked .line-gauge-number,
-.line-gauge.is-locked .line-gauge-unit {
-    color: var(--text-dim);
-}
-
-.line-pauses {
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    gap: 10px;
     min-width: 0;
 }
 
-.line-pauses-caption {
-    overflow: hidden;
-    color: var(--text-muted);
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.4px;
-    text-overflow: ellipsis;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-
-.line-pause {
+.line-field {
+    flex: 1 1 0;
     display: flex;
     align-items: center;
     gap: 6px;
     min-width: 0;
 }
 
-.line-pause .line-setting-name {
-    flex: 0 0 42px;
+.line-field-name {
+    flex: 0 0 auto;
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
 }
 
-.line-pause .line-stepper {
+.line-field-input {
     flex: 1 1 auto;
-    max-width: 120px;
+    width: 100%;
+    min-width: 0;
+    height: 22px;
+    padding: 0 6px;
+    color: var(--text);
+    font: 700 12px/1 var(--font-ui);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    background: var(--bg-2);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
 }
 
-.line-pause .line-stepper-btn {
-    flex: 0 0 24px;
+/* Стрелки нативного счётчика в узком поле только мешают. */
+.line-field-input::-webkit-outer-spin-button,
+.line-field-input::-webkit-inner-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
 }
 
-.line-pause .line-stepper-value {
-    font-size: 12px;
+.line-field-input:focus-visible {
+    outline: 1px solid var(--border-accent);
+    outline-offset: 1px;
 }
 
-/* Стандартное окно HMI — 1280×720: строки чуть плотнее, но текст
-   остаётся читаемым (не мельче 9.5 px). */
+.line-field-input:disabled {
+    color: var(--text-muted);
+    background: var(--bg-1);
+    border-color: var(--border);
+}
+
+/* Стандартное окно HMI — 1280×720: чуть плотнее, текст не мельче 9.5 px. */
 @media (max-height: 800px) {
-    .line-settings { gap: 5px; padding: 6px 12px 7px; }
+    .line-settings { gap: 5px; padding: 6px 10px 7px; }
     .line-settings-head { padding-bottom: 4px; }
     .line-settings-title { font-size: 10px; line-height: 1.1; }
     .line-setting-name { font-size: 9.5px; }
-    .line-gauge-number { font-size: 14px; }
 }

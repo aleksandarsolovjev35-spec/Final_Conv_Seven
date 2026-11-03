@@ -123,22 +123,19 @@ async function submitControl(path) {
     }
 }
 
-// ─── Скорость ленты: спидометр с прямой настройкой ───────────
+// ─── Скорость ленты: один ползунок ───────────────────────────
 // Аппаратные пределы совпадают с hardware.conveyor.Conveyor: шкала в
-// процентах от максимальной скорости (25 % = 5000 шаг/с). Скорость
-// ставится прямо на шкале — тапом или перетаскиванием бегунка; значение
-// показывается в центре диска. Шаг квантования — 5 %.
+// процентах от максимальной скорости (25 % = 5000 шаг/с). Шаг — 5 %,
+// на сервер значение уходит после отпускания ползунка.
 
 const CONVEYOR_SPEED_MIN = 5000;
 const CONVEYOR_SPEED_MAX = 20000;
 const CONVEYOR_SPEED_STEP = 5;
-const CONVEYOR_GAUGE_SWEEP = 120;
 
 const conveyorSpeed = {percent: 90, percentMin: 25, allowed: false};
 let conveyorSpeedPending = false;
 let conveyorSpeedEditing = false;
 let conveyorSpeedLockedByState = false;
-let conveyorSpeedCommitTimer = null;
 
 function conveyorPercentToSpeed(percent) {
     return Math.round(CONVEYOR_SPEED_MAX * Number(percent) / 100);
@@ -164,8 +161,14 @@ function conveyorSpeedLocked() {
         || state.offline;
 }
 
-function conveyorSpeedGauge() {
-    return document.getElementById('conveyor-speed-gauge');
+// Ползунок гасим только по состоянию линии, но не на время запроса:
+// иначе он дёргался бы под рукой оператора.
+function conveyorSpeedUnavailable() {
+    return conveyorSpeedLockedByState || !conveyorSpeed.allowed || state.offline;
+}
+
+function conveyorSpeedSlider() {
+    return document.getElementById('conveyor-speed-slider');
 }
 
 function conveyorSpeedFraction() {
@@ -175,30 +178,25 @@ function conveyorSpeedFraction() {
 }
 
 function renderConveyorSpeed() {
-    const fraction = conveyorSpeedFraction();
-    const angle = (-CONVEYOR_GAUGE_SWEEP + fraction * CONVEYOR_GAUGE_SWEEP * 2)
-        * Math.PI / 180;
-    const gauge = conveyorSpeedGauge();
-    const fill = document.getElementById('conveyor-speed-fill');
-    const knob = document.getElementById('conveyor-speed-knob');
+    const slider = conveyorSpeedSlider();
     const output = document.getElementById('conveyor-speed-value');
-    if (fill) fill.style.strokeDashoffset = (100 - fraction * 100).toFixed(2);
-    if (knob) {
-        // Кольцо: центр (56, 38), радиус 24 — см. viewBox 0 0 112 64.
-        knob.setAttribute('cx', (56 + Math.sin(angle) * 24).toFixed(2));
-        knob.setAttribute('cy', (38 - Math.cos(angle) * 24).toFixed(2));
+    const percent = Math.round(conveyorSpeed.percent);
+    const steps = conveyorSpeedTitle(conveyorPercentToSpeed(percent));
+    if (slider) {
+        // Значение ползунка не трогаем, пока оно уже верное: иначе
+        // перетаскивание сбрасывалось бы на каждом кадре.
+        if (slider.value !== String(percent)) slider.value = String(percent);
+        slider.min = String(conveyorSpeed.percentMin);
+        slider.style.setProperty(
+            '--fill', `${(conveyorSpeedFraction() * 100).toFixed(2)}%`,
+        );
+        slider.disabled = conveyorSpeedUnavailable();
+        slider.setAttribute('aria-valuetext',
+            `${formatConveyorSpeed(percent)} · ${steps}`);
     }
     if (output) {
-        output.textContent = String(Math.round(conveyorSpeed.percent));
-        output.title = conveyorSpeedTitle(conveyorPercentToSpeed(conveyorSpeed.percent));
-    }
-    const locked = conveyorSpeedLocked();
-    if (gauge) {
-        gauge.classList.toggle('is-locked', locked);
-        gauge.setAttribute('aria-valuemin', String(conveyorSpeed.percentMin));
-        gauge.setAttribute('aria-valuenow', String(Math.round(conveyorSpeed.percent)));
-        gauge.setAttribute('aria-valuetext',
-            formatConveyorSpeed(conveyorSpeed.percent));
+        output.textContent = formatConveyorSpeed(percent);
+        output.title = steps;
     }
 }
 
@@ -228,13 +226,7 @@ function applyConveyorPercent(percent) {
     renderConveyorSpeed();
 }
 
-function queueConveyorSpeedCommit(delay = 400) {
-    clearTimeout(conveyorSpeedCommitTimer);
-    conveyorSpeedCommitTimer = setTimeout(commitConveyorSpeed, delay);
-}
-
 async function commitConveyorSpeed() {
-    conveyorSpeedCommitTimer = null;
     if (conveyorSpeedPending || conveyorSpeedLocked()) {
         conveyorSpeedEditing = false;
         return;
@@ -253,67 +245,23 @@ async function commitConveyorSpeed() {
     }
 }
 
-function conveyorPercentFromPointer(event) {
-    const gauge = conveyorSpeedGauge();
-    if (!gauge) return conveyorSpeed.percent;
-    const rect = gauge.getBoundingClientRect();
-    if (!rect.width || !rect.height) return conveyorSpeed.percent;
-    // Центр кольца: середина по X и 38/64 высоты по Y (viewBox 0 0 112 64).
-    const dx = event.clientX - (rect.left + rect.width / 2);
-    const dy = event.clientY - (rect.top + rect.height * (38 / 64));
-    const angle = Math.atan2(dx, -dy) * 180 / Math.PI;
-    const clamped = Math.max(
-        -CONVEYOR_GAUGE_SWEEP,
-        Math.min(CONVEYOR_GAUGE_SWEEP, angle),
-    );
-    const fraction = (clamped + CONVEYOR_GAUGE_SWEEP) / (CONVEYOR_GAUGE_SWEEP * 2);
-    const span = Math.max(1, 100 - conveyorSpeed.percentMin);
-    return conveyorSpeed.percentMin + fraction * span;
-}
-
-function setupConveyorSpeedGauge() {
-    const gauge = conveyorSpeedGauge();
-    if (!gauge) return;
-    let dragging = false;
-    gauge.addEventListener('pointerdown', event => {
+function setupConveyorSpeedSlider() {
+    const slider = conveyorSpeedSlider();
+    if (!slider) return;
+    slider.addEventListener('input', () => {
         if (conveyorSpeedLocked()) return;
-        event.preventDefault();
-        dragging = true;
-        if (gauge.setPointerCapture) gauge.setPointerCapture(event.pointerId);
-        applyConveyorPercent(conveyorPercentFromPointer(event));
+        applyConveyorPercent(slider.value);
     });
-    gauge.addEventListener('pointermove', event => {
-        if (!dragging || conveyorSpeedLocked()) return;
-        applyConveyorPercent(conveyorPercentFromPointer(event));
-    });
-    const finish = () => {
-        if (!dragging) return;
-        dragging = false;
+    // change приходит на отпускание, Enter и стрелки — один запрос.
+    slider.addEventListener('change', () => {
+        if (conveyorSpeedLocked()) return;
         commitConveyorSpeed();
-    };
-    ['pointerup', 'pointercancel'].forEach(name => {
-        gauge.addEventListener(name, finish);
-    });
-    gauge.addEventListener('keydown', event => {
-        if (conveyorSpeedLocked()) return;
-        const step = event.key === 'ArrowRight' ? CONVEYOR_SPEED_STEP
-            : event.key === 'ArrowLeft' ? -CONVEYOR_SPEED_STEP : 0;
-        if (step) {
-            event.preventDefault();
-            applyConveyorPercent(conveyorSpeed.percent + step);
-            queueConveyorSpeedCommit();
-        } else if (event.key === 'Home' || event.key === 'End') {
-            event.preventDefault();
-            applyConveyorPercent(event.key === 'Home' ? conveyorSpeed.percentMin : 100);
-            queueConveyorSpeedCommit();
-        }
     });
 }
 
-// ─── Паузы инспекции: степпер − значение + ───────────────────
-// Ползунок не давал точного значения (0…30 с при шаге 0.1), поэтому
-// паузы задаются кнопками: 0.1 с до инспекции и 0.5 с после, удержание
-// ускоряет набор в пять раз. Набор отправляется одним запросом.
+// ─── Паузы инспекции: два числовых поля ──────────────────────
+// Значения в секундах: 0…5 с до инспекции (шаг 0.1) и 0…30 с после
+// (шаг 0.5). Набор копится локально и уходит одним запросом.
 
 const INSPECTION_TIMING_FIELDS = [
     {key: 'settle_time', id: 'settle-time', step: 0.1, min: 0, max: 5},
@@ -326,10 +274,6 @@ let inspectionTimingsLockedByState = false;
 let inspectionTimingsAllowed = false;
 let inspectionTimingCommitTimer = null;
 
-function formatSeconds(value) {
-    return `${Number(value).toFixed(1)} с`;
-}
-
 function inspectionTimingField(key) {
     return INSPECTION_TIMING_FIELDS.find(field => field.key === key) || null;
 }
@@ -341,23 +285,26 @@ function inspectionTimingLocked() {
         || state.offline;
 }
 
-function inspectionTimingButtons(field) {
-    return {
-        dec: document.getElementById(`${field.id}-dec`),
-        inc: document.getElementById(`${field.id}-inc`),
-        output: document.getElementById(`${field.id}-value`),
-    };
+function inspectionTimingsUnavailable() {
+    return inspectionTimingsLockedByState
+        || !inspectionTimingsAllowed
+        || state.offline;
+}
+
+function inspectionTimingInput(field) {
+    return document.getElementById(`${field.id}-input`);
 }
 
 function renderInspectionTimings() {
-    const locked = inspectionTimingLocked();
+    const locked = inspectionTimingsUnavailable();
     INSPECTION_TIMING_FIELDS.forEach(field => {
-        const {dec, inc, output} = inspectionTimingButtons(field);
-        const value = inspectionTimingValues[field.key];
-        if (output) output.textContent = formatSeconds(value);
-        // Кнопка гаснет и на границе диапазона: дальше шагать некуда.
-        if (dec) dec.disabled = locked || value <= field.min + 1e-9;
-        if (inc) inc.disabled = locked || value >= field.max - 1e-9;
+        const input = inspectionTimingInput(field);
+        if (!input) return;
+        // Поле, в котором печатают, не переписываем под курсором.
+        if (document.activeElement !== input) {
+            input.value = Number(inspectionTimingValues[field.key]).toFixed(1);
+        }
+        input.disabled = locked;
     });
 }
 
@@ -373,19 +320,6 @@ function updateInspectionTimings(ls) {
         });
     }
     renderInspectionTimings();
-}
-
-function stepInspectionTiming(key, direction, multiplier = 1) {
-    if (inspectionTimingLocked()) return;
-    const field = inspectionTimingField(key);
-    if (!field) return;
-    const raw = inspectionTimingValues[key] + direction * field.step * multiplier;
-    const snapped = Math.round(raw / field.step) * field.step;
-    inspectionTimingValues[key] = Number(
-        Math.min(field.max, Math.max(field.min, snapped)).toFixed(2),
-    );
-    renderInspectionTimings();
-    scheduleInspectionTimingsCommit();
 }
 
 function scheduleInspectionTimingsCommit() {
@@ -410,49 +344,38 @@ async function commitInspectionTimings() {
     }
 }
 
-function setupInspectionTimingSteppers() {
+function applyInspectionTimingInput(field, commit) {
+    const input = inspectionTimingInput(field);
+    if (!input) return;
+    const previous = Number(inspectionTimingValues[field.key]);
+    const parsed = Number.parseFloat(String(input.value).replace(',', '.'));
+    if (!Number.isFinite(parsed)) {
+        // Пустое или мусорное поле возвращаем к последнему значению.
+        if (commit) input.value = previous.toFixed(1);
+        return;
+    }
+    const clamped = Math.min(field.max, Math.max(field.min, parsed));
+    const value = commit
+        ? Math.round(clamped / field.step) * field.step
+        : clamped;
+    inspectionTimingValues[field.key] = Number(value.toFixed(2));
+    if (commit) input.value = Number(value.toFixed(2)).toFixed(1);
+    if (!inspectionTimingLocked() || commit) scheduleInspectionTimingsCommit();
+}
+
+function setupInspectionTimingInputs() {
     INSPECTION_TIMING_FIELDS.forEach(field => {
-        const {dec, inc} = inspectionTimingButtons(field);
-        [[dec, -1], [inc, 1]].forEach(([button, direction]) => {
-            if (!button) return;
-            let holdDelay = null;
-            let holdRepeat = null;
-            let holdTicks = 0;
-            const stopHold = () => {
-                clearTimeout(holdDelay);
-                clearInterval(holdRepeat);
-                holdDelay = null;
-                holdRepeat = null;
-            };
-            button.addEventListener('pointerdown', event => {
-                if (event.button !== 0 || button.disabled) return;
-                stopHold();
-                holdTicks = 0;
-                stepInspectionTiming(field.key, direction);
-                holdDelay = setTimeout(() => {
-                    holdRepeat = setInterval(() => {
-                        holdTicks += 1;
-                        stepInspectionTiming(
-                            field.key, direction, holdTicks > 8 ? 5 : 1,
-                        );
-                    }, 110);
-                }, 400);
-            });
-            ['pointerup', 'pointerleave', 'pointercancel'].forEach(name => {
-                button.addEventListener(name, stopHold);
-            });
-            // С клавиатуры приходит только click (у указателя шаг уже
-            // сделан на pointerdown, иначе было бы двойное срабатывание).
-            button.addEventListener('click', event => {
-                if (event.detail === 0) stepInspectionTiming(field.key, direction);
-            });
-        });
+        const input = inspectionTimingInput(field);
+        if (!input) return;
+        input.addEventListener('input', () => applyInspectionTimingInput(field, false));
+        // change — это Enter, уход из поля или стрелки счётчика.
+        input.addEventListener('change', () => applyInspectionTimingInput(field, true));
     });
 }
 
 function setupButtons() {
-    setupConveyorSpeedGauge();
-    setupInspectionTimingSteppers();
+    setupConveyorSpeedSlider();
+    setupInspectionTimingInputs();
 
     if (els.splashExit) {
         els.splashExit.addEventListener('click', async () => {
