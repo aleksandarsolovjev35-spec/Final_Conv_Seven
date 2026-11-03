@@ -96,6 +96,13 @@ function updateViewModeControls() {
             ? 'ПРАВИЛА' : 'МОДЕЛИ';
         els.viewModeToggle.setAttribute('aria-pressed', state.mode === 'RULES' ? 'true' : 'false');
     }
+    // Возврат к сетке камер заблокирован, пока идёт переключение анализа:
+    // оба состояния должны меняться вместе.
+    if (els.cameraCollapse) {
+        els.cameraCollapse.disabled = state.selectedAnalysisPending
+            || state.analysisReleasePending
+            || state.panelShutterPending;
+    }
 }
 
 function applyModeUI() {
@@ -337,6 +344,10 @@ function expandCameraDeck(role) {
 function collapseCameraDeck() {
     const column = cameraDeckColumn();
     if (!column) return;
+    // Пока шторка едет и запрос анализа в пути, вид не меняем: иначе камера
+    // вернётся к сетке, а правая панель останется в лице анализа.
+    if (state.selectedAnalysisPending || state.analysisReleasePending
+        || state.panelShutterPending) return;
     column.classList.remove('camera-expanded');
     schedulePreviewStripCentering();
     // Возврат к сетке — это и возврат live-потока: анализ кадра завершаем.

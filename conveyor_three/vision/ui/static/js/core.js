@@ -162,6 +162,7 @@ const els = {
     mainCamera:       $('main-camera'),
     cameraOverlay:    $('camera-overlay'),
     viewModeToggle:   $('view-mode-toggle'),
+    cameraCollapse:   $('camera-collapse'),
     analyzeSelectedFrame: $('analyze-selected-frame'),
     cameraContainer:  null,
 

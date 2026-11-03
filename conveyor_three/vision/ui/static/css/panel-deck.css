@@ -16,6 +16,7 @@
 .stats-panel {
     transform-origin: center center;
     backface-visibility: hidden;
+    transition: visibility 0s linear 0s;
 }
 
 /* Во время переворота панель не ловит клики. */
@@ -38,15 +39,24 @@
    за которую панель возвращается. */
 .body {
     --panel-col: 360px;
+    /* Ширина самой панели не зависит от колонки: при сворачивании её
+       блоки остаются в прежней вёрстке и не переливаются. */
+    --panel-w: 360px;
     position: relative;
     grid-template-columns: minmax(0, 1fr) var(--panel-col);
     transition:
-        grid-template-columns 200ms var(--ease),
-        column-gap 200ms var(--ease);
+        grid-template-columns 240ms var(--ease),
+        column-gap 240ms var(--ease);
 }
 .body.panel-collapsed {
     --panel-col: 0px;
     column-gap: 0;
+}
+
+/* Панель держит свою ширину: колонка уезжает вправо, панель едет за ней
+   и обрезается краем окна — содержимое при этом статично. */
+#stats-panel {
+    min-width: var(--panel-w);
 }
 
 /* Ручка: узкая полоска на кромке панели. Форма при наведении не
@@ -65,7 +75,7 @@
     background: none;
     border: 0;
     cursor: pointer;
-    transition: right 200ms var(--ease);
+    transition: right 240ms var(--ease);
 }
 .panel-toggle::before {
     content: "";
@@ -88,15 +98,13 @@
     box-shadow: 0 0 0 1px var(--border-accent);
 }
 
-/* Свёрнутое состояние: панели нет, ручка — у правого края окна. */
+/* Свёрнутое состояние: панель уехала за правый край окна. Вёрстка
+   внутри не тронута, поэтому блоки не деформируются; после анимации
+   панель перестаёт ловить клики и попадать в обход по Tab. */
 .body.panel-collapsed #stats-panel {
-    padding: 0;
-    overflow: hidden;
-    background: none;
-    border: 0;
-}
-.body.panel-collapsed #stats-panel > * {
-    display: none;
+    visibility: hidden;
+    pointer-events: none;
+    transition: visibility 0s linear 240ms;
 }
 .body.panel-collapsed .panel-toggle {
     right: 0;
