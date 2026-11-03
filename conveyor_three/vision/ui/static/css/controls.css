@@ -221,30 +221,17 @@
 
 
 /* ─── Блок «Параметры линии» ───────────────────────────────────────
-   Скорость ленты — один ползунок во всю ширину панели, паузы инспекции —
-   два числовых поля в ряд под ним. Панель видна только на остановленной
-   линии. */
+   Плита в рамке: сверху скорость ленты (подпись, значение, ползунок),
+   снизу две ячейки пауз инспекции с делителем. Значения пауз — поля без
+   рамки: цифры читаются как текст, правка по клику. Панель видна только
+   на остановленной линии. */
 
 .line-settings {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 7px 10px 8px;
-    background:
-        linear-gradient(180deg, rgba(9, 12, 15, 0.55), rgba(24, 32, 39, 0.22));
-    border-top: 1px solid var(--border-strong);
-    border-bottom: 1px solid var(--border);
-}
-
-.line-settings-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    min-width: 0;
-    padding-bottom: 5px;
-    border-bottom: 1px solid var(--border);
+    gap: 4px;
+    padding: 0 10px 8px;
 }
 
 .line-settings-title {
@@ -258,12 +245,31 @@
     white-space: nowrap;
 }
 
+.line-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background:
+        linear-gradient(180deg, rgba(9, 12, 15, 0.55), rgba(24, 32, 39, 0.22));
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+.line-settings-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+    padding: 8px 12px 0;
+}
+
 .line-setting-name {
     overflow: hidden;
-    color: var(--text-dim);
-    font-size: 10px;
+    color: var(--text-muted);
+    font-size: 9px;
     font-weight: 700;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.5px;
     text-overflow: ellipsis;
     text-transform: uppercase;
     white-space: nowrap;
@@ -272,7 +278,7 @@
 .line-setting-value {
     flex: 0 0 auto;
     color: var(--text);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1;
@@ -280,20 +286,12 @@
 }
 
 /* Скорость ленты: ползунок с заливкой до текущего значения. */
-.line-slider-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    min-width: 0;
-}
-
 .line-slider {
     -webkit-appearance: none;
     appearance: none;
-    width: 100%;
+    width: auto;
     height: 16px;
-    margin: 0;
+    margin: 6px 12px 10px;
     padding: 0;
     background: transparent;
     cursor: pointer;
@@ -309,9 +307,9 @@
 
 .line-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    margin-top: -5px;
+    width: 12px;
+    height: 12px;
+    margin-top: -4px;
     background: var(--text);
     border: 2px solid var(--bg-0);
     border-radius: 50%;
@@ -330,8 +328,8 @@
 }
 
 .line-slider::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     background: var(--text);
     border: 2px solid var(--bg-0);
     border-radius: 50%;
@@ -354,46 +352,53 @@
     background: var(--border-strong);
 }
 
-/* Паузы инспекции: два числовых поля в ряд. */
+/* Паузы инспекции: две ячейки с делителем, значения крупно справа. */
 .line-fields {
     display: flex;
-    gap: 10px;
-    min-width: 0;
+    border-top: 1px solid var(--border);
 }
 
 .line-field {
     flex: 1 1 0;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     min-width: 0;
+    padding: 7px 12px 8px;
+}
+
+.line-field + .line-field {
+    border-left: 1px solid var(--border);
 }
 
 .line-field-name {
     flex: 0 0 auto;
-    color: var(--text-dim);
-    font-size: 10px;
+    color: var(--text-muted);
+    font-size: 9px;
     font-weight: 700;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.5px;
     text-transform: uppercase;
+    white-space: nowrap;
 }
 
+/* Поле без рамки: цифры читаются как значение, правка — по клику. */
 .line-field-input {
     flex: 1 1 auto;
     width: 100%;
     min-width: 0;
-    height: 22px;
-    padding: 0 6px;
+    height: 20px;
+    padding: 0;
     color: var(--text);
-    font: 700 12px/1 var(--font-ui);
+    font: 700 15px/1 var(--font-ui);
     font-variant-numeric: tabular-nums;
-    text-align: center;
-    background: var(--bg-2);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
+    text-align: right;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid transparent;
+    border-radius: 0;
 }
 
-/* Стрелки нативного счётчика в узком поле только мешают. */
+/* Стрелки нативного счётчика в узкой ячейке только мешают. */
 .line-field-input::-webkit-outer-spin-button,
 .line-field-input::-webkit-inner-spin-button {
     margin: 0;
@@ -401,20 +406,19 @@
 }
 
 .line-field-input:focus-visible {
-    outline: 1px solid var(--border-accent);
-    outline-offset: 1px;
+    outline: none;
+    border-bottom-color: var(--border-accent);
 }
 
 .line-field-input:disabled {
     color: var(--text-muted);
-    background: var(--bg-1);
-    border-color: var(--border);
 }
 
-/* Стандартное окно HMI — 1280×720: чуть плотнее, текст не мельче 9.5 px. */
+/* Стандартное окно HMI — 1280×720: чуть плотнее, текст не мельче 9 px. */
 @media (max-height: 800px) {
-    .line-settings { gap: 5px; padding: 6px 10px 7px; }
-    .line-settings-head { padding-bottom: 4px; }
     .line-settings-title { font-size: 10px; line-height: 1.1; }
-    .line-setting-name { font-size: 9.5px; }
+    .line-settings-head { padding-top: 6px; }
+    .line-slider { margin: 5px 10px 8px; }
+    .line-field { padding: 6px 10px 7px; }
+    .line-field-input { font-size: 14px; }
 }

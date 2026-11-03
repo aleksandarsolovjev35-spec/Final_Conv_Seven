@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/static/css/history-strip.css?v=47">
     <link rel="stylesheet" href="/static/css/stats.css?v=53">
     <link rel="stylesheet" href="/static/css/jog.css?v=36">
-    <link rel="stylesheet" href="/static/css/controls.css?v=53">
+    <link rel="stylesheet" href="/static/css/controls.css?v=54">
     <link rel="stylesheet" href="/static/css/gallery.css?v=34">
     <link rel="stylesheet" href="/static/css/process.css?v=61">
     <link rel="stylesheet" href="/static/css/motion.css?v=42">
@@ -243,32 +243,32 @@
                      паузы инспекции в секундах. Меняются только на
                      остановленной линии; доступность показана в шапке. -->
                 <div class="line-settings" data-ui-block="line-settings">
-                    <div class="line-settings-head">
-                        <span class="line-settings-title">ПАРАМЕТРЫ ЛИНИИ</span>
-                    </div>
-                    <!-- Скорость ленты: один ползунок во всю ширину панели,
-                         значение — справа от подписи. -->
-                    <div class="line-slider-row">
-                        <span id="conveyor-speed-name" class="line-setting-name">Скорость ленты</span>
-                        <output id="conveyor-speed-value" class="line-setting-value">—</output>
-                    </div>
-                    <input id="conveyor-speed-slider" class="line-slider" type="range"
-                           min="25" max="100" step="5" value="90" disabled
-                           aria-labelledby="conveyor-speed-name">
-                    <!-- Паузы инспекции: два числовых поля в ряд, секунды. -->
-                    <div class="line-fields">
-                        <label class="line-field">
-                            <span class="line-field-name">До, с</span>
-                            <input id="settle-time-input" class="line-field-input"
-                                   type="number" step="0.1" min="0" max="5" value="0.2"
-                                   inputmode="decimal" disabled>
-                        </label>
-                        <label class="line-field">
-                            <span class="line-field-name">После, с</span>
-                            <input id="review-time-input" class="line-field-input"
-                                   type="number" step="0.5" min="0" max="30" value="0.5"
-                                   inputmode="decimal" disabled>
-                        </label>
+                    <span class="line-settings-title">ПАРАМЕТРЫ ЛИНИИ</span>
+                    <!-- Плита: сверху скорость ленты, снизу две ячейки пауз. -->
+                    <div class="line-panel">
+                        <div class="line-settings-head">
+                            <span id="conveyor-speed-name" class="line-setting-name">Скорость ленты</span>
+                            <output id="conveyor-speed-value" class="line-setting-value">—</output>
+                        </div>
+                        <input id="conveyor-speed-slider" class="line-slider" type="range"
+                               min="25" max="100" step="5" value="90" disabled
+                               aria-labelledby="conveyor-speed-name">
+                        <div class="line-fields">
+                            <label class="line-field">
+                                <span class="line-field-name">До, с</span>
+                                <input id="settle-time-input" class="line-field-input"
+                                       type="number" step="0.1" min="0" max="5" value="0.2"
+                                       inputmode="decimal" disabled
+                                       aria-label="Пауза перед инспекцией, секунды">
+                            </label>
+                            <label class="line-field">
+                                <span class="line-field-name">После, с</span>
+                                <input id="review-time-input" class="line-field-input"
+                                       type="number" step="0.5" min="0" max="30" value="0.5"
+                                       inputmode="decimal" disabled
+                                       aria-label="Пауза после инспекции, секунды">
+                            </label>
+                        </div>
                     </div>
                 </div>
                 <div class="jog-deck">
@@ -390,7 +390,7 @@
     <script src="/static/js/boot.js?v=34"></script>
     <script src="/static/js/diagnostics.js?v=60"></script>
     <script src="/static/js/status.js?v=66"></script>
-    <script src="/static/js/controls.js?v=48"></script>
+    <script src="/static/js/controls.js?v=49"></script>
     <script src="/static/js/thresholds.js?v=21"></script>
     <script src="/static/js/cameras.js?v=49"></script>
     <script src="/static/js/jog.js?v=38"></script>
