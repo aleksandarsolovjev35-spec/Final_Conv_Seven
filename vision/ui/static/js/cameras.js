@@ -250,6 +250,43 @@ function cameraIdSuffix(role) {
     return Number.isInteger(cameraId) ? ` \u00b7 ID ${cameraId}` : '';
 }
 
+// ─── Раскладка плиток в сетке камер ───────────────────────────────
+// Пропорции кадра: по ним подгоняем плитку, чтобы кадр был виден
+// целиком и занимал как можно больше места.
+function previewFrameAspect() {
+    const img = els.previewStrip && els.previewStrip.querySelector('.preview-cam img');
+    return img && img.naturalWidth > 0 ? img.naturalWidth / img.naturalHeight : 16 / 9;
+}
+
+// Число столбцов, при котором кадр в плитке максимален: перебираем все
+// варианты и берём тот, где в плитку вписывается самый крупный кадр.
+function layoutPreviewStrip() {
+    const strip = els.previewStrip;
+    if (!strip) return;
+    const count = strip.querySelectorAll('.preview-cam').length;
+    const width = strip.clientWidth;
+    const height = strip.clientHeight;
+    if (!count || width <= 0 || height <= 0) return;
+    const gap = parseFloat(getComputedStyle(strip).columnGap) || 0;
+    const aspect = previewFrameAspect();
+    let best = 0;
+    let columns = 1;
+    for (let c = 1; c <= count; c += 1) {
+        const rows = Math.ceil(count / c);
+        const cellW = (width - gap * (c - 1)) / c;
+        const cellH = (height - gap * (rows - 1)) / rows;
+        const frameW = Math.min(cellW, cellH * aspect);
+        if (frameW > best) {
+            best = frameW;
+            columns = c;
+        }
+    }
+    const template = `repeat(${columns}, minmax(0, 1fr))`;
+    if (strip.style.gridTemplateColumns !== template) {
+        strip.style.gridTemplateColumns = template;
+    }
+}
+
 // ─── Центрирование плиток в сетке камер ──────────────────────────
 // Последний ряд бывает неполным: сдвигаем его на половину остатка,
 // чтобы камеры стояли по центру сетки, а не липли к левому краю.
@@ -281,6 +318,7 @@ function schedulePreviewStripCentering() {
     if (_previewCenterFrame) cancelAnimationFrame(_previewCenterFrame);
     _previewCenterFrame = requestAnimationFrame(() => {
         _previewCenterFrame = 0;
+        layoutPreviewStrip();
         centerPreviewStripLastRow();
     });
 }
