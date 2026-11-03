@@ -243,15 +243,21 @@
     min-width: 0;
 }
 
-.line-setting-name {
-    overflow: hidden;
-    color: var(--text-muted);
-    font-size: 9px;
+/* Заголовки ячеек — тем же кеглем, что «Пороги правил»: подпись
+   читается как заголовок раздела, а не как мелкая сноска. */
+.line-setting-name,
+.line-fields-caption {
+    color: var(--text-dim);
+    font-size: 10px;
     font-weight: 700;
-    letter-spacing: 0.5px;
-    text-overflow: ellipsis;
+    letter-spacing: 0.8px;
     text-transform: uppercase;
     white-space: nowrap;
+}
+
+.line-setting-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .line-setting-value {
@@ -343,12 +349,6 @@
 
 .line-fields-caption {
     grid-column: 1 / -1;
-    color: var(--text-muted);
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    white-space: nowrap;
 }
 
 .line-field {
