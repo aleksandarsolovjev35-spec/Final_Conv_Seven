@@ -180,18 +180,22 @@ function renderConveyorSpeed() {
         * Math.PI / 180;
     const gauge = conveyorSpeedGauge();
     const fill = document.getElementById('conveyor-speed-fill');
-    const knob = document.getElementById('conveyor-speed-knob');
+    const marker = document.getElementById('conveyor-speed-marker');
     const output = document.getElementById('conveyor-speed-value');
+    const hint = document.getElementById('conveyor-speed-hint');
+    const steps = conveyorSpeedTitle(conveyorPercentToSpeed(conveyorSpeed.percent));
     if (fill) fill.style.strokeDashoffset = (100 - fraction * 100).toFixed(2);
-    if (knob) {
+    if (marker) {
         // Кольцо: центр (56, 38), радиус 24 — см. viewBox 0 0 112 64.
-        knob.setAttribute('cx', (56 + Math.sin(angle) * 24).toFixed(2));
-        knob.setAttribute('cy', (38 - Math.cos(angle) * 24).toFixed(2));
+        marker.setAttribute('transform',
+            `translate(${(56 + Math.sin(angle) * 24).toFixed(2)} `
+            + `${(38 - Math.cos(angle) * 24).toFixed(2)})`);
     }
     if (output) {
         output.textContent = String(Math.round(conveyorSpeed.percent));
-        output.title = conveyorSpeedTitle(conveyorPercentToSpeed(conveyorSpeed.percent));
+        output.title = steps;
     }
+    if (hint) hint.textContent = steps;
     const locked = conveyorSpeedLocked();
     if (gauge) {
         gauge.classList.toggle('is-locked', locked);
@@ -355,6 +359,12 @@ function renderInspectionTimings() {
         const {dec, inc, output} = inspectionTimingButtons(field);
         const value = inspectionTimingValues[field.key];
         if (output) output.textContent = formatSeconds(value);
+        // Заливка пилюли — доля выбранного значения от максимума.
+        const row = document.getElementById(`${field.id}-row`);
+        if (row) {
+            const fill = Math.min(100, value / field.max * 100).toFixed(1);
+            row.style.setProperty('--fill', `${fill}%`);
+        }
         // Кнопка гаснет и на границе диапазона: дальше шагать некуда.
         if (dec) dec.disabled = locked || value <= field.min + 1e-9;
         if (inc) inc.disabled = locked || value >= field.max - 1e-9;
