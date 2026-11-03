@@ -220,39 +220,19 @@
 }
 
 
-/* ─── Блок «Параметры линии» ───────────────────────────────────────
-   Плита в рамке: сверху скорость ленты (подпись, значение, ползунок),
-   снизу две ячейки пауз инспекции с делителем. Значения пауз — поля без
-   рамки: цифры читаются как текст, правка по клику. Панель видна только
-   на остановленной линии. */
+/* ─── Параметры линии внутри ручного управления ──────────────────────
+   Компактная ячейка под кнопками хода: скорость ленты с ползунком и две
+   ячейки пауз инспекции. Значения пауз — поля без рамки: цифры читаются
+   как значение, правка по клику. Видна только на остановленной линии. */
 
 .line-settings {
-    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 0 10px 8px;
-}
-
-.line-settings-title {
-    overflow: hidden;
-    color: var(--accent);
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.9px;
-    text-overflow: ellipsis;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-
-.line-panel {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background:
-        linear-gradient(180deg, rgba(9, 12, 15, 0.55), rgba(24, 32, 39, 0.22));
+    gap: 5px;
+    padding: 6px 8px 7px;
+    background: var(--bg-1);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
 }
 
 .line-settings-head {
@@ -261,7 +241,6 @@
     justify-content: space-between;
     gap: 10px;
     min-width: 0;
-    padding: 8px 12px 0;
 }
 
 .line-setting-name {
@@ -291,7 +270,7 @@
     appearance: none;
     width: auto;
     height: 16px;
-    margin: 6px 12px 10px;
+    margin: 1px 0 3px;
     padding: 0;
     background: transparent;
     cursor: pointer;
@@ -364,10 +343,15 @@
     align-items: center;
     gap: 8px;
     min-width: 0;
-    padding: 7px 12px 8px;
+    padding: 5px 0 0;
+}
+
+.line-field:first-child {
+    padding-right: 10px;
 }
 
 .line-field + .line-field {
+    padding-left: 10px;
     border-left: 1px solid var(--border);
 }
 
@@ -414,11 +398,10 @@
     color: var(--text-muted);
 }
 
-/* Стандартное окно HMI — 1280×720: чуть плотнее, текст не мельче 9 px. */
+/* Стандартное окно HMI — 1280×720: на пару пикселей плотнее. */
 @media (max-height: 800px) {
-    .line-settings-title { font-size: 10px; line-height: 1.1; }
-    .line-settings-head { padding-top: 6px; }
-    .line-slider { margin: 5px 10px 8px; }
-    .line-field { padding: 6px 10px 7px; }
+    .line-settings { gap: 4px; padding: 5px 7px 6px; }
+    .line-slider { margin: 0 0 2px; }
+    .line-field { padding-top: 4px; }
     .line-field-input { font-size: 14px; }
 }

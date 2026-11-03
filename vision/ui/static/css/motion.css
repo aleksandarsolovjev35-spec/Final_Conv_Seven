@@ -29,19 +29,19 @@
 
 #stats-summary.ui-collapse { max-height: 196px; }
 #stats-body.ui-collapse { max-height: 148px; }
-#jog-panel.ui-collapse { max-height: 190px; }
+#jog-panel.ui-collapse { max-height: 240px; }
 /* Не перекрываем ограничение высоты из blocks.css: иначе панель росла
    до полного списка, а внутреннему scroll-контейнеру было нечего прокручивать. */
 
 /* Блоки, которые скрываются целиком (display: none), появляются тем же
-   временем, что и раскрытие .ui-collapse: иначе «Пороги правил» и
-   «Параметры линии» выскакивают раньше остального интерфейса. */
+   временем, что и раскрытие .ui-collapse: иначе «Пороги правил»
+   выскакивают раньше остального интерфейса. Параметры линии живут внутри
+   ручного управления и раскрываются вместе с ним. */
 @keyframes panelReveal {
     from { opacity: 0; transform: translateY(-4px); }
     to   { opacity: 1; transform: none; }
 }
-.thresholds-panel:not(.is-hidden),
-.line-settings {
+.thresholds-panel:not(.is-hidden) {
     animation: panelReveal 180ms var(--ease);
 }
 
