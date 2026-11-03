@@ -16,6 +16,12 @@
 .stats-panel {
     transform-origin: center center;
     backface-visibility: hidden;
+    /* Сворачивание: панель гаснет и отъезжает вправо, пока её колонка
+       сжимается, а камера занимает освободившееся место. */
+    transition:
+        opacity 160ms var(--ease),
+        transform 240ms var(--ease),
+        visibility 0s linear 0s;
 }
 
 /* Во время переворота панель не ловит клики. */
@@ -40,9 +46,11 @@
     --panel-col: 360px;
     position: relative;
     grid-template-columns: minmax(0, 1fr) var(--panel-col);
+    /* Колонка панели уезжает в ноль, а камера занимает освободившееся
+       место: ширина меняется плавно, без рывка. */
     transition:
-        grid-template-columns 200ms var(--ease),
-        column-gap 200ms var(--ease);
+        grid-template-columns 240ms var(--ease),
+        column-gap 240ms var(--ease);
 }
 .body.panel-collapsed {
     --panel-col: 0px;
@@ -65,7 +73,7 @@
     background: none;
     border: 0;
     cursor: pointer;
-    transition: right 200ms var(--ease);
+    transition: right 240ms var(--ease);
 }
 .panel-toggle::before {
     content: "";
@@ -88,15 +96,18 @@
     box-shadow: 0 0 0 1px var(--border-accent);
 }
 
-/* Свёрнутое состояние: панели нет, ручка — у правого края окна. */
+/* Свёрнутое состояние: панель растворяется вместе с рамкой, содержимое
+   не исчезает рывком; ручка остаётся у правого края окна. */
 .body.panel-collapsed #stats-panel {
-    padding: 0;
     overflow: hidden;
-    background: none;
-    border: 0;
-}
-.body.panel-collapsed #stats-panel > * {
-    display: none;
+    opacity: 0;
+    transform: translateX(20px);
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+        opacity 160ms var(--ease),
+        transform 240ms var(--ease),
+        visibility 0s linear 240ms;
 }
 .body.panel-collapsed .panel-toggle {
     right: 0;
@@ -398,6 +409,12 @@
 /* ─── Уменьшение движения ─────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
+    .body,
+    .panel-toggle,
+    .stats-panel,
+    .body.panel-collapsed #stats-panel {
+        transition-duration: 1ms;
+    }
     .jog-shutter {
         transition-duration: 1ms;
     }
