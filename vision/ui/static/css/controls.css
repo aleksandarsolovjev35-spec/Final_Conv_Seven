@@ -235,11 +235,12 @@
     border-radius: var(--radius-sm);
 }
 
+/* Заголовок и значение — пара по центру ячейки. */
 .line-settings-head {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    align-items: baseline;
+    justify-content: center;
+    gap: 6px;
     min-width: 0;
 }
 
@@ -350,6 +351,7 @@
 .line-fields-caption {
     grid-column: 1 / -1;
     overflow: hidden;
+    text-align: center;
     text-overflow: ellipsis;
 }
 
