@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/static/css/history-strip.css?v=47">
     <link rel="stylesheet" href="/static/css/stats.css?v=53">
     <link rel="stylesheet" href="/static/css/jog.css?v=36">
-    <link rel="stylesheet" href="/static/css/controls.css?v=52">
+    <link rel="stylesheet" href="/static/css/controls.css?v=50">
     <link rel="stylesheet" href="/static/css/gallery.css?v=34">
     <link rel="stylesheet" href="/static/css/process.css?v=61">
     <link rel="stylesheet" href="/static/css/motion.css?v=42">
@@ -245,44 +245,24 @@
                 <div class="line-settings" data-ui-block="line-settings">
                     <div class="line-settings-head">
                         <span class="line-settings-title">ПАРАМЕТРЫ ЛИНИИ</span>
-                        <span id="conveyor-speed-hint" class="line-settings-hint">— шаг/с</span>
                     </div>
                     <div class="line-settings-body">
-                        <!-- Скорость ленты: кольцевая шкала с бегунком. Скорость
-                             ставится тапом или перетаскиванием по кольцу,
-                             значение — в центре шкалы. -->
+                        <!-- Скорость ленты: кольцевая шкала с бегунком.
+                             Скорость ставится тапом или перетаскиванием
+                             по кольцу, значение — в центре шкалы. -->
                         <div id="conveyor-speed-gauge" class="line-gauge"
                              role="slider" tabindex="0" aria-label="Скорость ленты"
                              aria-valuemin="25" aria-valuemax="100" aria-valuenow="90">
                             <svg class="line-gauge-face" viewBox="0 0 112 64" aria-hidden="true">
-                                <g class="line-gauge-ticks">
-                                    <path d="M29.41,42.69 L26.46,43.21"></path>
-                                    <path d="M29.41,33.31 L26.46,32.79"></path>
-                                    <path d="M38.64,17.32 L36.72,15.02"></path>
-                                    <path d="M46.77,12.63 L45.74,9.81"></path>
-                                    <path d="M65.23,12.63 L66.26,9.81"></path>
-                                    <path d="M73.36,17.32 L75.28,15.02"></path>
-                                    <path d="M82.59,33.31 L85.54,32.79"></path>
-                                    <path d="M82.59,42.69 L85.54,43.21"></path>
-                                </g>
-                                <g class="line-gauge-ticks line-gauge-ticks-major">
-                                    <path d="M33.48,51.00 L29.15,53.50"></path>
-                                    <path d="M33.48,25.00 L29.15,22.50"></path>
-                                    <path d="M56.00,12.00 L56.00,7.00"></path>
-                                    <path d="M78.52,25.00 L82.85,22.50"></path>
-                                    <path d="M78.52,51.00 L82.85,53.50"></path>
-                                </g>
                                 <path class="line-gauge-track"
                                       d="M35.22,50 A24,24 0 1 1 76.78,50"></path>
                                 <path id="conveyor-speed-fill" class="line-gauge-fill"
                                       pathLength="100"
                                       d="M35.22,50 A24,24 0 1 1 76.78,50"></path>
-                                <g id="conveyor-speed-marker" transform="translate(80 37.2)">
-                                    <circle class="line-gauge-glow" r="11"></circle>
-                                    <circle class="line-gauge-knob" r="6.5"></circle>
-                                </g>
-                                <text class="line-gauge-scale" x="22.2" y="61.5">25</text>
-                                <text class="line-gauge-scale" x="89.8" y="61.5">100</text>
+                                <circle id="conveyor-speed-knob" class="line-gauge-knob"
+                                        cx="80" cy="37.2" r="6.5"></circle>
+                                <text class="line-gauge-scale" x="22.2" y="57.5">25</text>
+                                <text class="line-gauge-scale" x="89.8" y="57.5">100</text>
                             </svg>
                             <div class="line-gauge-center">
                                 <output id="conveyor-speed-value"
@@ -290,25 +270,28 @@
                                 <span class="line-gauge-unit">%</span>
                             </div>
                         </div>
-                        <!-- Паузы инспекции: пилюли, заливка показывает долю
-                             от максимума диапазона. -->
+                        <!-- Паузы инспекции: степперы − значение +, секунды. -->
                         <div class="line-pauses">
                             <span class="line-pauses-caption">Паузы инспекции, с</span>
-                            <div id="settle-time-row" class="line-pause">
-                                <span id="settle-time-name" class="line-pause-name">До</span>
-                                <output id="settle-time-value" class="line-pause-value">—</output>
-                                <button id="settle-time-dec" class="line-pause-btn" type="button"
-                                        disabled aria-label="Уменьшить паузу перед инспекцией">&minus;</button>
-                                <button id="settle-time-inc" class="line-pause-btn" type="button"
-                                        disabled aria-label="Увеличить паузу перед инспекцией">+</button>
+                            <div class="line-pause">
+                                <span id="settle-time-name" class="line-setting-name">До</span>
+                                <div class="line-stepper" role="group" aria-labelledby="settle-time-name">
+                                    <button id="settle-time-dec" class="line-stepper-btn" type="button"
+                                            disabled aria-label="Уменьшить паузу перед инспекцией">&minus;</button>
+                                    <output id="settle-time-value" class="line-stepper-value">—</output>
+                                    <button id="settle-time-inc" class="line-stepper-btn" type="button"
+                                            disabled aria-label="Увеличить паузу перед инспекцией">+</button>
+                                </div>
                             </div>
-                            <div id="review-time-row" class="line-pause">
-                                <span id="review-time-name" class="line-pause-name">После</span>
-                                <output id="review-time-value" class="line-pause-value">—</output>
-                                <button id="review-time-dec" class="line-pause-btn" type="button"
-                                        disabled aria-label="Уменьшить паузу после инспекции">&minus;</button>
-                                <button id="review-time-inc" class="line-pause-btn" type="button"
-                                        disabled aria-label="Увеличить паузу после инспекции">+</button>
+                            <div class="line-pause">
+                                <span id="review-time-name" class="line-setting-name">После</span>
+                                <div class="line-stepper" role="group" aria-labelledby="review-time-name">
+                                    <button id="review-time-dec" class="line-stepper-btn" type="button"
+                                            disabled aria-label="Уменьшить паузу после инспекции">&minus;</button>
+                                    <output id="review-time-value" class="line-stepper-value">—</output>
+                                    <button id="review-time-inc" class="line-stepper-btn" type="button"
+                                            disabled aria-label="Увеличить паузу после инспекции">+</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -432,7 +415,7 @@
     <script src="/static/js/boot.js?v=34"></script>
     <script src="/static/js/diagnostics.js?v=60"></script>
     <script src="/static/js/status.js?v=66"></script>
-    <script src="/static/js/controls.js?v=47"></script>
+    <script src="/static/js/controls.js?v=45"></script>
     <script src="/static/js/thresholds.js?v=21"></script>
     <script src="/static/js/cameras.js?v=49"></script>
     <script src="/static/js/jog.js?v=38"></script>

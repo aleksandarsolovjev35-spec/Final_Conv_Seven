@@ -220,53 +220,27 @@
 }
 
 
-/* ─── Параметры линии: приборный модуль ──────────────────────────────
-   Тёмная плита с миллиметровой сеткой, акцентной кромкой слева и
-   уголками-засечками. Внутри — кольцевая шкала скорости с бегунком и две
-   «пилюли» пауз: заливка показывает выбранную долю диапазона. */
+/* ─── Блок «Параметры линии» ───────────────────────────────────────
+   Три параметра ленты. В каждой строке подпись слева и значение
+   справа, под ними — ползунок во всю ширину панели: так и подписи,
+   и числа читаются, а ползунок даёт точную настройку.
+   Панель видна только на остановленной линии. */
+
 .line-settings {
-    position: relative;
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 8px 12px 10px 14px;
+    gap: 5px;
+    padding: 7px 10px 8px;
+    background:
+        linear-gradient(180deg, rgba(9, 12, 15, 0.55), rgba(24, 32, 39, 0.22));
     border-top: 1px solid var(--border-strong);
     border-bottom: 1px solid var(--border);
-    border-left: 2px solid rgba(120, 153, 165, 0.42);
-    background:
-        radial-gradient(circle at 1px 1px,
-            rgba(120, 153, 165, 0.09) 1px, transparent 1px) 0 0 / 14px 14px,
-        linear-gradient(180deg, rgba(9, 12, 15, 0.62), rgba(24, 32, 39, 0.26));
-}
-
-/* Засечки-уголки: техническая рамка без сплошной обводки. */
-.line-settings::before,
-.line-settings::after {
-    content: "";
-    position: absolute;
-    width: 9px;
-    height: 9px;
-    pointer-events: none;
-}
-
-.line-settings::before {
-    top: 3px;
-    right: 3px;
-    border-top: 1px solid var(--border-strong);
-    border-right: 1px solid var(--border-strong);
-}
-
-.line-settings::after {
-    right: 3px;
-    bottom: 3px;
-    border-right: 1px solid var(--border-strong);
-    border-bottom: 1px solid var(--border-strong);
 }
 
 .line-settings-head {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 10px;
     min-width: 0;
@@ -285,39 +259,88 @@
     white-space: nowrap;
 }
 
-/* Технический маркер перед заголовком. */
-.line-settings-title::before {
-    content: "";
-    display: inline-block;
-    width: 5px;
-    height: 5px;
-    margin-right: 6px;
-    border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 6px var(--accent-glow);
-    vertical-align: middle;
-}
-
-/* Живая скорость в шаг/с — второй индикатор в шапке. */
-.line-settings-hint {
-    flex: 0 0 auto;
-    color: var(--text-muted);
-    font-size: 9px;
+.line-setting-name {
+    overflow: hidden;
+    color: var(--text-dim);
+    font-size: 10px;
     font-weight: 700;
-    font-variant-numeric: tabular-nums;
     letter-spacing: 0.4px;
+    text-overflow: ellipsis;
     text-transform: uppercase;
     white-space: nowrap;
 }
 
-.line-settings-body {
+.line-setting-value {
+    flex: 0 0 auto;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+/* Степпер паузы инспекции: «− значение +». Шаг задаётся в controls.js,
+   удержание кнопки ускоряет набор. */
+.line-stepper {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 6px;
     min-width: 0;
 }
 
-/* ── Кольцевая шкала скорости ─────────────────────────────────────── */
+.line-stepper-btn {
+    flex: 0 0 30px;
+    height: 20px;
+    padding: 0;
+    color: var(--text-dim);
+    font: 700 13px/1 var(--font-ui);
+    background: var(--bg-2);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition:
+        color 120ms var(--ease),
+        background 120ms var(--ease),
+        border-color 120ms var(--ease);
+}
+
+.line-stepper-btn:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--bg-1);
+}
+
+.line-stepper-btn:active:not(:disabled) {
+    background: var(--panel-raised);
+}
+
+.line-stepper-btn:disabled {
+    color: var(--text-muted);
+    border-color: var(--border);
+    cursor: default;
+}
+
+.line-stepper-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--text);
+    font: 700 13px/1 var(--font-ui);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* ─── Параметры линии: спидометр скорости и паузы инспекции ────────
+   Две колонки: слева кольцевая шкала, справа паузы. Скорость ставится
+   прямо на шкале — тапом или перетаскиванием бегунка; значение в центре
+   кольца, поэтому оно не пересекается ни с заливкой, ни с бегунком. */
+.line-settings-body {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
 .line-gauge {
     position: relative;
     flex: 0 0 auto;
@@ -327,9 +350,6 @@
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
-    /* Мягкое halo за шкалой — глубина без лишнего декора. */
-    background: radial-gradient(circle at 50% 59%,
-        rgba(120, 153, 165, 0.13), transparent 64%);
 }
 
 .line-gauge:focus-visible {
@@ -351,18 +371,6 @@
     stroke-linecap: round;
 }
 
-/* Внешнее градуированное кольцо: деления снаружи трека. */
-.line-gauge-ticks {
-    stroke: var(--border-strong);
-    stroke-width: 1;
-    opacity: 0.5;
-}
-
-/* Каждое третье деление длиннее — читаемая шкала. */
-.line-gauge-ticks-major {
-    opacity: 0.8;
-}
-
 .line-gauge-track {
     stroke: var(--border);
     stroke-width: 7;
@@ -375,12 +383,7 @@
     stroke-dashoffset: 100;
 }
 
-/* Мягкое свечение под бегунком — только визуальный акцент. */
-.line-gauge-glow {
-    fill: var(--accent);
-    opacity: 0.18;
-}
-
+/* Бегунок на конце заливки: единственная подвижная часть кольца. */
 .line-gauge-knob {
     fill: var(--text);
     stroke: var(--bg-0);
@@ -389,10 +392,6 @@
 
 .line-gauge.is-locked .line-gauge-knob {
     fill: var(--border-strong);
-}
-
-.line-gauge.is-locked .line-gauge-glow {
-    opacity: 0.08;
 }
 
 .line-gauge-scale {
@@ -416,7 +415,7 @@
 
 .line-gauge-number {
     color: var(--text);
-    font: 700 13px/1 var(--font-ui);
+    font: 700 14px/1 var(--font-ui);
     font-variant-numeric: tabular-nums;
 }
 
@@ -430,12 +429,11 @@
     color: var(--text-dim);
 }
 
-/* ── Паузы инспекции: пилюли с заливкой ───────────────────────────── */
 .line-pauses {
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
     min-width: 0;
 }
 
@@ -451,98 +449,35 @@
 }
 
 .line-pause {
-    position: relative;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     min-width: 0;
-    padding: 3px 4px 3px 8px;
-    overflow: hidden;
-    /* Фоновая линейка: засечки через четверть ширины. */
-    background-color: rgba(9, 12, 15, 0.5);
-    background-image: linear-gradient(90deg,
-        rgba(120, 153, 165, 0.16) 0 1px, transparent 1px);
-    background-size: 25% 100%;
-    border: 1px solid var(--border);
-    border-radius: 999px;
 }
 
-/* Заливка пилюли: доля выбранного значения от максимума (--fill из JS). */
-.line-pause::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: var(--fill, 0%);
-    background: linear-gradient(90deg,
-        rgba(120, 153, 165, 0.30), rgba(120, 153, 165, 0.05));
-    border-right: 1px solid rgba(120, 153, 165, 0.5);
-    transition: width 160ms var(--ease);
-    pointer-events: none;
+.line-pause .line-setting-name {
+    flex: 0 0 42px;
 }
 
-.line-pause > * {
-    position: relative;
-}
-
-.line-pause-name {
-    flex: 0 0 auto;
-    color: var(--text-dim);
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.4px;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-
-.line-pause-value {
+.line-pause .line-stepper {
     flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    color: var(--text);
-    font: 700 12px/1 var(--font-ui);
-    font-variant-numeric: tabular-nums;
-    text-align: center;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    max-width: 120px;
 }
 
-.line-pause-btn {
-    flex: 0 0 18px;
-    height: 16px;
-    padding: 0;
-    color: var(--text-dim);
-    font: 700 11px/1 var(--font-ui);
-    background: rgba(24, 32, 39, 0.9);
-    border: 1px solid var(--border-strong);
-    border-radius: 999px;
-    cursor: pointer;
-    transition:
-        color 120ms var(--ease),
-        background 120ms var(--ease),
-        border-color 120ms var(--ease);
+.line-pause .line-stepper-btn {
+    flex: 0 0 24px;
 }
 
-.line-pause-btn:hover:not(:disabled) {
-    color: var(--text);
-    background: var(--panel-raised);
+.line-pause .line-stepper-value {
+    font-size: 12px;
 }
 
-.line-pause-btn:active:not(:disabled) {
-    background: var(--panel-hover);
-}
-
-.line-pause-btn:disabled {
-    color: var(--text-muted);
-    border-color: var(--border);
-    cursor: default;
-}
-
-/* Стандартное окно HMI — 1280×720: плотнее, но не мельче 9.5 px. */
+/* Стандартное окно HMI — 1280×720: строки чуть плотнее, но текст
+   остаётся читаемым (не мельче 9.5 px). */
 @media (max-height: 800px) {
-    .line-settings { gap: 5px; padding: 6px 10px 8px 12px; }
+    .line-settings { gap: 5px; padding: 6px 12px 7px; }
     .line-settings-head { padding-bottom: 4px; }
     .line-settings-title { font-size: 10px; line-height: 1.1; }
-    .line-pause { padding: 2px 3px 2px 7px; }
+    .line-setting-name { font-size: 9.5px; }
+    .line-gauge-number { font-size: 14px; }
 }
