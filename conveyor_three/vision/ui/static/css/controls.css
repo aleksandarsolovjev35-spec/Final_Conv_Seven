@@ -368,7 +368,6 @@
 
 .line-field + .line-field {
     padding-left: 10px;
-    border-left: 1px solid var(--border);
 }
 
 .line-field-name {
