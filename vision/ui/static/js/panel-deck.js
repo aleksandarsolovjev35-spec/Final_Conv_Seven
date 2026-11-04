@@ -124,23 +124,38 @@ function flipPanelTo(face) {
 
 // Сворачивание правой панели вправо: в свёрнутом виде остаётся узкая
 // полоса с кнопкой, клик по ней возвращает панель.
-// Сворачивание параметров линии: тот же приём, что у правой панели, —
-// блок уезжает вниз и обрезается, вёрстка внутри не меняется.
-function setupLineSettingsToggle() {
-    const toggle = document.getElementById('line-settings-toggle');
-    const fold = document.getElementById('line-settings-fold');
-    if (!toggle || !fold) return;
-    const apply = (folded) => {
-        fold.classList.toggle('is-folded', folded);
-        toggle.setAttribute('aria-expanded', String(!folded));
-        toggle.title = folded ? 'Показать параметры линии' : 'Свернуть параметры линии';
-    };
-    toggle.addEventListener('click', () => apply(!fold.classList.contains('is-folded')));
-    apply(false);
+// Переключение в карточке ручного управления: кнопки хода ↔ параметры
+// линии. Блоки одного размера, поэтому смена идёт под шторкой и ничего
+// вокруг не сдвигает — как при анализе кадра.
+const JOG_SWAP_FALL_MS = 280;
+const JOG_SWAP_HOLD_MS = 90;
+const JOG_SWAP_RISE_MS = 280;
+
+function setupJogSwap() {
+    const swap = document.getElementById('jog-swap');
+    const toggle = document.getElementById('jog-swap-toggle');
+    if (!swap || !toggle) return;
+    let busy = false;
+    toggle.addEventListener('click', () => {
+        if (busy) return;
+        busy = true;
+        const next = swap.dataset.view === 'params' ? 'controls' : 'params';
+        swap.classList.add('switching');                 // шторка падает
+        setTimeout(() => {
+            swap.dataset.view = next;                    // блок сменяется под ней
+            toggle.title = next === 'params'
+                ? 'Показать кнопки хода' : 'Показать параметры линии';
+            toggle.setAttribute('aria-pressed', String(next === 'params'));
+            setTimeout(() => {
+                swap.classList.remove('switching');      // шторка поднимается
+                setTimeout(() => { busy = false; }, JOG_SWAP_RISE_MS);
+            }, JOG_SWAP_HOLD_MS);
+        }, JOG_SWAP_FALL_MS);
+    });
 }
 
 if (typeof window !== 'undefined') {
-    window.setupLineSettingsToggle = setupLineSettingsToggle;
+    window.setupJogSwap = setupJogSwap;
 }
 
 function setupPanelToggle() {

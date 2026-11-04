@@ -108,49 +108,83 @@
     right: 0;
 }
 
-/* ─── Сворачивание параметров линии ───────────────────────────── */
+/* ─── Кнопки хода ↔ параметры линии ───────────────────────────── */
 
-/* Тем же движением, что у правой панели: блок параметров уезжает под свою
-   нижнюю кромку и обрезается, вёрстка внутри остаётся прежней. Ручка стоит
-   на этой кромке и до кнопок хода не достаёт. */
-.line-settings-slot {
+/* В карточке ручного управления два блока: кнопки хода и параметры линии.
+   Они стоят на одном месте и одного размера — один заменяет другой.
+   Смена идёт под шторкой, как при анализе кадра, поэтому вёрстка вокруг
+   не сдвигается. */
+.jog-swap-slot {
     position: relative;
-    /* Просвет до блока кнопок: ручка на кромке параметров остаётся
-       отдельной от управления. */
+    /* Место под ручку ниже кромки блока. */
     margin-bottom: 10px;
 }
 
-.line-settings-fold {
+.jog-swap {
     display: grid;
-    grid-template-rows: 1fr;
-    transition: grid-template-rows 240ms var(--ease);
-}
-
-.line-settings-fold > .line-settings {
-    min-height: 0;
+    grid-template: 1fr / 1fr;
     overflow: hidden;
-    transition: visibility 0s linear 0s;
+    border-radius: var(--radius-sm);
 }
 
-.line-settings-fold.is-folded {
-    grid-template-rows: 0fr;
+.jog-swap-view {
+    grid-area: 1 / 1;
+    display: grid;
+    min-height: 0;
 }
 
-/* Свёрнутый блок не ловит клики и не попадает в обход по Tab. */
-.line-settings-fold.is-folded > .line-settings {
+/* Скрытый блок остаётся в раскладке — размер площадки не меняется. */
+.jog-swap[data-view="controls"] .jog-swap-params,
+.jog-swap[data-view="params"] .jog-swap-controls {
     visibility: hidden;
-    transition: visibility 0s linear 240ms;
 }
 
-/* Ручка: полоска на нижней кромке блока параметров. Форма при наведении
-   не меняется — светлеет. */
-.line-settings-toggle {
+/* Параметры есть только на остановленной линии: пока она работает,
+   в блоке всегда кнопки хода. */
+.stats-panel[data-face="production"] .jog-swap-controls,
+.stats-panel.analysis-active .jog-swap-controls {
+    visibility: visible;
+}
+
+/* Кнопки хода занимают ту же площадь, что и параметры линии. */
+.jog-swap-controls .jog-dpad {
+    align-self: stretch;
+    align-content: center;
+}
+
+/* Шторка — та же сталь, что у правой панели, размером с блок. */
+.jog-swap-shutter {
+    grid-area: 1 / 1;
+    z-index: 3;
+    border-radius: var(--radius-sm);
+    background:
+        linear-gradient(180deg,
+            rgba(255, 255, 255, 0.045) 0,
+            rgba(255, 255, 255, 0) 16%),
+        repeating-linear-gradient(90deg,
+            rgba(255, 255, 255, 0.014) 0 2px,
+            rgba(0, 0, 0, 0.05) 2px 4px),
+        linear-gradient(180deg,
+            var(--panel-raised) 0,
+            var(--panel) 46%,
+            var(--bg-1) 100%);
+    transform: translateY(-101%);
+    transition: transform 280ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+.jog-swap.switching .jog-swap-shutter {
+    transform: translateY(0);
+}
+
+/* Ручка переключения: полоска по середине нижней кромки блока. Форма при
+   наведении не меняется — светлеет. */
+.jog-swap-toggle {
     position: absolute;
     left: 50%;
     /* Низ кнопки на линии границы, сдвиг на половину высоты — её центр
        ровно на линии, по середине ширины блока. */
     bottom: 0;
-    z-index: 2;
+    z-index: 4;
     width: 56px;
     height: 18px;
     padding: 0;
@@ -160,7 +194,7 @@
     cursor: pointer;
 }
 
-.line-settings-toggle::before {
+.jog-swap-toggle::before {
     content: "";
     position: absolute;
     top: 50%;
@@ -173,11 +207,11 @@
     transition: background 120ms var(--ease);
 }
 
-.line-settings-toggle:hover::before {
+.jog-swap-toggle:hover::before {
     background: var(--text-dim);
 }
 
-.line-settings-toggle:focus-visible::before {
+.jog-swap-toggle:focus-visible::before {
     background: var(--text-dim);
     box-shadow: 0 0 0 1px var(--border-accent);
 }
@@ -260,13 +294,15 @@
 
 /* Параметры линии нужны только на остановленной линии: при запуске
    блок полностью скрывается, а не показывается заблокированным. */
-.stats-panel[data-face="production"] .line-settings-slot {
+.stats-panel[data-face="production"] .jog-swap-params,
+.stats-panel[data-face="production"] .jog-swap-toggle {
     display: none;
 }
 
 /* Во время анализа кадра параметры линии скрыты: они уже применены
    к анализируемому результату и менять их задним числом нельзя. */
-.stats-panel.analysis-active .line-settings-slot {
+.stats-panel.analysis-active .jog-swap-params,
+.stats-panel.analysis-active .jog-swap-toggle {
     display: none;
 }
 
@@ -293,7 +329,8 @@
 
 .stats-panel[data-face="fault"] .stats-summary,
 .stats-panel[data-face="fault"] .thresholds-panel,
-.stats-panel[data-face="fault"] .line-settings-slot,
+.stats-panel[data-face="fault"] .jog-swap-params,
+.stats-panel[data-face="fault"] .jog-swap-toggle,
 .stats-panel[data-face="fault"] .jog-deck {
     display: none;
 }
