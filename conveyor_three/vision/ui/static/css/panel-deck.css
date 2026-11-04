@@ -159,6 +159,9 @@
     position: absolute;
     inset: 1px;
     z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     border-radius: calc(var(--radius-sm) - 1px);
     background:
         linear-gradient(180deg,
@@ -177,6 +180,34 @@
 
 .jog-swap.switching .jog-swap-shutter {
     transform: translateY(0);
+}
+
+/* Нижняя кромка — как у шторки панели: светлая полоса и тень под ней. */
+.jog-swap-shutter::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: linear-gradient(90deg,
+        transparent 0,
+        var(--border-strong) 16%,
+        var(--accent) 50%,
+        var(--border-strong) 84%,
+        transparent 100%);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.55);
+}
+
+/* Загрузка — тот же индикатор, что на шторке анализа кадра. */
+.jog-swap-spinner {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+    animation: panelShutterSpin 700ms linear infinite;
 }
 
 /* Ручка переключения: полоска по середине нижней кромки блока. Форма при
