@@ -146,13 +146,15 @@
    не меняется — светлеет. */
 .line-settings-toggle {
     position: absolute;
-    bottom: -9px;
     left: 50%;
+    /* Низ кнопки на линии границы, сдвиг на половину высоты — её центр
+       ровно на линии, по середине ширины блока. */
+    bottom: 0;
     z-index: 2;
     width: 56px;
     height: 18px;
     padding: 0;
-    transform: translateX(-50%);
+    transform: translate(-50%, 50%);
     background: none;
     border: 0;
     cursor: pointer;
@@ -161,10 +163,11 @@
 .line-settings-toggle::before {
     content: "";
     position: absolute;
-    top: 6px;
+    top: 50%;
     left: 0;
     right: 0;
     height: 6px;
+    margin-top: -3px;
     background: var(--border-strong);
     border-radius: 3px;
     transition: background 120ms var(--ease);
