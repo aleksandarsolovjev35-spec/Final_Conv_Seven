@@ -108,6 +108,73 @@
     right: 0;
 }
 
+/* ─── Сворачивание параметров линии ───────────────────────────── */
+
+/* Тем же движением, что у правой панели: блок параметров уезжает вниз под
+   кромку и обрезается, вёрстка внутри остаётся прежней. Ручка стоит в шве
+   под кнопками хода и остаётся на месте. */
+.line-settings-slot {
+    position: relative;
+}
+
+.line-settings-fold {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 240ms var(--ease);
+}
+
+.line-settings-fold > .line-settings {
+    min-height: 0;
+    overflow: hidden;
+    transition: visibility 0s linear 0s;
+}
+
+.line-settings-fold.is-folded {
+    grid-template-rows: 0fr;
+}
+
+/* Свёрнутый блок не ловит клики и не попадает в обход по Tab. */
+.line-settings-fold.is-folded > .line-settings {
+    visibility: hidden;
+    transition: visibility 0s linear 240ms;
+}
+
+/* Ручка: полоска в шве. Форма при наведении не меняется — светлеет. */
+.line-settings-toggle {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    z-index: 2;
+    width: 56px;
+    height: 18px;
+    padding: 0;
+    transform: translateX(-50%);
+    background: none;
+    border: 0;
+    cursor: pointer;
+}
+
+.line-settings-toggle::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: var(--border-strong);
+    border-radius: 3px;
+    transition: background 120ms var(--ease);
+}
+
+.line-settings-toggle:hover::before {
+    background: var(--text-dim);
+}
+
+.line-settings-toggle:focus-visible::before {
+    background: var(--text-dim);
+    box-shadow: 0 0 0 1px var(--border-accent);
+}
+
 /* ─── Шторка правой панели ────────────────────────────────────── */
 
 
@@ -186,13 +253,13 @@
 
 /* Параметры линии нужны только на остановленной линии: при запуске
    блок полностью скрывается, а не показывается заблокированным. */
-.stats-panel[data-face="production"] .line-settings {
+.stats-panel[data-face="production"] .line-settings-slot {
     display: none;
 }
 
 /* Во время анализа кадра параметры линии скрыты: они уже применены
    к анализируемому результату и менять их задним числом нельзя. */
-.stats-panel.analysis-active .line-settings {
+.stats-panel.analysis-active .line-settings-slot {
     display: none;
 }
 
@@ -219,7 +286,7 @@
 
 .stats-panel[data-face="fault"] .stats-summary,
 .stats-panel[data-face="fault"] .thresholds-panel,
-.stats-panel[data-face="fault"] .line-settings,
+.stats-panel[data-face="fault"] .line-settings-slot,
 .stats-panel[data-face="fault"] .jog-deck {
     display: none;
 }

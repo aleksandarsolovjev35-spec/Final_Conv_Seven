@@ -124,6 +124,25 @@ function flipPanelTo(face) {
 
 // Сворачивание правой панели вправо: в свёрнутом виде остаётся узкая
 // полоса с кнопкой, клик по ней возвращает панель.
+// Сворачивание параметров линии: тот же приём, что у правой панели, —
+// блок уезжает вниз и обрезается, вёрстка внутри не меняется.
+function setupLineSettingsToggle() {
+    const toggle = document.getElementById('line-settings-toggle');
+    const fold = document.getElementById('line-settings-fold');
+    if (!toggle || !fold) return;
+    const apply = (folded) => {
+        fold.classList.toggle('is-folded', folded);
+        toggle.setAttribute('aria-expanded', String(!folded));
+        toggle.title = folded ? 'Показать параметры линии' : 'Свернуть параметры линии';
+    };
+    toggle.addEventListener('click', () => apply(!fold.classList.contains('is-folded')));
+    apply(false);
+}
+
+if (typeof window !== 'undefined') {
+    window.setupLineSettingsToggle = setupLineSettingsToggle;
+}
+
 function setupPanelToggle() {
     const toggle = document.getElementById('panel-toggle');
     const body = document.querySelector('.body');
