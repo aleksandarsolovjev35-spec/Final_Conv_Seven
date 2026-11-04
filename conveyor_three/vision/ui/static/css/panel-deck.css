@@ -346,9 +346,7 @@
    которое ставит jog.js в движущемся состоянии. */
 .stats-panel.jog-locked #jog-panel.ui-collapse {
     max-height: 190px !important;
-    padding-top: 7px !important;
-    padding-bottom: 8px !important;
-    border-color: var(--border) !important;
+    padding: 0 !important;
     opacity: 1 !important;
     transform: none !important;
     overflow: visible !important;
@@ -447,20 +445,15 @@
 .jog-deck {
     position: relative;
     flex: 0 0 auto;
-    /* Прижимаем к низу колонки, как раньше сам блок jog-panel. */
+    /* Прижимаем к низу колонки. */
     margin-top: auto;
-    background: var(--panel);
-    /* Та же спокойная граница, что у остальных внутренних блоков справа. */
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    /* Внешняя рамка принадлежит deck, а не движущейся шторке: поэтому
-       границы ручного управления остаются видимыми на всём ходе анимации. */
+    /* Своей рамки нет: карточка — сам блок параметров/кнопок, внешняя
+       обёртка осталась только ради шторки блокировки. */
     overflow: hidden;
 }
 
 /* Внутренние лица не рисуют вторую рамку поверх постоянной внешней. */
-.jog-deck #jog-panel,
-.jog-deck .jog-shutter {
+.jog-deck #jog-panel {
     border: 0;
     border-radius: 0;
 }

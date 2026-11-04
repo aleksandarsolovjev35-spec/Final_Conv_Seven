@@ -19,21 +19,6 @@
 .jog-panel::-webkit-scrollbar-track { background: transparent; }
 .jog-panel::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 
-.jog-header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 12px;
-}
-
-.jog-title {
-    color: var(--text-dim);
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-}
 
 /* ─── JOG D-pad ────────────────────────────────────────────────── */
 
