@@ -127,9 +127,9 @@ function flipPanelTo(face) {
 // Переключение в карточке ручного управления: кнопки хода ↔ параметры
 // линии. Блоки одного размера, поэтому смена идёт под шторкой и ничего
 // вокруг не сдвигает — как при анализе кадра.
-const JOG_SWAP_FALL_MS = 280;
-const JOG_SWAP_HOLD_MS = 90;
-const JOG_SWAP_RISE_MS = 280;
+const JOG_SWAP_FALL_MS = 420;        // падение, как transition в CSS
+const JOG_SWAP_MIN_DOWN_MS = 820;    // падение + показ блока
+const JOG_SWAP_TAIL_MS = 300;        // даём блоку доиграть переход
 
 function setupJogSwap() {
     const swap = document.getElementById('jog-swap');
@@ -146,10 +146,14 @@ function setupJogSwap() {
             toggle.title = next === 'params'
                 ? 'Показать кнопки хода' : 'Показать параметры линии';
             toggle.setAttribute('aria-pressed', String(next === 'params'));
+            // Держим шторку внизу не меньше, чем у панели анализа кадра.
+            const hold = Math.max(
+                JOG_SWAP_TAIL_MS, JOG_SWAP_MIN_DOWN_MS - JOG_SWAP_FALL_MS,
+            );
             setTimeout(() => {
                 swap.classList.remove('switching');      // шторка поднимается
-                setTimeout(() => { busy = false; }, JOG_SWAP_RISE_MS);
-            }, JOG_SWAP_HOLD_MS);
+                setTimeout(() => { busy = false; }, JOG_SWAP_FALL_MS);
+            }, hold);
         }, JOG_SWAP_FALL_MS);
     });
 }

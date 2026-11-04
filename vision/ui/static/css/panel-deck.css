@@ -121,6 +121,7 @@
 }
 
 .jog-swap {
+    position: relative;
     display: grid;
     grid-template: 1fr / 1fr;
     overflow: hidden;
@@ -152,11 +153,13 @@
     align-content: center;
 }
 
-/* Шторка — та же сталь, что у правой панели, размером с блок. */
+/* Шторка — та же сталь и та же скорость, что у правой панели при анализе
+   кадра. Стоит на 1 px внутри блока: рамка блока остаётся поверх шторки. */
 .jog-swap-shutter {
-    grid-area: 1 / 1;
+    position: absolute;
+    inset: 1px;
     z-index: 3;
-    border-radius: var(--radius-sm);
+    border-radius: calc(var(--radius-sm) - 1px);
     background:
         linear-gradient(180deg,
             rgba(255, 255, 255, 0.045) 0,
@@ -169,7 +172,7 @@
             var(--panel) 46%,
             var(--bg-1) 100%);
     transform: translateY(-101%);
-    transition: transform 280ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+    transition: transform 420ms var(--ease);
 }
 
 .jog-swap.switching .jog-swap-shutter {
