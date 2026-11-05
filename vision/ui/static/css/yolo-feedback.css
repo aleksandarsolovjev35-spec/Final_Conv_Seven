@@ -21,11 +21,11 @@
 }
 
 .btn-yolo-queue.has-pending {
+    /* Непустая очередь — состояние цветом, как .btn.pending. */
     --btn-color:  var(--warn);
     --btn-border: var(--warn);
     --btn-invert: var(--warn);
     --btn-focus:  var(--warn);
-    background: var(--warn-bg);
 }
 
 /* ─── Модальное окно обводки дефекта ──────────────────────────────── */
@@ -171,15 +171,22 @@
 }
 
 .yolo-class-btn:hover {
+    /* Наведение — заливка цветом класса, как у всех кнопок HMI. */
     border-color: var(--cls-color, var(--accent));
-    background: var(--panel-hover);
+    background: var(--cls-color, var(--accent));
+    color: var(--bg-0);
+}
+
+.yolo-class-btn:hover .yolo-class-dot,
+.yolo-class-btn:hover .yolo-class-key {
+    background: var(--bg-0);
+    color: var(--bg-0);
 }
 
 .yolo-class-btn.is-active {
+    /* Выбранный класс — только цветом текста и рамки, без заливки. */
     border-color: var(--cls-color, var(--warn));
-    background: rgba(255, 255, 255, 0.08);
-    box-shadow: inset 0 0 0 1px var(--cls-color, var(--warn));
-    color: #ffffff;
+    color: var(--cls-color, var(--warn));
 }
 
 .yolo-class-dot {
@@ -267,9 +274,15 @@
     gap: 6px;
     padding: 5px 14px;
     min-height: 32px;
+    /* Слишком много обводок: полоса переносится и скроллится внутри
+       себя (max-height), не отнимая место у кадра с обводками. */
+    flex-wrap: wrap;
+    align-content: flex-start;
+    max-height: 88px;
     border-top: 1px solid var(--border);
     background: var(--bg-0);
-    overflow-x: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 .yolo-marks-hint {
@@ -306,6 +319,13 @@
     color: var(--bad);
 }
 
+.yolo-mark-chip-count {
+    /* Счётчик обводок — нейтральный, не соревнуется с классами по цвету. */
+    border-color: var(--border-strong);
+    background: var(--bg-1);
+    color: var(--text-dim);
+}
+
 .yolo-mark-footer {
     flex: 0 0 auto;
     display: flex;
@@ -329,7 +349,6 @@
     --btn-color:  var(--accent);
     --btn-border: var(--accent);
     --btn-invert: var(--accent);
-    background: var(--accent-glow);
 }
 
 .yolo-comment-wrap {

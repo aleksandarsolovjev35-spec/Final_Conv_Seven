@@ -107,7 +107,8 @@
     text-transform: uppercase;
     cursor: pointer;
     /* flex-basis анимируется: вкладка плавно разъезжается/сжимается. */
-    transition: color 150ms var(--ease), flex-basis 160ms var(--ease);
+    transition: color 150ms var(--ease), flex-basis 160ms var(--ease),
+        background-color 150ms var(--ease), border-color 150ms var(--ease);
 }
 /* Раскрытие по наведению делает thresholds.js: пиксельный flex-basis
    анимируется, а flex-basis: auto — нет, поэтому :hover-правила
@@ -118,13 +119,21 @@
 .thresholds-tab:focus-visible {
     flex: 1 1 auto;
 }
-/* Активная вкладка выделяется сдержанно: только чуть заметной
-   обводкой, без подсветки и смены фона. */
+/* Активная вкладка — состояние цветом, без заливки (как analysis-active). */
 .thresholds-tab.is-active {
-    border-color: var(--border-strong);
-    color: var(--text-dim);
+    border-color: var(--accent);
+    color: var(--accent);
 }
-.thresholds-tab:hover:not(.is-active) { color: var(--text-dim); }
+/* Наведение — «загорание» заливкой, единое для всех кнопок HMI.
+   Раскрытие по наведению делает thresholds.js через flex-basis. */
+.thresholds-tab:hover:not(.is-active) {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg-0);
+}
+.thresholds-tab:active {
+    transform: scale(0.97);
+}
 .thresholds-tab-label {
     min-width: 0;
     overflow: hidden;

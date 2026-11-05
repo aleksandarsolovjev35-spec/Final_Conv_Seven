@@ -11,6 +11,7 @@ const yoloState = {
 
     snapshot: null,       // ответ POST /api/yolo-tasks/snapshot
     showDetections: true, // показывать детекции текущей YOLO поверх снимка
+    detectionsCount: 0,   // число детекций модели на текущем снимке
     tool: 'polygon',      // 'polygon' (обводка) | 'bbox' (рамка)
     activeClass: null,    // выбранный объект класса из snapshot.classes
     marks: [],            // [{shape, yolo_class, label, color, points: [[x,y], ...]}]
@@ -19,6 +20,11 @@ const yoloState = {
     pointerId: null,
     draftPoints: [],      // текущая рисуемая фигура в нормализованных [0..1]
 };
+
+// Слишком много детекций модели — оверлей мешает читать кадр: он
+// скрывается автоматически, а оператор включает его обратно кнопкой
+// «МОДЕЛЬ: СКРЫТА (N)» только когда это действительно нужно.
+const YOLO_OVERLAY_AUTOHIDE_LIMIT = 12;
 
 let _yoloResizeObserver = null;
 
@@ -179,7 +185,10 @@ async function openYoloMarkModal(options = {}) {
 
 function applySnapshotToModal(snap) {
     yoloState.snapshot = snap;
-    yoloState.showDetections = !!snap.has_detections;
+    yoloState.detectionsCount = Number(snap.detections_count || 0);
+    const tooManyDetections =
+        yoloState.detectionsCount > YOLO_OVERLAY_AUTOHIDE_LIMIT;
+    yoloState.showDetections = !!snap.has_detections && !tooManyDetections;
     const classes = Array.isArray(snap.classes) ? snap.classes : [];
     yoloState.activeClass = classes[0] || {
         yolo_class: 'other',
@@ -197,6 +206,13 @@ function applySnapshotToModal(snap) {
     }
 
     updateDetectionsToggleUI();
+    if (tooManyDetections) {
+        setYoloMarkStatus(
+            `Детекций модели: ${yoloState.detectionsCount} — оверлей скрыт ` +
+            'для читаемости кадра; включите кнопкой «МОДЕЛЬ», если нужен',
+            '',
+        );
+    }
     renderClassButtons(classes);
     renderMarksChips();
     updateMarkActionStates();
@@ -216,7 +232,13 @@ function updateDetectionsToggleUI() {
     btn.disabled = false;
     btn.classList.add('yolo-tool-btn');
     btn.classList.toggle('is-active', yoloState.showDetections);
-    btn.textContent = yoloState.showDetections ? 'МОДЕЛЬ: ПОКАЗАНА' : 'МОДЕЛЬ: СКРЫТА';
+    if (yoloState.showDetections) {
+        btn.textContent = 'МОДЕЛЬ: ПОКАЗАНА';
+    } else if (yoloState.detectionsCount > YOLO_OVERLAY_AUTOHIDE_LIMIT) {
+        btn.textContent = `МОДЕЛЬ: СКРЫТА (${yoloState.detectionsCount})`;
+    } else {
+        btn.textContent = 'МОДЕЛЬ: СКРЫТА';
+    }
 }
 
 function loadSnapshotImage() {
@@ -658,6 +680,12 @@ function renderMarksChips() {
         return;
     }
 
+    // Счётчик первым — при большом числе обводок всегда видно, сколько их.
+    const counter = document.createElement('span');
+    counter.className = 'yolo-mark-chip yolo-mark-chip-count';
+    counter.textContent = `ОБВОДОК: ${yoloState.marks.length}`;
+    strip.appendChild(counter);
+
     yoloState.marks.forEach((mark, idx) => {
         const chip = document.createElement('span');
         chip.className = 'yolo-mark-chip';
@@ -682,6 +710,9 @@ function renderMarksChips() {
 
         strip.appendChild(chip);
     });
+
+    // Новейшая обводка всегда видна: полоса прокручивается до конца.
+    strip.scrollTop = strip.scrollHeight;
 }
 
 function setYoloTool(tool) {
