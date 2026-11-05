@@ -67,9 +67,12 @@
     color: var(--text-muted);
     padding: 2px 0;
 }
-/* ─── Вкладки-заголовки правил (как в браузере) ────────────────────
-   Одна вкладка на правило; активная выделяется сдержанно — только
-   чуть заметной обводкой. Все вкладки делят ширину ленты поровну
+/* ─── Вкладки-заголовки правил ─────────────────────────────────────
+   Одна вкладка на правило; это заголовки, а не кнопки: подсветка
+   заливкой при наведении у них не появляется. Активная вкладка
+   выделяется акцентным цветом текста и обводкой по всем четырём
+   сторонам (нижняя граница у вкладок своя, общая линия ленты
+   убрана). Все вкладки делят ширину ленты поровну
    (flex: 1 1 0) и всегда умещаются целиком. Длинные названия
    обрезаются многоточием; при наведении заголовок «разъезжается»:
    вкладка плавно раскрывается до полного названия, соседние уступают
@@ -84,7 +87,6 @@
     min-width: 0;
     overflow-x: auto;
     scrollbar-width: none;
-    border-bottom: 1px solid var(--border);
 }
 .thresholds-tabs::-webkit-scrollbar { display: none; }
 .thresholds-tab {
@@ -98,8 +100,7 @@
     min-height: 22px;
     padding: 2px 4px 3px; /* tighter padding: меньше пустого пространства */
     border: 1px solid var(--border);
-    border-bottom: none;
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    border-radius: var(--radius-sm);
     background: var(--bg-1);
     color: var(--text-muted);
     font: 700 8px var(--font-ui);
@@ -107,8 +108,8 @@
     text-transform: uppercase;
     cursor: pointer;
     /* flex-basis анимируется: вкладка плавно разъезжается/сжимается. */
-    transition: color 150ms var(--ease), flex-basis 160ms var(--ease),
-        background-color 150ms var(--ease), border-color 150ms var(--ease);
+    transition: color 150ms var(--ease), border-color 150ms var(--ease),
+        flex-basis 160ms var(--ease);
 }
 /* Раскрытие по наведению делает thresholds.js: пиксельный flex-basis
    анимируется, а flex-basis: auto — нет, поэтому :hover-правила
@@ -119,21 +120,15 @@
 .thresholds-tab:focus-visible {
     flex: 1 1 auto;
 }
-/* Активная вкладка — состояние цветом, без заливки (как analysis-active). */
+/* Активная вкладка — акцентный текст и замкнутая обводка, без заливки. */
 .thresholds-tab.is-active {
     border-color: var(--accent);
     color: var(--accent);
 }
-/* Наведение — «загорание» заливкой, единое для всех кнопок HMI.
-   Раскрытие по наведению делает thresholds.js через flex-basis. */
-.thresholds-tab:hover:not(.is-active) {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: var(--bg-0);
-}
-.thresholds-tab:active {
-    transform: scale(0.97);
-}
+/* Вкладки-заголовки — не кнопки: при наведении нет «загорания»
+   заливкой и сжатия при нажатии, только чуть ярче становится текст
+   заголовка. Раскрытие по наведению делает thresholds.js (flex-basis). */
+.thresholds-tab:hover:not(.is-active) { color: var(--text-dim); }
 .thresholds-tab-label {
     min-width: 0;
     overflow: hidden;
@@ -360,5 +355,7 @@
     color: var(--bad);
 }
 
-/* Кнопки «СОХРАНИТЬ» / «ОТМЕНИТЬ» порогов — .btn.btn-sm + зелёный
-   вариант .btn-thresholds-save; всё задано единообразно в controls.css. */
+/* Кнопки «СОХРАНИТЬ» / «ОТМЕНИТЬ» порогов — .btn.btn-sm: сохранение
+   зелёным вариантом .btn-thresholds-save, отмена — акцентным
+   .btn-accent, стандартные цвета «АНАЛИЗ КАДРА»; всё задано
+   единообразно в controls.css. */
