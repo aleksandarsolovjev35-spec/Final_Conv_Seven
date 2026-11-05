@@ -6,6 +6,7 @@ from config.archive_config import (
 )
 from config.calibration_loader import (
     load_calibration,
+    save_calibration_speed,
     save_calibration_timings,
     DEFAULTS,
 )
@@ -18,6 +19,7 @@ from config.camera_mapping import (
 
 __all__ = [
     "load_calibration",
+    "save_calibration_speed",
     "save_calibration_timings",
     "DEFAULTS",
     "ARCHIVE_CONFIG_FILE",

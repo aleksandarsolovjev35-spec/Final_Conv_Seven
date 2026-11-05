@@ -10,7 +10,9 @@ stop the simulated conveyor.
 from __future__ import annotations
 
 import argparse
+import json
 import math
+import os
 import signal
 import threading
 from dataclasses import dataclass
@@ -26,6 +28,55 @@ from vision.ui.server.server import CAMERA_ORDER, UIServer
 # Ручной ход (JOG) разрешён в тех же состояниях, что и в production:
 # IDLE / STOPPED / PAUSED. Пауза — это как раз коррекция положения ленты.
 JOG_ALLOWED_STATES = ("IDLE", "STOPPED", "PAUSED")
+
+# Параметры линии (скорость ленты и паузы инспекции) переживают
+# перезапуск симулятора: выбранные оператором значения хранятся в
+# игнорируемой git папке архива, рядом с данными симуляции.
+LINE_SETTINGS_PATH = os.path.join(
+    "archive", "ui_simulation", "line_settings.json",
+)
+
+
+def _is_saved_pause(value, maximum: float) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+        and 0.0 <= float(value) <= maximum
+    )
+
+
+def load_saved_line_settings(path: str) -> dict:
+    """Прочитать сохранённые параметры линии.
+
+    Отсутствие файла или битое содержимое — не ошибка: возвращается
+    пустой словарь, и симуляция стартует с параметрами по умолчанию.
+    """
+    try:
+        with open(path, encoding="utf-8") as stream:
+            data = json.load(stream)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_line_settings(values: dict, path: str) -> None:
+    """Атомарно сохранить параметры линии симулятора.
+
+    Ошибка записи не прерывает симуляцию: значение уже применено
+    в памяти, файл лишь помогает пережить перезапуск.
+    """
+    try:
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        temporary = f"{path}.tmp"
+        with open(temporary, "w", encoding="utf-8") as stream:
+            json.dump(values, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+        os.replace(temporary, path)
+    except OSError as exc:
+        print(f"[SIM] Не удалось сохранить параметры линии: {exc}")
 
 
 PROCESS_LABELS = {
@@ -90,7 +141,7 @@ class LineSimulation:
     INPUT_STAGES = ("INPUT_LEFT", "INPUT_RIGHT")
     CONTROL_STAGES = ("SPIDER_LEFT", "SPIDER_RIGHT", "SPIDER_IN", "SPIDER_OUT", "TOP")
 
-    def __init__(self, server: UIServer):
+    def __init__(self, server: UIServer, settings_path: str | None = None):
         self.server = server
         self._lock = threading.Lock()
         self._wake = threading.Event()
@@ -109,6 +160,12 @@ class LineSimulation:
         # до съёмки (затухание вибрации) и на просмотр результата.
         self.settle_seconds = float(self.SETTLE_SECONDS)
         self.review_seconds = float(self.REVIEW_SECONDS)
+        # Параметры линии переживают перезапуск симулятора: значения
+        # оператора читаются из JSON-файла. В тестах путь не задаётся —
+        # симуляция остаётся чисто в памяти, без записи на диск.
+        self.settings_path = settings_path
+        if settings_path:
+            self._restore_line_settings(settings_path)
         self.conveyor_position = 0
         self.conveyor_max = 340
         self.jog_active = False
@@ -192,6 +249,7 @@ class LineSimulation:
             if self.state not in ("IDLE", "STOPPED") or self.jog_busy:
                 return False
             self.conveyor_speed = speed
+        self._persist_line_settings()
         self._publish("IDLE")
         return True
 
@@ -212,8 +270,32 @@ class LineSimulation:
                 return False
             self.settle_seconds = settle
             self.review_seconds = review
+        self._persist_line_settings()
         self._publish("IDLE")
         return True
+
+    def _restore_line_settings(self, path: str) -> None:
+        saved = load_saved_line_settings(path)
+        speed = saved.get("conveyor_speed")
+        if type(speed) is int and 5000 <= speed <= 20000:
+            self.conveyor_speed = speed
+        settle = saved.get("settle_time")
+        if _is_saved_pause(settle, 5.0):
+            self.settle_seconds = round(float(settle), 2)
+        review = saved.get("review_time")
+        if _is_saved_pause(review, 30.0):
+            self.review_seconds = round(float(review), 2)
+
+    def _persist_line_settings(self) -> None:
+        if not self.settings_path:
+            return
+        with self._lock:
+            snapshot = {
+                "conveyor_speed": self.conveyor_speed,
+                "settle_time": self.settle_seconds,
+                "review_time": self.review_seconds,
+            }
+        save_line_settings(snapshot, self.settings_path)
 
     @staticmethod
     def _normalise_pause(value: float, *, maximum: float, label: str) -> float:
@@ -789,7 +871,7 @@ def main() -> None:
     # The real archive implementation writes only into ignored sandbox data.
     # Its settings dialog and validation therefore behave exactly as in the app.
     server.archive = PartArchive(root_folder="archive/ui_simulation")
-    simulation = LineSimulation(server)
+    simulation = LineSimulation(server, settings_path=LINE_SETTINGS_PATH)
     server.on_start = simulation.start
     server.on_stop = simulation.stop
     server.on_pause = simulation.pause

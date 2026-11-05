@@ -7,6 +7,9 @@
 
 from __future__ import annotations
 
+import json
+import os
+import tempfile
 import time
 import unittest
 
@@ -369,6 +372,64 @@ class SimulationLoopTest(unittest.TestCase):
         self.assertGreaterEqual(self.sim.step, 2)
         self.sim.close()
         self.sim.thread.join(2.0)
+
+
+class LineSettingsPersistenceTest(unittest.TestCase):
+    """Параметры линии переживают перезапуск симулятора (JSON-файл)."""
+
+    def test_saved_settings_restored_on_restart(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "line_settings.json")
+            sim = LineSimulation(UIServer(), settings_path=path)
+            self.assertTrue(sim.set_conveyor_speed(12000))
+            self.assertTrue(sim.set_inspection_timings(1.5, 4.0))
+            with open(path, encoding="utf-8") as stream:
+                saved = json.load(stream)
+            self.assertEqual(saved["conveyor_speed"], 12000)
+            self.assertEqual(saved["settle_time"], 1.5)
+            self.assertEqual(saved["review_time"], 4.0)
+            restarted = LineSimulation(UIServer(), settings_path=path)
+            self.assertEqual(restarted.conveyor_speed, 12000)
+            self.assertEqual(restarted.settle_seconds, 1.5)
+            self.assertEqual(restarted.review_seconds, 4.0)
+
+    def test_missing_or_corrupt_file_keeps_defaults(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = os.path.join(tmp, "absent.json")
+            sim = LineSimulation(UIServer(), settings_path=missing)
+            self.assertEqual(sim.conveyor_speed, 18000)
+            corrupt = os.path.join(tmp, "corrupt.json")
+            with open(corrupt, "w", encoding="utf-8") as stream:
+                stream.write("{это не json")
+            sim = LineSimulation(UIServer(), settings_path=corrupt)
+            self.assertEqual(sim.conveyor_speed, 18000)
+            self.assertEqual(
+                sim.settle_seconds, float(LineSimulation.SETTLE_SECONDS),
+            )
+
+    def test_out_of_range_values_ignored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "line_settings.json")
+            with open(path, "w", encoding="utf-8") as stream:
+                json.dump({
+                    "conveyor_speed": 40000,
+                    "settle_time": 99.0,
+                    "review_time": -1.0,
+                }, stream)
+            sim = LineSimulation(UIServer(), settings_path=path)
+            self.assertEqual(sim.conveyor_speed, 18000)
+            self.assertEqual(
+                sim.settle_seconds, float(LineSimulation.SETTLE_SECONDS),
+            )
+            self.assertEqual(
+                sim.review_seconds, float(LineSimulation.REVIEW_SECONDS),
+            )
+
+    def test_without_path_simulation_stays_in_memory(self):
+        sim = LineSimulation(UIServer())
+        self.assertIsNone(sim.settings_path)
+        self.assertTrue(sim.set_conveyor_speed(12000))
+        self.assertTrue(sim.set_inspection_timings(1.0, 1.0))
 
 
 if __name__ == "__main__":
