@@ -105,7 +105,6 @@ class CycleStatusMixin:
                 and idle
                 and not operation_busy
             ),
-            "distributor_diagnostic": diagnostic_allowed,
             "camera_diagnostic": diagnostic_allowed,
             "vision_rule_diagnostic": diagnostic_allowed,
         }

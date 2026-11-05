@@ -176,32 +176,12 @@ class SimulationApiTest(unittest.TestCase):
         self.sim.close()
 
     def test_diagnostics(self):
-        self.assertTrue(self.sim.distributor_diagnostic("DIST1_HOME"))
         self.assertTrue(self.sim.camera_diagnostic())
         self.assertTrue(self.sim.vision_rule_diagnostic())
 
-    def test_distributor_diagnostic_moves_only_own_blade(self):
-        # Кнопки верхнего распределителя двигают только DIST1.
-        self.assertTrue(self.sim.distributor_diagnostic("DIST1_OPEN"))
-        self.assertEqual(self.sim.dist1_position, 340)
-        self.assertEqual(self.sim.dist1_state, "TO_DIST2")
-        self.assertEqual(self.sim.dist2_position, 0)
-        # Кнопки нижнего двигают только DIST2 и не трогают DIST1.
-        self.assertTrue(self.sim.distributor_diagnostic("DIST2_CLEANUP"))
-        self.assertEqual(self.sim.dist2_position, 340)
-        self.assertEqual(self.sim.dist1_position, 340)
-        self.assertTrue(self.sim.distributor_diagnostic("DIST2_BAD"))
-        self.assertEqual(self.sim.dist2_position, 0)
-        self.assertEqual(self.sim.dist1_position, 340)
-        self.assertTrue(self.sim.distributor_diagnostic("DIST1_HOME"))
-        self.assertEqual(self.sim.dist1_position, 0)
-        self.assertEqual(self.sim.dist1_state, "GOOD")
-
-    def test_distributor_diagnostic_rejected_while_running(self):
-        self.sim.start()
-        self.assertFalse(self.sim.distributor_diagnostic("DIST1_OPEN"))
-        self.assertEqual(self.sim.dist1_position, 0)
-        self.sim.close()
+    def test_no_distributor_diagnostic_api(self):
+        # Ручной проверки заслонок в симуляторе больше нет.
+        self.assertFalse(hasattr(self.sim, "distributor_diagnostic"))
 
     def test_close(self):
         self.assertTrue(self.sim.close())

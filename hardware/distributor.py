@@ -21,10 +21,10 @@ class Distributor:
     ожидается после обеих. Лента в этот момент стоит, а корпус, для
     которого готовится маршрут, находится на +7 и заслонок ещё не достиг,
     поэтому ограничение «не двигать DIST2 при открытом пути на неё» снято
-    (см. README, «Логика распределителя»). Ручная диагностика
-    (``diagnostic_gate`` / ``diagnostic_route``) управляет заслонками
-    независимо и по-прежнему по одной: кнопки верхнего распределителя
-    двигают только DIST1, кнопки нижнего — только DIST2.
+    (см. README, «Логика распределителя»). Ручного перемещения заслонок
+    из HMI нет: работоспособность распределителя проверяется homing'ом
+    обеих осей при старте системы (``initialize``) и выставлением
+    рабочего положения перед пуском (``park_production``).
     """
 
     def __init__(self, dist1_axis, dist2_axis, dist1_open_position: int,
@@ -90,33 +90,6 @@ class Distributor:
             dist2_position=self.dist2_bad_position,
         )
         self.last_action = "PRODUCTION READY"
-        self._notify()
-
-    def diagnostic_gate(self, position: str):
-        """Диагностика DIST1: HOME=GOOD, OPEN=передать корпус на DIST2.
-
-        Имена HOME/OPEN оставлены только для совместимости HTTP-команд.
-        """
-        if position == "HOME":
-            self.last_action = "DIAGNOSTIC DIST1 -> GOOD"
-            self._set_dist1_good()
-        elif position == "OPEN":
-            self.last_action = "DIAGNOSTIC DIST1 -> DIST2"
-            self._set_dist1_to_dist2()
-        else:
-            raise ValueError(f"Unsupported DIST1 diagnostic position: {position}")
-        self._notify()
-
-    def diagnostic_route(self, category: str):
-        if category not in (CATEGORY_BAD, CATEGORY_CLEANUP):
-            raise ValueError(f"Unsupported DIST2 diagnostic route: {category}")
-        # Ручная проверка двигает только свою заслонку: кнопки нижнего
-        # распределителя не должны трогать DIST1. Линия в этот момент пуста
-        # (диагностика разрешена только без корпусов), поэтому ограничение
-        # «DIST1 в GOOD до смены DIST2» здесь не применялось и с переходом
-        # на параллельное движение снято и в prepare_route/park_production.
-        self.dist2_target, self.last_action = category, f"DIAGNOSTIC DIST2 -> {category}"
-        self._move_dist2(category)
         self._notify()
 
     def prepare_route(self, category: str, part_id: int | None = None):
@@ -225,34 +198,6 @@ class Distributor:
             f"[DIST] parallel move -> DIST1={self._dist1_position} "
             f"DIST2={self._dist2_position}"
         )
-        self._notify()
-
-    def _move_dist2(self, category: str):
-        target = self._dist2_target_position(category)
-        self._check_cancelled()
-        if self._dist2_position == target:
-            print(f"[DIST2] {category} already at POS={target}")
-            return
-        self.dist2_state = "MOVING"; self._notify()
-        self.dist2.move_absolute(target); self._wait_dist2(); self._check_cancelled()
-        if self.dist2.position != target:
-            raise RuntimeError(f"DIST2 target mismatch: expected {target}, got {self.dist2.position}")
-        self._dist2_position = target
-        self.dist2_state = "READY"
-        print(f"[DIST2] {category} POS={target}")
-        self._notify()
-
-    def _set_dist1_to_dist2(self):
-        self._check_cancelled()
-        if self._dist1_position == self.dist1_open_position:
-            print("[DIST1] already TO_DIST2")
-            return
-        self.dist1_state = "MOVING_TO_DIST2"; self._notify()
-        self.dist1.move_absolute(self.dist1_open_position); self._wait_dist1(); self._check_cancelled()
-        if self.dist1.position != self.dist1_open_position:
-            raise RuntimeError(f"DIST1 DIST2 mismatch: expected {self.dist1_open_position}, got {self.dist1.position}")
-        self._dist1_position, self.dist1_state = self.dist1_open_position, "TO_DIST2"
-        print(f"[DIST1] TO_DIST2 POS={self._dist1_position}")
         self._notify()
 
     def _set_dist1_good(self):

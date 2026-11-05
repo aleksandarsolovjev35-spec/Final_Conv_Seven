@@ -102,7 +102,6 @@ class UIServer:
         self.on_pause:  callable | None = None
         self.on_resume: callable | None = None
         self.on_exit:   callable | None = None
-        self.on_distributor_diagnostic: callable | None = None
         self.on_camera_diagnostic: callable | None = None
         self.on_vision_rule_diagnostic: callable | None = None
         self.on_selected_model_analysis: callable | None = None

@@ -38,8 +38,6 @@ function thresholdsEditableNow() {
         && !state.controlPending
         && !state.startPending
         && !state.jogBusy
-        && !state.distributorDiagnosticPending
-        && !state.distributorDiagnosticBackendBusy
         && !state.selectedAnalysisPending
     );
 }

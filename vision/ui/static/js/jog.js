@@ -10,8 +10,6 @@ function updateJogModeSwitchUI() {
         || state.jogBusy
         || state.jogStepPending
         || state.offline
-        || state.distributorDiagnosticBackendBusy
-        || state.distributorDiagnosticPending
     );
 
     if (els.jogModeHold) {
@@ -118,8 +116,6 @@ function updateJogState(jog) {
             btn.disabled = (
                 !state.jogActive
                 || state.backendControls.jog_hold !== true
-                || state.distributorDiagnosticBackendBusy
-                || state.distributorDiagnosticPending
                 || busyBlocked
             );
             btn.classList.toggle(
@@ -279,8 +275,6 @@ async function triggerJogStep(direction, btn) {
         || state.jogStepPending
         || state.offline
         || state.backendControls.jog_hold !== true
-        || state.distributorDiagnosticPending
-        || state.distributorDiagnosticBackendBusy
     ) return;
     if (direction !== '+' && direction !== '-') return;
 
@@ -291,7 +285,6 @@ async function triggerJogStep(direction, btn) {
         start: false,
         exit: false,
         jog_hold: false,
-        distributor_diagnostic: false,
         camera_diagnostic: false,
         vision_rule_diagnostic: false,
     };
@@ -300,11 +293,6 @@ async function triggerJogStep(direction, btn) {
         state.serverExitRequested,
         state.backendControls,
     );
-    if (els.distributorDiagnostics) {
-        els.distributorDiagnostics.querySelectorAll('button').forEach(
-            diagnosticButton => { diagnosticButton.disabled = true; }
-        );
-    }
     disableSelectedAnalysisButton();
     updateJogModeSwitchUI();
     if (typeof updateYoloFeedbackButtons === 'function') {
@@ -337,8 +325,6 @@ async function beginJogHold(direction, btn) {
         || state.jogBusy
         || state.offline
         || state.backendControls.jog_hold !== true
-        || state.distributorDiagnosticPending
-        || state.distributorDiagnosticBackendBusy
     ) return;
     if (direction !== '+' && direction !== '-') return;
     if (state.jogHoldDirection) return;
@@ -349,7 +335,6 @@ async function beginJogHold(direction, btn) {
         ...state.backendControls,
         start: false,
         exit: false,
-        distributor_diagnostic: false,
         camera_diagnostic: false,
         vision_rule_diagnostic: false,
     };
@@ -358,11 +343,6 @@ async function beginJogHold(direction, btn) {
         state.serverExitRequested,
         state.backendControls,
     );
-    if (els.distributorDiagnostics) {
-        els.distributorDiagnostics.querySelectorAll('button').forEach(
-            diagnosticButton => { diagnosticButton.disabled = true; }
-        );
-    }
     disableSelectedAnalysisButton();
     btn.classList.add('jog-active');
     clearControlError();
@@ -463,8 +443,6 @@ function clearJogHoldLocalState() {
             btn.disabled = (
                 !state.jogActive
                 || state.backendControls.jog_hold !== true
-                || state.distributorDiagnosticBackendBusy
-                || state.distributorDiagnosticPending
             );
         });
     }

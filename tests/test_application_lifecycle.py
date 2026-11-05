@@ -174,7 +174,6 @@ class FakeCycle:
     def request_stop(self): pass
     def request_pause(self): pass
     def request_resume(self): pass
-    def distributor_diagnostic(self): pass
     def diagnostic_check_cameras(self): pass
     def diagnostic_check_vision_rules(self): pass
     def diagnostic_analyze_selected_camera(self): pass
@@ -316,7 +315,6 @@ class ApplicationStartupTest(unittest.TestCase):
             "stop_callback": "request_stop",
             "pause_callback": "request_pause",
             "resume_callback": "request_resume",
-            "distributor_diagnostic_callback": "distributor_diagnostic",
             "camera_diagnostic_callback": "diagnostic_check_cameras",
             "vision_rule_diagnostic_callback": (
                 "diagnostic_check_vision_rules"

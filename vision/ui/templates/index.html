@@ -6,20 +6,20 @@
     <meta charset="UTF-8">
     <title>Роботехнический комплекс конвейерного типа 7</title>
     <link rel="stylesheet" href="/static/css/base.css?v=37">
-    <link rel="stylesheet" href="/static/css/blocks.css?v=29">
+    <link rel="stylesheet" href="/static/css/blocks.css?v=30">
     <link rel="stylesheet" href="/static/css/camera.css?v=43">
     <link rel="stylesheet" href="/static/css/axis.css?v=33">
     <link rel="stylesheet" href="/static/css/history-strip.css?v=47">
-    <link rel="stylesheet" href="/static/css/stats.css?v=52">
+    <link rel="stylesheet" href="/static/css/stats.css?v=53">
     <link rel="stylesheet" href="/static/css/jog.css?v=37">
-    <link rel="stylesheet" href="/static/css/controls.css?v=46">
+    <link rel="stylesheet" href="/static/css/controls.css?v=47">
     <link rel="stylesheet" href="/static/css/gallery.css?v=34">
-    <link rel="stylesheet" href="/static/css/process.css?v=57">
-    <link rel="stylesheet" href="/static/css/motion.css?v=39">
-    <link rel="stylesheet" href="/static/css/thresholds.css?v=24">
+    <link rel="stylesheet" href="/static/css/process.css?v=58">
+    <link rel="stylesheet" href="/static/css/motion.css?v=40">
+    <link rel="stylesheet" href="/static/css/thresholds.css?v=25">
     <link rel="stylesheet" href="/static/css/archive.css?v=6">
     <link rel="stylesheet" href="/static/css/yolo-feedback.css?v=3">
-    <link rel="stylesheet" href="/static/css/panel-deck.css?v=8">
+    <link rel="stylesheet" href="/static/css/panel-deck.css?v=9">
 </head>
 <body>
 
@@ -197,38 +197,6 @@
                         <div class="stats-row stats-third"><span class="stats-label">На зачистку</span><span id="stat-cleanup" class="stats-value warn">0</span></div>
                         <div class="stats-row stats-half"><span class="stats-label">Шаг</span><span id="metric-step" class="stats-value">0</span></div>
                         <div class="stats-row stats-half"><span class="stats-label">Время работы</span><span id="metric-uptime" class="stats-value">00:00:00</span></div>
-                    </div>
-                </section>
-
-                <section id="distributor-diagnostics" class="distributor-panel ui-collapse" data-ui-block="distributor">
-                    <div class="distributor-head">
-                        <span class="distributor-title">РАСПРЕДЕЛИТЕЛЬ</span>
-                    </div>
-                    <div class="blade-card">
-                        <div class="blade-track">
-                            <div id="dist1-blade" class="blade-marker"></div>
-                        </div>
-                        <div class="blade-track-labels" aria-hidden="true">
-                            <span>ГОДНО</span>
-                            <span>БРАК</span>
-                        </div>
-                        <div class="diagnostic-grid blade-diagnostic-grid ui-collapse">
-                            <button class="btn btn-sm" data-distributor-command="DIST1_HOME" disabled>ГОДНО</button>
-                            <button class="btn btn-sm" data-distributor-command="DIST1_OPEN" disabled>БРАК</button>
-                        </div>
-                    </div>
-                    <div class="blade-card">
-                        <div class="blade-track">
-                            <div id="dist2-blade" class="blade-marker"></div>
-                        </div>
-                        <div class="blade-track-labels" aria-hidden="true">
-                            <span>БРАК</span>
-                            <span>ЗАЧИСТКА</span>
-                        </div>
-                        <div class="diagnostic-grid blade-diagnostic-grid ui-collapse">
-                            <button class="btn btn-sm" data-distributor-command="DIST2_BAD" disabled>БРАК</button>
-                            <button class="btn btn-sm" data-distributor-command="DIST2_CLEANUP" disabled>ЗАЧИСТКА</button>
-                        </div>
                     </div>
                 </section>
 
@@ -494,18 +462,18 @@
         </section>
     </div>
 
-    <script src="/static/js/core.js?v=60"></script>
+    <script src="/static/js/core.js?v=61"></script>
     <script src="/static/js/boot.js?v=33"></script>
-    <script src="/static/js/diagnostics.js?v=51"></script>
-    <script src="/static/js/status.js?v=65"></script>
-    <script src="/static/js/controls.js?v=39"></script>
-    <script src="/static/js/thresholds.js?v=20"></script>
-    <script src="/static/js/cameras.js?v=44"></script>
-    <script src="/static/js/jog.js?v=38"></script>
+    <script src="/static/js/diagnostics.js?v=52"></script>
+    <script src="/static/js/status.js?v=66"></script>
+    <script src="/static/js/controls.js?v=40"></script>
+    <script src="/static/js/thresholds.js?v=21"></script>
+    <script src="/static/js/cameras.js?v=45"></script>
+    <script src="/static/js/jog.js?v=39"></script>
     <script src="/static/js/history.js?v=39"></script>
     <script src="/static/js/archive.js?v=2"></script>
     <script src="/static/js/yolo-feedback.js?v=3"></script>
     <script src="/static/js/panel-deck.js?v=3"></script>
-    <script src="/static/js/bootstrap.js?v=37"></script>
+    <script src="/static/js/bootstrap.js?v=38"></script>
 </body>
 </html>

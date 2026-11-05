@@ -281,22 +281,6 @@ def setup_api_routes(app, server):
             role,
         )
 
-    @app.post("/api/distributor/diagnostic/{command}")
-    async def api_distributor_diagnostic(command: str):
-        allowed = {
-            "DIST1_HOME",
-            "DIST1_OPEN",
-            "DIST2_BAD",
-            "DIST2_CLEANUP",
-        }
-        if command not in allowed:
-            raise HTTPException(400, "Недопустимая команда распределителя")
-        return await invoke(
-            "ПРОВЕРКА РАСПРЕДЕЛИТЕЛЯ",
-            server.on_distributor_diagnostic,
-            command,
-        )
-
     @app.post("/api/conveyor/speed")
     async def api_conveyor_speed(payload: dict):
         speed = payload.get("speed")

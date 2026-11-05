@@ -53,7 +53,6 @@ PROCESS_LABELS = {
     "JOG_HOLD": "JOG: удерживаемое движение ленты",
     "JOG_STEP": "JOG: перемещение ленты на 1 шаг",
     "JOG_STOPPED": "JOG: движение ленты остановлено",
-    "DISTRIBUTOR_DIAGNOSTIC": "Проверка распределителя",
     "CAMERA_DIAGNOSTIC": "Проверка семи камер",
     "VISION_RULE_DIAGNOSTIC": "Проверка моделей и правил",
 }
@@ -332,37 +331,6 @@ class LineSimulation:
         self._publish("IDLE")
         return True
 
-    def distributor_diagnostic(self, command: str) -> bool:
-        with self._lock:
-            if self.state not in ("IDLE", "STOPPED"):
-                return False
-            # Ручная проверка двигает только свою заслонку: кнопки верхнего
-            # распределителя управляют DIST1, кнопки нижнего — только DIST2.
-            if command == "DIST1_HOME":
-                self.dist1_position = 0
-                self.dist1_state = "GOOD"
-                self.last_distributor_action = "DIAGNOSTIC DIST1 -> GOOD"
-            elif command == "DIST1_OPEN":
-                self.dist1_position = 340
-                self.dist1_state = "TO_DIST2"
-                self.last_distributor_action = "DIAGNOSTIC DIST1 -> DIST2"
-            elif command == "DIST2_BAD":
-                moved = self.dist2_position != 0
-                self.dist2_position = 0
-                if moved:
-                    self.dist2_state = "READY"
-                self.last_distributor_action = "DIAGNOSTIC DIST2 -> BAD"
-            elif command == "DIST2_CLEANUP":
-                moved = self.dist2_position != 340
-                self.dist2_position = 340
-                if moved:
-                    self.dist2_state = "READY"
-                self.last_distributor_action = "DIAGNOSTIC DIST2 -> CLEANUP"
-            else:
-                return False
-        self._publish("DISTRIBUTOR_DIAGNOSTIC")
-        return True
-
     def camera_diagnostic(self) -> bool:
         self._publish("CAMERA_DIAGNOSTIC")
         return True
@@ -585,7 +553,6 @@ class LineSimulation:
                              "jog_hold": self.jog_active and state in JOG_ALLOWED_STATES and self.selected_role is None,
                              "selected_model_analysis": state in ("IDLE", "STOPPED") and self.selected_role is None,
                              "selected_model_release": self.selected_role is not None,
-                             "distributor_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None,
                              "camera_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None,
                              "vision_rule_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None},
                 "conveyor_speed": self.conveyor_speed,
@@ -836,7 +803,6 @@ def main() -> None:
     server.on_jog_hold_heartbeat = simulation.jog_hold_heartbeat
     server.on_jog_hold_release = simulation.jog_hold_release
     server.on_jog_step = simulation.jog_step
-    server.on_distributor_diagnostic = simulation.distributor_diagnostic
     server.on_camera_diagnostic = simulation.camera_diagnostic
     server.on_vision_rule_diagnostic = simulation.vision_rule_diagnostic
     server.on_selected_model_analysis = simulation.selected_analysis

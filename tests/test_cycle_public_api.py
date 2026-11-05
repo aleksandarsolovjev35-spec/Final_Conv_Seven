@@ -133,12 +133,6 @@ class FakeDistributor:
     def emergency_stop(self):
         pass
 
-    def diagnostic_gate(self, position):
-        pass
-
-    def diagnostic_route(self, category):
-        pass
-
 
 class FakeJog:
     def __init__(self, error=None, busy=False):

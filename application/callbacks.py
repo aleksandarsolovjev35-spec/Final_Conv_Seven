@@ -254,7 +254,6 @@ def bind_cycle_callbacks(
     monitor.pause_callback = cycle.request_pause
     monitor.resume_callback = cycle.request_resume
     monitor.exit_callback = exit_callback
-    monitor.distributor_diagnostic_callback = cycle.distributor_diagnostic
     monitor.camera_diagnostic_callback = cycle.diagnostic_check_cameras
     monitor.vision_rule_diagnostic_callback = (
         cycle.diagnostic_check_vision_rules

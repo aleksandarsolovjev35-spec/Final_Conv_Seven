@@ -1,11 +1,9 @@
-"""Диагностика камер, правил и распределителя.
+"""Предстартовая диагностика камер и правил дефектов.
 
 Часть ``ProductionCycle``. Доступна только на пустой линии в IDLE/STOPPED.
 """
 
 import time
-
-from domain.part import CATEGORY_BAD, CATEGORY_CLEANUP
 
 
 def make_diagnostics(
@@ -38,43 +36,6 @@ def make_diagnostics(
 
 class CycleDiagnosticsMixin:
     """Предстартовые проверки без движения линии."""
-
-    def distributor_diagnostic(self, command: str) -> bool:
-        if not self._operation_lock.acquire(blocking=False):
-            return False
-        try:
-            if (
-                self.state not in ("IDLE", "STOPPED")
-                or self.parts
-                or self._selected_analysis_active
-            ):
-                return False
-            if self.jog is not None and self.jog.busy:
-                return False
-            self._set_process(
-                "DISTRIBUTOR_DIAGNOSTIC",
-                f"Проверка распределителя: {command}",
-            )
-            if command == "DIST1_HOME":
-                self.distributor.diagnostic_gate("HOME")
-            elif command == "DIST1_OPEN":
-                self.distributor.diagnostic_gate("OPEN")
-            elif command == "DIST2_BAD":
-                self.distributor.diagnostic_route(CATEGORY_BAD)
-            elif command == "DIST2_CLEANUP":
-                self.distributor.diagnostic_route(CATEGORY_CLEANUP)
-            else:
-                raise ValueError(f"Unknown distributor diagnostic: {command}")
-            self._set_process(
-                "DIAGNOSTIC_DONE",
-                f"Положение распределителя подтверждено: {command}",
-            )
-            return True
-        except Exception as exc:
-            self._handle_fault(f"Ошибка проверки распределителя: {exc}")
-            raise
-        finally:
-            self._operation_lock.release()
 
     def diagnostic_check_cameras(self) -> bool:
         if not self._operation_lock.acquire(blocking=False):

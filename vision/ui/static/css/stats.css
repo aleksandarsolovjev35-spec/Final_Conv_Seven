@@ -25,7 +25,6 @@
    скролл правой колонки: кастомный thresholds-scroll-track. */
 .stats-panel .stats-summary,
 .stats-panel .stats-body,
-.stats-panel .distributor-panel,
 
 .stats-panel .jog-panel,
 .stats-panel .thresholds-panel,
@@ -36,7 +35,6 @@
 }
 .stats-panel .stats-summary::-webkit-scrollbar,
 .stats-panel .stats-body::-webkit-scrollbar,
-.stats-panel .distributor-panel::-webkit-scrollbar,
 .stats-panel .jog-panel::-webkit-scrollbar,
 .stats-panel .thresholds-panel::-webkit-scrollbar,
 .stats-panel .thresholds-tabs::-webkit-scrollbar,
