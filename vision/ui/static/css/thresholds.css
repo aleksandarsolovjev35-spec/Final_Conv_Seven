@@ -124,10 +124,9 @@
     border-color: var(--accent);
     color: var(--accent);
 }
-/* Наведение — «загорание» заливкой, единое для всех кнопок HMI:
-   как и «АНАЛИЗ КАДРА», вкладка загорается при наведении в любом
-   состоянии, включая активное. Раскрытие делает thresholds.js. */
-.thresholds-tab:hover {
+/* Наведение — «загорание» заливкой, единое для всех кнопок HMI.
+   Раскрытие по наведению делает thresholds.js через flex-basis. */
+.thresholds-tab:hover:not(.is-active) {
     background: var(--accent);
     border-color: var(--accent);
     color: var(--bg-0);
