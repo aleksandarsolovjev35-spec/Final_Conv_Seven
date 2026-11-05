@@ -37,7 +37,7 @@ def app(tmp_path, mapping, synthetic):
 def draw_rect(application, role_index, box=(100, 80, 500, 400)):
     """Обвести прямоугольник координатами кадра (не канвы)."""
     application.cursor = role_index
-    application._ensure_frame(R.ROLE_ORDER[role_index])
+    application.ensure_frame(R.ROLE_ORDER[role_index])
     scale = application.scale
     x1, y1, x2, y2 = box
     application._start_draw(int(x1 * scale), int(y1 * scale))
@@ -113,7 +113,7 @@ class TestSession:
         for index in range(len(R.ROLE_ORDER)):
             draw_rect(app, index, (120 + index, 90, 700, 480))
             app.save_current()
-        app._finish_session()
+        app.finish()
 
         manifest = json.loads(
             (app.session.folder / "session.json").read_text("utf-8")
@@ -155,7 +155,7 @@ class TestFlow:
         for index in range(len(R.ROLE_ORDER)):
             draw_rect(app, index)
             app.save_current()
-        app._continue_without_step()
+        app.continue_without_step()
         assert app.round_no == 2 and app.phase == R.Phase.MARKUP
         assert app.session.steps_made == 0
 
@@ -167,18 +167,18 @@ class TestFlow:
 
     def test_polygon_requires_closing_and_undo_works(self, app):
         app.start()
-        app._set_mode("poly")
+        app.set_mode("poly")
         for point in ((100, 100), (500, 120), (520, 400), (120, 380)):
             app._start_draw(*point)
         roi = app.rois[R.ROLE_ORDER[0]]
         assert not roi.closed
 
-        app._undo_point()
-        app._undo_point()
+        app.undo_polygon_point()
+        app.undo_polygon_point()
         assert len(roi.points) == 2
         assert roi.is_valid() or not roi.is_valid()
 
-        app._close_polygon()
+        app.close_polygon()
         assert not app.rois[R.ROLE_ORDER[0]].closed
         assert app.session.counts()["shots"] == 0
 
@@ -186,10 +186,10 @@ class TestFlow:
         app.start()
         draw_rect(app, 0, (150, 120, 650, 520))
         before = app.rois[R.ROLE_ORDER[0]].bbox
-        app._set_mode("poly")
+        app.set_mode("poly")
         assert app.rois[R.ROLE_ORDER[0]].mode == "poly"
         assert app.rois[R.ROLE_ORDER[0]].bbox == before
-        app._set_mode("rect")
+        app.set_mode("rect")
         assert app.rois[R.ROLE_ORDER[0]].mode == "rect"
 
     @pytest.mark.parametrize("phase", [
@@ -220,7 +220,7 @@ class TestFlow:
             raise RuntimeError(f"{role}: камера недоступна")
 
         monkeypatch.setattr(app.source, "capture", broken)
-        app._move_cursor(+1)
+        app.move_cursor(+1)
         assert R.ROLE_ORDER[1] in app.errors
         assert app.frames.get(R.ROLE_ORDER[1]) is None
 

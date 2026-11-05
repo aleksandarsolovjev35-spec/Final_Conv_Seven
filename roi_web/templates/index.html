@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ConveyerSeven · Разметка зон ROI</title>
+    <link rel="stylesheet" href="/static/css/roi.css?v=1">
+</head>
+<body>
+
+<header class="topbar">
+    <div class="topbar-title">
+        <span class="topbar-mark">CV7</span>
+        <span>РАЗМЕТКА ЗОН ROI</span>
+    </div>
+    <div class="topbar-meta">
+        <span class="tag" id="tag-source">—</span>
+        <span class="tag" id="tag-step-mode">—</span>
+        <span class="tag tag-accent" id="tag-session">сессия —</span>
+    </div>
+</header>
+
+<main class="body">
+
+    <section class="left-column">
+        <div class="preview-strip" id="preview-strip"></div>
+
+        <div class="camera-container" id="camera-container">
+            <div class="camera-label" id="camera-label">—</div>
+            <div class="mode-badge" id="mode-badge">ПРЯМОУГОЛЬНИК</div>
+
+            <div class="stage" id="stage">
+                <img id="main-camera" class="main-camera" alt="Кадр камеры" draggable="false">
+                <canvas id="roi-canvas" class="roi-canvas"></canvas>
+                <div class="stage-hint" id="stage-hint"></div>
+                <div class="stage-empty" id="stage-empty">
+                    <div class="stage-empty-title">НЕТ КАДРА</div>
+                    <div class="stage-empty-text" id="stage-empty-text">Нажмите «НАЧАТЬ», чтобы открыть камеры</div>
+                </div>
+                <div class="stage-busy is-hidden" id="stage-busy">
+                    <div class="spinner"></div>
+                    <div id="stage-busy-text">СЪЁМКА КАДРА…</div>
+                </div>
+            </div>
+
+            <div class="stage-toolbar">
+                <button id="btn-mode" class="btn btn-accent" type="button">ПОЛИГОН</button>
+                <button id="btn-undo" class="btn" type="button" disabled>УБРАТЬ ТОЧКУ</button>
+                <button id="btn-reset" class="btn" type="button">СБРОСИТЬ ЗОНУ</button>
+                <button id="btn-capture" class="btn" type="button">ПЕРЕСНЯТЬ КАДР</button>
+                <span class="toolbar-spacer"></span>
+                <button id="btn-save" class="btn btn-ok" type="button">СОХРАНИТЬ ПАРУ</button>
+            </div>
+        </div>
+
+        <section class="line-panel">
+            <div class="panel-head">
+                <span class="panel-title">ПУТЬ КОРПУСОВ</span>
+                <span class="panel-note" id="round-note">круг —</span>
+            </div>
+            <div class="line-cells" id="line-cells"></div>
+        </section>
+    </section>
+
+    <aside class="stats-panel">
+        <div class="panel-head">
+            <span class="panel-title">СЕАНС</span>
+            <span class="panel-note" id="session-state">ОЖИДАНИЕ</span>
+        </div>
+
+        <div class="stat-grid">
+            <div class="stat">
+                <span class="stat-label">СЕССИЯ</span>
+                <b class="stat-value stat-value-sm" id="stat-session">—</b>
+            </div>
+            <div class="stat">
+                <span class="stat-label">КРУГ</span>
+                <b class="stat-value" id="stat-round">—</b>
+            </div>
+            <div class="stat">
+                <span class="stat-label">КАМЕРА</span>
+                <b class="stat-value" id="stat-camera">—</b>
+            </div>
+            <div class="stat">
+                <span class="stat-label">КАДР</span>
+                <b class="stat-value" id="stat-index">—</b>
+            </div>
+            <div class="stat">
+                <span class="stat-label">РЕЖИМ</span>
+                <b class="stat-value" id="stat-mode">—</b>
+            </div>
+            <div class="stat">
+                <span class="stat-label">ШАГ ЛЕНТЫ</span>
+                <b class="stat-value" id="stat-step">—</b>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <div class="section-title">ЗОНА</div>
+            <div class="zone-grid">
+                <span class="zone-key">X</span><b id="zone-x">—</b>
+                <span class="zone-key">Y</span><b id="zone-y">—</b>
+                <span class="zone-key">ШИРИНА</span><b id="zone-w">—</b>
+                <span class="zone-key">ВЫСОТА</span><b id="zone-h">—</b>
+                <span class="zone-key">ПЛОЩАДЬ</span><b id="zone-area">—</b>
+                <span class="zone-key">ТОЧЕК</span><b id="zone-points">—</b>
+            </div>
+            <div class="zone-empty" id="zone-empty">ЗОНА НЕ ЗАДАНА</div>
+        </div>
+
+        <div class="panel-section">
+            <div class="section-title">СОХРАНЕНО</div>
+            <div class="saved-row">
+                <b id="stat-saved">0</b><span>кадров</span>
+                <b id="stat-rounds">0</b><span>кругов</span>
+                <b id="stat-steps">0</b><span>шагов</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+            <div class="panel-note panel-note-wrap" id="session-folder">—</div>
+        </div>
+
+        <div class="panel-section">
+            <div class="section-title">УПРАВЛЕНИЕ</div>
+            <div class="key-help">
+                <div><kbd>ЛКМ</kbd> обвести зону</div>
+                <div><kbd>ПКМ</kbd> убрать точку</div>
+                <div><kbd>Двойной клик</kbd> замкнуть полигон</div>
+                <div><kbd>1</kbd>/<kbd>2</kbd> прямоугольник / полигон</div>
+                <div><kbd>Enter</kbd> сохранить пару</div>
+                <div><kbd>A</kbd>/<kbd>D</kbd> предыдущая / следующая камера</div>
+                <div><kbd>R</kbd> сбросить, <kbd>C</kbd> переснять</div>
+            </div>
+        </div>
+
+        <div class="fault-card is-hidden" id="fault-card">
+            <div class="fault-title">ШАГ НЕ ПОДТВЕРЖДЁН</div>
+            <div class="fault-text" id="fault-text"></div>
+            <div class="fault-note">Повтор команды запрещён: состояние механики неизвестно. Перезапустите приложение.</div>
+        </div>
+    </aside>
+</main>
+
+<footer class="footer">
+    <div class="footer-left">
+        <button id="btn-start" class="btn btn-ok btn-wide" type="button">НАЧАТЬ</button>
+        <button id="btn-step" class="btn btn-accent btn-wide" type="button" disabled>ШАГ КОНВЕЙЕРА</button>
+        <button id="btn-skip" class="btn" type="button" disabled>БЕЗ ШАГА</button>
+    </div>
+    <div class="footer-status">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">ГОТОВА К РАБОТЕ</span>
+    </div>
+    <div class="footer-right">
+        <button id="btn-finish" class="btn btn-bad" type="button">ЗАВЕРШИТЬ</button>
+    </div>
+</footer>
+
+<div class="toast is-hidden" id="toast"></div>
+
+<script src="/static/js/roi.js?v=1"></script>
+</body>
+</html>

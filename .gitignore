@@ -8,8 +8,9 @@ __pycache__/
 # Исполняемые данные: архив партий и отладочные кадры
 archive/
 debug_frames/
-# Результаты разметки зон ROI (roi_capture.py)
+# Результаты разметки зон ROI (roi_capture.py / roi_capture_web.py)
 roi_dataset/
+roi_headless_check*.png
 
 # Данные замеров покрытия
 .coverage

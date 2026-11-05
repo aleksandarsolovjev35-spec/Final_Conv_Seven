@@ -1097,7 +1097,429 @@ class Button:
 # Приложение
 # ---------------------------------------------------------------------------
 
-class RoiApp:
+_SHARED_TEXT = TextRenderer()
+
+
+def render_roi_overlay(
+    image: np.ndarray,
+    roi: Roi,
+    scale: float = 1.0,
+    label: str | None = None,
+    text: "TextRenderer | None" = None,
+    color: tuple = COL_ACCENT,
+) -> np.ndarray:
+    """Затемнить всё вне зоны, обвести контур и подписать её.
+
+    Общая отрисовка для окна OpenCV и серверной стороны веба: сохранённая
+    пара кадров выглядит так же, как зона на экране оператора.
+    """
+    canvas = image.copy()
+    height, width = canvas.shape[:2]
+    if len(roi.points) < 3:
+        return canvas
+    points = np.array(
+        [[int(round(x * scale)), int(round(y * scale))] for x, y in roi.points],
+        dtype=np.int32,
+    )
+
+    mask = np.zeros((height, width), np.uint8)
+    cv2.fillPoly(mask, [points], 255)
+    outside = mask == 0
+    darkened = cv2.convertScaleAbs(canvas, alpha=0.42, beta=0)
+    canvas[outside] = darkened[outside]
+
+    tint = np.zeros_like(canvas)
+    tint[:] = color
+    blended = cv2.addWeighted(canvas, 0.9, tint, 0.1, 0)
+    canvas[mask > 0] = blended[mask > 0]
+
+    cv2.polylines(canvas, [points], True, color, 2, cv2.LINE_AA)
+    radius = 4 if scale >= 1 else 3
+    for point in points:
+        cv2.circle(canvas, (int(point[0]), int(point[1])), radius + 2,
+                   COL_BG, -1, cv2.LINE_AA)
+        cv2.circle(canvas, (int(point[0]), int(point[1])), radius,
+                   color, -1, cv2.LINE_AA)
+
+    if label and text is not None:
+        _draw_roi_label(canvas, text, label, (points[0][0], points[0][1]), scale)
+    return canvas
+
+
+def _draw_roi_label(image, text: "TextRenderer", label: str,
+                    xy: tuple[int, int], scale: float) -> None:
+    size = max(12, int(15 * max(0.6, scale)))
+    width, height = text.measure(label, size, True)
+    pad = max(4, int(6 * scale))
+    box_w = min(image.shape[1] - 2, width + pad * 2)
+    box_h = height + pad * 2
+    x = max(0, min(image.shape[1] - box_w, int(xy[0])))
+    y = int(xy[1]) - box_h - pad
+    if y < 4:
+        y = min(image.shape[0] - box_h - 2, int(xy[1]) + pad)
+    cv2.rectangle(image, (x, y), (x + box_w, y + box_h), COL_BG, -1)
+    cv2.rectangle(image, (x, y), (x + box_w, y + box_h), COL_ACCENT, 1)
+    text.draw(image, TextItem(label, (x + pad, y + pad), size, COL_TEXT, True))
+
+
+class RoiSessionController:
+    """Логика сеанса разметки без привязки к интерфейсу.
+
+    Общая база для окна OpenCV (:class:`RoiApp`) и веб-интерфейса
+    (``roi_capture_web``): камеры, зоны, пары кадров, круги и шаг ленты.
+    """
+
+    def __init__(
+        self,
+        *,
+        mapping: dict,
+        source: CameraSource,
+        step_driver: StepDriver,
+        session: RoiSession,
+        auto_step: bool = False,
+    ):
+        self.mapping = dict(mapping)
+        self.source = source
+        self.step_driver = step_driver
+        self.session = session
+        self.auto_step = auto_step
+
+        self.phase = Phase.READY
+        self.mode = "rect"
+        self.cursor = 0
+        self.round_no = 0
+
+        self.frames: dict[str, np.ndarray] = {}
+        self.rois: dict[str, Roi] = {}
+        self.saved: dict[str, bool] = {}
+        self.errors: dict[str, str] = {}
+
+        self.notice = ""
+        self.notice_until = 0.0
+        self.step_status = ""
+        self.conveyor_step: int | None = None
+        self.stepping = False
+        self.frame_size: tuple[int, int] | None = None
+
+        self._drag_origin: tuple[int, int] | None = None
+        self._dragging = False
+
+    # ---------- свойства ----------
+
+    @property
+    def current_role(self) -> str:
+        return ROLE_ORDER[self.cursor]
+
+    @property
+    def notice_text(self) -> str:
+        """Действующее уведомление; пустая строка, если оно истекло."""
+        return self.notice if time.monotonic() <= self.notice_until else ""
+
+    def progress(self) -> float:
+        """Доля размеченных камер текущего круга, 0…1."""
+        return sum(1 for role in ROLE_ORDER if self.saved.get(role)) / len(ROLE_ORDER)
+
+    # ---------- действия ----------
+
+    def start(self) -> None:
+        notes = self.source.open()
+        if notes:
+            self.notify(f"не все камеры доступны: {len(notes)}")
+        self.round_no = 1
+        self.phase = Phase.MARKUP
+        self._reset_round()
+        print(f"[ROI] Старт. Круг 1, камеры: {', '.join(ROLE_ORDER)}")
+        self.ensure_frame(ROLE_ORDER[self.cursor])
+
+    def _reset_round(self) -> None:
+        self.cursor = 0
+        self.frames.clear()
+        self.rois.clear()
+        self.saved = {role: False for role in ROLE_ORDER}
+        self.errors.clear()
+        self._drag_origin = None
+        self._dragging = False
+
+    def ensure_frame(self, role: str) -> np.ndarray | None:
+        """Снять кадр роли, если его ещё нет в текущем круге."""
+        frame = self.frames.get(role)
+        if frame is not None:
+            return frame
+        try:
+            print(f"[ROI] Кадр {role}…")
+            frame = self.source.capture(role)
+        except Exception as exc:                        # noqa: BLE001
+            self.errors[role] = str(exc)
+            print(f"[ROI] Ошибка кадра {role}: {exc}")
+            self.notify(f"{role}: {exc}")
+            return None
+        self.errors.pop(role, None)
+        self.frames[role] = frame
+        self.frame_size = (frame.shape[1], frame.shape[0])
+        return frame
+
+    def select_camera(self, index: int) -> None:
+        """Перейти к камере по индексу (щелчок по превью в вебе)."""
+        if self.phase != Phase.MARKUP or not 0 <= index < len(ROLE_ORDER):
+            return
+        if index == self.cursor and self.frames.get(ROLE_ORDER[index]) is not None:
+            return
+        self.cursor = index
+        self._drag_origin = None
+        self._dragging = False
+        self.ensure_frame(self.current_role)
+
+    def move_cursor(self, delta: int) -> None:
+        if self.phase != Phase.MARKUP:
+            return
+        self.cursor = (self.cursor + delta) % len(ROLE_ORDER)
+        self._drag_origin = None
+        self._dragging = False
+        print(f"[ROI] Камера {self.current_role} "
+              f"({self.cursor + 1}/{len(ROLE_ORDER)})")
+        self.ensure_frame(self.current_role)
+
+    def set_mode(self, mode: str) -> None:
+        if mode == self.mode:
+            return
+        self.mode = mode
+        roi = self.rois.get(self.current_role)
+        if roi is not None:
+            self.rois[self.current_role] = (
+                roi.to_polygon() if mode == "poly" else roi.to_rect()
+            )
+        self._drag_origin = None
+        self._dragging = False
+        print(f"[ROI] Режим: {'полигон' if mode == 'poly' else 'прямоугольник'}")
+
+    def toggle_mode(self) -> None:
+        self.set_mode("poly" if self.mode == "rect" else "rect")
+
+    def reset_roi(self) -> None:
+        if self.phase != Phase.MARKUP:
+            return
+        self.rois.pop(self.current_role, None)
+        self._drag_origin = None
+        self._dragging = False
+        self.notify("зона сброшена")
+        print(f"[ROI] Зона {self.current_role} сброшена")
+
+    def recapture(self) -> np.ndarray | None:
+        if self.phase != Phase.MARKUP:
+            return None
+        role = self.current_role
+        self.frames.pop(role, None)
+        self.rois.pop(role, None)
+        self.saved[role] = False
+        self.notify(f"кадр {role} снят заново")
+        return self.ensure_frame(role)
+
+    # ---------- зона: правки из интерфейса ----------
+
+    def set_roi_points(self, points, mode: str = "rect", closed: bool = True):
+        """Заменить зону текущей камеры точками в координатах кадра."""
+        frame = self.frames.get(self.current_role)
+        width, height = ((frame.shape[1], frame.shape[0]) if frame is not None
+                         else EXPECTED_FRAME_SIZE)
+        cleaned = [
+            (max(0, min(width - 1, int(round(x)))),
+             max(0, min(height - 1, int(round(y)))))
+            for x, y in points
+        ]
+        if mode == "rect" and len(cleaned) >= 2:
+            roi = Roi.rect(cleaned[0], cleaned[-1])
+        else:
+            roi = Roi("poly" if mode == "poly" else "rect", cleaned, bool(closed))
+        self.rois[self.current_role] = roi
+        self._drag_origin = None
+        self._dragging = False
+        return roi
+
+    def add_polygon_point(self, x: int, y: int, snap: int = 0):
+        """Добавить вершину полигона (щелчок по изображению)."""
+        frame = self.frames.get(self.current_role)
+        if self.phase != Phase.MARKUP or frame is None:
+            return None
+        width, height = frame.shape[1], frame.shape[0]
+        point = (max(0, min(width - 1, int(x))), max(0, min(height - 1, int(y))))
+        roi = self.rois.get(self.current_role)
+        if roi is None or roi.mode != "poly" or roi.closed:
+            roi = Roi("poly", [], False)
+            self.rois[self.current_role] = roi
+        if len(roi.points) >= 3 and _distance(roi.points[0], point) <= max(14, snap):
+            roi.closed = True
+        elif roi.points and _distance(roi.points[-1], point) <= 6:
+            return roi
+        else:
+            roi.points.append(point)
+        return roi
+
+    def undo_polygon_point(self) -> None:
+        roi = self.rois.get(self.current_role)
+        if self.phase != Phase.MARKUP or roi is None or roi.mode != "poly":
+            return
+        if roi.points:
+            roi.points.pop()
+        roi.closed = False
+        if not roi.points:
+            self.rois.pop(self.current_role, None)
+
+    def close_polygon(self) -> None:
+        roi = self.rois.get(self.current_role)
+        if roi is not None and roi.mode == "poly" and len(roi.points) >= 3:
+            roi.closed = True
+
+    # ---------- сохранение ----------
+
+    def save_current(self) -> bool:
+        role = self.current_role
+        if self.phase != Phase.MARKUP:
+            return False
+        frame = self.frames.get(role)
+        if frame is None:
+            self.notify("нет кадра: переснимите камеру")
+            return False
+        roi = self.rois.get(role)
+        if roi is None or not roi.is_valid():
+            self.notify(ui("no_zone").lower())
+            print("[ROI] Зона не задана — сохранение отменено")
+            return False
+
+        roi.clamp(frame.shape[1], frame.shape[0])
+        if roi.mode == "poly":
+            roi.closed = True
+        drawn = render_roi_overlay(frame, roi, 1.0,
+                                   label=self.image_label(role),
+                                   text=_SHARED_TEXT)
+
+        try:
+            paths = self.session.save_shot(
+                round_no=self.round_no,
+                index=self.cursor + 1,
+                role=role,
+                frame=frame,
+                drawn=drawn,
+                roi=roi,
+                camera_id=self.mapping.get(role),
+                conveyor_step=self.conveyor_step,
+            )
+        except Exception as exc:                        # noqa: BLE001
+            self.notify(f"ошибка записи: {exc}")
+            print(f"[ROI] Ошибка сохранения {role}: {exc}")
+            return False
+
+        self.saved[role] = True
+        print(f"[ROI] Сохранено: круг {self.round_no}, "
+              f"{self.cursor + 1}/{len(ROLE_ORDER)} {role} → {paths['raw'].name}")
+        self.notify(f"сохранено: {role}")
+
+        if all(self.saved.values()):
+            self._close_round()
+        else:
+            self._advance_to_next_unsaved()
+        return True
+
+    def _advance_to_next_unsaved(self) -> None:
+        for offset in range(1, len(ROLE_ORDER) + 1):
+            index = (self.cursor + offset) % len(ROLE_ORDER)
+            role = ROLE_ORDER[index]
+            if not self.saved.get(role):
+                self.cursor = index
+                self.ensure_frame(role)
+                return
+
+    def _close_round(self) -> None:
+        print(f"[ROI] Круг {self.round_no} завершён: 7/7 кадров сохранено.")
+        if self.step_driver.mode == "none":
+            self.start_next_round("шаг отключён")
+            return
+        self.phase = Phase.ROUND_DONE
+        if self.auto_step:
+            self.make_step()
+
+    # ---------- круг и шаг ----------
+
+    def make_step(self) -> "StepResult | None":
+        if self.phase not in (Phase.ROUND_DONE, Phase.MARKUP) or self.stepping:
+            return None
+        self.phase = Phase.STEPPING
+        self.stepping = True
+        self.step_status = ""
+        print("[ROI] Шаг конвейера…")
+
+        try:
+            result = self.step_driver.step(on_progress=self._on_step_progress)
+        finally:
+            self.stepping = False
+        if not result.ok:
+            self.phase = Phase.ROUND_DONE
+            self.notify("ШАГ НЕ ПОДТВЕРЖДЁН — проверьте линию")
+            print(f"[ROI] Шаг не выполнен: {result.message}")
+            return result
+
+        if result.step is not None:
+            self.conveyor_step = result.step
+        self.session.steps_made += 1
+        self.session.last_step = self.conveyor_step
+        self.start_next_round(result.message)
+        return result
+
+    def _on_step_progress(self, message: str) -> None:
+        self.step_status = message
+
+    def continue_without_step(self) -> None:
+        if self.phase != Phase.ROUND_DONE:
+            return
+        self.start_next_round("без шага")
+
+    def start_next_round(self, reason: str) -> None:
+        self.round_no += 1
+        self.source.advance()
+        self.phase = Phase.MARKUP
+        self._reset_round()
+        print(f"[ROI] Круг {self.round_no} ({reason})")
+        self.notify(f"круг {self.round_no}")
+        self.ensure_frame(ROLE_ORDER[0])
+
+    def finish(self, silent: bool = False) -> None:
+        if self.phase == Phase.FINISHED:
+            return
+        self.phase = Phase.FINISHED
+        try:
+            self.session.close()
+        except Exception as exc:                        # noqa: BLE001
+            print(f"[ROI] Не удалось записать session.json: {exc}")
+        if not silent:
+            self.print_summary()
+
+    def print_summary(self) -> None:
+        counts = self.session.counts()
+        print("")
+        print("[ROI] Сеанс завершён")
+        print(f"[ROI] Папка:   {self.session.folder}")
+        print(f"[ROI] Кругов:  {counts['rounds']}")
+        print(f"[ROI] Кадров:  {counts['shots']}")
+        print(f"[ROI] Шагов:   {self.session.steps_made}")
+
+    # ---------- служебное ----------
+
+    def notify(self, message: str, seconds: float = 2.5) -> None:
+        self.notice = message
+        self.notice_until = time.monotonic() + seconds
+
+    def expire_notice(self) -> bool:
+        if self.notice and time.monotonic() > self.notice_until:
+            self.notice = ""
+            return True
+        return False
+
+    def image_label(self, role: str) -> str:
+        camera_id = self.mapping.get(role)
+        suffix = f" · id {camera_id}" if camera_id is not None else ""
+        return f"{self.round_no:02d} · {role}{suffix}"
+
+
+class RoiApp(RoiSessionController):
     """Окно OpenCV: кнопка «Начать», обводка зоны, сохранение, шаг ленты."""
 
     def __init__(
@@ -1110,41 +1532,71 @@ class RoiApp:
         scale: float | None = None,
         auto_step: bool = False,
     ):
-        self.mapping = dict(mapping)
-        self.source = source
-        self.step_driver = step_driver
-        self.session = session
-        self.auto_step = auto_step
-        self.text = TextRenderer()
-
-        self.phase = Phase.READY
-        self.mode = "rect"
-        self.cursor = 0
-        self.round_no = 0
-
-        self.frames: dict[str, np.ndarray] = {}
-        self.rois: dict[str, Roi] = {}
-        self.saved: dict[str, bool] = {}
-        self.errors: dict[str, str] = {}
-
+        super().__init__(
+            mapping=mapping,
+            source=source,
+            step_driver=step_driver,
+            session=session,
+            auto_step=auto_step,
+        )
+        self.text = _SHARED_TEXT
         self.buttons: list[Button] = []
         self.mouse = (-1, -1)
         self.dirty = True
-        self.notice = ""
-        self.notice_until = 0.0
-        self.step_status = ""
-        self.conveyor_step: int | None = None
-        self.stepping = False
-
-        self._drag_origin: tuple[int, int] | None = None
-        self._dragging = False
         self._running = True
         self._can_present = True
         self._frame_base_cache: tuple | None = None
         self._panel_cache: tuple | None = None
-
         self.scale, self.canvas_size = self._compute_geometry(scale)
-        self.frame_size: tuple[int, int] | None = None
+
+    # ---------- обёртки: сброс кэшей после общих действий ----------
+
+    def start(self) -> None:
+        super().start()
+        self._invalidate()
+
+    def ensure_frame(self, role: str):
+        frame = super().ensure_frame(role)
+        if frame is not None:
+            self._ensure_frame_geometry(frame)
+        self.dirty = True
+        return frame
+
+    def move_cursor(self, delta: int) -> None:
+        super().move_cursor(delta)
+        self._invalidate()
+
+    def select_camera(self, index: int) -> None:
+        super().select_camera(index)
+        self._invalidate()
+
+    def recapture(self):
+        frame = super().recapture()
+        self._invalidate()
+        return frame
+
+    def set_roi_points(self, points, mode: str = "rect", closed: bool = True):
+        roi = super().set_roi_points(points, mode, closed)
+        self.dirty = True
+        return roi
+
+    def add_polygon_point(self, x: int, y: int, snap: int = 0):
+        roi = super().add_polygon_point(x, y, snap)
+        self.dirty = True
+        return roi
+
+    def undo_polygon_point(self) -> None:
+        super().undo_polygon_point()
+        self.dirty = True
+
+    def notify(self, message: str, seconds: float = 2.5) -> None:
+        super().notify(message, seconds)
+        self.dirty = True
+
+    def _invalidate(self) -> None:
+        self._frame_base_cache = None
+        self._panel_cache = None
+        self.dirty = True
 
     # ---------- геометрия окна ----------
 
@@ -1236,7 +1688,7 @@ class RoiApp:
                 if not self._window_alive():
                     self._running = False
                 continue
-            if self._expire_notice():
+            if self.expire_notice():
                 self.dirty = True
             self._handle_key(key)
 
@@ -1258,14 +1710,14 @@ class RoiApp:
 
     def _shutdown(self) -> None:
         if self.phase != Phase.FINISHED:
-            self._finish_session(silent=True)
+            self.finish(silent=True)
         self.source.close()
         self.step_driver.close()
         try:
             cv2.destroyAllWindows()
         except Exception:                               # noqa: BLE001
             pass
-        self._print_summary()
+        self.print_summary()
 
     # ---------- клавиши ----------
 
@@ -1277,23 +1729,23 @@ class RoiApp:
         elif code in (13, 10, ord("s"), ord("S")):
             self._on_enter()
         elif code in (32, ord("m"), ord("M"), 9):
-            self._toggle_mode()
+            self.toggle_mode()
         elif code in (ord("1"), ord("o"), ord("O")):
-            self._set_mode("rect")
+            self.set_mode("rect")
         elif code in (ord("2"), ord("p"), ord("P")):
-            self._set_mode("poly")
+            self.set_mode("poly")
         elif code in (ord("r"), ord("R"), 8):
-            self._reset_roi()
+            self.reset_roi()
         elif code in (ord("c"), ord("C")):
-            self._recapture()
+            self.recapture()
         elif code in (ord("d"), ord("D"), ord("]")) or special in ARROW_RIGHT:
-            self._move_cursor(+1)
+            self.move_cursor(+1)
         elif code in (ord("a"), ord("A"), ord("[")) or special in ARROW_LEFT:
-            self._move_cursor(-1)
+            self.move_cursor(-1)
         elif code in (ord("n"), ord("N")):
-            self._continue_without_step()
+            self.continue_without_step()
         elif code in (ord("f"), ord("F")):
-            self._finish_session()
+            self.finish()
 
     def _on_enter(self) -> None:
         if self.phase == Phase.READY:
@@ -1303,186 +1755,7 @@ class RoiApp:
         elif self.phase == Phase.ROUND_DONE:
             self.make_step()
 
-    # ---------- действия ----------
-
-    def start(self) -> None:
-        notes = self.source.open()
-        if notes:
-            self._notify(f"не все камеры доступны: {len(notes)}")
-        self.round_no = 1
-        self.phase = Phase.MARKUP
-        self._reset_round()
-        print(f"[ROI] Старт. Круг 1, камеры: {', '.join(ROLE_ORDER)}")
-        self._ensure_frame(ROLE_ORDER[self.cursor])
-
-    def _reset_round(self) -> None:
-        self.cursor = 0
-        self.frames.clear()
-        self.rois.clear()
-        self.saved = {role: False for role in ROLE_ORDER}
-        self.errors.clear()
-        self._drag_origin = None
-        self._dragging = False
-        self._frame_base_cache = None
-        self._panel_cache = None
-        self.dirty = True
-
-    @property
-    def current_role(self) -> str:
-        return ROLE_ORDER[self.cursor]
-
-    def _ensure_frame(self, role: str) -> np.ndarray | None:
-        frame = self.frames.get(role)
-        if frame is not None:
-            return frame
-        try:
-            print(f"[ROI] Кадр {role}…")
-            frame = self.source.capture(role)
-        except Exception as exc:                        # noqa: BLE001
-            self.errors[role] = str(exc)
-            print(f"[ROI] Ошибка кадра {role}: {exc}")
-            self._notify(f"{role}: {exc}")
-            self.dirty = True
-            return None
-        self.errors.pop(role, None)
-        self.frames[role] = frame
-        self._ensure_frame_geometry(frame)
-        self.dirty = True
-        return frame
-
-    def _move_cursor(self, delta: int) -> None:
-        if self.phase not in (Phase.MARKUP,):
-            return
-        self.cursor = (self.cursor + delta) % len(ROLE_ORDER)
-        self._drag_origin = None
-        self._dragging = False
-        print(f"[ROI] Камера {self.current_role} "
-              f"({self.cursor + 1}/{len(ROLE_ORDER)})")
-        self._ensure_frame(self.current_role)
-
-    def _set_mode(self, mode: str) -> None:
-        if mode == self.mode:
-            return
-        self.mode = mode
-        roi = self.rois.get(self.current_role)
-        if roi is not None:
-            self.rois[self.current_role] = (
-                roi.to_polygon() if mode == "poly" else roi.to_rect()
-            )
-        self._drag_origin = None
-        self._dragging = False
-        print(f"[ROI] Режим: {'полигон' if mode == 'poly' else 'прямоугольник'}")
-        self.dirty = True
-
-    def _toggle_mode(self) -> None:
-        self._set_mode("poly" if self.mode == "rect" else "rect")
-
-    def _reset_roi(self) -> None:
-        if self.phase != Phase.MARKUP:
-            return
-        self.rois.pop(self.current_role, None)
-        self._drag_origin = None
-        self._dragging = False
-        self._notify("зона сброшена")
-        print(f"[ROI] Зона {self.current_role} сброшена")
-
-    def _recapture(self) -> None:
-        if self.phase != Phase.MARKUP:
-            return
-        role = self.current_role
-        self.frames.pop(role, None)
-        self.rois.pop(role, None)
-        self.saved[role] = False
-        self._frame_base_cache = None
-        self._notify(f"кадр {role} снят заново")
-        self._ensure_frame(role)
-
-    def save_current(self) -> None:
-        role = self.current_role
-        frame = self.frames.get(role)
-        if frame is None:
-            self._notify("нет кадра: нажмите C")
-            return
-        roi = self.rois.get(role)
-        if roi is None or not roi.is_valid():
-            self._notify(ui("no_zone").lower())
-            print("[ROI] Зона не задана — сохранение отменено")
-            return
-
-        roi.clamp(frame.shape[1], frame.shape[0])
-        if roi.mode == "poly":
-            roi.closed = True
-        drawn = frame.copy()
-        self._paint_roi(drawn, roi, 1.0, label=self._image_label(role))
-
-        try:
-            paths = self.session.save_shot(
-                round_no=self.round_no,
-                index=self.cursor + 1,
-                role=role,
-                frame=frame,
-                drawn=drawn,
-                roi=roi,
-                camera_id=self.mapping.get(role),
-                conveyor_step=self.conveyor_step,
-            )
-        except Exception as exc:                        # noqa: BLE001
-            self._notify(f"ошибка записи: {exc}")
-            print(f"[ROI] Ошибка сохранения {role}: {exc}")
-            return
-
-        self.saved[role] = True
-        print(f"[ROI] Сохранено: круг {self.round_no}, "
-              f"{self.cursor + 1}/{len(ROLE_ORDER)} {role} → {paths['raw'].name}")
-        self._notify(f"сохранено: {role}")
-
-        if all(self.saved.values()):
-            self._close_round()
-        else:
-            self._advance_to_next_unsaved()
-        self.dirty = True
-
-    def _advance_to_next_unsaved(self) -> None:
-        for offset in range(1, len(ROLE_ORDER) + 1):
-            index = (self.cursor + offset) % len(ROLE_ORDER)
-            role = ROLE_ORDER[index]
-            if not self.saved.get(role):
-                self.cursor = index
-                self._ensure_frame(role)
-                return
-
-    def _close_round(self) -> None:
-        print(f"[ROI] Круг {self.round_no} завершён: 7/7 кадров сохранено.")
-        if self.step_driver.mode == "none":
-            self._start_next_round("шаг отключён")
-            return
-        self.phase = Phase.ROUND_DONE
-        if self.auto_step:
-            self.make_step()
-        self.dirty = True
-
-    def make_step(self) -> None:
-        if self.phase not in (Phase.ROUND_DONE, Phase.MARKUP):
-            return
-        self.phase = Phase.STEPPING
-        self.stepping = True
-        self.step_status = ""
-        self.dirty = True
-        print("[ROI] Шаг конвейера…")
-
-        result = self.step_driver.step(on_progress=self._on_step_progress)
-        self.stepping = False
-        if not result.ok:
-            self.phase = Phase.ROUND_DONE
-            self._notify("ШАГ НЕ ПОДТВЕРЖДЁН — проверьте линию")
-            print(f"[ROI] Шаг не выполнен: {result.message}")
-            self.dirty = True
-            return
-
-        self.conveyor_step = result.step if result.step is not None else self.conveyor_step
-        self.session.steps_made += 1
-        self.session.last_step = self.conveyor_step
-        self._start_next_round(result.message)
+    # ---------- шаг и прогресс окна ----------
 
     def _on_step_progress(self, message: str) -> None:
         self.step_status = message
@@ -1500,53 +1773,7 @@ class RoiApp:
             self._can_present = False
             print(f"[ROI] Немедленная отрисовка недоступна: {exc}")
 
-    def _continue_without_step(self) -> None:
-        if self.phase != Phase.ROUND_DONE:
-            return
-        self._start_next_round("без шага")
-
-    def _start_next_round(self, reason: str) -> None:
-        self.round_no += 1
-        self.source.advance()
-        self.phase = Phase.MARKUP
-        self._reset_round()
-        print(f"[ROI] Круг {self.round_no} ({reason})")
-        self._notify(f"круг {self.round_no}")
-        self._ensure_frame(ROLE_ORDER[0])
-
-    def _finish_session(self, silent: bool = False) -> None:
-        if self.phase == Phase.FINISHED:
-            return
-        self.phase = Phase.FINISHED
-        try:
-            self.session.close()
-        except Exception as exc:                        # noqa: BLE001
-            print(f"[ROI] Не удалось записать session.json: {exc}")
-        if not silent:
-            self._print_summary()
-        self.dirty = True
-
-    def _print_summary(self) -> None:
-        counts = self.session.counts()
-        print("")
-        print("[ROI] Сеанс завершён")
-        print(f"[ROI] Папка:   {self.session.folder}")
-        print(f"[ROI] Кругов:  {counts['rounds']}")
-        print(f"[ROI] Кадров:  {counts['shots']}")
-        print(f"[ROI] Шагов:   {self.session.steps_made}")
-
     # ---------- уведомления ----------
-
-    def _notify(self, message: str, seconds: float = 2.5) -> None:
-        self.notice = message
-        self.notice_until = time.monotonic() + seconds
-        self.dirty = True
-
-    def _expire_notice(self) -> bool:
-        if self.notice and time.monotonic() > self.notice_until:
-            self.notice = ""
-            return True
-        return False
 
     # ---------- мышь ----------
 
@@ -1577,9 +1804,9 @@ class RoiApp:
             elif action == "step":
                 self.make_step()
             elif action == "skip":
-                self._continue_without_step()
+                self.continue_without_step()
             elif action == "finish":
-                self._finish_session()
+                self.finish()
             elif action == "exit":
                 self._running = False
             return True
@@ -1589,7 +1816,7 @@ class RoiApp:
         if self.phase != Phase.MARKUP or not self._in_frame(x, y):
             return
         if self.frames.get(self.current_role) is None:
-            self._notify("нет кадра: нажмите C")
+            self.notify("нет кадра: нажмите C")
             return
         point = self._to_image(x, y)
         role = self.current_role
@@ -1629,7 +1856,7 @@ class RoiApp:
         roi = self.rois.get(self.current_role)
         if roi is None or not roi.is_valid():
             self.rois.pop(self.current_role, None)
-            self._notify("зона слишком мала")
+            self.notify("зона слишком мала")
         self.dirty = True
 
     def _undo_point(self) -> None:
@@ -1785,8 +2012,11 @@ class RoiApp:
 
         roi = self.rois.get(self.current_role)
         if roi is not None and roi.is_valid():
-            self._paint_roi(canvas[:display_h, :display_w], roi, self.scale,
-                            label=self._image_label(self.current_role))
+            overlay = render_roi_overlay(
+                canvas[:display_h, :display_w], roi, self.scale,
+                label=self.image_label(self.current_role), text=self.text,
+            )
+            canvas[:display_h, :display_w] = overlay
 
         self._draw_corner_badge(canvas, self.current_role)
         if self.mode == "poly" and self.phase == Phase.MARKUP:
