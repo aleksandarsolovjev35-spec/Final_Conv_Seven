@@ -51,6 +51,7 @@ PROCESS_LABELS = {
     "PAUSED": "Пауза линии",
     "SELECTED_MODEL_ANALYSIS": "Анализ выбранного стоп-кадра",
     "JOG_HOLD": "JOG: удерживаемое движение ленты",
+    "JOG_STEP": "JOG: перемещение ленты на 1 шаг",
     "JOG_STOPPED": "JOG: движение ленты остановлено",
     "DISTRIBUTOR_DIAGNOSTIC": "Проверка распределителя",
     "CAMERA_DIAGNOSTIC": "Проверка семи камер",
@@ -279,6 +280,44 @@ class LineSimulation:
         self._publish("JOG_STOPPED")
         return True
 
+    def jog_step(self, direction: str) -> bool:
+        if direction not in ("+", "-"):
+            return False
+        with self._lock:
+            if (
+                not self.jog_active
+                or self.jog_busy
+                or self.state not in JOG_ALLOWED_STATES
+                or self.selected_role is not None
+            ):
+                return False
+            delta = 48 if direction == "+" else -48
+            self.conveyor_position = max(
+                0, min(self.conveyor_max, self.conveyor_position + delta)
+            )
+            self.last_distributor_action = (
+                "JOG STEP RIGHT" if direction == "+" else "JOG STEP LEFT"
+            )
+            animate = self.thread.is_alive() and self.STEP_SECONDS > 0
+            if animate:
+                self.jog_busy = True
+        if animate:
+            self._publish("JOG_STEP")
+
+            def _finish_step() -> None:
+                with self._lock:
+                    if not self.jog_busy:
+                        return
+                    self.jog_busy = False
+                self._publish("JOG_STOPPED")
+
+            timer = threading.Timer(0.28, _finish_step)
+            timer.daemon = True
+            timer.start()
+        else:
+            self._publish("JOG_STOPPED")
+        return True
+
     def selected_analysis(self, role: str) -> bool:
         with self._lock:
             if self.state not in ("IDLE", "STOPPED") or role not in CAMERA_ORDER:
@@ -475,14 +514,20 @@ class LineSimulation:
         if category in ("BAD", "CLEANUP"):
             self.dist2_state = "READY"
 
-    def _virtual_overlay_data(self, roles: list[str], line_parts: list[dict]) -> tuple[dict, list[SimRule]]:
+    def _virtual_overlay_data(
+        self,
+        roles: list[str],
+        line_parts: list[dict],
+        belt_offset: int = 0,
+    ) -> tuple[dict, list[SimRule]]:
         """Supply valid RAW detections and RULES drawings to the real renderers."""
         category = next((item.get("category") for item in line_parts if item.get("category")), "")
         triggered = category in ("BAD", "CLEANUP")
         raw = {}
         drawings = []
+        shift = (belt_offset * 2) % 732 if belt_offset else 0
         for index, role in enumerate(roles or CAMERA_ORDER):
-            x = 232 + (index % 4) * 29
+            x = 168 + ((64 + (index % 4) * 29 + shift) % 732)
             bbox = [x, 345, x + 280, 525]
             raw[role] = [{"class": "glass" if category == "CLEANUP" else "case", "bbox": bbox}]
             drawings.append({
@@ -579,13 +624,14 @@ class LineSimulation:
                 "jog": {"active": self.jog_active, "busy": self.jog_busy, "can_enter": state in JOG_ALLOWED_STATES,
                         "live_fps": 25},
             }
+            conveyor_pos = self.conveyor_position
             recent = list(self.recent)
         # Publish fresh virtual camera frames on every production state change.
         # The regular UI therefore exercises its real frame versioning, RAW/
         # RULES source switching and thumbnail refresh paths.
-        vision_results, rule_results = self._virtual_overlay_data(active_roles, line_parts)
+        vision_results, rule_results = self._virtual_overlay_data(active_roles, line_parts, conveyor_pos)
         self.server.update(
-            frames=demo_frames(self.step, phase, line_parts),
+            frames=demo_frames(self.step, phase, line_parts, belt_offset=conveyor_pos),
             vision_results=vision_results,
             rule_results=rule_results,
             line_status=status,
@@ -737,11 +783,16 @@ FRAME_WIDTH = 1280
 FRAME_HEIGHT = 720
 
 
-def demo_frames(step: int = 0, phase: str = "IDLE", line_parts: list[dict] | None = None) -> dict:
+def demo_frames(
+    step: int = 0,
+    phase: str = "IDLE",
+    line_parts: list[dict] | None = None,
+    belt_offset: int = 0,
+) -> dict:
     """Generate changing camera feeds rather than static placeholder images."""
     frames = {}
     line_parts = line_parts or []
-    moving_x = 168 + (step % 7) * 122
+    moving_x = 168 + (((step % 7) * 122 + belt_offset * 2) % 732)
     for index, role in enumerate(CAMERA_ORDER):
         frame = np.zeros((FRAME_HEIGHT, FRAME_WIDTH, 3), dtype=np.uint8)
         frame[:] = (20 + index * 3, 27 + index * 2, 33 + index * 2)
@@ -784,6 +835,7 @@ def main() -> None:
     server.on_jog_hold_start = simulation.jog_hold_start
     server.on_jog_hold_heartbeat = simulation.jog_hold_heartbeat
     server.on_jog_hold_release = simulation.jog_hold_release
+    server.on_jog_step = simulation.jog_step
     server.on_distributor_diagnostic = simulation.distributor_diagnostic
     server.on_camera_diagnostic = simulation.camera_diagnostic
     server.on_vision_rule_diagnostic = simulation.vision_rule_diagnostic

@@ -14,9 +14,10 @@ import uvicorn
 from vision.overlay.raw_overlay import RawOverlay
 from vision.overlay.debug_overlay import DebugOverlay
 
-from vision.ui.server.routes_frames  import setup_frame_routes
-from vision.ui.server.routes_api     import setup_api_routes
+from vision.ui.server.routes_frames import setup_frame_routes
+from vision.ui.server.routes_api import setup_api_routes
 from vision.ui.server.routes_archive import setup_archive_routes
+from vision.ui.server.routes_yolo import setup_yolo_routes
 
 
 _UI_DIR        = Path(__file__).parent.parent
@@ -115,6 +116,7 @@ class UIServer:
         self.on_jog_hold_start: callable | None = None
         self.on_jog_hold_heartbeat: callable | None = None
         self.on_jog_hold_release: callable | None = None
+        self.on_jog_step: callable | None = None
 
         # Пороги правил: плоский dict (ROLE.parameter -> value), которым
         # UI отвечает на GET /api/thresholds. Применение изменений выполняет
@@ -138,6 +140,11 @@ class UIServer:
 
         self.archive = None
         self.archive_config_path = "archive_config.json"
+
+        # Обратная связь для разметчика YOLO (доступна в режиме JOG).
+        self.yolo_store = None
+        self._yolo_snapshots: dict = {}
+        self._yolo_snapshot_seq = 0
 
         # Кэш JPEG для pull-механики (/frame): ключ (role, mode, size)
         self._jpeg_cache: dict = {}
@@ -630,9 +637,202 @@ class UIServer:
             root_folder=config["root_path"],
         )
         save_archive_config(self.archive_config_path, config)
+        if self.yolo_store is not None:
+            self.yolo_store.set_root_folder(self.archive.root_folder)
         settings["available"] = True
         settings["editable"] = self.archive_editable()
         return settings
+
+    # ─── Кадры для доразметки YOLO ─────────────────────────────
+
+    def get_yolo_store(self):
+        from inspection.yolo_feedback import YoloFeedbackStore
+
+        archive = self.archive
+        root = getattr(archive, "root_folder", None) or "archive"
+        with self.lock:
+            store = self.yolo_store
+        if store is None:
+            created = YoloFeedbackStore(root_folder=root)
+            with self.lock:
+                if self.yolo_store is None:
+                    self.yolo_store = created
+                store = self.yolo_store
+        else:
+            store.set_root_folder(root)
+        return store
+
+    def yolo_status_payload(self) -> dict:
+        try:
+            return self.get_yolo_store().status_counts()
+        except Exception:
+            return {"available": False, "pending": 0, "total": 0}
+
+    def create_yolo_snapshot(
+        self,
+        *,
+        role: str,
+    ) -> dict:
+        """Захватить снимок 1280×720 выбранной камеры в режиме JOG для разметки YOLO."""
+        from inspection.yolo_feedback import (
+            CAMERA_ROLE_LABELS_RU,
+            get_role_classes,
+        )
+        from vision.model_config import ROLE_TO_GROUP
+
+        norm_role = str(role or "").strip().upper()
+        if norm_role not in ROLE_TO_GROUP:
+            raise ValueError(f"Неизвестная роль камеры: {role}")
+
+        with self.lock:
+            live_frame = self.frames.get(norm_role)
+            current_dets = list(self.vision_results.get(norm_role) or [])
+            ls = dict(self.line_status or {})
+
+        line_state = str(ls.get("state") or "IDLE").upper()
+        jog_info = ls.get("jog") if isinstance(ls.get("jog"), dict) else {}
+        if (
+            line_state not in ("IDLE", "STOPPED", "PAUSED")
+            or not jog_info.get("active")
+        ):
+            raise PermissionError(
+                "Отметка дефектов для YOLO доступна только в режиме ручного управления (JOG)"
+            )
+        if jog_info.get("busy"):
+            raise PermissionError(
+                "Дождитесь остановки ленты перед захватом кадра"
+            )
+        if live_frame is None:
+            raise LookupError(f"Камера {norm_role} ещё не отдала кадр")
+
+        proc = ls.get("process") or {}
+        snap_step = proc.get("step", ls.get("step"))
+        snap_part_id = None
+        if isinstance(ls.get("line_parts"), list):
+            station_pos = (
+                0 if norm_role in ("INPUT_LEFT", "INPUT_RIGHT") else 4
+            )
+            for item in ls["line_parts"]:
+                if (
+                    isinstance(item, dict)
+                    and item.get("position") == station_pos
+                ):
+                    snap_part_id = item.get("id")
+                    break
+        else:
+            snap_part_id = proc.get("part_id")
+
+        selected_info = ls.get("selected_analysis") or {}
+        selected_active = (
+            selected_info.get("active") is True
+            and selected_info.get("role") == norm_role
+        )
+
+        clean_frame = live_frame.copy()
+        detections = current_dets if (selected_active or current_dets) else []
+        source_kind = "analysis" if selected_active else "jog"
+        overlay_frame = (
+            RawOverlay.render(clean_frame, detections)
+            if detections else None
+        )
+
+        has_detections = overlay_frame is not None
+        clean_jpeg = self._encode_jpeg(clean_frame, quality=92)
+        overlay_jpeg = (
+            self._encode_jpeg(overlay_frame, quality=92)
+            if overlay_frame is not None
+            else clean_jpeg
+        )
+        height, width = clean_frame.shape[:2]
+
+        with self.lock:
+            self._yolo_snapshot_seq += 1
+            snapshot_id = f"snap_{int(time.time() * 1000)}_{self._yolo_snapshot_seq}"
+            self._yolo_snapshots[snapshot_id] = {
+                "snapshot_id": snapshot_id,
+                "role": norm_role,
+                "clean_frame": clean_frame,
+                "clean_jpeg": clean_jpeg,
+                "overlay_jpeg": overlay_jpeg,
+                "detections": detections,
+                "source_kind": source_kind,
+                "part_id": snap_part_id,
+                "step": snap_step,
+                "created_at": time.time(),
+            }
+            while len(self._yolo_snapshots) > 8:
+                oldest = next(iter(self._yolo_snapshots))
+                self._yolo_snapshots.pop(oldest, None)
+
+        return {
+            "snapshot_id": snapshot_id,
+            "role": norm_role,
+            "role_label": CAMERA_ROLE_LABELS_RU.get(norm_role, norm_role),
+            "source_kind": source_kind,
+            "has_detections": has_detections,
+            "detections_count": len(detections),
+            "part_id": snap_part_id,
+            "step": snap_step,
+            "width": int(width),
+            "height": int(height),
+            "classes": get_role_classes(norm_role),
+            "clean_url": (
+                f"/api/yolo-tasks/snapshot/{snapshot_id}/image?kind=clean"
+            ),
+            "overlay_url": (
+                f"/api/yolo-tasks/snapshot/{snapshot_id}/image?kind=overlay"
+            ),
+        }
+
+    def get_yolo_snapshot_jpeg(
+        self, snapshot_id: str, kind: str = "overlay",
+    ) -> bytes | None:
+        with self.lock:
+            snap = self._yolo_snapshots.get(str(snapshot_id or ""))
+            if snap is None:
+                return None
+            if kind == "clean":
+                return snap["clean_jpeg"]
+            return snap["overlay_jpeg"]
+
+    def save_yolo_snapshot_task(
+        self,
+        *,
+        snapshot_id: str,
+        marks: list,
+        comment: str = "",
+    ) -> dict:
+        with self.lock:
+            snap = self._yolo_snapshots.get(str(snapshot_id or ""))
+            ls = dict(self.line_status or {})
+        line_state = str(ls.get("state") or "IDLE").upper()
+        jog_info = ls.get("jog") if isinstance(ls.get("jog"), dict) else {}
+        if (
+            line_state not in ("IDLE", "STOPPED", "PAUSED")
+            or not jog_info.get("active")
+        ):
+            raise PermissionError(
+                "Сохранение разметки YOLO доступно только в режиме JOG"
+            )
+        if snap is None:
+            raise LookupError(
+                "Снимок устарел — откройте кадр камеры повторно"
+            )
+        store = self.get_yolo_store()
+        task = store.save_task(
+            role=snap["role"],
+            clean_frame=snap["clean_frame"],
+            marks=marks,
+            comment=comment,
+            existing_detections=snap.get("detections") or [],
+            source_kind=snap.get("source_kind") or "live",
+            part_id=snap.get("part_id"),
+            step=snap.get("step"),
+        )
+        return {
+            "task": task,
+            "summary": store.get_summary(),
+        }
 
     def boot_step_start(self, key, message=None):
         with self.lock:
@@ -816,6 +1016,7 @@ class UIServer:
         setup_frame_routes(self.app, self)
         setup_api_routes(self.app, self)
         setup_archive_routes(self.app, self)
+        setup_yolo_routes(self.app, self)
 
     # Rendering & caching (pull)
 

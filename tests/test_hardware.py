@@ -860,6 +860,42 @@ class JogControllerTest(unittest.TestCase):
         self.assertFalse(jog.start_hold("-"))
         jog.release()
 
+    def test_step_once_forward_and_backward_restores_positive_normal_steps(self):
+        transport = RecordingTransport({
+            "I1": "0",
+            "I2": "MOV=0 WAIT=0 lastErr=0",
+        })
+        jog, _ = self.make_jog(transport)
+
+        self.assertTrue(jog.step_once("+"))
+        if jog._thread is not None:
+            jog._thread.join(2.0)
+        self.assertFalse(jog.busy)
+        self.assertEqual(jog.last_action, "STEP RIGHT")
+        self.assertIn("G7 S19048", transport.commands)
+        self.assertIn("G6 S2", transport.commands)
+        self.assertIn("G3", transport.commands)
+
+        transport.commands.clear()
+        self.assertTrue(jog.step_once("-"))
+        if jog._thread is not None:
+            jog._thread.join(2.0)
+        self.assertFalse(jog.busy)
+        self.assertEqual(jog.last_action, "STEP LEFT")
+        self.assertEqual(transport.commands[0], "G7 S-19048")
+        self.assertEqual(transport.commands[1], "G6 S2")
+        self.assertEqual(transport.commands[2], "G3")
+        # В finally всегда восстанавливается положительный G7 для рабочего цикла!
+        self.assertEqual(transport.commands[-2:], ["G7 S19048", "G6 S2"])
+
+    def test_step_once_invalid_direction_and_busy_rejection(self):
+        jog, _ = self.make_jog()
+        with self.assertRaisesRegex(ValueError, "'\\+' или '-'"):
+            jog.step_once("x")
+        jog.start_hold("+")
+        self.assertFalse(jog.step_once("+"))
+        jog.release()
+
 
 class PortDiscoveryTest(unittest.TestCase):
     def test_is_controller_response(self):

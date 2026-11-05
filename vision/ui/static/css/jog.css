@@ -35,6 +35,60 @@
     text-transform: uppercase;
 }
 
+/* ─── JOG Mode Switch (ЗАЖАТИЕ / 1 ШАГ) ──────────────────────────── */
+
+.jog-mode-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 3px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.jog-mode-btn {
+    height: 22px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    background: transparent;
+    color: var(--text-dim);
+    font-family: var(--font-ui);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    cursor: pointer;
+    user-select: none;
+    transition:
+        color var(--t-fast) var(--ease),
+        background var(--t-fast) var(--ease),
+        border-color var(--t-fast) var(--ease);
+}
+
+.jog-mode-btn:hover:not(:disabled):not(.is-active) {
+    color: var(--text);
+    background: var(--panel-raised);
+    border-color: var(--border-strong);
+}
+
+.jog-mode-btn.is-active {
+    color: var(--accent);
+    background: var(--accent-glow);
+    border-color: var(--accent);
+}
+
+.jog-mode-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--accent);
+}
+
+.jog-mode-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
 /* ─── JOG D-pad ────────────────────────────────────────────────── */
 
 .jog-dpad {

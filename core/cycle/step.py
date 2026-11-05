@@ -271,13 +271,22 @@ class CycleStepMixin:
                     f"{self.live.error}"
                 )
                 break
-            jog_error = (
-                self.jog.status.get("error")
-                if self.jog is not None else None
+            jog_status = (
+                self.jog.status
+                if self.jog is not None else {}
             )
+            jog_error = jog_status.get("error")
             if jog_error:
                 self._handle_fault(f"Ошибка ручного управления (JOG): {jog_error}")
                 break
+            if (
+                self._process.get("phase") in ("JOG_HOLD", "JOG_STEP")
+                and not jog_status.get("busy")
+            ):
+                self._set_process(
+                    "JOG_STOPPED",
+                    f"JOG остановлен: {jog_status.get('last_action', '-')}",
+                )
             self._refresh_monitor()
             time.sleep(0.05)
 

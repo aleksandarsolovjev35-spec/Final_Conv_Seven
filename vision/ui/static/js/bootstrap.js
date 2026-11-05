@@ -9,15 +9,29 @@ function setupHotkeys() {
         const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
         if (e.key === 'Escape') {
-            if (els.archiveSettingsModal && !els.archiveSettingsModal.classList.contains('is-hidden')) {
-                closeArchiveSettings();
+            const fullscreen = document.querySelector('.gallery-fullscreen');
+            if (fullscreen) {
+                fullscreen.remove();
                 e.preventDefault();
                 return;
             }
 
-            const fullscreen = document.querySelector('.gallery-fullscreen');
-            if (fullscreen) {
-                fullscreen.remove();
+            const yoloMarkModal = document.getElementById('yolo-mark-modal');
+            if (yoloMarkModal && !yoloMarkModal.classList.contains('is-hidden')) {
+                if (typeof closeYoloMarkModal === 'function') closeYoloMarkModal();
+                e.preventDefault();
+                return;
+            }
+
+            const yoloExportModal = document.getElementById('yolo-export-modal');
+            if (yoloExportModal && !yoloExportModal.classList.contains('is-hidden')) {
+                if (typeof closeYoloExportModal === 'function') closeYoloExportModal();
+                e.preventDefault();
+                return;
+            }
+
+            if (els.archiveSettingsModal && !els.archiveSettingsModal.classList.contains('is-hidden')) {
+                closeArchiveSettings();
                 e.preventDefault();
                 return;
             }
@@ -37,7 +51,32 @@ function setupHotkeys() {
             return;
         }
 
+        if (typeof isYoloModalOpen === 'function' && isYoloModalOpen()) {
+            if (!inInput && (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'я' || e.key === 'Я')) {
+                e.preventDefault();
+                if (typeof undoLastYoloMark === 'function') undoLastYoloMark();
+                return;
+            }
+            if (!inInput && e.key >= '1' && e.key <= '9') {
+                e.preventDefault();
+                if (typeof selectYoloClassByIndex === 'function') {
+                    selectYoloClassByIndex(parseInt(e.key, 10) - 1);
+                }
+                return;
+            }
+            return;
+        }
+
         if (inInput) return;
+
+        if (e.key === 'm' || e.key === 'M' || e.key === 'ь' || e.key === 'Ь') {
+            const markBtn = document.getElementById('mark-yolo-defect');
+            if (markBtn && !markBtn.disabled) {
+                e.preventDefault();
+                markBtn.click();
+            }
+            return;
+        }
 
         if (e.key === 'F5') {
             e.preventDefault();
@@ -80,12 +119,12 @@ function setupHotkeys() {
         if (state.jogActive) {
             if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
                 e.preventDefault();
-                if (!e.repeat && !state.jogHoldDirection) {
+                if (!e.repeat && !state.jogHoldDirection && !state.jogStepPending) {
                     const direction = e.key === 'ArrowLeft' ? '-' : '+';
                     const button = els.jogPanel.querySelector(
                         `.jog-hold-btn[data-direction="${direction}"]`
                     );
-                    if (button) beginJogHold(direction, button);
+                    if (button) triggerJogPress(direction, button);
                 }
                 return;
             }
@@ -136,6 +175,7 @@ function init() {
     setupHotkeys();
     setupGallery();
     if (typeof setupArchiveSettings === 'function') setupArchiveSettings();
+    if (typeof setupYoloFeedback === 'function') setupYoloFeedback();
     setupCameraHover();
     setupGridToggle();
     setupViewModeControls();

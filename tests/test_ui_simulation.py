@@ -160,6 +160,21 @@ class SimulationApiTest(unittest.TestCase):
         self.assertTrue(self.sim.release_selected_analysis())
         self.assertIsNone(self.sim.selected_role)
 
+    def test_jog_step_moves_belt_by_one_step_and_rejects_invalid_states(self):
+        self.assertFalse(self.sim.jog_step("+"))
+        self.assertTrue(self.sim.enter_jog())
+        self.assertFalse(self.sim.jog_step("x"))
+        self.assertTrue(self.sim.jog_step("+"))
+        self.assertEqual(self.sim.conveyor_position, 48)
+        self.assertEqual(self.sim.last_distributor_action, "JOG STEP RIGHT")
+        self.assertTrue(self.sim.jog_step("-"))
+        self.assertEqual(self.sim.conveyor_position, 0)
+        self.assertEqual(self.sim.last_distributor_action, "JOG STEP LEFT")
+
+        self.sim.start()
+        self.assertFalse(self.sim.jog_step("+"))
+        self.sim.close()
+
     def test_diagnostics(self):
         self.assertTrue(self.sim.distributor_diagnostic("DIST1_HOME"))
         self.assertTrue(self.sim.camera_diagnostic())

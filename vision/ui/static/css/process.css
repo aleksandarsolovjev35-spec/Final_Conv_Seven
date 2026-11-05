@@ -260,6 +260,7 @@
     overflow: hidden;
     z-index: 0;
 }
+.jog-panel-embedded .jog-mode-switch,
 .jog-panel-embedded .jog-dpad,
 .jog-panel-embedded .jog-hold-btn {
     position: relative;

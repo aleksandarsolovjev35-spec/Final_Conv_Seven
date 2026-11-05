@@ -87,6 +87,7 @@ def setup_api_routes(app, server):
         # перечитываем его (в рабочем потоке) до отдачи статуса.
         if server.thresholds_file_mtime_changed():
             await asyncio.to_thread(server.reload_thresholds_from_file)
+        yolo_tasks = server.yolo_status_payload()
         with server.lock:
             return JSONResponse({
                 "splash_active": server.splash_active,
@@ -98,6 +99,7 @@ def setup_api_routes(app, server):
                 "active_camera": server.active_camera_role,
                 "thresholds_revision": server.thresholds_revision,
                 "archive": server.archive_status_payload(),
+                "yolo_tasks": yolo_tasks,
             })
 
     @app.get("/api/mode")
@@ -384,4 +386,13 @@ def setup_api_routes(app, server):
             reason = str(payload["reason"])[:100]
         return await invoke(
             "ОСТАНОВКА РУЧНОГО ДВИЖЕНИЯ", server.on_jog_hold_release, reason
+        )
+
+    @app.post("/api/jog/step")
+    async def api_jog_step(payload: dict):
+        direction = payload.get("direction")
+        if direction not in ("+", "-"):
+            raise HTTPException(400, "Недопустимое направление")
+        return await invoke(
+            "ОДИНОЧНЫЙ ШАГ ЛЕНТЫ", server.on_jog_step, direction
         )

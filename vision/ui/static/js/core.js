@@ -81,8 +81,11 @@ const state = {
 
     jogActive:           false,
     jogBusy:             false,
+    jogControlMode:      'hold', // 'hold' (ЗАЖАТИЕ) | 'step' (1 ШАГ)
     jogTogglePending:    false,
     jogHoldDirection:    null,
+    jogStepPending:      false,
+    jogStepDirection:    null,
     jogHeartbeatTimer:   null,
     jogHeartbeatBusy:    false,
     jogReleasePending:   false,
@@ -178,6 +181,9 @@ const els = {
     processStageTrack: $('process-stage-track'),
 
     jogPanel:         $('jog-panel'),
+    jogModeSwitch:    $('jog-mode-switch'),
+    jogModeHold:      $('jog-mode-hold'),
+    jogModeStep:      $('jog-mode-step'),
 
     archiveSettingsOpen: $('archive-settings-open'),
     archiveSettingsGroup: $('archive-settings-group'),

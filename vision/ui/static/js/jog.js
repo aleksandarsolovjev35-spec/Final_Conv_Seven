@@ -3,6 +3,70 @@
 
 // ─── JOG ─────────────────────────────────────────────────────
 
+function updateJogModeSwitchUI() {
+    const isStep = state.jogControlMode === 'step';
+    const disabled = (
+        !state.jogActive
+        || state.jogBusy
+        || state.jogStepPending
+        || state.offline
+        || state.distributorDiagnosticBackendBusy
+        || state.distributorDiagnosticPending
+    );
+
+    if (els.jogModeHold) {
+        els.jogModeHold.classList.toggle('is-active', !isStep);
+        els.jogModeHold.setAttribute('aria-pressed', String(!isStep));
+        els.jogModeHold.disabled = disabled;
+    }
+    if (els.jogModeStep) {
+        els.jogModeStep.classList.toggle('is-active', isStep);
+        els.jogModeStep.setAttribute('aria-pressed', String(isStep));
+        els.jogModeStep.disabled = disabled;
+    }
+
+    if (els.jogPanel) {
+        els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(btn => {
+            const forward = btn.dataset.direction === '+';
+            if (isStep) {
+                btn.title = forward
+                    ? 'Сдвинуть ленту на 1 шаг вперёд'
+                    : 'Сдвинуть ленту на 1 шаг назад';
+                btn.setAttribute(
+                    'aria-label',
+                    forward ? 'Шаг ленты вперёд' : 'Шаг ленты назад',
+                );
+            } else {
+                btn.title = forward
+                    ? 'Удерживайте для движения вперёд'
+                    : 'Удерживайте для движения назад';
+                btn.setAttribute(
+                    'aria-label',
+                    forward ? 'Двигать ленту вперёд' : 'Двигать ленту назад',
+                );
+            }
+        });
+    }
+}
+
+function setJogControlMode(mode) {
+    const normalized = mode === 'step' ? 'step' : 'hold';
+    if (state.jogControlMode === normalized) return;
+    if (state.jogHoldDirection || state.jogStartPromise) {
+        releaseJogHold('mode switched');
+    }
+    state.jogControlMode = normalized;
+    updateJogModeSwitchUI();
+}
+
+function triggerJogPress(direction, btn) {
+    if (state.jogControlMode === 'step') {
+        triggerJogStep(direction, btn);
+    } else {
+        beginJogHold(direction, btn);
+    }
+}
+
 function updateJogState(jog) {
     if (!jog) {
         if (state.jogHoldDirection || state.jogStartPromise) {
@@ -10,12 +74,18 @@ function updateJogState(jog) {
         }
         state.jogActive = false;
         state.jogBusy = false;
+        state.jogStepPending = false;
+        state.jogStepDirection = null;
         showJogPanel(false);
         if (els.jogPanel) {
             els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(button => {
                 button.disabled = true;
                 button.classList.remove('jog-active');
             });
+        }
+        updateJogModeSwitchUI();
+        if (typeof updateYoloFeedbackButtons === 'function') {
+            updateYoloFeedbackButtons();
         }
         return;
     }
@@ -26,27 +96,42 @@ function updateJogState(jog) {
 
     state.jogActive = !!jog.active;
     state.jogBusy   = !!jog.busy;
+    if (!state.jogBusy && !state.jogStepPending) {
+        state.jogStepDirection = null;
+    }
     updateViewModeControls();
 
     showJogPanel(state.jogActive);
     applyLiveBadge(state.jogActive);
 
+    const activeDir = (
+        jog.direction || state.jogHoldDirection || state.jogStepDirection
+    );
+    const isStepMode = state.jogControlMode === 'step';
+
     if (els.jogPanel) {
         els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(btn => {
-            const sameDirection =
-                btn.dataset.direction === state.jogHoldDirection;
+            const sameDirection = btn.dataset.direction === activeDir;
+            const busyBlocked = isStepMode
+                ? (state.jogBusy || state.jogStepPending)
+                : (state.jogBusy && !sameDirection);
             btn.disabled = (
                 !state.jogActive
                 || state.backendControls.jog_hold !== true
                 || state.distributorDiagnosticBackendBusy
                 || state.distributorDiagnosticPending
-                || (state.jogBusy && !sameDirection)
+                || busyBlocked
             );
             btn.classList.toggle(
                 'jog-active',
-                !!jog.busy && sameDirection,
+                (!!jog.busy || state.jogStepPending) && sameDirection,
             );
         });
+    }
+
+    updateJogModeSwitchUI();
+    if (typeof updateYoloFeedbackButtons === 'function') {
+        updateYoloFeedbackButtons();
     }
 
     if (
@@ -142,10 +227,22 @@ async function handleJogAutoToggle(lineState, jog) {
 function setupJogControls() {
     if (!els.jogPanel) return;
 
+    if (els.jogModeHold) {
+        els.jogModeHold.addEventListener('click', () => setJogControlMode('hold'));
+    }
+    if (els.jogModeStep) {
+        els.jogModeStep.addEventListener('click', () => setJogControlMode('step'));
+    }
+    updateJogModeSwitchUI();
+
     els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(btn => {
         btn.addEventListener('contextmenu', e => e.preventDefault());
         btn.addEventListener('pointerdown', e => {
             e.preventDefault();
+            if (state.jogControlMode === 'step') {
+                triggerJogStep(btn.dataset.direction, btn);
+                return;
+            }
             if (btn.setPointerCapture) {
                 try { btn.setPointerCapture(e.pointerId); } catch (_) {}
             }
@@ -153,11 +250,13 @@ function setupJogControls() {
         });
         for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) {
             btn.addEventListener(eventName, () => {
-                releaseJogHold(`UI ${eventName}`);
+                if (state.jogHoldDirection || state.jogStartPromise) {
+                    releaseJogHold(`UI ${eventName}`);
+                }
             });
         }
         btn.addEventListener('pointerleave', e => {
-            if (e.buttons === 0 || state.jogHoldDirection) {
+            if (e.buttons === 0 && (state.jogHoldDirection || state.jogStartPromise)) {
                 releaseJogHold('pointer left button');
             }
         });
@@ -171,6 +270,65 @@ function setupJogControls() {
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) releaseJogHoldBestEffort('document hidden');
     });
+}
+
+async function triggerJogStep(direction, btn) {
+    if (
+        !state.jogActive
+        || state.jogBusy
+        || state.jogStepPending
+        || state.offline
+        || state.backendControls.jog_hold !== true
+        || state.distributorDiagnosticPending
+        || state.distributorDiagnosticBackendBusy
+    ) return;
+    if (direction !== '+' && direction !== '-') return;
+
+    state.jogStepPending = true;
+    state.jogStepDirection = direction;
+    state.backendControls = {
+        ...state.backendControls,
+        start: false,
+        exit: false,
+        jog_hold: false,
+        distributor_diagnostic: false,
+        camera_diagnostic: false,
+        vision_rule_diagnostic: false,
+    };
+    applyButtonsForState(
+        state.lineState,
+        state.serverExitRequested,
+        state.backendControls,
+    );
+    if (els.distributorDiagnostics) {
+        els.distributorDiagnostics.querySelectorAll('button').forEach(
+            diagnosticButton => { diagnosticButton.disabled = true; }
+        );
+    }
+    disableSelectedAnalysisButton();
+    updateJogModeSwitchUI();
+    if (typeof updateYoloFeedbackButtons === 'function') {
+        updateYoloFeedbackButtons();
+    }
+    if (els.jogPanel) {
+        els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(b => {
+            b.disabled = true;
+            b.classList.toggle('jog-active', b === btn);
+        });
+    }
+    clearControlError();
+
+    const result = await apiPostJson('/api/jog/step', {direction}, true);
+    state.jogStepPending = false;
+    if (!result) {
+        state.jogStepDirection = null;
+        if (els.jogPanel) {
+            els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(b => {
+                b.classList.remove('jog-active');
+            });
+        }
+    }
+    requestImmediateStatus();
 }
 
 async function beginJogHold(direction, btn) {

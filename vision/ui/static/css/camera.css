@@ -280,10 +280,10 @@
 
 .camera-live-controls {
     position: absolute;
-    left: 10px;
+    left: 108px;
     right: 10px;
     bottom: 10px;
-    z-index: 15;
+    z-index: 25;
     display: flex;
     justify-content: flex-end;
     align-items: center;

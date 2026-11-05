@@ -218,6 +218,7 @@ async function fetchCameras() {
     updateMainCameraLabel();
     if (!state.splashActive) applyMainCameraSource();
     if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
+    if (typeof updateYoloFeedbackButtons === 'function') updateYoloFeedbackButtons();
     checkUiReady();
 }
 
@@ -257,6 +258,7 @@ function selectCamera(role) {
     updateMainCameraLabel();
     sendActiveCameraIfChanged(role).finally(requestImmediateStatus);
     if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
+    if (typeof updateYoloFeedbackButtons === 'function') updateYoloFeedbackButtons();
     applyMainCameraSource();
     requestImmediateStatus();
 }

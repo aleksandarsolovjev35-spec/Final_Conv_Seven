@@ -94,6 +94,9 @@ async function fetchStatus() {
     if (typeof updateArchiveStatus === 'function') {
         updateArchiveStatus(status.archive || null);
     }
+    if (typeof updateYoloFeedbackStatus === 'function') {
+        updateYoloFeedbackStatus(status.yolo_tasks || null);
+    }
 
     const lineStatusPayload = status.line_status || {};
     const liveInfo = lineStatusPayload.live || {};
@@ -158,6 +161,7 @@ function markUiOffline() {
     }
     if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
     if (typeof updateArchiveStatus === 'function') updateArchiveStatus(null);
+    if (typeof updateYoloFeedbackStatus === 'function') updateYoloFeedbackStatus(null);
     updateStateOverlay({state: 'OFFLINE', in_line: 0});
 }
 
@@ -204,6 +208,7 @@ const PROCESS_PHASE_LABELS = {
     STOPPED: 'ОСТАНОВЛЕНО · ЛИНИЯ ПУСТА',
     JOG: 'JOG · РУЧНОЕ ПЕРЕМЕЩЕНИЕ',
     JOG_HOLD: 'JOG · УДЕРЖИВАЕМОЕ ДВИЖЕНИЕ',
+    JOG_STEP: 'JOG · ПЕРЕМЕЩЕНИЕ НА 1 ШАГ',
     JOG_STOPPED: 'JOG · ДВИЖЕНИЕ ОСТАНОВЛЕНО',
     SELECTED_ANALYSIS: 'ДИАГНОСТИКА · АНАЛИЗ КАДРА',
     SELECTED_MODEL_ANALYSIS: 'ДИАГНОСТИКА · МОДЕЛИ И ПРАВИЛА',

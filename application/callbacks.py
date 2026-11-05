@@ -305,3 +305,6 @@ def bind_cycle_callbacks(
     monitor.jog_hold_start_callback = cycle.jog_hold_start
     monitor.jog_hold_heartbeat_callback = cycle.jog_hold_heartbeat
     monitor.jog_hold_release_callback = cycle.jog_hold_release
+    jog_step = getattr(cycle, "jog_step", None)
+    if jog_step is not None:
+        monitor.jog_step_callback = jog_step
