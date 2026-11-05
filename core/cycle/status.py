@@ -201,7 +201,7 @@ class CycleStatusMixin:
                     float(self.review_seconds), 2,
                 ),
                 "settle_max": 5.0,
-                "review_max": 30.0,
+                "review_max": 5.0,
             },
             "timings_allowed": speed_allowed,
             "process": dict(self._process),

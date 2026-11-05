@@ -77,8 +77,8 @@ def _validate(data: dict) -> dict:
         raise ValueError(
             "stage_trace_time должен быть в диапазоне 0..5 секунд"
         )
-    if not 0.0 <= float(data["review_time"]) <= 30.0:
-        raise ValueError("review_time должен быть в диапазоне 0..30 секунд")
+    if not 0.0 <= float(data["review_time"]) <= 5.0:
+        raise ValueError("review_time должен быть в диапазоне 0..5 секунд")
     return dict(data)
 
 

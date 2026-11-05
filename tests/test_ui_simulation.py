@@ -123,12 +123,12 @@ class SimulationApiTest(unittest.TestCase):
         self.sim.close()
 
     def test_inspection_timings_adjustable(self):
-        self.assertTrue(self.sim.set_inspection_timings(1.5, 7.25))
+        self.assertTrue(self.sim.set_inspection_timings(1.5, 4.25))
         self.assertEqual(self.sim.settle_seconds, 1.5)
-        self.assertEqual(self.sim.review_seconds, 7.25)
+        self.assertEqual(self.sim.review_seconds, 4.25)
         status = self.server.line_status
         self.assertEqual(status["inspection_timings"]["settle_time"], 1.5)
-        self.assertEqual(status["inspection_timings"]["review_time"], 7.25)
+        self.assertEqual(status["inspection_timings"]["review_time"], 4.25)
         self.assertTrue(status["timings_allowed"])
 
     def test_inspection_timings_rejected_while_running(self):
@@ -138,7 +138,7 @@ class SimulationApiTest(unittest.TestCase):
         self.sim.close()
 
     def test_inspection_timings_validate_ranges(self):
-        for settle, review in ((-0.1, 1), (5.1, 1), (1, -1), (1, 30.1)):
+        for settle, review in ((-0.1, 1), (5.1, 1), (1, -1), (1, 5.1)):
             with self.subTest(settle=settle, review=review):
                 with self.assertRaises(ValueError):
                     self.sim.set_inspection_timings(settle, review)

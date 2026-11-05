@@ -359,12 +359,12 @@ class ApplicationStartupTest(unittest.TestCase):
                 monitor, cycle, lambda: None, calibration_path=path,
             )
             self.assertTrue(
-                monitor.inspection_timings_callback(1.25, 6.5)
+                monitor.inspection_timings_callback(1.25, 4.5)
             )
-            self.assertEqual(applied, [(1.25, 6.5)])
+            self.assertEqual(applied, [(1.25, 4.5)])
             loaded = load_calibration(path)
             self.assertEqual(loaded["settle_time"], 1.25)
-            self.assertEqual(loaded["review_time"], 6.5)
+            self.assertEqual(loaded["review_time"], 4.5)
 
     def test_cycle_timings_callback_rejected_does_not_write(self):
         events = []
@@ -379,7 +379,7 @@ class ApplicationStartupTest(unittest.TestCase):
                 monitor, cycle, lambda: None, calibration_path=path,
             )
             self.assertFalse(
-                monitor.inspection_timings_callback(1.25, 6.5)
+                monitor.inspection_timings_callback(1.25, 4.5)
             )
             loaded = load_calibration(path)
             self.assertEqual(

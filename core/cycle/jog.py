@@ -39,7 +39,7 @@ class CycleJogMixin:
         )
         review = self._normalise_pause(
             review_time,
-            maximum=30.0,
+            maximum=5.0,
             label="Пауза после инспекции",
         )
         if not self._operation_lock.acquire(blocking=False):

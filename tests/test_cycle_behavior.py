@@ -267,7 +267,7 @@ class CycleBehaviorTest(unittest.TestCase):
 
     def test_set_inspection_timings_validates_ranges(self):
         cycle, _log = make_cycle()
-        for settle, review in ((-0.1, 1), (5.1, 1), (1, -1), (1, 30.1)):
+        for settle, review in ((-0.1, 1), (5.1, 1), (1, -1), (1, 5.1)):
             with self.subTest(settle=settle, review=review):
                 with self.assertRaises(ValueError):
                     cycle.set_inspection_timings(settle, review)

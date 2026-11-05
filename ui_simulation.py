@@ -263,7 +263,7 @@ class LineSimulation:
             settle_time, maximum=5.0, label="Пауза перед инспекцией",
         )
         review = self._normalise_pause(
-            review_time, maximum=30.0, label="Пауза после инспекции",
+            review_time, maximum=5.0, label="Пауза после инспекции",
         )
         with self._lock:
             if self.state not in ("IDLE", "STOPPED") or self.jog_busy:
@@ -283,7 +283,7 @@ class LineSimulation:
         if _is_saved_pause(settle, 5.0):
             self.settle_seconds = round(float(settle), 2)
         review = saved.get("review_time")
-        if _is_saved_pause(review, 30.0):
+        if _is_saved_pause(review, 5.0):
             self.review_seconds = round(float(review), 2)
 
     def _persist_line_settings(self) -> None:
@@ -648,7 +648,7 @@ class LineSimulation:
                     "settle_time": round(self.settle_seconds, 2),
                     "review_time": round(self.review_seconds, 2),
                     "settle_max": 5.0,
-                    "review_max": 30.0,
+                    "review_max": 5.0,
                 },
                 "timings_allowed": (
                     state in ("IDLE", "STOPPED") and not self.jog_busy

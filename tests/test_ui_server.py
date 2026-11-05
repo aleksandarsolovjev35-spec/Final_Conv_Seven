@@ -519,7 +519,7 @@ class UIServerTest(unittest.TestCase):
             {"settle_time": -0.1, "review_time": 1},
             {"settle_time": 5.1, "review_time": 1},
             {"settle_time": 1, "review_time": -1},
-            {"settle_time": 1, "review_time": 30.1},
+            {"settle_time": 1, "review_time": 5.1},
             {"settle_time": True, "review_time": 1},
             {"settle_time": "1", "review_time": 1},
         )

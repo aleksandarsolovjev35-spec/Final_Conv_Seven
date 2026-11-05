@@ -208,12 +208,12 @@ class CalibrationLoaderTest(unittest.TestCase):
 
     def test_save_timings_round_trip(self):
         path = self.write(_valid_calibration())
-        updated = save_calibration_timings(path, 1.25, 6.5)
+        updated = save_calibration_timings(path, 1.25, 4.5)
         self.assertEqual(updated["settle_time"], 1.25)
-        self.assertEqual(updated["review_time"], 6.5)
+        self.assertEqual(updated["review_time"], 4.5)
         loaded = load_calibration(path)
         self.assertEqual(loaded["settle_time"], 1.25)
-        self.assertEqual(loaded["review_time"], 6.5)
+        self.assertEqual(loaded["review_time"], 4.5)
         self.assertFalse(os.path.exists(path + ".tmp"))
 
     def test_save_timings_keeps_other_fields(self):
