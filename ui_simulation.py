@@ -29,6 +29,11 @@ from vision.ui.server.server import CAMERA_ORDER, UIServer
 # IDLE / STOPPED / PAUSED. Пауза — это как раз коррекция положения ленты.
 JOG_ALLOWED_STATES = ("IDLE", "STOPPED", "PAUSED")
 
+# Пределы скорости ленты совпадают с hardware.conveyor.Conveyor и
+# ползунком HMI (25..100 % от максимума).
+CONVEYOR_SPEED_MIN = 5000
+CONVEYOR_SPEED_MAX = 20000
+
 # Параметры линии (скорость ленты и паузы инспекции) переживают
 # перезапуск симулятора: выбранные оператором значения хранятся в
 # игнорируемой git папке архива, рядом с данными симуляции.
@@ -243,7 +248,7 @@ class LineSimulation:
         return True
 
     def set_conveyor_speed(self, speed: int) -> bool:
-        if type(speed) is not int or not 5000 <= speed <= 20000:
+        if type(speed) is not int or not CONVEYOR_SPEED_MIN <= speed <= CONVEYOR_SPEED_MAX:
             raise ValueError("Недопустимая скорость")
         with self._lock:
             if self.state not in ("IDLE", "STOPPED") or self.jog_busy:
@@ -277,7 +282,7 @@ class LineSimulation:
     def _restore_line_settings(self, path: str) -> None:
         saved = load_saved_line_settings(path)
         speed = saved.get("conveyor_speed")
-        if type(speed) is int and 5000 <= speed <= 20000:
+        if type(speed) is int and CONVEYOR_SPEED_MIN <= speed <= CONVEYOR_SPEED_MAX:
             self.conveyor_speed = speed
         settle = saved.get("settle_time")
         if _is_saved_pause(settle, 5.0):
@@ -639,10 +644,10 @@ class LineSimulation:
                              "vision_rule_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None},
                 "conveyor_speed": self.conveyor_speed,
                 "conveyor_speed_percent": round(
-                    self.conveyor_speed / 20000 * 100,
+                    self.conveyor_speed / CONVEYOR_SPEED_MAX * 100,
                 ),
-                "conveyor_speed_min": 5000,
-                "conveyor_speed_max": 20000,
+                "conveyor_speed_min": CONVEYOR_SPEED_MIN,
+                "conveyor_speed_max": CONVEYOR_SPEED_MAX,
                 "speed_allowed": state in ("IDLE", "STOPPED") and not self.jog_busy,
                 "inspection_timings": {
                     "settle_time": round(self.settle_seconds, 2),

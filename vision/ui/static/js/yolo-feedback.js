@@ -210,7 +210,6 @@ function applySnapshotToModal(snap) {
         setYoloMarkStatus(
             `Детекций модели: ${yoloState.detectionsCount} — оверлей скрыт ` +
             'для читаемости кадра; включите кнопкой «МОДЕЛЬ», если нужен',
-            '',
         );
     }
     renderClassButtons(classes);

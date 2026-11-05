@@ -170,6 +170,14 @@
         box-shadow var(--t-fast) var(--ease);
 }
 
+.yolo-class-btn.is-active {
+    /* Выбранный класс — только цветом текста и рамки, без заливки.
+       Правило стоит до :hover той же специфичности: при наведении
+       активная кнопка загорается, как все кнопки HMI. */
+    border-color: var(--cls-color, var(--warn));
+    color: var(--cls-color, var(--warn));
+}
+
 .yolo-class-btn:hover {
     /* Наведение — заливка цветом класса, как у всех кнопок HMI. */
     border-color: var(--cls-color, var(--accent));
@@ -177,16 +185,12 @@
     color: var(--bg-0);
 }
 
-.yolo-class-btn:hover .yolo-class-dot,
-.yolo-class-btn:hover .yolo-class-key {
+.yolo-class-btn:hover .yolo-class-dot {
     background: var(--bg-0);
-    color: var(--bg-0);
 }
 
-.yolo-class-btn.is-active {
-    /* Выбранный класс — только цветом текста и рамки, без заливки. */
-    border-color: var(--cls-color, var(--warn));
-    color: var(--cls-color, var(--warn));
+.yolo-class-btn:hover .yolo-class-key {
+    color: var(--bg-0);
 }
 
 .yolo-class-dot {
@@ -288,7 +292,9 @@
 .yolo-marks-hint {
     color: var(--text-muted);
     font: 600 10px var(--font-ui);
-    white-space: nowrap;
+    /* Подсказка переносится: полоса с overflow-x: hidden не дала бы
+       прокрутить длинную строку без переноса. */
+    white-space: normal;
 }
 
 .yolo-mark-chip {
@@ -320,9 +326,8 @@
 }
 
 .yolo-mark-chip-count {
-    /* Счётчик обводок — нейтральный, не соревнуется с классами по цвету. */
-    border-color: var(--border-strong);
-    background: var(--bg-1);
+    /* Счётчик обводок — нейтральный: рамка и фон уже базовые,
+       приглушается только текст. */
     color: var(--text-dim);
 }
 
