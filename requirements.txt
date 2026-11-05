@@ -5,3 +5,5 @@ ultralytics>=8.3,<9
 fastapi>=0.115,<1
 uvicorn>=0.34,<1
 pywebview>=5.3,<6
+# Кириллица в подписях окна roi_capture.py (без Pillow — латиница).
+pillow>=10,<12
