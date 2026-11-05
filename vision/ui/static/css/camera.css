@@ -320,14 +320,19 @@
 }
 
 /* Включённая сетка: кнопка залита акцентом, чтобы состояние читалось
-   боковым зрением и не зависело только от цвета линий на видео. */
+   боковым зрением и не зависело только от цвета линий на видео.
+   Состояние описано ТОЛЬКО переменными .btn: жёсткие background/
+   border-color здесь раньше перебивали .btn:hover по специфичности
+   #id, и кнопка не инвертировалась при наведении, как все остальные.
+   Теперь наведение работает едино: заливка уходит в тёмную подложку,
+   текст и рамка становятся акцентными. */
 #grid-toggle.is-on {
+    --btn-bg:          var(--accent);
     --btn-color:       var(--bg-0);
     --btn-border:      var(--accent);
-    --btn-invert:      var(--text);
-    --btn-invert-text: var(--bg-0);
-    background: var(--accent);
-    border-color: var(--accent);
+    --btn-invert:      rgba(15, 19, 23, 0.94);
+    --btn-invert-text: var(--accent);
+    --btn-focus:       var(--text);
 }
 
 #analyze-selected-frame {
