@@ -150,25 +150,40 @@ function updateJogState(jog) {
 }
 
 function showJogPanel(active) {
-    if (!els.jogPanel || !els.statsPanel) return;
+    if (!els.jogPanel) return;
     const visible = (
         JOG_ALLOWED_STATES.includes(state.lineState)
         && !state.selectedAnalysisActive
         && !state.selectedAnalysisPending
     );
     const pauseHandoff = visible && !active && state.lineState === 'PAUSED';
-    els.statsPanel.classList.remove('is-hidden');
-    els.jogPanel.classList.toggle('is-collapsed', !visible);
-    // При переходе RUNNING → PAUSED backend включает JOG следующим запросом.
-    // Не показываем промежуточное приглушённое состояние кнопок под
-    // поднимающейся шторкой — оно воспринималось как короткое мигание.
-    els.jogPanel.classList.toggle(
-        'jog-inactive', visible && !active && !pauseHandoff,
-    );
+    // Панель не сворачивается: все блоки правой колонки видны всегда,
+    // а недоступность показывают приглушение (jog-inactive) и шторка,
+    // пока линия движется. При переходе RUNNING → PAUSED backend
+    // включает JOG следующим запросом — промежуточное приглушённое
+    // состояние кнопок под поднимающейся шторкой не показываем,
+    // оно воспринималось как короткое мигание.
+    els.jogPanel.classList.toggle('jog-inactive', !active && !pauseHandoff);
     els.jogPanel.classList.toggle('jog-pause-handoff', pauseHandoff);
     els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(button => {
         if (!visible || !active) button.disabled = true;
     });
+}
+
+// ─── Шторка ручного управления ─────────────────────────────────────
+
+// Шторка накрывает JOG только пока линия реально движется или
+// доезжает до остановки (RUNNING / STOPPING). На паузе шторка поднята —
+// JOG на паузе и есть смысл остановки (правка ленты).
+function jogShutterLocked(ls) {
+    const s = String((ls && ls.state) || '').toUpperCase();
+    return s === 'RUNNING' || s === 'STOPPING';
+}
+
+// Вызывается из updateLineStatus в status.js после обновления состояния.
+function updateJogShutter(ls) {
+    if (!els.statsPanel) return;
+    els.statsPanel.classList.toggle('jog-locked', jogShutterLocked(ls));
 }
 
 function applyLiveBadge(active) {

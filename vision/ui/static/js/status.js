@@ -291,6 +291,7 @@ function updateLineStatus(ls) {
     const lineState = ls.state || 'IDLE';
     const exitRequested = !!ls.exit_requested;
 
+    const wasFault = state.lineState === 'FAULT';
     state.lineState = lineState;
     state.serverExitRequested = exitRequested;
     if (!['IDLE', 'STOPPED'].includes(lineState)) state.startPending = false;
@@ -322,7 +323,17 @@ function updateLineStatus(ls) {
     updateStateOverlay(ls);
     handleJogAutoToggle(lineState, ls.jog || null);
 
-    if (typeof updatePanelFace === 'function') updatePanelFace(ls);
+    // Правая панель: шторка над ручным управлением. Колоды «лиц» панели
+    // больше нет — все её блоки видны при любом состоянии линии.
+    if (typeof updateJogShutter === 'function') updateJogShutter(ls);
+
+    // Причина аварии — в общей плашке вверху правой панели: отдельного
+    // «лица АВАРИЯ» больше нет, но причина остаётся видимой оператору.
+    if (lineState === 'FAULT' && ls.fault_reason) {
+        showControlError(`АВАРИЯ: ${ls.fault_reason}`);
+    } else if (wasFault && lineState !== 'FAULT') {
+        clearControlError();
+    }
 
     if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
     if (typeof updateArchiveButton === 'function') updateArchiveButton();

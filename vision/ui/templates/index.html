@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="/static/css/axis.css?v=33">
     <link rel="stylesheet" href="/static/css/history-strip.css?v=47">
     <link rel="stylesheet" href="/static/css/stats.css?v=53">
-    <link rel="stylesheet" href="/static/css/jog.css?v=40">
+    <link rel="stylesheet" href="/static/css/jog.css?v=41">
     <link rel="stylesheet" href="/static/css/controls.css?v=48">
     <link rel="stylesheet" href="/static/css/gallery.css?v=35">
     <link rel="stylesheet" href="/static/css/process.css?v=58">
@@ -19,7 +19,6 @@
     <link rel="stylesheet" href="/static/css/thresholds.css?v=28">
     <link rel="stylesheet" href="/static/css/archive.css?v=6">
     <link rel="stylesheet" href="/static/css/yolo-feedback.css?v=5">
-    <link rel="stylesheet" href="/static/css/panel-deck.css?v=9">
 </head>
 <body>
 
@@ -167,23 +166,8 @@
                 </div>
             </section>
 
-            <aside id="stats-panel" class="stats-panel" data-face="ready" data-ui-block="right-panel">
+            <aside id="stats-panel" class="stats-panel" data-ui-block="right-panel">
                 <div id="control-error" class="control-error is-hidden"></div>
-
-                <!-- Лицо «АВАРИЯ»: заменяет обычные блоки, когда цикл в FAULT. -->
-                <section id="fault-face" class="fault-face" data-ui-block="fault" aria-label="Авария">
-                    <div class="fault-face-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M12 3 L21.5 19.5 H2.5 Z"></path>
-                            <line x1="12" y1="9" x2="12" y2="13.5"></line>
-                            <circle cx="12" cy="16.6" r="0.9"></circle>
-                        </svg>
-                    </div>
-                    <div class="fault-face-title">АВАРИЯ</div>
-                    <div id="fault-reason" class="fault-face-reason">—</div>
-                    <div class="fault-face-inline">На линии корпусов: <span id="fault-inline">0</span> / 8</div>
-                    <div class="fault-face-hint">Устраните причину и перезапустите линию</div>
-                </section>
 
                 <section id="stats-summary" class="stats-summary ui-collapse" data-ui-block="cycle-stats">
                     <div class="accordion-header" aria-label="Статистика рабочего цикла">
@@ -465,15 +449,14 @@
     <script src="/static/js/core.js?v=61"></script>
     <script src="/static/js/boot.js?v=33"></script>
     <script src="/static/js/diagnostics.js?v=52"></script>
-    <script src="/static/js/status.js?v=66"></script>
+    <script src="/static/js/status.js?v=67"></script>
     <script src="/static/js/controls.js?v=40"></script>
     <script src="/static/js/thresholds.js?v=21"></script>
     <script src="/static/js/cameras.js?v=45"></script>
-    <script src="/static/js/jog.js?v=39"></script>
+    <script src="/static/js/jog.js?v=40"></script>
     <script src="/static/js/history.js?v=39"></script>
     <script src="/static/js/archive.js?v=2"></script>
     <script src="/static/js/yolo-feedback.js?v=5"></script>
-    <script src="/static/js/panel-deck.js?v=3"></script>
     <script src="/static/js/bootstrap.js?v=38"></script>
 </body>
 </html>
