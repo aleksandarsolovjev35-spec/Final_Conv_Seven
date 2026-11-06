@@ -64,7 +64,8 @@
     transition:
         color var(--t-fast) var(--ease),
         background var(--t-fast) var(--ease),
-        border-color var(--t-fast) var(--ease);
+        border-color var(--t-fast) var(--ease),
+        transform var(--t-fast) var(--ease);
 }
 
 /* Наведение — «загорание» заливкой, как у «АНАЛИЗ КАДРА» и всех .btn. */
