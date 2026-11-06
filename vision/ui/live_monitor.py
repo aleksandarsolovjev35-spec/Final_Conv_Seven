@@ -21,6 +21,55 @@ class LiveMonitorApi:
             return {"ok": False, "cancelled": True}
         return {"ok": True, "path": str(selected[0])}
 
+    def export_yolo_tasks_zip(self, scope: str = "pending"):
+        """Сохранить ZIP с кадрами для разметчика YOLO через системный диалог."""
+        window = self.monitor._webview_window
+        if window is None:
+            return {"ok": False, "error": "Окно интерфейса ещё не готово"}
+        only_pending = str(scope or "pending").lower() != "all"
+        try:
+            from datetime import datetime
+            import webview
+
+            store = self.monitor.server.get_yolo_store()
+            store.ensure_exportable(only_pending=only_pending)
+
+            default_name = (
+                f"yolo_tasks_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+            )
+            file_dialog_enum = getattr(webview, "FileDialog", None)
+            save_dialog = (
+                getattr(file_dialog_enum, "SAVE", None)
+                or getattr(webview, "SAVE_DIALOG")
+            )
+            selected = window.create_file_dialog(
+                save_dialog,
+                save_filename=default_name,
+                file_types=("ZIP-архив (*.zip)",),
+            )
+            if not selected:
+                return {"ok": False, "cancelled": True}
+            target = (
+                str(selected[0])
+                if isinstance(selected, (list, tuple))
+                else str(selected)
+            )
+            saved_path, count = store.export_zip_to_path(
+                target,
+                only_pending=only_pending,
+                mark_exported=True,
+            )
+            return {
+                "ok": True,
+                "path": saved_path,
+                "count": count,
+                "summary": store.get_summary(),
+            }
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
 
 class LiveMonitor:
     """
@@ -47,7 +96,6 @@ class LiveMonitor:
         self.pause_callback  = None
         self.resume_callback = None
         self.exit_callback   = exit_callback
-        self.distributor_diagnostic_callback = None
         self.camera_diagnostic_callback = None
         self.vision_rule_diagnostic_callback = None
         self.selected_model_analysis_callback = None
@@ -63,6 +111,7 @@ class LiveMonitor:
         self.jog_hold_start_callback = None
         self.jog_hold_heartbeat_callback = None
         self.jog_hold_release_callback = None
+        self.jog_step_callback = None
 
         # Пороги правил: callback получает (role, values) и возвращает
         # обновлённый плоский dict порогов (или бросает исключение).
@@ -145,11 +194,6 @@ class LiveMonitor:
         self.server.on_exit = (
             lambda: self._invoke(self.exit_callback)
         )
-        self.server.on_distributor_diagnostic = (
-            lambda command: self._invoke_args(
-                self.distributor_diagnostic_callback, command,
-            )
-        )
         self.server.on_camera_diagnostic = (
             lambda: self._invoke(self.camera_diagnostic_callback)
         )
@@ -201,6 +245,11 @@ class LiveMonitor:
         self.server.on_jog_hold_release = (
             lambda reason="button released": self._invoke_args(
                 self.jog_hold_release_callback, reason,
+            )
+        )
+        self.server.on_jog_step = (
+            lambda direction: self._invoke_args(
+                self.jog_step_callback, direction,
             )
         )
         self.server.on_thresholds_apply = (

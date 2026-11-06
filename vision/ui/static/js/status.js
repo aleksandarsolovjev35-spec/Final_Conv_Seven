@@ -17,23 +17,9 @@ function isInspectionDisplayPhase(phase) {
         || value === 'PUBLISH';
 }
 
-function updateOperationalAccordions(lineState) {
-    const fullyStopped = lineState === 'IDLE' || lineState === 'STOPPED';
+function updateOperationalAccordions() {
     if (els.statsBody) els.statsBody.classList.remove('is-collapsed');
     if (els.statsSummary) els.statsSummary.classList.add('is-open');
-    if (els.distributorDiagnostics) {
-        const compact = !fullyStopped;
-        els.distributorDiagnostics.classList.toggle('controls-collapsed', compact);
-        els.distributorDiagnostics.querySelectorAll('.blade-diagnostic-grid').forEach(grid => {
-            grid.classList.toggle('is-collapsed', compact);
-        });
-    }
-}
-
-function setBladeMarkerPosition(marker, percent) {
-    if (!marker) return;
-    const normalized = Math.max(0, Math.min(100, Number(percent) || 0));
-    marker.style.left = `${normalized}%`;
 }
 
 // Очередность запросов статуса — избегаем наложения
@@ -94,6 +80,9 @@ async function fetchStatus() {
     if (typeof updateArchiveStatus === 'function') {
         updateArchiveStatus(status.archive || null);
     }
+    if (typeof updateYoloFeedbackStatus === 'function') {
+        updateYoloFeedbackStatus(status.yolo_tasks || null);
+    }
 
     const lineStatusPayload = status.line_status || {};
     const liveInfo = lineStatusPayload.live || {};
@@ -139,7 +128,6 @@ function markUiOffline() {
     state.controlPending = false;
     state.startPending = false;
     state.jogTogglePending = false;
-    state.distributorDiagnosticPending = false;
     state.jogActive = false;
     state.jogBusy = false;
     if (typeof clearLivePullTimer === 'function') clearLivePullTimer();
@@ -150,7 +138,6 @@ function markUiOffline() {
     showControlError('Нет связи с backend. Все команды заблокированы.');
     releaseJogHoldBestEffort('backend offline');
     applyButtonsForState('OFFLINE', true, {});
-    updateDistributorDiagnosticControls({diagnostic_allowed: false, diagnostic_busy: true});
     if (els.analyzeSelectedFrame) els.analyzeSelectedFrame.disabled = true;
     updateViewModeControls();
     if (els.jogPanel) {
@@ -158,6 +145,7 @@ function markUiOffline() {
     }
     if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
     if (typeof updateArchiveStatus === 'function') updateArchiveStatus(null);
+    if (typeof updateYoloFeedbackStatus === 'function') updateYoloFeedbackStatus(null);
     updateStateOverlay({state: 'OFFLINE', in_line: 0});
 }
 
@@ -204,13 +192,13 @@ const PROCESS_PHASE_LABELS = {
     STOPPED: 'ОСТАНОВЛЕНО · ЛИНИЯ ПУСТА',
     JOG: 'JOG · РУЧНОЕ ПЕРЕМЕЩЕНИЕ',
     JOG_HOLD: 'JOG · УДЕРЖИВАЕМОЕ ДВИЖЕНИЕ',
+    JOG_STEP: 'JOG · ПЕРЕМЕЩЕНИЕ НА 1 ШАГ',
     JOG_STOPPED: 'JOG · ДВИЖЕНИЕ ОСТАНОВЛЕНО',
     SELECTED_ANALYSIS: 'ДИАГНОСТИКА · АНАЛИЗ КАДРА',
     SELECTED_MODEL_ANALYSIS: 'ДИАГНОСТИКА · МОДЕЛИ И ПРАВИЛА',
     SELECTED_MODEL_READY: 'ДИАГНОСТИКА · РЕЗУЛЬТАТ ГОТОВ',
     CAMERA_DIAGNOSTIC: 'ДИАГНОСТИКА · КАМЕРЫ',
     VISION_RULE_DIAGNOSTIC: 'ДИАГНОСТИКА · МОДЕЛИ И ПРАВИЛА',
-    DISTRIBUTOR_DIAGNOSTIC: 'ДИАГНОСТИКА · РАСПРЕДЕЛИТЕЛЬ',
     DIAGNOSTIC_DONE: 'ДИАГНОСТИКА · ПРОВЕРКА ЗАВЕРШЕНА',
     FAULT: 'АВАРИЯ · ЦИКЛ ОСТАНОВЛЕН',
     OFFLINE: 'НЕТ СВЯЗИ',
@@ -306,7 +294,7 @@ function updateLineStatus(ls) {
     state.lineState = lineState;
     state.serverExitRequested = exitRequested;
     if (!['IDLE', 'STOPPED'].includes(lineState)) state.startPending = false;
-    updateOperationalAccordions(lineState);
+    updateOperationalAccordions();
 
     updateProcessPhaseLabel(lineState, ls.process || {});
     setIfChanged(els.metricStep, ls.step || 0);
@@ -327,26 +315,8 @@ function updateLineStatus(ls) {
     setIfChanged(els.statInline, `${inLine} / 8`);
 
     const process = ls.process || {};
-    _updateDistributorRoute(ls);
     updateLineCells(ls.line_parts || [], process);
-    updateDistributorDiagnosticControls(ls);
     updateSelectedAnalysisStatus(ls);
-
-    // В блоке распределителя остались только ползунки: бегунки двигаются
-    // по координатам осей, текстовые значения из HMI убраны.
-    const d1Pos = Math.max(0, Number(ls.dist1_position || 0));
-    const d1Max = Math.max(1, Number(ls.dist1_max || 340));
-    if (els.dist1Blade) {
-        const d1Percent = Math.max(0, Math.min(100, d1Pos / d1Max * 100));
-        setBladeMarkerPosition(els.dist1Blade, d1Percent);
-    }
-
-    const d2Pos = Math.max(0, Number(ls.dist2_position || 0));
-    const d2Max = Math.max(1, Number(ls.dist2_max || 340));
-    if (els.dist2Blade) {
-        const d2Percent = Math.max(0, Math.min(100, d2Pos / d2Max * 100));
-        setBladeMarkerPosition(els.dist2Blade, d2Percent);
-    }
 
     updateJogState(ls.jog || null);
     updateStateOverlay(ls);
@@ -431,45 +401,6 @@ function _applyTokenCategory(el, category) {
     else if (category === 'GOOD') el.classList.add('cell-good');
 }
 
-
-const ROUTE_CATEGORIES = ['GOOD', 'BAD', 'CLEANUP'];
-
-function _resolveDistributorRoute(ls) {
-    const parts = Array.isArray(ls.line_parts) ? ls.line_parts : [];
-    const process = ls.process || {};
-    const phaseText = String(process.phase || '').toUpperCase();
-    const routingPhase = phaseText.includes('ROUTE') || phaseText.includes('DROP');
-    let part = null;
-    if (routingPhase && process.part_id != null) {
-        part = parts.find(item => Number(item.id) === Number(process.part_id)) || null;
-    }
-    if (!part) part = parts.find(item => Number(item.position) === 7) || null;
-    let category = part ? String(part.category || '').toUpperCase() : '';
-    if (!ROUTE_CATEGORIES.includes(category)) category = '';
-    if (!category) {
-        const d1State = String(ls.dist1_state || '').toUpperCase();
-        const d1ToDist2 = ['TO_DIST2', 'MOVING_TO_DIST2'].includes(d1State)
-            || (d1State !== 'MOVING_TO_GOOD' && Number(ls.dist1_position || 0) > 0);
-        // Если деталей на +7 нет (в частности, при ручной диагностике),
-        // цвет обязан всё равно показывать выбранное положение заслонок.
-        // Раньше fallback назначал только BAD/CLEANUP, поэтому возврат
-        // DIST1 в GOOD снимал все route-классы и панель теряла зелёный цвет.
-        category = d1ToDist2
-            ? (String(ls.dist2_target || '').toUpperCase() === 'CLEANUP' ? 'CLEANUP' : 'BAD')
-            : 'GOOD';
-    }
-    return category;
-}
-
-function _updateDistributorRoute(ls) {
-    const panel = els.distributorDiagnostics;
-    if (!panel) return;
-    panel.classList.remove('route-good', 'route-bad', 'route-cleanup');
-    const category = _resolveDistributorRoute(ls);
-    if (category === 'GOOD') panel.classList.add('route-good');
-    else if (category === 'BAD') panel.classList.add('route-bad');
-    else if (category === 'CLEANUP') panel.classList.add('route-cleanup');
-}
 
 function _removeStencilToken(token) {
     (token.pieces || []).forEach(piece => piece.remove());

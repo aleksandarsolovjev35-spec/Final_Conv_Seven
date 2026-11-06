@@ -10,7 +10,9 @@ stop the simulated conveyor.
 from __future__ import annotations
 
 import argparse
+import json
 import math
+import os
 import signal
 import threading
 from dataclasses import dataclass
@@ -26,6 +28,60 @@ from vision.ui.server.server import CAMERA_ORDER, UIServer
 # Ручной ход (JOG) разрешён в тех же состояниях, что и в production:
 # IDLE / STOPPED / PAUSED. Пауза — это как раз коррекция положения ленты.
 JOG_ALLOWED_STATES = ("IDLE", "STOPPED", "PAUSED")
+
+# Пределы скорости ленты совпадают с hardware.conveyor.Conveyor и
+# ползунком HMI (25..100 % от максимума).
+CONVEYOR_SPEED_MIN = 5000
+CONVEYOR_SPEED_MAX = 20000
+
+# Параметры линии (скорость ленты и паузы инспекции) переживают
+# перезапуск симулятора: выбранные оператором значения хранятся в
+# игнорируемой git папке архива, рядом с данными симуляции.
+LINE_SETTINGS_PATH = os.path.join(
+    "archive", "ui_simulation", "line_settings.json",
+)
+
+
+def _is_saved_pause(value, maximum: float) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+        and 0.0 <= float(value) <= maximum
+    )
+
+
+def load_saved_line_settings(path: str) -> dict:
+    """Прочитать сохранённые параметры линии.
+
+    Отсутствие файла или битое содержимое — не ошибка: возвращается
+    пустой словарь, и симуляция стартует с параметрами по умолчанию.
+    """
+    try:
+        with open(path, encoding="utf-8") as stream:
+            data = json.load(stream)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_line_settings(values: dict, path: str) -> None:
+    """Атомарно сохранить параметры линии симулятора.
+
+    Ошибка записи не прерывает симуляцию: значение уже применено
+    в памяти, файл лишь помогает пережить перезапуск.
+    """
+    try:
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        temporary = f"{path}.tmp"
+        with open(temporary, "w", encoding="utf-8") as stream:
+            json.dump(values, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+        os.replace(temporary, path)
+    except OSError as exc:
+        print(f"[SIM] Не удалось сохранить параметры линии: {exc}")
 
 
 PROCESS_LABELS = {
@@ -51,8 +107,8 @@ PROCESS_LABELS = {
     "PAUSED": "Пауза линии",
     "SELECTED_MODEL_ANALYSIS": "Анализ выбранного стоп-кадра",
     "JOG_HOLD": "JOG: удерживаемое движение ленты",
+    "JOG_STEP": "JOG: перемещение ленты на 1 шаг",
     "JOG_STOPPED": "JOG: движение ленты остановлено",
-    "DISTRIBUTOR_DIAGNOSTIC": "Проверка распределителя",
     "CAMERA_DIAGNOSTIC": "Проверка семи камер",
     "VISION_RULE_DIAGNOSTIC": "Проверка моделей и правил",
 }
@@ -90,7 +146,7 @@ class LineSimulation:
     INPUT_STAGES = ("INPUT_LEFT", "INPUT_RIGHT")
     CONTROL_STAGES = ("SPIDER_LEFT", "SPIDER_RIGHT", "SPIDER_IN", "SPIDER_OUT", "TOP")
 
-    def __init__(self, server: UIServer):
+    def __init__(self, server: UIServer, settings_path: str | None = None):
         self.server = server
         self._lock = threading.Lock()
         self._wake = threading.Event()
@@ -109,6 +165,12 @@ class LineSimulation:
         # до съёмки (затухание вибрации) и на просмотр результата.
         self.settle_seconds = float(self.SETTLE_SECONDS)
         self.review_seconds = float(self.REVIEW_SECONDS)
+        # Параметры линии переживают перезапуск симулятора: значения
+        # оператора читаются из JSON-файла. В тестах путь не задаётся —
+        # симуляция остаётся чисто в памяти, без записи на диск.
+        self.settings_path = settings_path
+        if settings_path:
+            self._restore_line_settings(settings_path)
         self.conveyor_position = 0
         self.conveyor_max = 340
         self.jog_active = False
@@ -186,12 +248,13 @@ class LineSimulation:
         return True
 
     def set_conveyor_speed(self, speed: int) -> bool:
-        if type(speed) is not int or not 5000 <= speed <= 20000:
+        if type(speed) is not int or not CONVEYOR_SPEED_MIN <= speed <= CONVEYOR_SPEED_MAX:
             raise ValueError("Недопустимая скорость")
         with self._lock:
             if self.state not in ("IDLE", "STOPPED") or self.jog_busy:
                 return False
             self.conveyor_speed = speed
+        self._persist_line_settings()
         self._publish("IDLE")
         return True
 
@@ -205,15 +268,39 @@ class LineSimulation:
             settle_time, maximum=5.0, label="Пауза перед инспекцией",
         )
         review = self._normalise_pause(
-            review_time, maximum=30.0, label="Пауза после инспекции",
+            review_time, maximum=5.0, label="Пауза после инспекции",
         )
         with self._lock:
             if self.state not in ("IDLE", "STOPPED") or self.jog_busy:
                 return False
             self.settle_seconds = settle
             self.review_seconds = review
+        self._persist_line_settings()
         self._publish("IDLE")
         return True
+
+    def _restore_line_settings(self, path: str) -> None:
+        saved = load_saved_line_settings(path)
+        speed = saved.get("conveyor_speed")
+        if type(speed) is int and CONVEYOR_SPEED_MIN <= speed <= CONVEYOR_SPEED_MAX:
+            self.conveyor_speed = speed
+        settle = saved.get("settle_time")
+        if _is_saved_pause(settle, 5.0):
+            self.settle_seconds = round(float(settle), 2)
+        review = saved.get("review_time")
+        if _is_saved_pause(review, 5.0):
+            self.review_seconds = round(float(review), 2)
+
+    def _persist_line_settings(self) -> None:
+        if not self.settings_path:
+            return
+        with self._lock:
+            snapshot = {
+                "conveyor_speed": self.conveyor_speed,
+                "settle_time": self.settle_seconds,
+                "review_time": self.review_seconds,
+            }
+        save_line_settings(snapshot, self.settings_path)
 
     @staticmethod
     def _normalise_pause(value: float, *, maximum: float, label: str) -> float:
@@ -279,6 +366,44 @@ class LineSimulation:
         self._publish("JOG_STOPPED")
         return True
 
+    def jog_step(self, direction: str) -> bool:
+        if direction not in ("+", "-"):
+            return False
+        with self._lock:
+            if (
+                not self.jog_active
+                or self.jog_busy
+                or self.state not in JOG_ALLOWED_STATES
+                or self.selected_role is not None
+            ):
+                return False
+            delta = 48 if direction == "+" else -48
+            self.conveyor_position = max(
+                0, min(self.conveyor_max, self.conveyor_position + delta)
+            )
+            self.last_distributor_action = (
+                "JOG STEP RIGHT" if direction == "+" else "JOG STEP LEFT"
+            )
+            animate = self.thread.is_alive() and self.STEP_SECONDS > 0
+            if animate:
+                self.jog_busy = True
+        if animate:
+            self._publish("JOG_STEP")
+
+            def _finish_step() -> None:
+                with self._lock:
+                    if not self.jog_busy:
+                        return
+                    self.jog_busy = False
+                self._publish("JOG_STOPPED")
+
+            timer = threading.Timer(0.28, _finish_step)
+            timer.daemon = True
+            timer.start()
+        else:
+            self._publish("JOG_STOPPED")
+        return True
+
     def selected_analysis(self, role: str) -> bool:
         with self._lock:
             if self.state not in ("IDLE", "STOPPED") or role not in CAMERA_ORDER:
@@ -291,37 +416,6 @@ class LineSimulation:
         with self._lock:
             self.selected_role = None
         self._publish("IDLE")
-        return True
-
-    def distributor_diagnostic(self, command: str) -> bool:
-        with self._lock:
-            if self.state not in ("IDLE", "STOPPED"):
-                return False
-            # Ручная проверка двигает только свою заслонку: кнопки верхнего
-            # распределителя управляют DIST1, кнопки нижнего — только DIST2.
-            if command == "DIST1_HOME":
-                self.dist1_position = 0
-                self.dist1_state = "GOOD"
-                self.last_distributor_action = "DIAGNOSTIC DIST1 -> GOOD"
-            elif command == "DIST1_OPEN":
-                self.dist1_position = 340
-                self.dist1_state = "TO_DIST2"
-                self.last_distributor_action = "DIAGNOSTIC DIST1 -> DIST2"
-            elif command == "DIST2_BAD":
-                moved = self.dist2_position != 0
-                self.dist2_position = 0
-                if moved:
-                    self.dist2_state = "READY"
-                self.last_distributor_action = "DIAGNOSTIC DIST2 -> BAD"
-            elif command == "DIST2_CLEANUP":
-                moved = self.dist2_position != 340
-                self.dist2_position = 340
-                if moved:
-                    self.dist2_state = "READY"
-                self.last_distributor_action = "DIAGNOSTIC DIST2 -> CLEANUP"
-            else:
-                return False
-        self._publish("DISTRIBUTOR_DIAGNOSTIC")
         return True
 
     def camera_diagnostic(self) -> bool:
@@ -475,14 +569,20 @@ class LineSimulation:
         if category in ("BAD", "CLEANUP"):
             self.dist2_state = "READY"
 
-    def _virtual_overlay_data(self, roles: list[str], line_parts: list[dict]) -> tuple[dict, list[SimRule]]:
+    def _virtual_overlay_data(
+        self,
+        roles: list[str],
+        line_parts: list[dict],
+        belt_offset: int = 0,
+    ) -> tuple[dict, list[SimRule]]:
         """Supply valid RAW detections and RULES drawings to the real renderers."""
         category = next((item.get("category") for item in line_parts if item.get("category")), "")
         triggered = category in ("BAD", "CLEANUP")
         raw = {}
         drawings = []
+        shift = (belt_offset * 2) % 732 if belt_offset else 0
         for index, role in enumerate(roles or CAMERA_ORDER):
-            x = 232 + (index % 4) * 29
+            x = 168 + ((64 + (index % 4) * 29 + shift) % 732)
             bbox = [x, 345, x + 280, 525]
             raw[role] = [{"class": "glass" if category == "CLEANUP" else "case", "bbox": bbox}]
             drawings.append({
@@ -540,21 +640,20 @@ class LineSimulation:
                              "jog_hold": self.jog_active and state in JOG_ALLOWED_STATES and self.selected_role is None,
                              "selected_model_analysis": state in ("IDLE", "STOPPED") and self.selected_role is None,
                              "selected_model_release": self.selected_role is not None,
-                             "distributor_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None,
                              "camera_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None,
                              "vision_rule_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None},
                 "conveyor_speed": self.conveyor_speed,
                 "conveyor_speed_percent": round(
-                    self.conveyor_speed / 20000 * 100,
+                    self.conveyor_speed / CONVEYOR_SPEED_MAX * 100,
                 ),
-                "conveyor_speed_min": 5000,
-                "conveyor_speed_max": 20000,
+                "conveyor_speed_min": CONVEYOR_SPEED_MIN,
+                "conveyor_speed_max": CONVEYOR_SPEED_MAX,
                 "speed_allowed": state in ("IDLE", "STOPPED") and not self.jog_busy,
                 "inspection_timings": {
                     "settle_time": round(self.settle_seconds, 2),
                     "review_time": round(self.review_seconds, 2),
                     "settle_max": 5.0,
-                    "review_max": 30.0,
+                    "review_max": 5.0,
                 },
                 "timings_allowed": (
                     state in ("IDLE", "STOPPED") and not self.jog_busy
@@ -579,13 +678,14 @@ class LineSimulation:
                 "jog": {"active": self.jog_active, "busy": self.jog_busy, "can_enter": state in JOG_ALLOWED_STATES,
                         "live_fps": 25},
             }
+            conveyor_pos = self.conveyor_position
             recent = list(self.recent)
         # Publish fresh virtual camera frames on every production state change.
         # The regular UI therefore exercises its real frame versioning, RAW/
         # RULES source switching and thumbnail refresh paths.
-        vision_results, rule_results = self._virtual_overlay_data(active_roles, line_parts)
+        vision_results, rule_results = self._virtual_overlay_data(active_roles, line_parts, conveyor_pos)
         self.server.update(
-            frames=demo_frames(self.step, phase, line_parts),
+            frames=demo_frames(self.step, phase, line_parts, belt_offset=conveyor_pos),
             vision_results=vision_results,
             rule_results=rule_results,
             line_status=status,
@@ -737,11 +837,16 @@ FRAME_WIDTH = 1280
 FRAME_HEIGHT = 720
 
 
-def demo_frames(step: int = 0, phase: str = "IDLE", line_parts: list[dict] | None = None) -> dict:
+def demo_frames(
+    step: int = 0,
+    phase: str = "IDLE",
+    line_parts: list[dict] | None = None,
+    belt_offset: int = 0,
+) -> dict:
     """Generate changing camera feeds rather than static placeholder images."""
     frames = {}
     line_parts = line_parts or []
-    moving_x = 168 + (step % 7) * 122
+    moving_x = 168 + (((step % 7) * 122 + belt_offset * 2) % 732)
     for index, role in enumerate(CAMERA_ORDER):
         frame = np.zeros((FRAME_HEIGHT, FRAME_WIDTH, 3), dtype=np.uint8)
         frame[:] = (20 + index * 3, 27 + index * 2, 33 + index * 2)
@@ -771,7 +876,7 @@ def main() -> None:
     # The real archive implementation writes only into ignored sandbox data.
     # Its settings dialog and validation therefore behave exactly as in the app.
     server.archive = PartArchive(root_folder="archive/ui_simulation")
-    simulation = LineSimulation(server)
+    simulation = LineSimulation(server, settings_path=LINE_SETTINGS_PATH)
     server.on_start = simulation.start
     server.on_stop = simulation.stop
     server.on_pause = simulation.pause
@@ -784,7 +889,7 @@ def main() -> None:
     server.on_jog_hold_start = simulation.jog_hold_start
     server.on_jog_hold_heartbeat = simulation.jog_hold_heartbeat
     server.on_jog_hold_release = simulation.jog_hold_release
-    server.on_distributor_diagnostic = simulation.distributor_diagnostic
+    server.on_jog_step = simulation.jog_step
     server.on_camera_diagnostic = simulation.camera_diagnostic
     server.on_vision_rule_diagnostic = simulation.vision_rule_diagnostic
     server.on_selected_model_analysis = simulation.selected_analysis

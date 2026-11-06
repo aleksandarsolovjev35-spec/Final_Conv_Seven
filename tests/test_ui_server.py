@@ -471,13 +471,12 @@ class UIServerTest(unittest.TestCase):
             self.client.post("/api/diagnostics/vision-rules").status_code, 200,
         )
 
-    def test_api_distributor_diagnostic(self):
-        self.server.on_distributor_diagnostic = mock.Mock(return_value=True)
+    def test_distributor_diagnostic_route_removed(self):
+        # Ручная диагностика заслонок убрана из программы: ни роута,
+        # ни callback'а на сервере не осталось.
+        self.assertFalse(hasattr(self.server, "on_distributor_diagnostic"))
         response = self.client.post("/api/distributor/diagnostic/DIST1_HOME")
-        self.assertEqual(response.status_code, 200)
-        self.server.on_distributor_diagnostic.assert_called_once_with(
-            "DIST1_HOME",
-        )
+        self.assertEqual(response.status_code, 404)
 
     def test_api_conveyor_speed_accepts_percent(self):
         self.server.on_conveyor_speed = mock.Mock(return_value=True)
@@ -520,7 +519,7 @@ class UIServerTest(unittest.TestCase):
             {"settle_time": -0.1, "review_time": 1},
             {"settle_time": 5.1, "review_time": 1},
             {"settle_time": 1, "review_time": -1},
-            {"settle_time": 1, "review_time": 30.1},
+            {"settle_time": 1, "review_time": 5.1},
             {"settle_time": True, "review_time": 1},
             {"settle_time": "1", "review_time": 1},
         )

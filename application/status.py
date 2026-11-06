@@ -38,7 +38,6 @@ def make_idle_status(distributor) -> dict:
             "jog_hold": False,
             "selected_model_analysis": False,
             "selected_model_release": False,
-            "distributor_diagnostic": False,
             "camera_diagnostic": False,
             "vision_rule_diagnostic": False,
         },

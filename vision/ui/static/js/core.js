@@ -81,14 +81,15 @@ const state = {
 
     jogActive:           false,
     jogBusy:             false,
+    jogControlMode:      'hold', // 'hold' (ЗАЖАТИЕ) | 'step' (1 ШАГ)
     jogTogglePending:    false,
     jogHoldDirection:    null,
+    jogStepPending:      false,
+    jogStepDirection:    null,
     jogHeartbeatTimer:   null,
     jogHeartbeatBusy:    false,
     jogReleasePending:   false,
     jogStartPromise:     null,
-    distributorDiagnosticPending: false,
-    distributorDiagnosticBackendBusy: false,
 
     selectedAnalysisActive: false,
     selectedAnalysisRole:   null,
@@ -156,9 +157,6 @@ const els = {
     analyzeSelectedFrame: $('analyze-selected-frame'),
     cameraContainer:  null,
 
-    dist1Blade:       $('dist1-blade'),
-    dist2Blade:       $('dist2-blade'),
-    distributorDiagnostics: $('distributor-diagnostics'),
     controlError:      $('control-error'),
 
     statsSummary:         $('stats-summary'),
@@ -178,6 +176,9 @@ const els = {
     processStageTrack: $('process-stage-track'),
 
     jogPanel:         $('jog-panel'),
+    jogModeSwitch:    $('jog-mode-switch'),
+    jogModeHold:      $('jog-mode-hold'),
+    jogModeStep:      $('jog-mode-step'),
 
     archiveSettingsOpen: $('archive-settings-open'),
     archiveSettingsGroup: $('archive-settings-group'),
@@ -417,7 +418,7 @@ async function sendActiveCameraIfChanged(role) {
 
 function getStatusInterval() {
     const s = state.lineState;
-    if (state.controlPending || state.distributorDiagnosticPending || state.distributorDiagnosticBackendBusy) return STATUS_INTERVAL_MOTION;
+    if (state.controlPending) return STATUS_INTERVAL_MOTION;
     if (s === 'RUNNING' || s === 'PAUSED' || s === 'STOPPING') return STATUS_INTERVAL_FAST;
     if (state.serverExitRequested) return STATUS_INTERVAL_FAST;
     if (state.jogActive) return STATUS_INTERVAL_FAST;

@@ -146,12 +146,6 @@ class FakeDistributor:
     def emergency_stop(self):
         pass
 
-    def diagnostic_gate(self, position):
-        self.log.append(("gate", position))
-
-    def diagnostic_route(self, category):
-        self.log.append(("dist_route", category))
-
 
 class FakeJog:
     def __init__(self, busy=False):
@@ -220,39 +214,11 @@ class MakeDiagnosticsTest(unittest.TestCase):
 
 
 class DiagnosticsMixinTest(unittest.TestCase):
-    def test_distributor_diagnostic_gate(self):
-        log = []
-        cycle = make_cycle(log)
-        self.assertTrue(cycle.distributor_diagnostic("DIST1_HOME"))
-        self.assertIn(("gate", "HOME"), log)
-        self.assertEqual(cycle._process["phase"], "DIAGNOSTIC_DONE")
-
-    def test_distributor_diagnostic_open(self):
-        log = []
-        cycle = make_cycle(log)
-        self.assertTrue(cycle.distributor_diagnostic("DIST1_OPEN"))
-        self.assertIn(("gate", "OPEN"), log)
-
-    def test_distributor_diagnostic_routes(self):
-        log = []
-        cycle = make_cycle(log)
-        self.assertTrue(cycle.distributor_diagnostic("DIST2_BAD"))
-        self.assertIn(("dist_route", "BAD"), log)
-        self.assertTrue(cycle.distributor_diagnostic("DIST2_CLEANUP"))
-        self.assertIn(("dist_route", "CLEANUP"), log)
-
-    def test_distributor_diagnostic_unknown(self):
+    def test_manual_distributor_diagnostic_removed(self):
+        # Ручная проверка заслонок из HMI убрана: работоспособность
+        # распределителя проверяется homing'ом при старте системы.
         cycle = make_cycle()
-        with self.assertRaises(ValueError):
-            cycle.distributor_diagnostic("DIST9")
-
-    def test_distributor_diagnostic_busy_lock(self):
-        cycle = make_cycle()
-        cycle._operation_lock.acquire()
-        try:
-            self.assertFalse(cycle.distributor_diagnostic("DIST1_HOME"))
-        finally:
-            cycle._operation_lock.release()
+        self.assertFalse(hasattr(cycle, "distributor_diagnostic"))
 
     def test_diagnostic_check_cameras(self):
         cycle = make_cycle()

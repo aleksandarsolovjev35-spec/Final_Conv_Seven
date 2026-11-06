@@ -285,9 +285,6 @@ class LiveMonitorTest(unittest.TestCase):
         self.monitor.start_callback = lambda: (events.append("start"), True)[1]
         self.monitor.stop_callback = lambda: (events.append("stop"), True)[1]
         self.monitor.exit_callback = lambda: (events.append("exit"), True)[1]
-        self.monitor.distributor_diagnostic_callback = (
-            lambda command: (events.append(("dist", command)), True)[1]
-        )
         self.monitor.active_camera_callback = (
             lambda role: (events.append(("camera", role)), True)[1]
         )
@@ -302,9 +299,6 @@ class LiveMonitorTest(unittest.TestCase):
         self.assertTrue(self.monitor.server.on_start())
         self.assertTrue(self.monitor.server.on_stop())
         self.assertTrue(self.monitor.server.on_exit())
-        self.assertTrue(self.monitor.server.on_distributor_diagnostic(
-            "DIST1_HOME",
-        ))
         self.assertTrue(self.monitor.server.on_active_camera_changed("TOP"))
         self.assertTrue(self.monitor.server.on_jog_hold_start("+"))
         self.assertTrue(self.monitor.server.on_thresholds_apply(
@@ -312,7 +306,6 @@ class LiveMonitorTest(unittest.TestCase):
         ))
         self.assertEqual(events, [
             "start", "stop", "exit",
-            ("dist", "DIST1_HOME"),
             ("camera", "TOP"),
             ("jog", "+"),
             ("thr", "TOP"),

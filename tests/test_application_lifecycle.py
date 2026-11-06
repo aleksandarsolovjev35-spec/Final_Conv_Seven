@@ -174,7 +174,6 @@ class FakeCycle:
     def request_stop(self): pass
     def request_pause(self): pass
     def request_resume(self): pass
-    def distributor_diagnostic(self): pass
     def diagnostic_check_cameras(self): pass
     def diagnostic_check_vision_rules(self): pass
     def diagnostic_analyze_selected_camera(self): pass
@@ -316,7 +315,6 @@ class ApplicationStartupTest(unittest.TestCase):
             "stop_callback": "request_stop",
             "pause_callback": "request_pause",
             "resume_callback": "request_resume",
-            "distributor_diagnostic_callback": "distributor_diagnostic",
             "camera_diagnostic_callback": "diagnostic_check_cameras",
             "vision_rule_diagnostic_callback": (
                 "diagnostic_check_vision_rules"
@@ -327,7 +325,6 @@ class ApplicationStartupTest(unittest.TestCase):
             "selected_model_release_callback": (
                 "diagnostic_release_selected_camera"
             ),
-            "conveyor_speed_callback": "set_conveyor_speed",
             "jog_enter_callback": "enter_jog",
             "jog_exit_callback": "exit_jog",
             "jog_hold_start_callback": "jog_hold_start",
@@ -362,12 +359,12 @@ class ApplicationStartupTest(unittest.TestCase):
                 monitor, cycle, lambda: None, calibration_path=path,
             )
             self.assertTrue(
-                monitor.inspection_timings_callback(1.25, 6.5)
+                monitor.inspection_timings_callback(1.25, 4.5)
             )
-            self.assertEqual(applied, [(1.25, 6.5)])
+            self.assertEqual(applied, [(1.25, 4.5)])
             loaded = load_calibration(path)
             self.assertEqual(loaded["settle_time"], 1.25)
-            self.assertEqual(loaded["review_time"], 6.5)
+            self.assertEqual(loaded["review_time"], 4.5)
 
     def test_cycle_timings_callback_rejected_does_not_write(self):
         events = []
@@ -382,11 +379,49 @@ class ApplicationStartupTest(unittest.TestCase):
                 monitor, cycle, lambda: None, calibration_path=path,
             )
             self.assertFalse(
-                monitor.inspection_timings_callback(1.25, 6.5)
+                monitor.inspection_timings_callback(1.25, 4.5)
             )
             loaded = load_calibration(path)
             self.assertEqual(
                 loaded["settle_time"], OPTIONAL_DEFAULTS["settle_time"],
+            )
+
+    def test_cycle_speed_callback_applies_and_persists(self):
+        events = []
+        monitor = FakeMonitor(events)
+        cycle = FakeCycle(events)
+        applied = []
+        cycle.set_conveyor_speed = (
+            lambda speed: applied.append(speed) or True
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "calibration.json")
+            with open(path, "w", encoding="utf-8") as stream:
+                json.dump({**DEFAULTS, **OPTIONAL_DEFAULTS}, stream)
+            bind_cycle_callbacks(
+                monitor, cycle, lambda: None, calibration_path=path,
+            )
+            self.assertTrue(monitor.conveyor_speed_callback(12000))
+            self.assertEqual(applied, [12000])
+            loaded = load_calibration(path)
+            self.assertEqual(loaded["conveyor_speed"], 12000)
+
+    def test_cycle_speed_callback_rejected_does_not_write(self):
+        events = []
+        monitor = FakeMonitor(events)
+        cycle = FakeCycle(events)
+        cycle.set_conveyor_speed = lambda speed: False
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "calibration.json")
+            with open(path, "w", encoding="utf-8") as stream:
+                json.dump({**DEFAULTS, **OPTIONAL_DEFAULTS}, stream)
+            bind_cycle_callbacks(
+                monitor, cycle, lambda: None, calibration_path=path,
+            )
+            self.assertFalse(monitor.conveyor_speed_callback(12000))
+            loaded = load_calibration(path)
+            self.assertEqual(
+                loaded["conveyor_speed"], DEFAULTS["conveyor_speed"],
             )
 
     def test_startup_waits_for_first_frame_from_every_camera(self):

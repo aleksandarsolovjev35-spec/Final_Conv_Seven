@@ -167,12 +167,6 @@ class FakeDistributor:
     def emergency_stop(self):
         self.log.append("dist_stop")
 
-    def diagnostic_gate(self, position):
-        self.log.append(("gate", position))
-
-    def diagnostic_route(self, category):
-        self.log.append(("dist_route", category))
-
 
 class FakeJog:
     def __init__(self):
@@ -273,7 +267,7 @@ class CycleBehaviorTest(unittest.TestCase):
 
     def test_set_inspection_timings_validates_ranges(self):
         cycle, _log = make_cycle()
-        for settle, review in ((-0.1, 1), (5.1, 1), (1, -1), (1, 30.1)):
+        for settle, review in ((-0.1, 1), (5.1, 1), (1, -1), (1, 5.1)):
             with self.subTest(settle=settle, review=review):
                 with self.assertRaises(ValueError):
                     cycle.set_inspection_timings(settle, review)
@@ -394,13 +388,6 @@ class CycleBehaviorTest(unittest.TestCase):
         self.assertTrue(cycle.exit_jog())
         cycle.request_start()
         self.assertFalse(cycle.enter_jog())
-
-    def test_distributor_diagnostic_only_when_idle_and_empty(self):
-        cycle, log = make_cycle()
-        self.assertTrue(cycle.distributor_diagnostic("DIST1_HOME"))
-        cycle.request_start()
-        cycle._run_once()
-        self.assertFalse(cycle.distributor_diagnostic("DIST1_HOME"))
 
     def test_status_controls_match_state(self):
         cycle, log = make_cycle(with_jog=True, with_monitor=True)

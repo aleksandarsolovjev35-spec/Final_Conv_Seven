@@ -87,6 +87,7 @@ def setup_api_routes(app, server):
         # перечитываем его (в рабочем потоке) до отдачи статуса.
         if server.thresholds_file_mtime_changed():
             await asyncio.to_thread(server.reload_thresholds_from_file)
+        yolo_tasks = server.yolo_status_payload()
         with server.lock:
             return JSONResponse({
                 "splash_active": server.splash_active,
@@ -98,6 +99,7 @@ def setup_api_routes(app, server):
                 "active_camera": server.active_camera_role,
                 "thresholds_revision": server.thresholds_revision,
                 "archive": server.archive_status_payload(),
+                "yolo_tasks": yolo_tasks,
             })
 
     @app.get("/api/mode")
@@ -279,22 +281,6 @@ def setup_api_routes(app, server):
             role,
         )
 
-    @app.post("/api/distributor/diagnostic/{command}")
-    async def api_distributor_diagnostic(command: str):
-        allowed = {
-            "DIST1_HOME",
-            "DIST1_OPEN",
-            "DIST2_BAD",
-            "DIST2_CLEANUP",
-        }
-        if command not in allowed:
-            raise HTTPException(400, "Недопустимая команда распределителя")
-        return await invoke(
-            "ПРОВЕРКА РАСПРЕДЕЛИТЕЛЯ",
-            server.on_distributor_diagnostic,
-            command,
-        )
-
     @app.post("/api/conveyor/speed")
     async def api_conveyor_speed(payload: dict):
         speed = payload.get("speed")
@@ -384,4 +370,13 @@ def setup_api_routes(app, server):
             reason = str(payload["reason"])[:100]
         return await invoke(
             "ОСТАНОВКА РУЧНОГО ДВИЖЕНИЯ", server.on_jog_hold_release, reason
+        )
+
+    @app.post("/api/jog/step")
+    async def api_jog_step(payload: dict):
+        direction = payload.get("direction")
+        if direction not in ("+", "-"):
+            raise HTTPException(400, "Недопустимое направление")
+        return await invoke(
+            "ОДИНОЧНЫЙ ШАГ ЛЕНТЫ", server.on_jog_step, direction
         )

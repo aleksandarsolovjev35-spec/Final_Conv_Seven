@@ -99,15 +99,13 @@
     flex-shrink: 0;
 }
 
-/* Переключатель ВИД в галерее — .btn.btn-sm; активный вариант подсвечен. */
 /* Переключатель ВИД в галерее — .btn.btn-sm; активный вариант помечен
-   акцентом и инвертируется в него же при наведении. */
+   акцентом (только цвет, без заливки) и «загорается» им же при наведении. */
 .gallery-mode-btn.active {
     --btn-color:  var(--accent);
     --btn-border: var(--accent);
     --btn-invert: var(--accent);
     --btn-focus:  var(--accent);
-    background: var(--accent-glow);
 }
 
 .gallery-grid {

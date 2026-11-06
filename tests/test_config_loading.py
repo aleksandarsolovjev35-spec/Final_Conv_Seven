@@ -22,6 +22,7 @@ from config.calibration_loader import (
     DEFAULTS as CALIBRATION_DEFAULTS,
     OPTIONAL_DEFAULTS,
     load_calibration,
+    save_calibration_speed,
     save_calibration_timings,
 )
 from config.camera_mapping import (
@@ -207,12 +208,12 @@ class CalibrationLoaderTest(unittest.TestCase):
 
     def test_save_timings_round_trip(self):
         path = self.write(_valid_calibration())
-        updated = save_calibration_timings(path, 1.25, 6.5)
+        updated = save_calibration_timings(path, 1.25, 4.5)
         self.assertEqual(updated["settle_time"], 1.25)
-        self.assertEqual(updated["review_time"], 6.5)
+        self.assertEqual(updated["review_time"], 4.5)
         loaded = load_calibration(path)
         self.assertEqual(loaded["settle_time"], 1.25)
-        self.assertEqual(loaded["review_time"], 6.5)
+        self.assertEqual(loaded["review_time"], 4.5)
         self.assertFalse(os.path.exists(path + ".tmp"))
 
     def test_save_timings_keeps_other_fields(self):
@@ -237,6 +238,39 @@ class CalibrationLoaderTest(unittest.TestCase):
     def test_save_timings_missing_file(self):
         with self.assertRaisesRegex(RuntimeError, "не найден"):
             save_calibration_timings(self.path("nope.json"), 1.0, 1.0)
+
+    def test_save_speed_round_trip(self):
+        path = self.write(_valid_calibration())
+        updated = save_calibration_speed(path, 12000)
+        self.assertEqual(updated["conveyor_speed"], 12000)
+        loaded = load_calibration(path)
+        self.assertEqual(loaded["conveyor_speed"], 12000)
+        self.assertFalse(os.path.exists(path + ".tmp"))
+
+    def test_save_speed_keeps_other_fields(self):
+        path = self.write(_valid_calibration())
+        save_calibration_speed(path, 10000)
+        loaded = load_calibration(path)
+        self.assertEqual(
+            loaded["settle_time"], OPTIONAL_DEFAULTS["settle_time"],
+        )
+        self.assertEqual(
+            loaded["normal_steps"], CALIBRATION_DEFAULTS["normal_steps"],
+        )
+
+    def test_save_speed_rejects_invalid_values(self):
+        path = self.write(_valid_calibration())
+        for bad in (4999, 20001, 12000.0, True, "12000", None):
+            with self.assertRaises(ValueError):
+                save_calibration_speed(path, bad)
+        loaded = load_calibration(path)
+        self.assertEqual(
+            loaded["conveyor_speed"], CALIBRATION_DEFAULTS["conveyor_speed"],
+        )
+
+    def test_save_speed_missing_file(self):
+        with self.assertRaisesRegex(RuntimeError, "не найден"):
+            save_calibration_speed(self.path("nope.json"), 12000)
 
 
 def _valid_mapping(**overrides):

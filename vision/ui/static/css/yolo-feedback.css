@@ -1,0 +1,596 @@
+/* yolo-feedback.css — Отметка пропущенных дефектов на камере и выгрузка ZIP для YOLO */
+
+/* ─── Сервисная группа в правом краю футера ───────────────────────── */
+
+.footer-services {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.footer-yolo {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding-left: 12px;
+    border-left: 1px solid var(--border-strong);
+}
+
+.btn-yolo-queue.has-pending {
+    /* Непустая очередь — состояние цветом, как .btn.pending. */
+    --btn-color:  var(--warn);
+    --btn-border: var(--warn);
+    --btn-invert: var(--warn);
+    --btn-focus:  var(--warn);
+}
+
+/* ─── Модальное окно обводки дефекта ──────────────────────────────── */
+
+.yolo-mark-modal,
+.yolo-export-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 580;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.yolo-mark-modal.is-hidden,
+.yolo-export-modal.is-hidden {
+    display: none !important;
+}
+
+.yolo-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(5, 8, 11, 0.86);
+}
+
+.yolo-mark-dialog {
+    position: relative;
+    width: min(1440px, 96vw);
+    height: min(900px, 94vh);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-1);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 22px 64px rgba(0, 0, 0, 0.68);
+    overflow: hidden;
+}
+
+.yolo-mark-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
+}
+
+.yolo-mark-title-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.yolo-mark-title {
+    color: var(--warn);
+    font: 700 12px var(--font-ui);
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.yolo-mark-source-badge {
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    background: var(--bg-0);
+    color: var(--text-dim);
+    font: 700 10px var(--font-ui);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.yolo-mark-header-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.yolo-close-btn {
+    --btn-color:  var(--text-dim);
+    --btn-invert: var(--bad);
+    --btn-focus:  var(--bad);
+}
+
+/* ─── Панель кнопок выбора класса YOLO ────────────────────────────── */
+
+.yolo-class-bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-1);
+    flex-wrap: wrap;
+}
+
+.yolo-class-bar-label {
+    color: var(--text-dim);
+    font: 700 10px var(--font-ui);
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.yolo-class-buttons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.yolo-class-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 29px;
+    padding: 0 11px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--bg-2);
+    color: var(--text);
+    font: 700 10px var(--font-ui);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition:
+        border-color var(--t-fast) var(--ease),
+        background-color var(--t-fast) var(--ease),
+        color var(--t-fast) var(--ease),
+        box-shadow var(--t-fast) var(--ease);
+}
+
+.yolo-class-btn.is-active {
+    /* Выбранный класс — только цветом текста и рамки, без заливки.
+       Правило стоит до :hover той же специфичности: при наведении
+       активная кнопка загорается, как все кнопки HMI. */
+    border-color: var(--cls-color, var(--warn));
+    color: var(--cls-color, var(--warn));
+}
+
+.yolo-class-btn:hover {
+    /* Наведение — заливка цветом класса, как у всех кнопок HMI. */
+    border-color: var(--cls-color, var(--accent));
+    background: var(--cls-color, var(--accent));
+    color: var(--bg-0);
+}
+
+.yolo-class-btn:hover .yolo-class-dot {
+    background: var(--bg-0);
+}
+
+.yolo-class-btn:hover .yolo-class-key {
+    color: var(--bg-0);
+}
+
+.yolo-class-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--cls-color, var(--warn));
+    flex-shrink: 0;
+}
+
+.yolo-class-key {
+    color: var(--text-muted);
+    font-size: 9px;
+    font-weight: 700;
+}
+
+/* ─── Поле кадра и Canvas обводки ─────────────────────────────────── */
+
+.yolo-mark-stage {
+    flex: 1 1 auto;
+    min-height: 180px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    background: #070a0d;
+    overflow: hidden;
+}
+
+.yolo-canvas-wrap {
+    position: relative;
+    background: #090c0f;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+    touch-action: none;
+    user-select: none;
+}
+
+.yolo-mark-image {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: fill;
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 0.12s var(--ease);
+}
+
+.yolo-mark-image.is-loading {
+    opacity: 0;
+}
+
+.yolo-mark-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: crosshair;
+    touch-action: none;
+}
+
+.yolo-stage-loading {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(9, 12, 15, 0.85);
+    color: var(--accent);
+    font: 700 12px var(--font-ui);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    z-index: 5;
+}
+
+/* ─── Список нарисованных обводок (чипы) + нижняя панель ──────────── */
+
+.yolo-marks-strip {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    min-height: 32px;
+    /* Слишком много обводок: полоса переносится и скроллится внутри
+       себя (max-height), не отнимая место у кадра с обводками. */
+    flex-wrap: wrap;
+    align-content: flex-start;
+    max-height: 88px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-0);
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.yolo-marks-hint {
+    color: var(--text-muted);
+    font: 600 10px var(--font-ui);
+    /* Подсказка переносится: полоса с overflow-x: hidden не дала бы
+       прокрутить длинную строку без переноса. */
+    white-space: normal;
+}
+
+.yolo-mark-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--chip-color, var(--border-strong));
+    background: var(--bg-2);
+    color: var(--text);
+    font: 700 9.5px var(--font-ui);
+    white-space: nowrap;
+}
+
+.yolo-mark-chip-remove {
+    border: 0;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
+}
+
+.yolo-mark-chip-remove:hover {
+    color: var(--bad);
+}
+
+.yolo-mark-chip-count {
+    /* Счётчик обводок — нейтральный: рамка и фон уже базовые,
+       приглушается только текст. */
+    color: var(--text-dim);
+}
+
+.yolo-mark-footer {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-2);
+    flex-wrap: wrap;
+}
+
+.yolo-tool-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+
+.yolo-tool-btn.is-active {
+    --btn-color:  var(--accent);
+    --btn-border: var(--accent);
+    --btn-invert: var(--accent);
+}
+
+.yolo-comment-wrap {
+    flex: 1 1 200px;
+    min-width: 160px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.yolo-comment-input {
+    width: 100%;
+    height: 30px;
+    padding: 4px 10px;
+    background: var(--bg-0);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font: 600 11px var(--font-ui);
+    user-select: text;
+}
+
+.yolo-comment-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.yolo-save-group {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.yolo-mark-status {
+    color: var(--text-dim);
+    font: 600 10px var(--font-ui);
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.yolo-mark-status.is-error {
+    color: var(--bad);
+}
+
+.yolo-mark-status.is-ok {
+    color: var(--ok);
+}
+
+/* ─── Модальное окно очереди и выгрузки ZIP ───────────────────────── */
+
+.yolo-export-dialog {
+    position: relative;
+    width: min(860px, 94vw);
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-1);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.62);
+    overflow: hidden;
+}
+
+.yolo-export-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.yolo-export-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.yolo-stat-card {
+    flex: 1 1 180px;
+    padding: 8px 12px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.yolo-stat-label {
+    color: var(--text-dim);
+    font: 700 10px var(--font-ui);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.yolo-stat-val {
+    color: var(--text);
+    font: 700 16px var(--font-mono);
+}
+
+.yolo-stat-val.warn {
+    color: var(--warn);
+}
+
+.yolo-models-breakdown {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.yolo-model-pill {
+    padding: 4px 9px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-0);
+    color: var(--text-dim);
+    font: 600 10px var(--font-ui);
+}
+
+.yolo-model-pill b {
+    color: var(--warn);
+    margin-left: 4px;
+}
+
+.yolo-items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.yolo-empty-note {
+    padding: 24px 12px;
+    text-align: center;
+    color: var(--text-muted);
+    font: 600 11px var(--font-ui);
+    background: var(--bg-0);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+}
+
+.yolo-item-row {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 10px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.yolo-item-thumb {
+    width: 112px;
+    height: 63px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    background: #090c0f;
+    cursor: pointer;
+}
+
+.yolo-item-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.yolo-item-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.yolo-item-role {
+    color: var(--accent);
+    font: 700 11px var(--font-ui);
+    letter-spacing: 0.4px;
+}
+
+.yolo-item-badge {
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    font: 700 9px var(--font-ui);
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+}
+
+.yolo-item-badge.pending {
+    color: var(--warn);
+    border: 1px solid var(--warn);
+    background: var(--warn-bg);
+}
+
+.yolo-item-badge.exported {
+    color: var(--ok);
+    border: 1px solid var(--ok);
+    background: var(--ok-bg);
+}
+
+.yolo-item-classes {
+    color: var(--text);
+    font: 600 11px var(--font-ui);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.yolo-item-meta {
+    color: var(--text-muted);
+    font: 600 10px var(--font-ui);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.yolo-export-footer {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-2);
+    flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+    .yolo-mark-title { font-size: 11px; }
+    .yolo-item-row { grid-template-columns: 88px minmax(0, 1fr) auto; }
+    .yolo-item-thumb { width: 88px; height: 50px; }
+}

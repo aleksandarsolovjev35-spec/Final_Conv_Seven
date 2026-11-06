@@ -653,7 +653,10 @@ class DistributorTest(unittest.TestCase):
         # Обе команды G27 уходят подряд, без ожидания между ними:
         # DIST1 -> 340 и DIST2 -> 0 стартуют одновременно.
         distributor, transport = self.make_distributor()
-        distributor.diagnostic_route("CLEANUP")  # dist1=0, dist2=340
+        distributor.prepare_route("CLEANUP", part_id=1)  # dist1=340, dist2=340
+        distributor.prepare_route("GOOD", part_id=2)     # dist1=0,  dist2=340
+        self.assertEqual(distributor.dist1.position, 0)
+        self.assertEqual(distributor.dist2.position, 340)
         transport.commands.clear()
         distributor.prepare_route("BAD", part_id=3)
         self.assertEqual(
@@ -706,8 +709,7 @@ class DistributorTest(unittest.TestCase):
 
     def test_park_production_moves_both_axes_parallel(self):
         distributor, transport = self.make_distributor()
-        distributor.diagnostic_gate("OPEN")       # dist1=340
-        distributor.diagnostic_route("CLEANUP")   # dist2=340
+        distributor.prepare_route("CLEANUP", part_id=1)  # dist1=340, dist2=340
         transport.commands.clear()
         distributor.park_production()
         self.assertEqual(
@@ -724,37 +726,13 @@ class DistributorTest(unittest.TestCase):
         distributor.confirm_transfer(5, "GOOD")
         self.assertIn("PART #5 -> GOOD DONE", distributor.last_action)
 
-    def test_diagnostic_gate(self):
+    def test_no_manual_positioning_api(self):
+        # Ручного перемещения заслонок из HMI больше нет: положение
+        # распределителя задают только initialize/park_production/
+        # prepare_route рабочего цикла.
         distributor, _ = self.make_distributor()
-        distributor.diagnostic_gate("HOME")
-        self.assertEqual(distributor.dist1_state, "GOOD")
-        distributor.diagnostic_gate("OPEN")
-        self.assertEqual(distributor.dist1_state, "TO_DIST2")
-        with self.assertRaisesRegex(ValueError, "Unsupported"):
-            distributor.diagnostic_gate("SIDE")
-
-    def test_diagnostic_route(self):
-        distributor, _ = self.make_distributor()
-        distributor.diagnostic_route("BAD")
-        self.assertEqual(distributor.dist2_target, "BAD")
-        distributor.diagnostic_route("CLEANUP")
-        self.assertEqual(distributor.dist2_target, "CLEANUP")
-        with self.assertRaisesRegex(ValueError, "Unsupported"):
-            distributor.diagnostic_route("GOOD")
-
-    def test_diagnostic_route_moves_only_dist2(self):
-        # Кнопки нижнего распределителя двигают только DIST2:
-        # DIST1 остаётся там, куда его поставили кнопки верхнего.
-        distributor, _ = self.make_distributor()
-        distributor.diagnostic_gate("OPEN")
-        self.assertEqual(distributor.dist1.position, 340)
-        distributor.diagnostic_route("CLEANUP")
-        self.assertEqual(distributor.dist2.position, 340)
-        self.assertEqual(distributor.dist1.position, 340)
-        self.assertEqual(distributor.dist1_state, "TO_DIST2")
-        distributor.diagnostic_route("BAD")
-        self.assertEqual(distributor.dist2.position, 0)
-        self.assertEqual(distributor.dist1.position, 340)
+        self.assertFalse(hasattr(distributor, "diagnostic_gate"))
+        self.assertFalse(hasattr(distributor, "diagnostic_route"))
 
     def test_emergency_stop(self):
         distributor, transport = self.make_distributor()
@@ -858,6 +836,42 @@ class JogControllerTest(unittest.TestCase):
         jog, _ = self.make_jog()
         jog.start_hold("+")
         self.assertFalse(jog.start_hold("-"))
+        jog.release()
+
+    def test_step_once_forward_and_backward_restores_positive_normal_steps(self):
+        transport = RecordingTransport({
+            "I1": "0",
+            "I2": "MOV=0 WAIT=0 lastErr=0",
+        })
+        jog, _ = self.make_jog(transport)
+
+        self.assertTrue(jog.step_once("+"))
+        if jog._thread is not None:
+            jog._thread.join(2.0)
+        self.assertFalse(jog.busy)
+        self.assertEqual(jog.last_action, "STEP RIGHT")
+        self.assertIn("G7 S19048", transport.commands)
+        self.assertIn("G6 S2", transport.commands)
+        self.assertIn("G3", transport.commands)
+
+        transport.commands.clear()
+        self.assertTrue(jog.step_once("-"))
+        if jog._thread is not None:
+            jog._thread.join(2.0)
+        self.assertFalse(jog.busy)
+        self.assertEqual(jog.last_action, "STEP LEFT")
+        self.assertEqual(transport.commands[0], "G7 S-19048")
+        self.assertEqual(transport.commands[1], "G6 S2")
+        self.assertEqual(transport.commands[2], "G3")
+        # В finally всегда восстанавливается положительный G7 для рабочего цикла!
+        self.assertEqual(transport.commands[-2:], ["G7 S19048", "G6 S2"])
+
+    def test_step_once_invalid_direction_and_busy_rejection(self):
+        jog, _ = self.make_jog()
+        with self.assertRaisesRegex(ValueError, "'\\+' или '-'"):
+            jog.step_once("x")
+        jog.start_hold("+")
+        self.assertFalse(jog.step_once("+"))
         jog.release()
 
 

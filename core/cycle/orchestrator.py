@@ -426,7 +426,7 @@ class ProductionCycle(
                             self._handle_fault(f"Ошибка ручного управления лентой: {jog_error}")
                             continue
                         if (
-                            self._process.get("phase") == "JOG_HOLD"
+                            self._process.get("phase") in ("JOG_HOLD", "JOG_STEP")
                             and not jog_status.get("busy")
                         ):
                             self._set_process(

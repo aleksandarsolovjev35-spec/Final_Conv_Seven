@@ -133,12 +133,6 @@ class FakeDistributor:
     def emergency_stop(self):
         pass
 
-    def diagnostic_gate(self, position):
-        pass
-
-    def diagnostic_route(self, category):
-        pass
-
 
 class FakeJog:
     def __init__(self, error=None, busy=False):
@@ -154,6 +148,10 @@ class FakeJog:
 
     def start_hold(self, direction):
         self.started.append(direction)
+        return True
+
+    def step_once(self, direction):
+        self.started.append(("step", direction))
         return True
 
     def heartbeat(self, direction):
@@ -412,6 +410,23 @@ class JogModeTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             cycle.jog_hold_start("x")
         cycle.exit_jog()
+
+    def test_jog_step_allowed_in_jog_and_rejected_when_running_or_inactive(self):
+        jog = FakeJog()
+        cycle = make_cycle(jog=jog)
+        self.assertFalse(cycle.jog_step("+"))
+        cycle.enter_jog()
+        self.assertTrue(cycle.jog_step("+"))
+        self.assertEqual(cycle._process["phase"], "JOG_STEP")
+        self.assertTrue(cycle.jog_step("-"))
+        self.assertIn(("step", "+"), jog.started)
+        self.assertIn(("step", "-"), jog.started)
+        cycle.exit_jog()
+
+        cycle.request_start()
+        self.assertFalse(cycle.jog_step("+"))
+        cycle.request_stop()
+        cycle.live.stop()
 
 
 class MainLoopTest(unittest.TestCase):

@@ -77,8 +77,8 @@ def _validate(data: dict) -> dict:
         raise ValueError(
             "stage_trace_time должен быть в диапазоне 0..5 секунд"
         )
-    if not 0.0 <= float(data["review_time"]) <= 30.0:
-        raise ValueError("review_time должен быть в диапазоне 0..30 секунд")
+    if not 0.0 <= float(data["review_time"]) <= 5.0:
+        raise ValueError("review_time должен быть в диапазоне 0..5 секунд")
     return dict(data)
 
 
@@ -96,12 +96,8 @@ def load_calibration(path: str = "calibration.json") -> dict:
     return result
 
 
-def save_calibration_timings(
-    path: str,
-    settle_time: float,
-    review_time: float,
-) -> dict:
-    """Сохранить паузы инспекции в calibration.json атомарной заменой.
+def _save_calibration_updates(path: str, updates: dict) -> dict:
+    """Применить обновление полей к calibration.json атомарной заменой.
 
     Остальные поля файла не меняются. Перед записью выполняется та же
     полная валидация, что и при загрузке, поэтому HMI не может записать
@@ -118,8 +114,7 @@ def save_calibration_timings(
         raise ValueError("calibration.json должен содержать объект")
 
     data = {**OPTIONAL_DEFAULTS, **data}
-    data["settle_time"] = float(settle_time)
-    data["review_time"] = float(review_time)
+    data.update(updates)
     validated = _validate(data)
 
     temporary = f"{path}.tmp"
@@ -135,3 +130,35 @@ def save_calibration_timings(
             pass
         raise RuntimeError(f"Ошибка записи {path}: {exc}") from exc
     return validated
+
+
+def save_calibration_timings(
+    path: str,
+    settle_time: float,
+    review_time: float,
+) -> dict:
+    """Сохранить паузы инспекции в calibration.json атомарной заменой."""
+    return _save_calibration_updates(path, {
+        "settle_time": float(settle_time),
+        "review_time": float(review_time),
+    })
+
+
+# Пределы скорости ленты совпадают с hardware.conveyor.Conveyor и
+# ползунком HMI (25..100 % от максимума).
+CONVEYOR_SPEED_MIN = 5000
+CONVEYOR_SPEED_MAX = 20000
+
+
+def save_calibration_speed(path: str, speed: int) -> dict:
+    """Сохранить скорость ленты (шаг/с) в calibration.json атомарно.
+
+    Выбранное оператором значение переживает перезапуск: при следующем
+    старте Conveyor создаётся с сохранённой скоростью.
+    """
+    if type(speed) is not int or not CONVEYOR_SPEED_MIN <= speed <= CONVEYOR_SPEED_MAX:
+        raise ValueError(
+            f"Скорость должна быть целым числом от {CONVEYOR_SPEED_MIN} "
+            f"до {CONVEYOR_SPEED_MAX}"
+        )
+    return _save_calibration_updates(path, {"conveyor_speed": speed})

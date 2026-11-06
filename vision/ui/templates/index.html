@@ -6,19 +6,20 @@
     <meta charset="UTF-8">
     <title>Роботехнический комплекс конвейерного типа 7</title>
     <link rel="stylesheet" href="/static/css/base.css?v=37">
-    <link rel="stylesheet" href="/static/css/blocks.css?v=29">
-    <link rel="stylesheet" href="/static/css/camera.css?v=42">
+    <link rel="stylesheet" href="/static/css/blocks.css?v=30">
+    <link rel="stylesheet" href="/static/css/camera.css?v=45">
     <link rel="stylesheet" href="/static/css/axis.css?v=33">
     <link rel="stylesheet" href="/static/css/history-strip.css?v=47">
-    <link rel="stylesheet" href="/static/css/stats.css?v=52">
-    <link rel="stylesheet" href="/static/css/jog.css?v=36">
-    <link rel="stylesheet" href="/static/css/controls.css?v=46">
-    <link rel="stylesheet" href="/static/css/gallery.css?v=34">
-    <link rel="stylesheet" href="/static/css/process.css?v=56">
-    <link rel="stylesheet" href="/static/css/motion.css?v=39">
-    <link rel="stylesheet" href="/static/css/thresholds.css?v=24">
+    <link rel="stylesheet" href="/static/css/stats.css?v=53">
+    <link rel="stylesheet" href="/static/css/jog.css?v=40">
+    <link rel="stylesheet" href="/static/css/controls.css?v=48">
+    <link rel="stylesheet" href="/static/css/gallery.css?v=35">
+    <link rel="stylesheet" href="/static/css/process.css?v=58">
+    <link rel="stylesheet" href="/static/css/motion.css?v=40">
+    <link rel="stylesheet" href="/static/css/thresholds.css?v=28">
     <link rel="stylesheet" href="/static/css/archive.css?v=6">
-    <link rel="stylesheet" href="/static/css/panel-deck.css?v=8">
+    <link rel="stylesheet" href="/static/css/yolo-feedback.css?v=5">
+    <link rel="stylesheet" href="/static/css/panel-deck.css?v=9">
 </head>
 <body>
 
@@ -57,12 +58,14 @@
                     <!-- Кнопка сетки живёт отдельно от live-controls: она
                          должна быть доступна и на затемняющем overlay
                          «ГОТОВА К ПУСКУ», а не только в движении. -->
-                    <button id="grid-toggle" class="btn btn-overlay btn-grid camera-grid-toggle is-on" type="button"
+                    <button id="grid-toggle" class="btn btn-overlay btn-accent camera-grid-toggle is-on" type="button"
                             aria-pressed="true" title="Показать или скрыть измерительную сетку">СЕТКА</button>
                     <div class="camera-live-controls" data-ui-block="camera-controls">
                         <button id="view-mode-toggle" class="btn btn-overlay btn-accent is-faded" disabled
                                 aria-label="Переключить вид: правила или модели">ПРАВИЛА</button>
                         <button id="analyze-selected-frame" class="btn btn-overlay btn-accent" disabled>АНАЛИЗ КАДРА</button>
+                        <button id="mark-yolo-defect" class="btn btn-overlay btn-warn is-hidden" type="button" disabled
+                                title="В режиме JOG: захватить кадр выбранной камеры и обвести дефект для разметчика YOLO (клавиша M)">ОТМЕТИТЬ ДЕФЕКТ</button>
                     </div>
                     <div id="camera-overlay" class="camera-overlay is-hidden"></div>
                 </div>
@@ -197,38 +200,6 @@
                     </div>
                 </section>
 
-                <section id="distributor-diagnostics" class="distributor-panel ui-collapse" data-ui-block="distributor">
-                    <div class="distributor-head">
-                        <span class="distributor-title">РАСПРЕДЕЛИТЕЛЬ</span>
-                    </div>
-                    <div class="blade-card">
-                        <div class="blade-track">
-                            <div id="dist1-blade" class="blade-marker"></div>
-                        </div>
-                        <div class="blade-track-labels" aria-hidden="true">
-                            <span>ГОДНО</span>
-                            <span>БРАК</span>
-                        </div>
-                        <div class="diagnostic-grid blade-diagnostic-grid ui-collapse">
-                            <button class="btn btn-sm" data-distributor-command="DIST1_HOME" disabled>ГОДНО</button>
-                            <button class="btn btn-sm" data-distributor-command="DIST1_OPEN" disabled>БРАК</button>
-                        </div>
-                    </div>
-                    <div class="blade-card">
-                        <div class="blade-track">
-                            <div id="dist2-blade" class="blade-marker"></div>
-                        </div>
-                        <div class="blade-track-labels" aria-hidden="true">
-                            <span>БРАК</span>
-                            <span>ЗАЧИСТКА</span>
-                        </div>
-                        <div class="diagnostic-grid blade-diagnostic-grid ui-collapse">
-                            <button class="btn btn-sm" data-distributor-command="DIST2_BAD" disabled>БРАК</button>
-                            <button class="btn btn-sm" data-distributor-command="DIST2_CLEANUP" disabled>ЗАЧИСТКА</button>
-                        </div>
-                    </div>
-                </section>
-
                 <!-- Пороги правил выбранной (главной) камеры: над кнопками
                      ручного управления лентой. Высота блока фиксирована —
                      правая колонка HMI не прокручивается. Каждое правило —
@@ -248,7 +219,7 @@
                     <div class="thresholds-actions">
                         <span id="thresholds-status" class="thresholds-status"></span>
                         <button id="thresholds-save" class="btn btn-sm btn-thresholds-save" disabled>СОХРАНИТЬ</button>
-                        <button id="thresholds-reset" class="btn btn-sm" disabled>ОТМЕНИТЬ</button>
+                        <button id="thresholds-reset" class="btn btn-sm btn-accent" disabled>ОТМЕНИТЬ</button>
                     </div>
                 </section>
 
@@ -278,13 +249,17 @@
                             <label class="line-setting-name" for="review-time">Пауза после инспекции</label>
                             <output id="review-time-value" class="line-setting-value" for="review-time">—</output>
                         </div>
-                        <input id="review-time" type="range" min="0" max="30" step="0.1" value="0.5" disabled>
+                        <input id="review-time" type="range" min="0" max="5" step="0.1" value="0.5" disabled>
                     </div>
                 </div>
                 <div class="jog-deck">
                     <section id="jog-panel" class="jog-panel jog-panel-embedded ui-collapse" data-ui-block="jog">
                         <div class="jog-header">
                             <h2 class="jog-title">РУЧНОЕ УПРАВЛЕНИЕ ЛЕНТОЙ</h2>
+                        </div>
+                        <div id="jog-mode-switch" class="jog-mode-switch" role="group" aria-label="Режим ручного хода ленты">
+                            <button id="jog-mode-hold" class="jog-mode-btn is-active" type="button" data-jog-mode="hold">ЗАЖАТИЕ</button>
+                            <button id="jog-mode-step" class="jog-mode-btn" type="button" data-jog-mode="step">1 ШАГ</button>
                         </div>
                         <div class="jog-dpad jog-dpad-hold">
                             <button class="jog-dpad-btn jog-hold-btn" data-direction="-" disabled
@@ -327,9 +302,15 @@
                 <button id="btn-stop"  class="btn btn-stop is-hidden" disabled>СТОП</button>
                 <button id="btn-exit"  class="btn btn-exit" disabled>ВЫХОД</button>
             </div>
-            <div class="footer-archive" id="archive-settings-group" data-ui-block="footer-archive">
-                <span class="footer-archive-label">АРХИВ ПАРТИЙ</span>
-                <button id="archive-settings-open" class="btn btn-archive-settings" disabled>АРХИВ</button>
+            <div class="footer-services">
+                <div class="footer-yolo is-hidden" id="yolo-export-group" data-ui-block="footer-yolo">
+                    <span class="footer-archive-label">ДЛЯ РАЗМЕТЧИКА</span>
+                    <button id="yolo-export-open" class="btn btn-archive-settings btn-yolo-queue" type="button" disabled>YOLO · 0</button>
+                </div>
+                <div class="footer-archive" id="archive-settings-group" data-ui-block="footer-archive">
+                    <span class="footer-archive-label">АРХИВ ПАРТИЙ</span>
+                    <button id="archive-settings-open" class="btn btn-archive-settings" disabled>АРХИВ</button>
+                </div>
             </div>
         </footer>
     </div>
@@ -393,17 +374,106 @@
         </div>
     </div>
 
-    <script src="/static/js/core.js?v=59"></script>
+    <!-- YOLO MARK MODAL -->
+    <div id="yolo-mark-modal" class="yolo-mark-modal is-hidden" data-ui-block="yolo-mark">
+        <div id="yolo-mark-backdrop" class="yolo-modal-backdrop"></div>
+        <section class="yolo-mark-dialog" role="dialog" aria-modal="true" aria-labelledby="yolo-mark-title">
+            <div class="yolo-mark-header">
+                <div class="yolo-mark-title-group">
+                    <h2 id="yolo-mark-title" class="yolo-mark-title">ОБВОДКА ДЕФЕКТА</h2>
+                    <span id="yolo-mark-source-badge" class="yolo-mark-source-badge">—</span>
+                </div>
+                <div class="yolo-mark-header-actions">
+                    <button id="yolo-toggle-detections" class="btn btn-sm yolo-tool-btn" type="button" disabled>МОДЕЛЬ: ПОКАЗАНА</button>
+                    <button id="yolo-mark-close" class="btn btn-icon yolo-close-btn" type="button" aria-label="Закрыть">&times;</button>
+                </div>
+            </div>
+
+            <div class="yolo-class-bar">
+                <span class="yolo-class-bar-label">КЛАСС ДЛЯ YOLO:</span>
+                <div id="yolo-class-buttons" class="yolo-class-buttons"></div>
+            </div>
+
+            <div id="yolo-mark-stage" class="yolo-mark-stage">
+                <div id="yolo-canvas-wrap" class="yolo-canvas-wrap">
+                    <img id="yolo-mark-image" class="yolo-mark-image" alt="Снимок камеры">
+                    <canvas id="yolo-mark-canvas" class="yolo-mark-canvas"></canvas>
+                    <div id="yolo-stage-loading" class="yolo-stage-loading is-hidden">ЗАГРУЗКА КАДРА...</div>
+                </div>
+            </div>
+
+            <div id="yolo-marks-strip" class="yolo-marks-strip"></div>
+
+            <div class="yolo-mark-footer">
+                <div class="yolo-tool-group">
+                    <button id="yolo-tool-polygon" class="btn btn-sm yolo-tool-btn is-active" type="button"
+                            title="Свободная замкнутая обводка дефекта">ОБВОДКА</button>
+                    <button id="yolo-tool-bbox" class="btn btn-sm yolo-tool-btn" type="button"
+                            title="Прямоугольная рамка вокруг дефекта">РАМКА</button>
+                    <button id="yolo-mark-undo" class="btn btn-sm" type="button" disabled
+                            title="Отменить последнюю обводку (Ctrl+Z)">ОТМЕНИТЬ ШАГ</button>
+                    <button id="yolo-mark-clear" class="btn btn-sm" type="button" disabled>ОЧИСТИТЬ</button>
+                </div>
+                <div class="yolo-comment-wrap">
+                    <input id="yolo-mark-comment" class="yolo-comment-input" type="text" maxlength="300"
+                           autocomplete="off" placeholder="Комментарий для разметчика (необязательно)...">
+                </div>
+                <div class="yolo-save-group">
+                    <span id="yolo-mark-status" class="yolo-mark-status"></span>
+                    <button id="yolo-mark-save" class="btn btn-sm btn-ok" type="button" disabled>СОХРАНИТЬ</button>
+                    <button id="yolo-mark-cancel" class="btn btn-sm" type="button">ОТМЕНА</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- YOLO EXPORT ZIP MODAL -->
+    <div id="yolo-export-modal" class="yolo-export-modal is-hidden" data-ui-block="yolo-export">
+        <div id="yolo-export-backdrop" class="yolo-modal-backdrop"></div>
+        <section class="yolo-export-dialog" role="dialog" aria-modal="true" aria-labelledby="yolo-export-title">
+            <div class="yolo-mark-header">
+                <div class="yolo-mark-title-group">
+                    <h2 id="yolo-export-title" class="yolo-mark-title">ОЧЕРЕДЬ КАДРОВ ДЛЯ РАЗМЕТЧИКА YOLO</h2>
+                </div>
+                <button id="yolo-export-close" class="btn btn-icon yolo-close-btn" type="button" aria-label="Закрыть">&times;</button>
+            </div>
+            <div class="yolo-export-body">
+                <div class="yolo-export-stats">
+                    <div class="yolo-stat-card">
+                        <span class="yolo-stat-label">Новых к выгрузке</span>
+                        <span id="yolo-stat-pending" class="yolo-stat-val warn">0</span>
+                    </div>
+                    <div class="yolo-stat-card">
+                        <span class="yolo-stat-label">Всего сохранено</span>
+                        <span id="yolo-stat-total" class="yolo-stat-val">0</span>
+                    </div>
+                </div>
+                <div id="yolo-models-breakdown" class="yolo-models-breakdown"></div>
+                <div id="yolo-items-list" class="yolo-items-list"></div>
+            </div>
+            <div class="yolo-export-footer">
+                <span id="yolo-export-status" class="yolo-mark-status"></span>
+                <div class="yolo-save-group">
+                    <button id="yolo-download-pending" class="btn btn-sm btn-ok" type="button" disabled>ВЫГРУЗИТЬ ZIP · НОВЫЕ</button>
+                    <button id="yolo-download-all" class="btn btn-sm btn-accent" type="button" disabled>СКАЧАТЬ ВСЕ</button>
+                    <button id="yolo-export-cancel" class="btn btn-sm" type="button">ЗАКРЫТЬ</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="/static/js/core.js?v=61"></script>
     <script src="/static/js/boot.js?v=33"></script>
-    <script src="/static/js/diagnostics.js?v=51"></script>
-    <script src="/static/js/status.js?v=63"></script>
-    <script src="/static/js/controls.js?v=39"></script>
-    <script src="/static/js/thresholds.js?v=20"></script>
-    <script src="/static/js/cameras.js?v=43"></script>
-    <script src="/static/js/jog.js?v=37"></script>
-    <script src="/static/js/history.js?v=37"></script>
+    <script src="/static/js/diagnostics.js?v=52"></script>
+    <script src="/static/js/status.js?v=66"></script>
+    <script src="/static/js/controls.js?v=40"></script>
+    <script src="/static/js/thresholds.js?v=21"></script>
+    <script src="/static/js/cameras.js?v=45"></script>
+    <script src="/static/js/jog.js?v=39"></script>
+    <script src="/static/js/history.js?v=39"></script>
     <script src="/static/js/archive.js?v=2"></script>
+    <script src="/static/js/yolo-feedback.js?v=5"></script>
     <script src="/static/js/panel-deck.js?v=3"></script>
-    <script src="/static/js/bootstrap.js?v=36"></script>
+    <script src="/static/js/bootstrap.js?v=38"></script>
 </body>
 </html>

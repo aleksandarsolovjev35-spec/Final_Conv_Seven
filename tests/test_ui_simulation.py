@@ -7,6 +7,9 @@
 
 from __future__ import annotations
 
+import json
+import os
+import tempfile
 import time
 import unittest
 
@@ -120,12 +123,12 @@ class SimulationApiTest(unittest.TestCase):
         self.sim.close()
 
     def test_inspection_timings_adjustable(self):
-        self.assertTrue(self.sim.set_inspection_timings(1.5, 7.25))
+        self.assertTrue(self.sim.set_inspection_timings(1.5, 4.25))
         self.assertEqual(self.sim.settle_seconds, 1.5)
-        self.assertEqual(self.sim.review_seconds, 7.25)
+        self.assertEqual(self.sim.review_seconds, 4.25)
         status = self.server.line_status
         self.assertEqual(status["inspection_timings"]["settle_time"], 1.5)
-        self.assertEqual(status["inspection_timings"]["review_time"], 7.25)
+        self.assertEqual(status["inspection_timings"]["review_time"], 4.25)
         self.assertTrue(status["timings_allowed"])
 
     def test_inspection_timings_rejected_while_running(self):
@@ -135,7 +138,7 @@ class SimulationApiTest(unittest.TestCase):
         self.sim.close()
 
     def test_inspection_timings_validate_ranges(self):
-        for settle, review in ((-0.1, 1), (5.1, 1), (1, -1), (1, 30.1)):
+        for settle, review in ((-0.1, 1), (5.1, 1), (1, -1), (1, 5.1)):
             with self.subTest(settle=settle, review=review):
                 with self.assertRaises(ValueError):
                     self.sim.set_inspection_timings(settle, review)
@@ -160,33 +163,28 @@ class SimulationApiTest(unittest.TestCase):
         self.assertTrue(self.sim.release_selected_analysis())
         self.assertIsNone(self.sim.selected_role)
 
+    def test_jog_step_moves_belt_by_one_step_and_rejects_invalid_states(self):
+        self.assertFalse(self.sim.jog_step("+"))
+        self.assertTrue(self.sim.enter_jog())
+        self.assertFalse(self.sim.jog_step("x"))
+        self.assertTrue(self.sim.jog_step("+"))
+        self.assertEqual(self.sim.conveyor_position, 48)
+        self.assertEqual(self.sim.last_distributor_action, "JOG STEP RIGHT")
+        self.assertTrue(self.sim.jog_step("-"))
+        self.assertEqual(self.sim.conveyor_position, 0)
+        self.assertEqual(self.sim.last_distributor_action, "JOG STEP LEFT")
+
+        self.sim.start()
+        self.assertFalse(self.sim.jog_step("+"))
+        self.sim.close()
+
     def test_diagnostics(self):
-        self.assertTrue(self.sim.distributor_diagnostic("DIST1_HOME"))
         self.assertTrue(self.sim.camera_diagnostic())
         self.assertTrue(self.sim.vision_rule_diagnostic())
 
-    def test_distributor_diagnostic_moves_only_own_blade(self):
-        # Кнопки верхнего распределителя двигают только DIST1.
-        self.assertTrue(self.sim.distributor_diagnostic("DIST1_OPEN"))
-        self.assertEqual(self.sim.dist1_position, 340)
-        self.assertEqual(self.sim.dist1_state, "TO_DIST2")
-        self.assertEqual(self.sim.dist2_position, 0)
-        # Кнопки нижнего двигают только DIST2 и не трогают DIST1.
-        self.assertTrue(self.sim.distributor_diagnostic("DIST2_CLEANUP"))
-        self.assertEqual(self.sim.dist2_position, 340)
-        self.assertEqual(self.sim.dist1_position, 340)
-        self.assertTrue(self.sim.distributor_diagnostic("DIST2_BAD"))
-        self.assertEqual(self.sim.dist2_position, 0)
-        self.assertEqual(self.sim.dist1_position, 340)
-        self.assertTrue(self.sim.distributor_diagnostic("DIST1_HOME"))
-        self.assertEqual(self.sim.dist1_position, 0)
-        self.assertEqual(self.sim.dist1_state, "GOOD")
-
-    def test_distributor_diagnostic_rejected_while_running(self):
-        self.sim.start()
-        self.assertFalse(self.sim.distributor_diagnostic("DIST1_OPEN"))
-        self.assertEqual(self.sim.dist1_position, 0)
-        self.sim.close()
+    def test_no_distributor_diagnostic_api(self):
+        # Ручной проверки заслонок в симуляторе больше нет.
+        self.assertFalse(hasattr(self.sim, "distributor_diagnostic"))
 
     def test_close(self):
         self.assertTrue(self.sim.close())
@@ -374,6 +372,64 @@ class SimulationLoopTest(unittest.TestCase):
         self.assertGreaterEqual(self.sim.step, 2)
         self.sim.close()
         self.sim.thread.join(2.0)
+
+
+class LineSettingsPersistenceTest(unittest.TestCase):
+    """Параметры линии переживают перезапуск симулятора (JSON-файл)."""
+
+    def test_saved_settings_restored_on_restart(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "line_settings.json")
+            sim = LineSimulation(UIServer(), settings_path=path)
+            self.assertTrue(sim.set_conveyor_speed(12000))
+            self.assertTrue(sim.set_inspection_timings(1.5, 4.0))
+            with open(path, encoding="utf-8") as stream:
+                saved = json.load(stream)
+            self.assertEqual(saved["conveyor_speed"], 12000)
+            self.assertEqual(saved["settle_time"], 1.5)
+            self.assertEqual(saved["review_time"], 4.0)
+            restarted = LineSimulation(UIServer(), settings_path=path)
+            self.assertEqual(restarted.conveyor_speed, 12000)
+            self.assertEqual(restarted.settle_seconds, 1.5)
+            self.assertEqual(restarted.review_seconds, 4.0)
+
+    def test_missing_or_corrupt_file_keeps_defaults(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = os.path.join(tmp, "absent.json")
+            sim = LineSimulation(UIServer(), settings_path=missing)
+            self.assertEqual(sim.conveyor_speed, 18000)
+            corrupt = os.path.join(tmp, "corrupt.json")
+            with open(corrupt, "w", encoding="utf-8") as stream:
+                stream.write("{это не json")
+            sim = LineSimulation(UIServer(), settings_path=corrupt)
+            self.assertEqual(sim.conveyor_speed, 18000)
+            self.assertEqual(
+                sim.settle_seconds, float(LineSimulation.SETTLE_SECONDS),
+            )
+
+    def test_out_of_range_values_ignored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "line_settings.json")
+            with open(path, "w", encoding="utf-8") as stream:
+                json.dump({
+                    "conveyor_speed": 40000,
+                    "settle_time": 99.0,
+                    "review_time": -1.0,
+                }, stream)
+            sim = LineSimulation(UIServer(), settings_path=path)
+            self.assertEqual(sim.conveyor_speed, 18000)
+            self.assertEqual(
+                sim.settle_seconds, float(LineSimulation.SETTLE_SECONDS),
+            )
+            self.assertEqual(
+                sim.review_seconds, float(LineSimulation.REVIEW_SECONDS),
+            )
+
+    def test_without_path_simulation_stays_in_memory(self):
+        sim = LineSimulation(UIServer())
+        self.assertIsNone(sim.settings_path)
+        self.assertTrue(sim.set_conveyor_speed(12000))
+        self.assertTrue(sim.set_inspection_timings(1.0, 1.0))
 
 
 if __name__ == "__main__":

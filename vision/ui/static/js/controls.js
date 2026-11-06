@@ -97,11 +97,6 @@ async function submitControl(path) {
         state.serverExitRequested,
         state.backendControls,
     );
-    if (els.distributorDiagnostics) {
-        els.distributorDiagnostics.querySelectorAll('button').forEach(
-            button => { button.disabled = true; }
-        );
-    }
     disableSelectedAnalysisButton();
     if (els.jogPanel) {
         if (path === '/api/start') {

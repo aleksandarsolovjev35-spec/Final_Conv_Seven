@@ -56,7 +56,10 @@
     min-width: 112px;
     border: 1px solid var(--btn-border);
     border-radius: var(--radius-sm);
-    background: var(--bg-2);
+    /* Фон покоя задаётся переменной: состояниям-переключателям (например,
+       включённая «СЕТКА») достаточно переопределить --btn-bg, не ломая
+       общую инверсию при наведении. */
+    background: var(--btn-bg, var(--bg-2));
     color: var(--btn-color);
     font-family: var(--font-ui);
     font-size: 11px;
@@ -175,7 +178,7 @@
     height: 34px;
     min-width: 0;
     padding: 0 14px;
-    background: rgba(15, 19, 23, 0.94);
+    --btn-bg: rgba(15, 19, 23, 0.94);
 }
 
 .btn-overlay.analysis-active {
@@ -295,7 +298,7 @@
     white-space: nowrap;
 }
 
-/* Ползунок повторяет рельс распределителя (.blade-track/.blade-marker):
+/* Ползунок скорости повторяет рельс с бегунком-квадратиком:
    скруглённая тёмная дорожка с рамкой и квадратный маркер акцентного
    цвета, который едет по ней. */
 .line-setting input[type="range"] {

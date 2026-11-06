@@ -105,7 +105,6 @@ class CycleStatusMixin:
                 and idle
                 and not operation_busy
             ),
-            "distributor_diagnostic": diagnostic_allowed,
             "camera_diagnostic": diagnostic_allowed,
             "vision_rule_diagnostic": diagnostic_allowed,
         }
@@ -202,7 +201,7 @@ class CycleStatusMixin:
                     float(self.review_seconds), 2,
                 ),
                 "settle_max": 5.0,
-                "review_max": 30.0,
+                "review_max": 5.0,
             },
             "timings_allowed": speed_allowed,
             "process": dict(self._process),
