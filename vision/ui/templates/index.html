@@ -12,14 +12,13 @@
     <link rel="stylesheet" href="/static/css/history-strip.css?v=47">
     <link rel="stylesheet" href="/static/css/stats.css?v=53">
     <link rel="stylesheet" href="/static/css/jog.css?v=40">
-    <link rel="stylesheet" href="/static/css/controls.css?v=48">
+    <link rel="stylesheet" href="/static/css/controls.css?v=49">
     <link rel="stylesheet" href="/static/css/gallery.css?v=35">
-    <link rel="stylesheet" href="/static/css/process.css?v=58">
-    <link rel="stylesheet" href="/static/css/motion.css?v=40">
+    <link rel="stylesheet" href="/static/css/process.css?v=59">
+    <link rel="stylesheet" href="/static/css/motion.css?v=41">
     <link rel="stylesheet" href="/static/css/thresholds.css?v=28">
     <link rel="stylesheet" href="/static/css/archive.css?v=6">
     <link rel="stylesheet" href="/static/css/yolo-feedback.css?v=5">
-    <link rel="stylesheet" href="/static/css/panel-deck.css?v=9">
 </head>
 <body>
 
@@ -167,29 +166,19 @@
                 </div>
             </section>
 
-            <aside id="stats-panel" class="stats-panel" data-face="ready" data-ui-block="right-panel">
+            <aside id="stats-panel" class="stats-panel" data-ui-block="right-panel">
                 <div id="control-error" class="control-error is-hidden"></div>
 
-                <!-- Лицо «АВАРИЯ»: заменяет обычные блоки, когда цикл в FAULT. -->
-                <section id="fault-face" class="fault-face" data-ui-block="fault" aria-label="Авария">
-                    <div class="fault-face-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M12 3 L21.5 19.5 H2.5 Z"></path>
-                            <line x1="12" y1="9" x2="12" y2="13.5"></line>
-                            <circle cx="12" cy="16.6" r="0.9"></circle>
-                        </svg>
-                    </div>
-                    <div class="fault-face-title">АВАРИЯ</div>
-                    <div id="fault-reason" class="fault-face-reason">—</div>
-                    <div class="fault-face-inline">На линии корпусов: <span id="fault-inline">0</span> / 8</div>
-                    <div class="fault-face-hint">Устраните причину и перезапустите линию</div>
-                </section>
+                <!-- Причина аварии: единственный состоянии-зависимый элемент
+                     правой панели. Состав блоков при переходах не меняется. -->
+                <div id="fault-banner" class="fault-banner is-hidden"
+                     role="alert" aria-live="assertive"></div>
 
                 <section id="stats-summary" class="stats-summary ui-collapse" data-ui-block="cycle-stats">
                     <div class="accordion-header" aria-label="Статистика рабочего цикла">
                         <span>СТАТИСТИКА РАБОЧЕГО ЦИКЛА</span>
                     </div>
-                    <div id="stats-body" class="stats-body ui-collapse is-collapsed">
+                    <div id="stats-body" class="stats-body ui-collapse">
                         <div class="stats-row stats-half"><span class="stats-label">Всего корпусов</span><span id="stat-total" class="stats-value">0</span></div>
                         <div class="stats-row stats-half"><span class="stats-label">На линии</span><span id="stat-inline" class="stats-value">0 / 8</span></div>
                         <div class="stats-row stats-third"><span class="stats-label">Годные</span><span id="stat-good" class="stats-value good">0</span></div>
@@ -210,7 +199,7 @@
                      при переполнении строк и показывает положение в списке.
                      Редактирование — только до пуска
                      и после полной остановки. -->
-                <section id="thresholds-panel" class="thresholds-panel is-hidden"
+                <section id="thresholds-panel" class="thresholds-panel"
                          data-ui-block="thresholds" aria-label="Пороги правил">
                     <div class="thresholds-head">
                         <span class="thresholds-title">ПОРОГИ ПРАВИЛ</span>
@@ -252,43 +241,29 @@
                         <input id="review-time" type="range" min="0" max="5" step="0.1" value="0.5" disabled>
                     </div>
                 </div>
-                <div class="jog-deck">
-                    <section id="jog-panel" class="jog-panel jog-panel-embedded ui-collapse" data-ui-block="jog">
-                        <div class="jog-header">
-                            <h2 class="jog-title">РУЧНОЕ УПРАВЛЕНИЕ ЛЕНТОЙ</h2>
-                        </div>
-                        <div id="jog-mode-switch" class="jog-mode-switch" role="group" aria-label="Режим ручного хода ленты">
-                            <button id="jog-mode-hold" class="jog-mode-btn is-active" type="button" data-jog-mode="hold">ЗАЖАТИЕ</button>
-                            <button id="jog-mode-step" class="jog-mode-btn" type="button" data-jog-mode="step">1 ШАГ</button>
-                        </div>
-                        <div class="jog-dpad jog-dpad-hold">
-                            <button class="jog-dpad-btn jog-hold-btn" data-direction="-" disabled
-                                    aria-label="Двигать ленту назад" title="Удерживайте для движения назад">
-                                <svg class="jog-hold-arrow" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M15 5 L8 12 L15 19"></path>
-                                </svg>
-                            </button>
-                            <button class="jog-dpad-btn jog-hold-btn" data-direction="+" disabled
-                                    aria-label="Двигать ленту вперёд" title="Удерживайте для движения вперёд">
-                                <svg class="jog-hold-arrow" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M9 5 L16 12 L9 19"></path>
-                                </svg>
-                            </button>
-                        </div>
-                    </section>
-                    <!-- Шторка с замком: накрывает ручное управление во время
-                         работы линии и поднимается после полной остановки. -->
-                    <div class="jog-shutter" aria-hidden="true">
-                        <div class="jog-shutter-body">
-                            <svg class="jog-shutter-lock" viewBox="0 0 24 24">
-                                <rect x="5" y="10.5" width="14" height="9.5" rx="2"></rect>
-                                <path d="M8 10.5 V7.5 a4 4 0 0 1 8 0 v3"></path>
-                            </svg>
-                            <div class="jog-shutter-caption">ЗАБЛОКИРОВАНО</div>
-                            <div class="jog-shutter-sub">ДОСТУПНО ПОСЛЕ ОСТАНОВКИ</div>
-                        </div>
+                <section id="jog-panel" class="jog-panel jog-panel-embedded" data-ui-block="jog">
+                    <div class="jog-header">
+                        <h2 class="jog-title">РУЧНОЕ УПРАВЛЕНИЕ ЛЕНТОЙ</h2>
                     </div>
-                </div>
+                    <div id="jog-mode-switch" class="jog-mode-switch" role="group" aria-label="Режим ручного хода ленты">
+                        <button id="jog-mode-hold" class="jog-mode-btn is-active" type="button" data-jog-mode="hold">ЗАЖАТИЕ</button>
+                        <button id="jog-mode-step" class="jog-mode-btn" type="button" data-jog-mode="step">1 ШАГ</button>
+                    </div>
+                    <div class="jog-dpad jog-dpad-hold">
+                        <button class="jog-dpad-btn jog-hold-btn" data-direction="-" disabled
+                                aria-label="Двигать ленту назад" title="Удерживайте для движения назад">
+                            <svg class="jog-hold-arrow" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M15 5 L8 12 L15 19"></path>
+                            </svg>
+                        </button>
+                        <button class="jog-dpad-btn jog-hold-btn" data-direction="+" disabled
+                                aria-label="Двигать ленту вперёд" title="Удерживайте для движения вперёд">
+                            <svg class="jog-hold-arrow" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M9 5 L16 12 L9 19"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </section>
             </aside>
 
             
@@ -462,18 +437,17 @@
         </section>
     </div>
 
-    <script src="/static/js/core.js?v=61"></script>
+    <script src="/static/js/core.js?v=62"></script>
     <script src="/static/js/boot.js?v=33"></script>
-    <script src="/static/js/diagnostics.js?v=52"></script>
-    <script src="/static/js/status.js?v=66"></script>
-    <script src="/static/js/controls.js?v=40"></script>
-    <script src="/static/js/thresholds.js?v=21"></script>
+    <script src="/static/js/diagnostics.js?v=53"></script>
+    <script src="/static/js/status.js?v=69"></script>
+    <script src="/static/js/controls.js?v=41"></script>
+    <script src="/static/js/thresholds.js?v=22"></script>
     <script src="/static/js/cameras.js?v=45"></script>
-    <script src="/static/js/jog.js?v=39"></script>
+    <script src="/static/js/jog.js?v=41"></script>
     <script src="/static/js/history.js?v=39"></script>
     <script src="/static/js/archive.js?v=2"></script>
     <script src="/static/js/yolo-feedback.js?v=5"></script>
-    <script src="/static/js/panel-deck.js?v=3"></script>
     <script src="/static/js/bootstrap.js?v=38"></script>
 </body>
 </html>

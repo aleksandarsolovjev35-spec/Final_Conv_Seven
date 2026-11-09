@@ -99,9 +99,8 @@ async function submitControl(path) {
     );
     disableSelectedAnalysisButton();
     if (els.jogPanel) {
-        if (path === '/api/start') {
-            els.jogPanel.classList.add('is-collapsed');
-        }
+        // Панель JOG не сворачивается: правая колонка статична, пуск
+        // только отключает кнопки движения до подтверждения backend.
         els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(
             button => { button.disabled = true; }
         );

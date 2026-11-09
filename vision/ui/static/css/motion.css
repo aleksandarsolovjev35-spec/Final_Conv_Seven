@@ -29,7 +29,6 @@
 
 #stats-summary.ui-collapse { max-height: 196px; }
 #stats-body.ui-collapse { max-height: 148px; }
-#jog-panel.ui-collapse { max-height: 190px; }
 /* Не перекрываем ограничение высоты из blocks.css: иначе панель росла
    до полного списка, а внутреннему scroll-контейнеру было нечего прокручивать. */
 

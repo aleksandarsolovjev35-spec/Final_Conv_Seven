@@ -17,11 +17,6 @@ function isInspectionDisplayPhase(phase) {
         || value === 'PUBLISH';
 }
 
-function updateOperationalAccordions() {
-    if (els.statsBody) els.statsBody.classList.remove('is-collapsed');
-    if (els.statsSummary) els.statsSummary.classList.add('is-open');
-}
-
 // Очередность запросов статуса — избегаем наложения
 let _statusSeq = 0;
 let _lastHandledStatusSeq = 0;
@@ -294,7 +289,6 @@ function updateLineStatus(ls) {
     state.lineState = lineState;
     state.serverExitRequested = exitRequested;
     if (!['IDLE', 'STOPPED'].includes(lineState)) state.startPending = false;
-    updateOperationalAccordions();
 
     updateProcessPhaseLabel(lineState, ls.process || {});
     setIfChanged(els.metricStep, ls.step || 0);
@@ -322,10 +316,28 @@ function updateLineStatus(ls) {
     updateStateOverlay(ls);
     handleJogAutoToggle(lineState, ls.jog || null);
 
-    if (typeof updatePanelFace === 'function') updatePanelFace(ls);
+    // Правая панель статична: при переходах состояний меняется только
+    // баннер причины аварии вверху колонки.
+    updateFaultBanner(ls);
 
     if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
     if (typeof updateArchiveButton === 'function') updateArchiveButton();
+}
+
+// Причина аварии — постоянный баннер вверху правой панели. Отдельного
+// «лица АВАРИЯ» больше нет, а собственный элемент не конфликтует с
+// #control-error (ошибки команд) и не теряется при поллинге.
+function updateFaultBanner(ls) {
+    const banner = els.faultBanner;
+    if (!banner) return;
+    if (ls.state === 'FAULT') {
+        const reason = String(ls.fault_reason || '').trim() || 'Линия остановлена.';
+        setIfChanged(banner, `АВАРИЯ: ${reason}`);
+        banner.classList.remove('is-hidden');
+    } else {
+        banner.classList.add('is-hidden');
+        setIfChanged(banner, '');
+    }
 }
 
 // ─── Line cells ──────────────────────────────────────────────
