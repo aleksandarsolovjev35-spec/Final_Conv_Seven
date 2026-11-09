@@ -158,6 +158,7 @@ const els = {
     cameraContainer:  null,
 
     controlError:      $('control-error'),
+    faultBanner:       $('fault-banner'),
 
     statsSummary:         $('stats-summary'),
     statsBody:            $('stats-body'),

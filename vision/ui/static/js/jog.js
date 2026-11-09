@@ -6,7 +6,8 @@
 function updateJogModeSwitchUI() {
     const isStep = state.jogControlMode === 'step';
     const disabled = (
-        !state.jogActive
+        !jogUiAvailable()
+        || !state.jogActive
         || state.jogBusy
         || state.jogStepPending
         || state.offline
@@ -74,7 +75,6 @@ function updateJogState(jog) {
         state.jogBusy = false;
         state.jogStepPending = false;
         state.jogStepDirection = null;
-        showJogPanel(false);
         if (els.jogPanel) {
             els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(button => {
                 button.disabled = true;
@@ -99,7 +99,6 @@ function updateJogState(jog) {
     }
     updateViewModeControls();
 
-    showJogPanel(state.jogActive);
     applyLiveBadge(state.jogActive);
 
     const activeDir = (
@@ -114,7 +113,8 @@ function updateJogState(jog) {
                 ? (state.jogBusy || state.jogStepPending)
                 : (state.jogBusy && !sameDirection);
             btn.disabled = (
-                !state.jogActive
+                !jogUiAvailable()
+                || !state.jogActive
                 || state.backendControls.jog_hold !== true
                 || busyBlocked
             );
@@ -149,26 +149,16 @@ function updateJogState(jog) {
     }
 }
 
-function showJogPanel(active) {
-    if (!els.jogPanel || !els.statsPanel) return;
-    const visible = (
+// Доступность ручного управления: линия в разрешённом состоянии и не
+// идёт анализ кадра. Правая панель статична — она не сворачивается,
+// не приглушается и не накрывается шторкой при переходах состояний;
+// доступность выражается только disabled кнопок и стражами команд.
+function jogUiAvailable() {
+    return (
         JOG_ALLOWED_STATES.includes(state.lineState)
         && !state.selectedAnalysisActive
         && !state.selectedAnalysisPending
     );
-    const pauseHandoff = visible && !active && state.lineState === 'PAUSED';
-    els.statsPanel.classList.remove('is-hidden');
-    els.jogPanel.classList.toggle('is-collapsed', !visible);
-    // При переходе RUNNING → PAUSED backend включает JOG следующим запросом.
-    // Не показываем промежуточное приглушённое состояние кнопок под
-    // поднимающейся шторкой — оно воспринималось как короткое мигание.
-    els.jogPanel.classList.toggle(
-        'jog-inactive', visible && !active && !pauseHandoff,
-    );
-    els.jogPanel.classList.toggle('jog-pause-handoff', pauseHandoff);
-    els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(button => {
-        if (!visible || !active) button.disabled = true;
-    });
 }
 
 function applyLiveBadge(active) {
@@ -270,7 +260,8 @@ function setupJogControls() {
 
 async function triggerJogStep(direction, btn) {
     if (
-        !state.jogActive
+        !jogUiAvailable()
+        || !state.jogActive
         || state.jogBusy
         || state.jogStepPending
         || state.offline
@@ -321,7 +312,8 @@ async function triggerJogStep(direction, btn) {
 
 async function beginJogHold(direction, btn) {
     if (
-        !state.jogActive
+        !jogUiAvailable()
+        || !state.jogActive
         || state.jogBusy
         || state.offline
         || state.backendControls.jog_hold !== true

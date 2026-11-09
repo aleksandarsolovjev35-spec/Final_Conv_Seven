@@ -322,10 +322,28 @@ function updateLineStatus(ls) {
     updateStateOverlay(ls);
     handleJogAutoToggle(lineState, ls.jog || null);
 
-    if (typeof updatePanelFace === 'function') updatePanelFace(ls);
+    // Правая панель статична: при переходах состояний меняется только
+    // баннер причины аварии вверху колонки.
+    updateFaultBanner(ls);
 
     if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
     if (typeof updateArchiveButton === 'function') updateArchiveButton();
+}
+
+// Причина аварии — постоянный баннер вверху правой панели. Отдельного
+// «лица АВАРИЯ» больше нет, а собственный элемент не конфликтует с
+// #control-error (ошибки команд) и не теряется при поллинге.
+function updateFaultBanner(ls) {
+    const banner = els.faultBanner;
+    if (!banner) return;
+    if (ls.state === 'FAULT') {
+        const reason = String(ls.fault_reason || '').trim() || 'Линия остановлена.';
+        setIfChanged(banner, `АВАРИЯ: ${reason}`);
+        banner.classList.remove('is-hidden');
+    } else {
+        banner.classList.add('is-hidden');
+        setIfChanged(banner, '');
+    }
 }
 
 // ─── Line cells ──────────────────────────────────────────────
