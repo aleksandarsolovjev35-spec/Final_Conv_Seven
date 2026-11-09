@@ -45,7 +45,10 @@ class LiveMonitorApi:
             selected = window.create_file_dialog(
                 save_dialog,
                 save_filename=default_name,
-                file_types=("ZIP-архив (*.zip)",),
+                # pywebview валидирует описание фильтра regex-ом
+                # ^([\w ]+)\(...\)$ (webview/util.py): дефис в «ZIP-архив»
+                # не проходил, диалог падал с ValueError до открытия.
+                file_types=("ZIP архив (*.zip)",),
             )
             if not selected:
                 return {"ok": False, "cancelled": True}
