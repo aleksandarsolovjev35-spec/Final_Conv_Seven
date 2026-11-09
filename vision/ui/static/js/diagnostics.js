@@ -17,8 +17,8 @@ function updateSelectedAnalysisStatus(ls) {
         updateThresholdsPanel();
     }
 
-    const selectedActive = state.selectedAnalysisActive && JOG_ALLOWED_STATES.includes(state.lineState);
-    if (els.statsSummary) els.statsSummary.classList.toggle('is-collapsed', selectedActive);
+    // Статистика справа не сворачивается: правая панель статична и ничего
+    // не прячет ни при анализе кадра, ни при переходах состояний.
 
     const live = ls.live || {};
     state.liveFps = Number(live.fps || (ls.jog || {}).live_fps || 0);
@@ -67,7 +67,7 @@ function setupSelectedFrameAnalysis() {
     els.analyzeSelectedFrame.addEventListener('click', async () => {
         if (els.analyzeSelectedFrame.disabled || state.selectedAnalysisPending) return;
         state.selectedAnalysisPending = true;
-        // Скрываем редактирование порогов сразу: анализируемый стоп-кадр
+        // Блокируем редактирование порогов сразу: анализируемый стоп-кадр
         // должен оставаться привязанным к уже применённым значениям.
         if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
         updateViewModeControls();
@@ -79,7 +79,6 @@ function setupSelectedFrameAnalysis() {
         };
         applyButtonsForState(state.lineState, state.serverExitRequested, state.backendControls);
         if (els.jogPanel) {
-            els.jogPanel.classList.add('is-collapsed');
             els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(b => { b.disabled = true; });
         }
         clearControlError();

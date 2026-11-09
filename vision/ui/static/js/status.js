@@ -17,11 +17,6 @@ function isInspectionDisplayPhase(phase) {
         || value === 'PUBLISH';
 }
 
-function updateOperationalAccordions() {
-    if (els.statsBody) els.statsBody.classList.remove('is-collapsed');
-    if (els.statsSummary) els.statsSummary.classList.add('is-open');
-}
-
 // Очередность запросов статуса — избегаем наложения
 let _statusSeq = 0;
 let _lastHandledStatusSeq = 0;
@@ -294,7 +289,6 @@ function updateLineStatus(ls) {
     state.lineState = lineState;
     state.serverExitRequested = exitRequested;
     if (!['IDLE', 'STOPPED'].includes(lineState)) state.startPending = false;
-    updateOperationalAccordions();
 
     updateProcessPhaseLabel(lineState, ls.process || {});
     setIfChanged(els.metricStep, ls.step || 0);

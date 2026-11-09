@@ -14,7 +14,11 @@ UI = ROOT / "vision" / "ui"
 INDEX_HTML = (UI / "templates" / "index.html").read_text(encoding="utf-8")
 JOG_JS = (UI / "static" / "js" / "jog.js").read_text(encoding="utf-8")
 STATUS_JS = (UI / "static" / "js" / "status.js").read_text(encoding="utf-8")
+CONTROLS_JS = (UI / "static" / "js" / "controls.js").read_text(encoding="utf-8")
+DIAGNOSTICS_JS = (UI / "static" / "js" / "diagnostics.js").read_text(encoding="utf-8")
+THRESHOLDS_JS = (UI / "static" / "js" / "thresholds.js").read_text(encoding="utf-8")
 PROCESS_CSS = (UI / "static" / "css" / "process.css").read_text(encoding="utf-8")
+MOTION_CSS = (UI / "static" / "css" / "motion.css").read_text(encoding="utf-8")
 
 
 def test_panel_deck_files_removed():
@@ -48,6 +52,19 @@ def test_jog_panel_is_never_hidden_or_dimmed_by_state():
     for token in ("jog-inactive", "jog-pause-handoff"):
         assert token not in PROCESS_CSS, token
     assert "jogUiAvailable" in JOG_JS
+
+
+def test_no_right_panel_block_is_ever_hidden():
+    """Статистика, пороги правил и JOG не скрываются и не сворачиваются:
+    ни при переходах состояний, ни во время анализа кадра, ни оффлайн."""
+    assert "is-collapsed" not in CONTROLS_JS
+    assert "is-collapsed" not in DIAGNOSTICS_JS
+    assert "is-collapsed" not in STATUS_JS
+    assert "is-collapsed" not in INDEX_HTML
+    assert "is-hidden" not in THRESHOLDS_JS
+    assert "thresholdsPanelVisible" not in THRESHOLDS_JS
+    assert 'class="thresholds-panel"' in INDEX_HTML
+    assert "#jog-panel.ui-collapse" not in MOTION_CSS
 
 
 def test_fault_banner_present_and_announced():

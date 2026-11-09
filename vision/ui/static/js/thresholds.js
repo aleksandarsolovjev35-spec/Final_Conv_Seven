@@ -15,10 +15,12 @@ let thresholdsCardIndex = 0;
 let _threshDragState = null;
 let _threshFetchSeq = 0;
 
-function thresholdsPanelVisible() {
-    // Пороги настраиваются только в JOG. Во время анализа выбранного
-    // стоп-кадра они уже применены к показанному результату, поэтому
-    // панель скрыта, чтобы исключить изменение задним числом.
+function thresholdsEditableBase() {
+    // Пороги редактируются только в JOG на остановленной линии. Во время
+    // анализа выбранного стоп-кадра они уже применены к показанному
+    // результату — редактирование блокируется, чтобы исключить изменение
+    // задним числом. Сама панель видна всегда: правая колонка больше не
+    // прячет блоки ни в каком состоянии.
     const jogMode = !!(state.jogActive || state.jogTogglePending);
     return (
         !state.splashActive
@@ -34,7 +36,7 @@ function thresholdsPanelVisible() {
 
 function thresholdsEditableNow() {
     return (
-        thresholdsPanelVisible()
+        thresholdsEditableBase()
         && !state.controlPending
         && !state.startPending
         && !state.jogBusy
@@ -67,11 +69,8 @@ async function fetchThresholds(role) {
 }
 
 function updateThresholdsPanel(force) {
-    if (!thresholdsPanelVisible()) {
-        if (els.thresholdsPanel) els.thresholdsPanel.classList.add('is-hidden');
-        return;
-    }
-    if (els.thresholdsPanel) els.thresholdsPanel.classList.remove('is-hidden');
+    // Панель не скрывается ни в каком состоянии линии — блокируется
+    // только редактирование (is-locked + disabled поля).
     thresholdsSyncScroll();
 
     if (!thresholdsData || thresholdsData.role !== state.currentCamera) {
@@ -79,7 +78,11 @@ function updateThresholdsPanel(force) {
         thresholdsData = null;
         thresholdsBodyKey = null;
         setThresholdsStatus('', '');
-        fetchThresholds(state.currentCamera);
+        // Без связи с backend не долбим его запросами: панель остаётся
+        // видимой, данные подтянутся, когда связь вернётся.
+        if (!state.offline && !state.serverExitRequested && !state.splashActive) {
+            fetchThresholds(state.currentCamera);
+        }
         return;
     }
     if (force && !thresholdsDirty && !thresholdsBusy) {
