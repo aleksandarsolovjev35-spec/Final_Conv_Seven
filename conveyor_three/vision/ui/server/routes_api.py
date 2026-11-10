@@ -87,6 +87,12 @@ def setup_api_routes(app, server):
         # перечитываем его (в рабочем потоке) до отдачи статуса.
         if server.thresholds_file_mtime_changed():
             await asyncio.to_thread(server.reload_thresholds_from_file)
+        # Эти сводки берут внутренний lock сервера сами: собираем их до
+        # захвата, иначе нереентерабельный Lock даёт дедлок.
+        archive_payload = server.archive_status_payload()
+        batch_payload = server.batch_status_payload()
+        operator_payload = server.operator_status_payload()
+        yolo_tasks = server.yolo_status_payload()
         with server.lock:
             return JSONResponse({
                 "splash_active": server.splash_active,
@@ -97,7 +103,10 @@ def setup_api_routes(app, server):
                 "frame_versions": dict(server._latest_frames_ver),
                 "active_camera": server.active_camera_role,
                 "thresholds_revision": server.thresholds_revision,
-                "archive": server.archive_status_payload(),
+                "archive":        archive_payload,
+                "batch":          batch_payload,
+                "operator":       operator_payload,
+                "yolo_tasks":     yolo_tasks,
             })
 
     @app.get("/api/mode")
@@ -191,6 +200,96 @@ def setup_api_routes(app, server):
             )
         return JSONResponse({"ok": True, "thresholds": result})
 
+    # Управление партиями
+
+    @app.get("/api/batches")
+    async def api_list_batches():
+        return JSONResponse(await asyncio.to_thread(server.batch_status_payload, True))
+
+    async def batch_action(action, *args):
+        try:
+            result = await asyncio.to_thread(action, *args)
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+        except RuntimeError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
+        except Exception as exc:
+            print(f"[API] batch management error: {exc}")
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+        return JSONResponse({"ok": True, "batch": result})
+
+    @app.post("/api/batches/open")
+    async def api_open_batch(payload: dict | None = None):
+        data = payload if isinstance(payload, dict) else {}
+        return await batch_action(server.open_batch, data.get("batch_id") or data.get("name"))
+
+    @app.post("/api/batches/resume")
+    async def api_resume_batch(payload: dict | None = None):
+        data = payload if isinstance(payload, dict) else {}
+        return await batch_action(server.resume_batch, data.get("batch_id"))
+
+    @app.post("/api/batches/close")
+    async def api_close_batch():
+        return await batch_action(server.close_batch)
+
+    @app.post("/api/batches/detach")
+    async def api_detach_batch():
+        return await batch_action(server.detach_batch)
+
+    # Система пользователей (оператор текущей партии).
+
+    @app.get("/api/operator")
+    async def api_get_operator():
+        return JSONResponse(
+            await asyncio.to_thread(server.build_operator_payload)
+        )
+
+    @app.post("/api/operator")
+    async def api_set_operator(payload: dict | None = None):
+        data = payload if isinstance(payload, dict) else {}
+        raw_name = data.get("name")
+        if raw_name is None:
+            raw_name = data.get("fio")
+        if raw_name is None:
+            raw_name = data.get("operator")
+        try:
+            result = await asyncio.to_thread(server.login_operator, raw_name)
+        except ValueError as exc:
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=400,
+            )
+        except RuntimeError as exc:
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=409,
+            )
+        except Exception as exc:
+            print(f"[API] operator login error: {exc}")
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=500,
+            )
+        return JSONResponse({"ok": True, "operator": result})
+
+    @app.post("/api/operator/remove")
+    async def api_remove_operator(payload: dict | None = None):
+        data = payload if isinstance(payload, dict) else {}
+        raw_name = data.get("name")
+        if raw_name is None:
+            raw_name = data.get("fio")
+        try:
+            result = await asyncio.to_thread(
+                server.remove_saved_operator, raw_name,
+            )
+        except ValueError as exc:
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=400,
+            )
+        except Exception as exc:
+            print(f"[API] operator remove error: {exc}")
+            return JSONResponse(
+                {"ok": False, "error": str(exc)}, status_code=500,
+            )
+        return JSONResponse({"ok": True, "operator": result})
+
     # Обязательный архив партий: до начала партии меняется только корневая папка.
 
     @app.get("/api/archive/settings")
@@ -219,6 +318,23 @@ def setup_api_routes(app, server):
     @app.post("/api/start")
     async def api_start():
         print("[API] /api/start called")
+        operator_ready, operator_error = server.operator_ready_for_start()
+        if not operator_ready:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": operator_error or "Укажите ФИО оператора",
+                },
+                status_code=409,
+            )
+        if not server.batch_selected:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": "Сначала создайте партию или выберите открытую партию",
+                },
+                status_code=409,
+            )
         archive_ready, archive_error = server.archive_ready_for_start()
         if not archive_ready:
             return JSONResponse(
@@ -384,4 +500,13 @@ def setup_api_routes(app, server):
             reason = str(payload["reason"])[:100]
         return await invoke(
             "ОСТАНОВКА РУЧНОГО ДВИЖЕНИЯ", server.on_jog_hold_release, reason
+        )
+
+    @app.post("/api/jog/step")
+    async def api_jog_step(payload: dict):
+        direction = payload.get("direction")
+        if direction not in ("+", "-"):
+            raise HTTPException(400, "Недопустимое направление")
+        return await invoke(
+            "ОДИНОЧНЫЙ ШАГ ЛЕНТЫ", server.on_jog_step, direction
         )

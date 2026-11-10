@@ -18,6 +18,9 @@
     <link rel="stylesheet" href="/static/css/motion.css?v=39">
     <link rel="stylesheet" href="/static/css/thresholds.css?v=24">
     <link rel="stylesheet" href="/static/css/archive.css?v=6">
+    <link rel="stylesheet" href="/static/css/operator.css?v=1">
+    <link rel="stylesheet" href="/static/css/batches.css?v=7">
+    <link rel="stylesheet" href="/static/css/yolo-feedback.css?v=5">
     <link rel="stylesheet" href="/static/css/panel-deck.css?v=8">
 </head>
 <body>
@@ -63,6 +66,8 @@
                         <button id="view-mode-toggle" class="btn btn-overlay btn-accent is-faded" disabled
                                 aria-label="Переключить вид: правила или модели">ПРАВИЛА</button>
                         <button id="analyze-selected-frame" class="btn btn-overlay btn-accent" disabled>АНАЛИЗ КАДРА</button>
+                        <button id="mark-yolo-defect" class="btn btn-overlay btn-warn is-hidden" type="button" disabled
+                                title="В режиме JOG: захватить кадр выбранной камеры и обвести дефект для разметчика YOLO (клавиша M)">ОТМЕТИТЬ ДЕФЕКТ</button>
                     </div>
                     <div id="camera-overlay" class="camera-overlay is-hidden"></div>
                 </div>
@@ -231,16 +236,33 @@
                      при переполнении строк и показывает положение в списке.
                      Редактирование — только до пуска
                      и после полной остановки. -->
+                <div id="active-batch-toolbar" class="active-batch-toolbar" hidden>
+                    <span id="active-batch-name">ПАРТИЯ</span>
+                    <button id="active-batch-detach" class="btn btn-sm" title="Вернуться к списку партий">ПАРТИИ</button>
+                    <button id="active-batch-close" class="btn btn-sm btn-bad" title="Закрыть активную партию">ЗАКРЫТЬ</button>
+                </div>
                 <section id="thresholds-panel" class="thresholds-panel is-hidden"
+                         data-slot-mode="batches"
                          data-ui-block="thresholds" aria-label="Пороги правил">
-                    <div class="thresholds-head">
-                        <span class="thresholds-title">ПОРОГИ ПРАВИЛ</span>
+                    <!-- Список партий: партия выбирается до пуска, пороги
+                         правил редактируются в соседнем слоте. -->
+                    <div id="batches-view" class="batches-view">
+                        <div class="panel-section-title">ПАРТИИ</div>
+                        <div id="batch-create" class="batch-create">
+                            <div><input id="batch-id-input" maxlength="50" aria-label="ID партии, необязательно" placeholder="ID или оставить пустым"><button id="batch-open" class="btn btn-sm btn-ok">ОТКРЫТЬ</button></div>
+                        </div>
+                        <div id="batch-list" class="batch-list"></div>
                     </div>
-                    <div id="thresholds-body" class="thresholds-body"></div>
-                    <div class="thresholds-actions">
-                        <span id="thresholds-status" class="thresholds-status"></span>
-                        <button id="thresholds-save" class="btn btn-sm btn-thresholds-save" disabled>СОХРАНИТЬ</button>
-                        <button id="thresholds-reset" class="btn btn-sm" disabled>ОТМЕНИТЬ</button>
+                    <div class="thresholds-view">
+                        <div class="thresholds-head">
+                            <span class="thresholds-title">ПОРОГИ ПРАВИЛ</span>
+                        </div>
+                        <div id="thresholds-body" class="thresholds-body"></div>
+                        <div class="thresholds-actions">
+                            <span id="thresholds-status" class="thresholds-status"></span>
+                            <button id="thresholds-save" class="btn btn-sm btn-thresholds-save" disabled>СОХРАНИТЬ</button>
+                            <button id="thresholds-reset" class="btn btn-sm" disabled>ОТМЕНИТЬ</button>
+                        </div>
                     </div>
                 </section>
 
@@ -278,6 +300,10 @@
                         <div class="jog-header">
                             <h2 class="jog-title">РУЧНОЕ УПРАВЛЕНИЕ ЛЕНТОЙ</h2>
                         </div>
+                        <div id="jog-mode-switch" class="jog-mode-switch" role="group" aria-label="Режим ручного хода ленты">
+                            <button id="jog-mode-hold" class="jog-mode-btn is-active" type="button" data-jog-mode="hold">ЗАЖАТИЕ</button>
+                            <button id="jog-mode-step" class="jog-mode-btn" type="button" data-jog-mode="step">1 ШАГ</button>
+                        </div>
                         <div class="jog-dpad jog-dpad-hold">
                             <button class="jog-dpad-btn jog-hold-btn" data-direction="-" disabled
                                     aria-label="Двигать ленту назад" title="Удерживайте для движения назад">
@@ -313,15 +339,35 @@
 
         <footer class="footer" data-ui-block="controls-footer">
             <div class="buttons">
-                <button id="btn-start" class="btn btn-start" disabled>ПУСК</button>
+                <button id="btn-start" class="btn btn-start" disabled>
+                    <svg id="start-lock-icon" class="start-lock-icon is-hidden" viewBox="0 0 16 16" aria-hidden="true">
+                        <rect x="3" y="7" width="10" height="8" rx="1.5"></rect>
+                        <path d="M5.5 7V4.8a2.5 2.5 0 0 1 5 0V7"></path>
+                    </svg>
+                    <span id="start-label">ПУСК</span>
+                </button>
                 <button id="btn-pause" class="btn btn-pause is-hidden" disabled>ПАУЗА</button>
                 <button id="btn-resume" class="btn btn-resume is-hidden" disabled>ПРОДОЛЖИТЬ</button>
                 <button id="btn-stop"  class="btn btn-stop is-hidden" disabled>СТОП</button>
                 <button id="btn-exit"  class="btn btn-exit" disabled>ВЫХОД</button>
             </div>
-            <div class="footer-archive" id="archive-settings-group" data-ui-block="footer-archive">
-                <span class="footer-archive-label">АРХИВ ПАРТИЙ</span>
-                <button id="archive-settings-open" class="btn btn-archive-settings" disabled>АРХИВ</button>
+            <div class="footer-services">
+                <div class="footer-operator" id="operator-status-group" data-ui-block="footer-operator">
+                    <div class="operator-chip" id="operator-chip" title="Оператор текущей партии">
+                        <span class="footer-archive-label">ОПЕРАТОР</span>
+                        <span class="operator-chip-name is-empty" id="operator-current-name">НЕ ВЫБРАН</span>
+                    </div>
+                    <button id="operator-change-btn" class="btn btn-sm btn-accent is-hidden" type="button" disabled
+                            title="Сменить оператора (доступно до начала партии)">СМЕНИТЬ</button>
+                </div>
+                <div class="footer-yolo is-hidden" id="yolo-export-group" data-ui-block="footer-yolo">
+                    <span class="footer-archive-label">ДЛЯ РАЗМЕТЧИКА</span>
+                    <button id="yolo-export-open" class="btn btn-archive-settings btn-yolo-queue" type="button" disabled>YOLO · 0</button>
+                </div>
+                <div class="footer-archive" id="archive-settings-group" data-ui-block="footer-archive">
+                    <span class="footer-archive-label">АРХИВ ПАРТИЙ</span>
+                    <button id="archive-settings-open" class="btn btn-archive-settings" disabled>АРХИВ</button>
+                </div>
             </div>
         </footer>
     </div>
@@ -348,6 +394,8 @@
                     <span>ГОДНОЕ <b id="archive-batch-good">0</b></span>
                     <span>БРАК <b id="archive-batch-bad">0</b></span>
                     <span>ЗАЧИСТКА <b id="archive-batch-cleanup">0</b></span>
+                    <span class="archive-settings-operator">ОПЕРАТОР: <b id="archive-batch-operator">—</b></span>
+                    <span class="archive-settings-retention">ИЗОБРАЖЕНИЯ В ПАРТИИ: ПОСЛЕДНИЕ <b id="archive-batch-retained">10</b> КОРПУСОВ</span>
                 </div>
             </div>
             <div class="archive-settings-actions">
@@ -369,6 +417,7 @@
                     <span id="gallery-decision">РЕШЕНИЕ: —</span>
                     <span id="gallery-time">ВРЕМЯ: —</span>
                     <span id="gallery-batch">ПАРТИЯ: —</span>
+                    <span id="gallery-operator">ОПЕРАТОР: —</span>
                 </div>
                 <button id="gallery-close" class="btn btn-icon btn-icon-lg gallery-close-btn"
                         type="button" aria-label="Закрыть">&times;</button>
@@ -385,6 +434,125 @@
         </div>
     </div>
 
+    <!-- YOLO MARK MODAL -->
+    <div id="yolo-mark-modal" class="yolo-mark-modal is-hidden" data-ui-block="yolo-mark">
+        <div id="yolo-mark-backdrop" class="yolo-modal-backdrop"></div>
+        <section class="yolo-mark-dialog" role="dialog" aria-modal="true" aria-labelledby="yolo-mark-title">
+            <div class="yolo-mark-header">
+                <div class="yolo-mark-title-group">
+                    <h2 id="yolo-mark-title" class="yolo-mark-title">ОБВОДКА ДЕФЕКТА</h2>
+                    <span id="yolo-mark-source-badge" class="yolo-mark-source-badge">—</span>
+                </div>
+                <div class="yolo-mark-header-actions">
+                    <button id="yolo-toggle-detections" class="btn btn-sm yolo-tool-btn" type="button" disabled>МОДЕЛЬ: ПОКАЗАНА</button>
+                    <button id="yolo-mark-close" class="btn btn-icon yolo-close-btn" type="button" aria-label="Закрыть">&times;</button>
+                </div>
+            </div>
+
+            <div class="yolo-class-bar">
+                <span class="yolo-class-bar-label">КЛАСС ДЛЯ YOLO:</span>
+                <div id="yolo-class-buttons" class="yolo-class-buttons"></div>
+            </div>
+
+            <div id="yolo-mark-stage" class="yolo-mark-stage">
+                <div id="yolo-canvas-wrap" class="yolo-canvas-wrap">
+                    <img id="yolo-mark-image" class="yolo-mark-image" alt="Снимок камеры">
+                    <canvas id="yolo-mark-canvas" class="yolo-mark-canvas"></canvas>
+                    <div id="yolo-stage-loading" class="yolo-stage-loading is-hidden">ЗАГРУЗКА КАДРА...</div>
+                </div>
+            </div>
+
+            <div id="yolo-marks-strip" class="yolo-marks-strip"></div>
+
+            <div class="yolo-mark-footer">
+                <div class="yolo-tool-group">
+                    <button id="yolo-tool-polygon" class="btn btn-sm yolo-tool-btn is-active" type="button"
+                            title="Свободная замкнутая обводка дефекта">ОБВОДКА</button>
+                    <button id="yolo-tool-bbox" class="btn btn-sm yolo-tool-btn" type="button"
+                            title="Прямоугольная рамка вокруг дефекта">РАМКА</button>
+                    <button id="yolo-mark-undo" class="btn btn-sm" type="button" disabled
+                            title="Отменить последнюю обводку (Ctrl+Z)">ОТМЕНИТЬ ШАГ</button>
+                    <button id="yolo-mark-clear" class="btn btn-sm" type="button" disabled>ОЧИСТИТЬ</button>
+                </div>
+                <div class="yolo-comment-wrap">
+                    <input id="yolo-mark-comment" class="yolo-comment-input" type="text" maxlength="300"
+                           autocomplete="off" placeholder="Комментарий для разметчика (необязательно)...">
+                </div>
+                <div class="yolo-save-group">
+                    <span id="yolo-mark-status" class="yolo-mark-status"></span>
+                    <button id="yolo-mark-save" class="btn btn-sm btn-ok" type="button" disabled>СОХРАНИТЬ</button>
+                    <button id="yolo-mark-cancel" class="btn btn-sm" type="button">ОТМЕНА</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- YOLO EXPORT ZIP MODAL -->
+    <div id="yolo-export-modal" class="yolo-export-modal is-hidden" data-ui-block="yolo-export">
+        <div id="yolo-export-backdrop" class="yolo-modal-backdrop"></div>
+        <section class="yolo-export-dialog" role="dialog" aria-modal="true" aria-labelledby="yolo-export-title">
+            <div class="yolo-mark-header">
+                <div class="yolo-mark-title-group">
+                    <h2 id="yolo-export-title" class="yolo-mark-title">ОЧЕРЕДЬ КАДРОВ ДЛЯ РАЗМЕТЧИКА YOLO</h2>
+                </div>
+                <button id="yolo-export-close" class="btn btn-icon yolo-close-btn" type="button" aria-label="Закрыть">&times;</button>
+            </div>
+            <div class="yolo-export-body">
+                <div class="yolo-export-stats">
+                    <div class="yolo-stat-card">
+                        <span class="yolo-stat-label">Новых к выгрузке</span>
+                        <span id="yolo-stat-pending" class="yolo-stat-val warn">0</span>
+                    </div>
+                    <div class="yolo-stat-card">
+                        <span class="yolo-stat-label">Всего сохранено</span>
+                        <span id="yolo-stat-total" class="yolo-stat-val">0</span>
+                    </div>
+                </div>
+                <div id="yolo-models-breakdown" class="yolo-models-breakdown"></div>
+                <div id="yolo-items-list" class="yolo-items-list"></div>
+            </div>
+            <div class="yolo-export-footer">
+                <span id="yolo-export-status" class="yolo-mark-status"></span>
+                <div class="yolo-save-group">
+                    <button id="yolo-download-pending" class="btn btn-sm btn-ok" type="button" disabled>ВЫГРУЗИТЬ ZIP · НОВЫЕ</button>
+                    <button id="yolo-download-all" class="btn btn-sm btn-accent" type="button" disabled>СКАЧАТЬ ВСЕ</button>
+                    <button id="yolo-export-cancel" class="btn btn-sm" type="button">ЗАКРЫТЬ</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- OPERATOR LOGIN MODAL -->
+    <div id="operator-modal" class="operator-modal is-hidden" data-ui-block="operator-login">
+        <div id="operator-modal-backdrop" class="operator-modal-backdrop"></div>
+        <section class="operator-dialog" role="dialog" aria-modal="true" aria-labelledby="operator-modal-title">
+            <div class="operator-head">
+                <div class="operator-head-titles">
+                    <h2 id="operator-modal-title" class="operator-title">ВХОД В СИСТЕМУ</h2>
+                    <span id="operator-modal-subtitle" class="operator-subtitle">Введите своё ФИО или выберите пользователя для текущей партии</span>
+                </div>
+                <button id="operator-modal-close" class="btn btn-icon operator-close-btn is-hidden" type="button" aria-label="Закрыть">&times;</button>
+            </div>
+            <form id="operator-form" class="operator-body" autocomplete="off">
+                <div class="operator-field">
+                    <label for="operator-fio-input" class="operator-label">ФИО ОПЕРАТОРА</label>
+                    <input id="operator-fio-input" class="operator-input" type="text" maxlength="120"
+                           autocomplete="off" spellcheck="false"
+                           placeholder="Например: Иванов Иван Иванович">
+                </div>
+                <div id="operator-saved-section" class="operator-saved-section is-hidden">
+                    <div class="operator-saved-header">СОХРАНЁННЫЕ ПОЛЬЗОВАТЕЛИ</div>
+                    <div id="operator-saved-list" class="operator-saved-list" role="listbox" aria-label="Сохранённые пользователи"></div>
+                </div>
+                <div id="operator-error" class="operator-error is-hidden" role="alert"></div>
+                <div class="operator-actions">
+                    <button id="operator-exit-btn" class="btn btn-bad" type="button">ВЫХОД</button>
+                    <button id="operator-cancel-btn" class="btn is-hidden" type="button">ОТМЕНА</button>
+                    <button id="operator-submit-btn" class="btn btn-ok" type="submit">ВОЙТИ</button>
+                </div>
+            </form>
+        </section>
+    </div>
     <script src="/static/js/core.js?v=61"></script>
     <script src="/static/js/boot.js?v=33"></script>
     <script src="/static/js/diagnostics.js?v=51"></script>
@@ -395,6 +563,9 @@
     <script src="/static/js/jog.js?v=36"></script>
     <script src="/static/js/history.js?v=37"></script>
     <script src="/static/js/archive.js?v=2"></script>
+    <script src="/static/js/operator.js?v=1"></script>
+    <script src="/static/js/batches.js?v=1"></script>
+    <script src="/static/js/yolo-feedback.js?v=5"></script>
     <script src="/static/js/panel-deck.js?v=3"></script>
     <script src="/static/js/bootstrap.js?v=36"></script>
 </body>

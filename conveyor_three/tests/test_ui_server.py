@@ -432,20 +432,43 @@ class UIServerTest(unittest.TestCase):
         })
         self.assertEqual(response.status_code, 400)
 
-    def test_api_start_503_without_callback(self):
+    def test_api_start_requires_operator(self):
         self.server.archive = mock.Mock(root_folder="/archive")
+        self.server.on_start = mock.Mock(return_value=True)
+        response = self.client.post("/api/start")
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("ФИО", response.json()["error"])
+        self.server.on_start.assert_not_called()
+
+    def test_api_start_requires_selected_batch(self):
+        self.server.operator_name = "Иванов И.И."
+        self.server.archive = mock.Mock(root_folder="/archive")
+        self.server.on_start = mock.Mock(return_value=True)
+        response = self.client.post("/api/start")
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("партию", response.json()["error"])
+        self.server.on_start.assert_not_called()
+
+    def test_api_start_503_without_callback(self):
+        self.server.operator_name = "Иванов И.И."
+        self.server.archive = mock.Mock(root_folder="/archive")
+        self.server.batch_selected = True
         response = self.client.post("/api/start")
         self.assertEqual(response.status_code, 503)
         self.assertFalse(response.json()["ok"])
 
     def test_api_start_callback_false_409(self):
+        self.server.operator_name = "Иванов И.И."
         self.server.archive = mock.Mock(root_folder="/archive")
+        self.server.batch_selected = True
         self.server.on_start = lambda: False
         response = self.client.post("/api/start")
         self.assertEqual(response.status_code, 409)
 
     def test_api_start_callback_exception_500(self):
+        self.server.operator_name = "Иванов И.И."
         self.server.archive = mock.Mock(root_folder="/archive")
+        self.server.batch_selected = True
 
         def boom():
             raise RuntimeError("cycle broken")
@@ -456,7 +479,9 @@ class UIServerTest(unittest.TestCase):
         self.assertIn("cycle broken", response.json()["error"])
 
     def test_api_start_callback_ok(self):
+        self.server.operator_name = "Иванов И.И."
         self.server.archive = mock.Mock(root_folder="/archive")
+        self.server.batch_selected = True
         self.server.on_start = mock.Mock(return_value=True)
         response = self.client.post("/api/start")
         self.assertEqual(response.status_code, 200)

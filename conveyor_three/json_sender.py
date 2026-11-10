@@ -24,6 +24,7 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import shutil
 from pathlib import Path
@@ -174,15 +175,23 @@ def scan_and_send_all_batches(
     if not root.is_dir():
         print(f"[JSON] Папка архива не найдена: {root}")
         return sync_local_queue(queue_dir=queue_dir, remote_root=remote_root)
+    # Партии именуются по batch_id (например ``0001_2026_11_10``), поэтому
+    # ищем манифесты, а не папки с префиксом ``batch_``. Отправляем только
+    # закрытые партии: открытая ещё пополняется.
     batch_dirs = sorted(
-        path for path in root.rglob("batch_*") if path.is_dir()
+        path.parent for path in root.rglob(TARGET_JSON_NAME)
+        if path.is_file()
     )
     for batch_dir in batch_dirs:
         json_path = batch_dir / TARGET_JSON_NAME
-        if json_path.exists():
-            copy_json_to_local_queue(batch_dir, json_path, queue_dir)
-        else:
-            print(f"[JSON] В партии нет {TARGET_JSON_NAME}: {batch_dir}")
+        try:
+            with json_path.open(encoding="utf-8") as stream:
+                manifest = json.load(stream)
+        except (OSError, ValueError):
+            continue
+        if str(manifest.get("status", "OPEN")).upper() != "CLOSED":
+            continue
+        copy_json_to_local_queue(batch_dir, json_path, queue_dir)
     return sync_local_queue(queue_dir=queue_dir, remote_root=remote_root)
 
 

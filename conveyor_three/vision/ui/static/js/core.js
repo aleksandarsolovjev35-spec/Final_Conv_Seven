@@ -93,6 +93,10 @@ const state = {
     distributorDiagnosticPending: false,
     distributorDiagnosticBackendBusy: false,
 
+    operatorName:           '',
+    operatorEditable:       true,
+    batchSelected:          false,
+
     selectedAnalysisActive: false,
     selectedAnalysisRole:   null,
     selectedAnalysisPending: false,
@@ -209,6 +213,29 @@ const els = {
     thresholdsStatus:     $('thresholds-status'),
     thresholdsSave:       $('thresholds-save'),
     thresholdsReset:      $('thresholds-reset'),
+
+    archiveBatchOperator: $('archive-batch-operator'),
+    archiveBatchRetained: $('archive-batch-retained'),
+
+    operatorStatusGroup:  $('operator-status-group'),
+    operatorChip:         $('operator-chip'),
+    operatorCurrentName:  $('operator-current-name'),
+    operatorChangeBtn:    $('operator-change-btn'),
+    operatorModal:        $('operator-modal'),
+    operatorModalBackdrop: $('operator-modal-backdrop'),
+    operatorModalTitle:   $('operator-modal-title'),
+    operatorModalSubtitle: $('operator-modal-subtitle'),
+    operatorModalClose:   $('operator-modal-close'),
+    operatorForm:         $('operator-form'),
+    operatorFioInput:     $('operator-fio-input'),
+    operatorSavedSection: $('operator-saved-section'),
+    operatorSavedList:    $('operator-saved-list'),
+    operatorError:        $('operator-error'),
+    operatorExitBtn:      $('operator-exit-btn'),
+    operatorCancelBtn:    $('operator-cancel-btn'),
+    operatorSubmitBtn:    $('operator-submit-btn'),
+
+    galleryOperator:  $('gallery-operator'),
 
     galleryModal:     $('gallery-modal'),
     galleryGrid:      $('gallery-grid'),

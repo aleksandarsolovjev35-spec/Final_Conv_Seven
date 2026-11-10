@@ -154,6 +154,37 @@ class CycleJogMixin:
         finally:
             self._operation_lock.release()
 
+    def jog_step(self, direction: str) -> bool:
+        if not self._operation_lock.acquire(blocking=False):
+            return False
+        try:
+            if (
+                not self.jog_active
+                or self.jog is None
+                or self.state not in self.JOG_ALLOWED_STATES
+                or self.exit_requested
+                or self._selected_analysis_active
+            ):
+                return False
+            step_fn = getattr(self.jog, "step_once", None)
+            if step_fn is None:
+                return False
+            accepted = step_fn(direction)
+            if accepted:
+                label = (
+                    "Ручной шаг ленты вправо" if direction == "+"
+                    else "Ручной шаг ленты влево"
+                )
+                self._set_process(
+                    "JOG_STEP",
+                    label,
+                )
+            else:
+                self._refresh_monitor()
+            return accepted
+        finally:
+            self._operation_lock.release()
+
     def jog_hold_heartbeat(self, direction: str) -> bool:
         if (
             not self.jog_active

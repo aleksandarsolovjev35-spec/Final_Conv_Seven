@@ -9,6 +9,31 @@ function setupHotkeys() {
         const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
         if (e.key === 'Escape') {
+            if (typeof isOperatorModalOpen === 'function' && isOperatorModalOpen()) {
+                if (e.key === 'Escape') {
+                    if (typeof isOperatorModalMandatory === 'function' && !isOperatorModalMandatory()) {
+                        closeOperatorModal(false);
+                    }
+                }
+                return;
+            }
+
+            if (e.key === 'Escape') {
+                const yoloMarkModal = document.getElementById('yolo-mark-modal');
+                if (yoloMarkModal && !yoloMarkModal.classList.contains('is-hidden')) {
+                    if (typeof closeYoloMarkModal === 'function') closeYoloMarkModal();
+                    e.preventDefault();
+                    return;
+                }
+
+                const yoloExportModal = document.getElementById('yolo-export-modal');
+                if (yoloExportModal && !yoloExportModal.classList.contains('is-hidden')) {
+                    if (typeof closeYoloExportModal === 'function') closeYoloExportModal();
+                    e.preventDefault();
+                    return;
+                }
+            }
+
             if (els.archiveSettingsModal && !els.archiveSettingsModal.classList.contains('is-hidden')) {
                 closeArchiveSettings();
                 e.preventDefault();
@@ -135,7 +160,9 @@ function init() {
     setupButtons();
     setupHotkeys();
     setupGallery();
+    if (typeof setupOperatorControls === 'function') setupOperatorControls();
     if (typeof setupArchiveSettings === 'function') setupArchiveSettings();
+    if (typeof setupYoloFeedback === 'function') setupYoloFeedback();
     setupCameraHover();
     setupGridToggle();
     setupViewModeControls();

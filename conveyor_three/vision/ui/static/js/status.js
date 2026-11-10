@@ -94,6 +94,12 @@ async function fetchStatus() {
     if (typeof updateArchiveStatus === 'function') {
         updateArchiveStatus(status.archive || null);
     }
+    if (typeof updateBatchStatus === 'function') {
+        updateBatchStatus(status.batch || null);
+    }
+    if (typeof updateYoloFeedbackStatus === 'function') {
+        updateYoloFeedbackStatus(status.yolo_tasks || null);
+    }
 
     const lineStatusPayload = status.line_status || {};
     const liveInfo = lineStatusPayload.live || {};
@@ -125,6 +131,9 @@ async function fetchStatus() {
     updateLineStatus(lineStatusPayload);
     updateRecentParts(status.recent_parts || []);
     updateMode(status.mode || 'RULES');
+    if (typeof updateOperatorStatus === 'function') {
+        updateOperatorStatus(status.operator || null);
+    }
 
     if (state.lineState !== oldState) {
         startStatusPolling();
@@ -143,6 +152,8 @@ function markUiOffline() {
     state.jogActive = false;
     state.jogBusy = false;
     if (typeof clearLivePullTimer === 'function') clearLivePullTimer();
+    if (typeof updateOperatorStatus === 'function') updateOperatorStatus(null);
+    if (typeof updateYoloFeedbackStatus === 'function') updateYoloFeedbackStatus(null);
     state.mainCamMode = 'pull';
     mainBufferLoading = false;
     els.main.classList.add('ui-offline');

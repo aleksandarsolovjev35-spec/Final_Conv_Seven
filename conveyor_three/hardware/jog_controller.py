@@ -85,6 +85,38 @@ class JogController:
             self._thread.start()
         return True
 
+    def step_once(self, direction: str) -> bool:
+        """Выполнить одиночное перемещение ленты на один шаг ячейки.
+
+        В отличие от ``start_hold`` не требует периодического heartbeat от UI:
+        команда отправляет ``G7 S{±normal_steps}``, ``G6 S2`` и ненумерованный
+        ``G3`` (сохраняя производственный счётчик ``STEP`` прошивки), ждёт
+        подтверждения полной остановки по ``I1`` / ``I2`` и всегда возвращает
+        ``G7 S{+normal_steps}`` и ``G6 S2``. При необходимости может быть
+        прервано досрочно вызовом ``release()`` (``G1``).
+        """
+        if direction not in ("+", "-"):
+            raise ValueError("direction должен быть '+' или '-'")
+        with self._state_lock:
+            if self._busy or (
+                self._thread is not None and self._thread.is_alive()
+            ):
+                return False
+            self._stop_event.clear()
+            self._busy = True
+            self._direction = direction
+            self._last_heartbeat = 0.0
+            self._armed_at = 0.0
+            self._worker_error = None
+            self.last_action = "STEP RIGHT" if direction == "+" else "STEP LEFT"
+            self._thread = threading.Thread(
+                target=self._step_worker,
+                name="conveyor-jog-step",
+                daemon=True,
+            )
+            self._thread.start()
+        return True
+
     def heartbeat(self, direction: str) -> bool:
         with self._state_lock:
             if (
@@ -214,4 +246,68 @@ class JogController:
             self._stop_event.wait(0.03)
         raise TimeoutError(
             f"JOG segment did not stop in {timeout}s; I1={last_i1!r}; I2={last_i2!r}"
+        )
+
+    def _step_worker(self):
+        error = None
+        try:
+            with self._state_lock:
+                direction = self._direction
+            if direction not in ("+", "-"):
+                return
+            signed_steps = (
+                self._normal_steps_restore
+                if direction == "+"
+                else -self._normal_steps_restore
+            )
+            with self._command_lock:
+                if not self._stop_event.is_set():
+                    self.transport.send(f"G7 S{signed_steps}")
+                    self.transport.send("G6 S2")
+                    self.transport.send("G3")
+            if not self._stop_event.is_set():
+                self._wait_step_or_release()
+            else:
+                self._confirm_stopped_after_g1()
+        except Exception as exc:
+            error = exc
+            try:
+                self.transport.send("G1")
+            except Exception as stop_exc:
+                error = RuntimeError(
+                    f"{exc}; аварийная команда G1 не отправлена: {stop_exc}"
+                )
+        finally:
+            try:
+                self.transport.send(f"G7 S{self._normal_steps_restore}")
+                self.transport.send("G6 S2")
+            except Exception as restore_exc:
+                if error is None:
+                    error = restore_exc
+            with self._state_lock:
+                self._worker_error = None if error is None else str(error)
+                self._busy = False
+                self._direction = None
+                self._last_heartbeat = 0.0
+                self._armed_at = 0.0
+                self._thread = None
+                if error is not None:
+                    self.last_action = f"ERR: {error}"
+
+    def _wait_step_or_release(self, timeout: float = 15.0):
+        deadline = time.monotonic() + timeout
+        last_i1 = ""
+        last_i2 = ""
+        while time.monotonic() < deadline:
+            if self._stop_event.is_set():
+                self._confirm_stopped_after_g1()
+                return
+            last_i1 = self.transport.query("I1", delay=0.05)
+            if Conveyor._parse_motion_reply(last_i1) is True:
+                last_i2 = self.transport.query("I2", delay=0.05)
+                if Conveyor._strict_stop_confirmed(last_i2):
+                    return
+            self._stop_event.wait(0.03)
+        raise TimeoutError(
+            f"JOG step did not stop in {timeout}s; I1={last_i1!r}; I2={last_i2!r}"
         )

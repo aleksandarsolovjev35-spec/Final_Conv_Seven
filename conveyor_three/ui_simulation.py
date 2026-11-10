@@ -134,8 +134,22 @@ class LineSimulation:
             return
         self.server.archive = PartArchive(
             root_folder=archive.root_folder,
+            operator=self.server.operator_name,
         )
         self.archive_compressed = False
+
+    def can_switch_operator(self) -> bool:
+        with self._lock:
+            return self.state in ("IDLE", "STOPPED") and (
+                self.archive_compressed
+                or self.server.archive is None
+                or self.server.archive.can_reconfigure()
+            )
+
+    def on_operator_changed(self, _operator: str) -> None:
+        with self._lock:
+            if self.state in ("IDLE", "STOPPED") and self.archive_compressed:
+                self._open_next_archive_batch()
 
     def start(self) -> bool:
         with self._lock:
@@ -808,7 +822,10 @@ def main() -> None:
     # The real archive implementation writes only into ignored sandbox data.
     # Its settings dialog and validation therefore behave exactly as in the app.
     server.archive = PartArchive(root_folder="archive/ui_simulation")
+    server.configure_operator_store(server.archive.root_folder)
     simulation = LineSimulation(server)
+    server.can_switch_operator = simulation.can_switch_operator
+    server.on_operator_changed = simulation.on_operator_changed
     server.on_start = simulation.start
     server.on_stop = simulation.stop
     server.on_pause = simulation.pause
