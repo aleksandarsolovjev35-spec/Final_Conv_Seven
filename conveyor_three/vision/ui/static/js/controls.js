@@ -25,12 +25,27 @@ function applyButtonsForState(lineState, exitRequested, controls = {}) {
 
     if (els.btnStart) {
         els.btnStart.classList.toggle('is-hidden', !startVisible);
+        // Пуск невозможен без входа оператора и выбранной партии: кнопка
+        // остаётся видимой, но заблокированной и с иконкой замка.
+        const batchLocked = (
+            !state.batchSelected && startVisible && !pending && !offline
+        );
         els.btnStart.disabled = (
             !startVisible
             || controls.start !== true
             || pending
             || offline
+            || !state.operatorName
+            || !state.batchSelected
         );
+        els.btnStart.setAttribute(
+            'aria-disabled', String(els.btnStart.disabled || batchLocked),
+        );
+        els.btnStart.classList.toggle('is-batch-locked', batchLocked);
+        const lockIcon = document.getElementById('start-lock-icon');
+        if (lockIcon) lockIcon.classList.toggle('is-hidden', !batchLocked);
+        const startLabel = document.getElementById('start-label');
+        if (startLabel) startLabel.classList.toggle('is-hidden', batchLocked);
     }
 
     if (els.btnPause) {

@@ -88,6 +88,56 @@
     opacity: 0.35;
     cursor: not-allowed;
 }
+.start-lock-icon {
+    width: 23px;
+    height: 23px;
+    flex: 0 0 23px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.btn-start.is-batch-locked {
+    --btn-color: var(--ok);
+    --btn-border: var(--ok);
+    --btn-bg: rgba(78, 190, 112, 0.08);
+    filter: none;
+    opacity: 0.78;
+    cursor: not-allowed;
+}
+.btn-start.is-batch-locked:hover {
+    background: var(--btn-bg);
+    border-color: var(--btn-border);
+    color: var(--btn-color);
+    box-shadow: none;
+}
+.btn-start.is-batch-locked:hover .start-lock-icon {
+    animation: lockHoverWiggle 0.38s ease-in-out;
+}
+.btn-start.is-batch-locked:active {
+    box-shadow: 0 0 0 3px rgba(78, 190, 112, 0.2);
+}
+.btn-start.is-batch-locked.is-lock-shake {
+    animation: startLockPress 0.28s ease-out;
+}
+@keyframes lockHoverWiggle {
+    0%, 100% { transform: rotate(0); }
+    35% { transform: rotate(-8deg); }
+    70% { transform: rotate(7deg); }
+}
+@keyframes startLockPress {
+    0%, 100% { transform: translateX(0) scale(1); }
+    24% { transform: translateX(-2px) scale(0.98); }
+    48% { transform: translateX(2px) scale(0.98); }
+    72% { transform: translateX(-1px) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .btn-start.is-batch-locked .start-lock-icon,
+    .btn-start.is-batch-locked.is-lock-shake {
+        animation: none;
+    }
+}
 .btn:focus-visible {
     outline: none;
     box-shadow: 0 0 0 2px var(--btn-focus);

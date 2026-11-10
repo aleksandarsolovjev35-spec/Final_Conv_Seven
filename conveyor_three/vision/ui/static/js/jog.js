@@ -3,6 +3,81 @@
 
 // ─── JOG ─────────────────────────────────────────────────────
 
+// Доступность ручного управления: линия в разрешённом состоянии и не
+// идёт анализ выбранного кадра. Отдельного состояния панели у тройки нет:
+// доступность выражается disabled кнопок и стражами команд.
+function jogUiAvailable() {
+    return (
+        JOG_ALLOWED_STATES.includes(state.lineState)
+        && !state.selectedAnalysisActive
+        && !state.selectedAnalysisPending
+    );
+}
+
+
+function updateJogModeSwitchUI() {
+    const isStep = state.jogControlMode === 'step';
+    const disabled = (
+        !jogUiAvailable()
+        || !state.jogActive
+        || state.jogBusy
+        || state.jogStepPending
+        || state.offline
+    );
+
+    if (els.jogModeHold) {
+        els.jogModeHold.classList.toggle('is-active', !isStep);
+        els.jogModeHold.setAttribute('aria-pressed', String(!isStep));
+        els.jogModeHold.disabled = disabled;
+    }
+    if (els.jogModeStep) {
+        els.jogModeStep.classList.toggle('is-active', isStep);
+        els.jogModeStep.setAttribute('aria-pressed', String(isStep));
+        els.jogModeStep.disabled = disabled;
+    }
+
+    if (els.jogPanel) {
+        els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(btn => {
+            const forward = btn.dataset.direction === '+';
+            if (isStep) {
+                btn.title = forward
+                    ? 'Сдвинуть ленту на 1 шаг вперёд'
+                    : 'Сдвинуть ленту на 1 шаг назад';
+                btn.setAttribute(
+                    'aria-label',
+                    forward ? 'Шаг ленты вперёд' : 'Шаг ленты назад',
+                );
+            } else {
+                btn.title = forward
+                    ? 'Удерживайте для движения вперёд'
+                    : 'Удерживайте для движения назад';
+                btn.setAttribute(
+                    'aria-label',
+                    forward ? 'Двигать ленту вперёд' : 'Двигать ленту назад',
+                );
+            }
+        });
+    }
+}
+
+function setJogControlMode(mode) {
+    const normalized = mode === 'step' ? 'step' : 'hold';
+    if (state.jogControlMode === normalized) return;
+    if (state.jogHoldDirection || state.jogStartPromise) {
+        releaseJogHold('mode switched');
+    }
+    state.jogControlMode = normalized;
+    updateJogModeSwitchUI();
+}
+
+function triggerJogPress(direction, btn) {
+    if (state.jogControlMode === 'step') {
+        triggerJogStep(direction, btn);
+    } else {
+        beginJogHold(direction, btn);
+    }
+}
+
 function updateJogState(jog) {
     if (!jog) {
         if (state.jogHoldDirection || state.jogStartPromise) {
@@ -142,10 +217,24 @@ async function handleJogAutoToggle(lineState, jog) {
 function setupJogControls() {
     if (!els.jogPanel) return;
 
+    if (els.jogModeHold) {
+        els.jogModeHold.addEventListener('click', () => setJogControlMode('hold'));
+    }
+    if (els.jogModeStep) {
+        els.jogModeStep.addEventListener('click', () => setJogControlMode('step'));
+    }
+    updateJogModeSwitchUI();
+
     els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(btn => {
         btn.addEventListener('contextmenu', e => e.preventDefault());
         btn.addEventListener('pointerdown', e => {
             e.preventDefault();
+            if (state.jogControlMode === 'step') {
+                // В режиме «1 ШАГ» нажатие — одиночная команда, удержание
+                // и отпускание не нужны: повторный шаг делает повторный клик.
+                triggerJogStep(btn.dataset.direction, btn);
+                return;
+            }
             if (btn.setPointerCapture) {
                 try { btn.setPointerCapture(e.pointerId); } catch (_) {}
             }
@@ -153,10 +242,12 @@ function setupJogControls() {
         });
         for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) {
             btn.addEventListener(eventName, () => {
+                if (state.jogControlMode === 'step') return;
                 releaseJogHold(`UI ${eventName}`);
             });
         }
         btn.addEventListener('pointerleave', e => {
+            if (state.jogControlMode === 'step') return;
             if (e.buttons === 0 || state.jogHoldDirection) {
                 releaseJogHold('pointer left button');
             }
@@ -171,6 +262,58 @@ function setupJogControls() {
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) releaseJogHoldBestEffort('document hidden');
     });
+}
+
+async function triggerJogStep(direction, btn) {
+    if (
+        !jogUiAvailable()
+        || !state.jogActive
+        || state.jogBusy
+        || state.jogStepPending
+        || state.offline
+        || state.backendControls.jog_hold !== true
+    ) return;
+    if (direction !== '+' && direction !== '-') return;
+
+    state.jogStepPending = true;
+    state.jogStepDirection = direction;
+    state.backendControls = {
+        ...state.backendControls,
+        start: false,
+        exit: false,
+        jog_hold: false,
+        camera_diagnostic: false,
+        vision_rule_diagnostic: false,
+    };
+    applyButtonsForState(
+        state.lineState,
+        state.serverExitRequested,
+        state.backendControls,
+    );
+    disableSelectedAnalysisButton();
+    updateJogModeSwitchUI();
+    if (typeof updateYoloFeedbackButtons === 'function') {
+        updateYoloFeedbackButtons();
+    }
+    if (els.jogPanel) {
+        els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(b => {
+            b.disabled = true;
+            b.classList.toggle('jog-active', b === btn);
+        });
+    }
+    clearControlError();
+
+    const result = await apiPostJson('/api/jog/step', {direction}, true);
+    state.jogStepPending = false;
+    if (!result) {
+        state.jogStepDirection = null;
+        if (els.jogPanel) {
+            els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(b => {
+                b.classList.remove('jog-active');
+            });
+        }
+    }
+    requestImmediateStatus();
 }
 
 async function beginJogHold(direction, btn) {

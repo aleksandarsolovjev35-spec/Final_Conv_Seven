@@ -16,15 +16,20 @@ let _threshDragState = null;
 let _threshFetchSeq = 0;
 
 function thresholdsPanelVisible() {
+    // Панель — слот с двумя режимами: список партий (когда партия ещё не
+    // выбрана) и пороги правил (после выбора). Список партий оператор
+    // открывает до пуска, поэтому вне JOG панель тоже нужна; скрываем её
+    // только на splash, при потере связи и при выходе.
+    if (state.splashActive || state.offline || state.serverExitRequested) {
+        return false;
+    }
+    if (!state.batchSelected) return true;
     // Пороги настраиваются только в JOG. Во время анализа выбранного
     // стоп-кадра они уже применены к показанному результату, поэтому
     // панель скрыта, чтобы исключить изменение задним числом.
     const jogMode = !!(state.jogActive || state.jogTogglePending);
     return (
-        !state.splashActive
-        && !state.offline
-        && !state.serverExitRequested
-        && jogMode
+        jogMode
         && !state.selectedAnalysisActive
         && !state.selectedAnalysisPending
         && THRESHOLD_EDITABLE_STATES.includes(state.lineState)

@@ -142,6 +142,9 @@ async function openGallery(partId) {
     if (els.galleryBatch) {
         els.galleryBatch.textContent = `ПАРТИЯ: ${meta.batch_id || '—'}`;
     }
+    if (els.galleryOperator) {
+        els.galleryOperator.textContent = `ОПЕРАТОР: ${meta.operator || '—'}`;
+    }
     if (els.galleryDefects) {
         const defects = meta.defects || [];
         els.galleryDefects.textContent = defects.length
