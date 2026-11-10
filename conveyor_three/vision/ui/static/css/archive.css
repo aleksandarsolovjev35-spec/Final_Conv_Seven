@@ -158,3 +158,19 @@
     .archive-settings-path-controls { flex-wrap: wrap; }
     .archive-settings-path-controls input { flex-basis: 100%; }
 }
+
+/* Ползунок настроек архива: узкий «промышленный» скроллбар вместо
+   системного. Трёхкамерная линия не использует список партий, поэтому
+   стиль привязан к реально прокручиваемому телу диалога. */
+.archive-settings-body {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+}
+.archive-settings-body::-webkit-scrollbar { width: 5px; }
+.archive-settings-body::-webkit-scrollbar-track { background: transparent; }
+.archive-settings-body::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 4px;
+    border: 1px solid var(--panel);
+}
+.archive-settings-body::-webkit-scrollbar-thumb:hover { background: var(--accent); }

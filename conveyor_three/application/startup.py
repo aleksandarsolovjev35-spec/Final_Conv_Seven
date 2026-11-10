@@ -263,6 +263,23 @@ class SystemInitializer:
             calibration=calibration,
         )
         self.runtime.cycle = cycle
+
+        def replace_active_archive(archive):
+            self.runtime.archive = archive
+            cycle.archive = archive
+            next_part_id = getattr(archive, "next_part_id", None)
+            if isinstance(next_part_id, int):
+                cycle.part_counter = next_part_id - 1
+            else:
+                cycle.part_counter = 0
+            counts = getattr(archive, "_batch_stats", {}) or {}
+            cycle.good_count = int(counts.get("good", 0))
+            cycle.bad_count = int(counts.get("bad", 0))
+            cycle.cleanup_count = int(counts.get("cleanup", 0))
+
+        server = getattr(self.monitor, "server", None)
+        if server is not None:
+            server.on_archive_changed = replace_active_archive
         bind_cycle_callbacks(
             self.monitor,
             cycle,

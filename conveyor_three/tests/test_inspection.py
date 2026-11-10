@@ -5,15 +5,39 @@ Vision подменяется фейком, правила — реальные 
 
 from __future__ import annotations
 
+import json
 import os
+import tempfile
 import unittest
+import zipfile
 
 import numpy as np
 
+from application.runtime import RuntimeState
+from application.shutdown import ShutdownManager
 from core.decision_engine import DecisionEngine
 from domain.threshold_loader import ThresholdLoader
 from inspection.debug_recorder import DebugRecorder
 from inspection.inspector import Inspector
+from inspection.part_archive import PartArchive
+from types import SimpleNamespace
+
+
+class ImmediateThread:
+    """Поток для тестов: target выполняется синхронно в start()."""
+
+    def __init__(self, target, daemon=True):
+        self.target = target
+        self.daemon = daemon
+
+    def start(self):
+        self.target()
+
+    def is_alive(self):
+        return False
+
+    def join(self, timeout=None):
+        return None
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THRESHOLDS_PATH = os.path.join(REPO_ROOT, "thresholds.json")
@@ -231,3 +255,148 @@ class DiagnosticsApiTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PartArchiveRetentionTest(unittest.TestCase):
+    """Архив трёхкамерной линии: retention, resume и закрытие партии."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = os.path.join(self.tmp.name, "archive")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def make_archive(self, **kwargs):
+        kwargs.setdefault("root_folder", self.root)
+        kwargs.setdefault("batch_id", "batch_test")
+        return PartArchive(**kwargs)
+
+    def store_and_finalize(self, archive, part_id=1, category="GOOD"):
+        archive.store_frames(
+            part_id,
+            raw_frames={"LEFT": make_frame()},
+            annotated_frames={"LEFT": make_frame(1)},
+            raw_overlay_frames={"LEFT": make_frame(2)},
+        )
+        return archive.finalize(
+            part_id, category, decision="none", defects=[], step=3,
+        )
+
+    def _part_folders(self, archive):
+        found = []
+        for category in PartArchive.CATEGORY_DIRS.values():
+            category_root = os.path.join(archive.batch_folder, category)
+            if not os.path.isdir(category_root):
+                continue
+            for name in os.listdir(category_root):
+                if name.startswith("part_"):
+                    found.append(os.path.join(category_root, name))
+        return sorted(found)
+
+    def _load_manifest(self, archive):
+        path = os.path.join(archive.batch_folder, "batch.json")
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_industrial_retention_keeps_only_last_images(self):
+        archive = self.make_archive()
+        for part_id in range(1, 13):
+            self.store_and_finalize(archive, part_id=part_id)
+
+        # Папки и метаданные остаются для всех корпусов партии.
+        self.assertEqual(len(self._part_folders(archive)), 12)
+        for part_id in (1, 2, 12):
+            info = archive.get_part_info(part_id)
+            self.assertIsNotNone(info)
+            self.assertTrue(os.path.exists(
+                os.path.join(info["folder"], "meta.json"),
+            ))
+
+        # Изображения остаются только для последних десяти корпусов.
+        for part_id in (1, 2):
+            self.assertEqual(archive.get_part_images(part_id), {})
+        images = archive.get_part_images(12)
+        self.assertEqual(set(images["LEFT"]), {"raw", "raw_overlay", "debug"})
+
+        # Статистика партии и манифест не трогаются.
+        self.assertEqual(archive.stats["total"], 12)
+        self.assertEqual(archive._batch_stats["total"], 12)
+        manifest = self._load_manifest(archive)
+        self.assertEqual(
+            [item["part_id"] for item in manifest["parts"]],
+            list(range(1, 13)),
+        )
+        self.assertEqual(manifest["counts"]["total"], 12)
+
+    def test_retention_limit_is_configurable(self):
+        archive = self.make_archive(retained_parts=3)
+        for part_id in range(1, 5):
+            self.store_and_finalize(archive, part_id=part_id)
+
+        self.assertEqual(len(self._part_folders(archive)), 4)
+        self.assertIsNotNone(archive.get_part_info(1))
+        self.assertEqual(archive.get_part_images(1), {})
+        self.assertIsNotNone(archive.get_part_info(4))
+        self.assertTrue(os.path.exists(
+            os.path.join(archive.get_part_info(4)["folder"], "LEFT.jpg"),
+        ))
+
+    def test_retention_applies_on_resume(self):
+        archive = self.make_archive()
+        for part_id in range(1, 13):
+            self.store_and_finalize(archive, part_id=part_id)
+
+        resumed = PartArchive.resume(self.root, "batch_test")
+        self.assertEqual(len(self._part_folders(resumed)), 12)
+        for part_id in (1, 2):
+            self.assertIsNotNone(resumed.get_part_info(part_id))
+            self.assertEqual(resumed.get_part_images(part_id), {})
+        self.assertIsNotNone(resumed.get_part_info(12))
+        self.assertTrue(os.path.exists(
+            os.path.join(resumed.get_part_info(12)["folder"], "LEFT.jpg"),
+        ))
+        self.assertEqual(resumed._batch_stats["total"], 12)
+        self.assertEqual(resumed.next_part_id, 13)
+
+    def test_close_batch_strips_images_and_keeps_manifest(self):
+        archive = self.make_archive()
+        for part_id in range(1, 4):
+            self.store_and_finalize(archive, part_id=part_id)
+
+        zip_path = archive.close_batch()
+
+        self.assertTrue(zip_path and os.path.exists(zip_path))
+        with zipfile.ZipFile(zip_path) as bundle:
+            names = bundle.namelist()
+            self.assertIn("batch.json", names)
+            self.assertIn("GOOD/part_0001/meta.json", names)
+            self.assertFalse([name for name in names if name.endswith(".jpg")])
+            manifest = json.loads(bundle.read("batch.json"))
+        self.assertEqual(manifest["status"], "CLOSED")
+        self.assertEqual(manifest["counts"]["total"], 3)
+
+
+class ShutdownKeepsBatchOpenTest(unittest.TestCase):
+    """Активная партия не закрывается при выходе, если так помечена."""
+
+    def test_keep_open_on_shutdown_skips_finalization(self):
+        events = []
+        runtime = RuntimeState(monitor=SimpleNamespace())
+        manager = ShutdownManager(
+            runtime,
+            thread_factory=ImmediateThread,
+            batch_sender=lambda folder: events.append(("sent", folder)),
+        )
+        archive = SimpleNamespace(
+            keep_open_on_shutdown=True,
+            close_manifest=lambda: events.append(("closed", None)),
+            compress=lambda: events.append(("zipped", None)),
+            batch_folder="archive/batch",
+            root_folder="archive",
+        )
+
+        manager._shutdown_compress(archive)
+
+        self.assertNotIn(("closed", None), events)
+        self.assertNotIn(("zipped", None), events)

@@ -135,3 +135,58 @@ def save_calibration_timings(
             pass
         raise RuntimeError(f"Ошибка записи {path}: {exc}") from exc
     return validated
+
+
+def _save_calibration_updates(path: str, updates: dict) -> dict:
+    """Атомарно обновляет calibration.json, сохраняя все остальные поля."""
+    try:
+        with open(path, encoding="utf-8") as stream:
+            data = json.load(stream)
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"Файл калибровки не найден: {path}") from exc
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Ошибка чтения {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError("calibration.json должен содержать объект")
+
+    data = {**OPTIONAL_DEFAULTS, **data}
+    data.update(updates)
+    validated = _validate(data)
+
+    temporary = f"{path}.tmp"
+    try:
+        with open(temporary, "w", encoding="utf-8") as stream:
+            json.dump(validated, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+        os.replace(temporary, path)
+    except OSError as exc:
+        try:
+            os.remove(temporary)
+        except OSError:
+            pass
+        raise RuntimeError(f"Ошибка записи {path}: {exc}") from exc
+    return validated
+
+
+# Пределы скорости ленты совпадают с hardware.conveyor.Conveyor и
+# ползунком HMI (25..100 % от максимума).
+CONVEYOR_SPEED_MIN = 5000
+CONVEYOR_SPEED_MAX = 20000
+
+
+def save_calibration_speed(path: str, speed: int) -> dict:
+    """Сохранить скорость ленты (шаг/с) в calibration.json атомарно.
+
+    Выбранное оператором значение переживает перезапуск: при следующем
+    старте Conveyor создаётся с сохранённой скоростью.
+    """
+    valid = (
+        type(speed) is int
+        and CONVEYOR_SPEED_MIN <= speed <= CONVEYOR_SPEED_MAX
+    )
+    if not valid:
+        raise ValueError(
+            f"Скорость должна быть целым числом от {CONVEYOR_SPEED_MIN} "
+            f"до {CONVEYOR_SPEED_MAX}"
+        )
+    return _save_calibration_updates(path, {"conveyor_speed": speed})
