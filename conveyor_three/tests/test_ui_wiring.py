@@ -184,3 +184,49 @@ def test_jog_mode_switch_is_styled():
     jog_css = CSS_FILES["jog"]
     for token in (".jog-mode-switch", ".jog-mode-btn", ".jog-mode-btn.is-active"):
         assert token in jog_css, token
+
+
+def test_every_js_api_call_has_backend_route():
+    """Путь /api/..., который зовёт скрипт, обслуживается сервером."""
+    server_src = "".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((UI / "server").glob("*.py"))
+    )
+    routes = {
+        re.sub(r"\{[^}]+\}", "", match)
+        for match in re.findall(
+            r'@(?:app|router)\.(?:get|post|put|delete)\(\s*["\']([^"\']+)["\']',
+            server_src,
+        )
+    }
+
+    called = set()
+    for source in JS_FILES.values():
+        called |= set(
+            re.findall(r"""['"`](/api/[A-Za-z0-9_/\-]+?)['"`]""", source)
+        )
+
+    def served(path):
+        for route in routes:
+            if path == route or path.rstrip("/") == route.rstrip("/"):
+                return True
+            if route.endswith("/") and path.startswith(route):
+                return True
+        return False
+
+    missing = sorted(path for path in called if not served(path))
+    assert missing == [], f"Скрипт зовёт несуществующие маршруты: {missing}"
+
+
+def test_camera_roles_are_three_camera():
+    """Роли камер остались трёхкамерными — перенос не притащил семь камер."""
+    ui_source = INDEX_HTML + "".join(JS_FILES.values())
+    assert not re.search(r"\b(TOP|SPIDER_LEFT|SPIDER_RIGHT)\b", ui_source)
+    assert "LEFT" in ui_source and "MIDDLE" in ui_source and "RIGHT" in ui_source
+
+
+def test_no_fault_banner_leftovers():
+    """Карточку аварии рисует лицо fault, а не баннер семикамерной версии."""
+    assert "fault-banner" not in INDEX_HTML
+    assert "fault-face" in INDEX_HTML
+    assert "faultBanner" not in "".join(JS_FILES.values())
