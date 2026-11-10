@@ -200,13 +200,20 @@ class YoloFeedbackStoreTest(unittest.TestCase):
         )
         bad_dest = os.path.join(self.tmp.name, "fail.zip")
         with mock.patch.object(
-            YoloFeedbackStore, "_save_bytes", side_effect=OSError("disk full"),
+            YoloFeedbackStore, "_build_zip_unlocked",
+            side_effect=OSError("disk full"),
         ):
             with self.assertRaises(OSError):
                 self.store.export_zip_to_path(bad_dest, only_pending=True)
 
         # Очередь новых обязана сохраниться при сбое записи на флешку/диск!
         self.assertEqual(self.store.status_counts()["pending"], 1)
+        self.assertFalse(os.path.exists(bad_dest))
+        leftovers = [
+            name for name in os.listdir(self.tmp.name)
+            if name.endswith(".zip.tmp")
+        ]
+        self.assertEqual(leftovers, [])
 
     def test_export_zip_groups_by_target_model_and_marks_exported(self):
         frame = make_clean_frame(fill=50)
@@ -241,23 +248,25 @@ class YoloFeedbackStoreTest(unittest.TestCase):
             names = set(zf.namelist())
             self.assertIn("README_YOLO.txt", names)
             self.assertIn("manifest.json", names)
-            self.assertIn("datasets/4__sinks_v.1_m/classes.txt", names)
-            self.assertIn("datasets/4__well_v.1/classes.txt", names)
+            self.assertFalse(
+                any(
+                    n.endswith("classes.txt") or n.endswith("frames.txt")
+                    for n in names
+                ),
+                names,
+            )
 
             manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
             self.assertEqual(manifest["exported_count"], 1)
-            well_classes = zf.read(
-                "datasets/4__well_v.1/classes.txt"
-            ).decode("utf-8").splitlines()
-            self.assertEqual(well_classes, ["case", "case_central"])
 
-            draft_files = [
-                n for n in names
-                if n.startswith("datasets/4__well_v.1/draft_labels/")
-            ]
-            self.assertEqual(len(draft_files), 1)
-            draft_line = zf.read(draft_files[0]).decode("utf-8").strip()
-            self.assertTrue(draft_line.startswith("1 "), draft_line)
+            # Кадр и шпаргалка — в одной папке модели, номер кадра в
+            # имени файла. Ни классы, ни индекс, ни draft/meta нет.
+            self.assertIn("datasets/4__well_v.1/001_image.jpg", names)
+            self.assertIn("datasets/4__well_v.1/001_hint.jpg", names)
+            self.assertFalse(
+                any("draft_label" in n or "meta.json" in n for n in names),
+                names,
+            )
 
         with self.assertRaises(ValueError):
             self.store.build_export_zip(only_pending=True)
@@ -266,6 +275,40 @@ class YoloFeedbackStoreTest(unittest.TestCase):
             only_pending=False, mark_exported=False,
         )
         self.assertEqual(all_count, 1)
+
+    def test_export_numbers_frames_per_model(self):
+        frame = make_clean_frame(fill=30)
+        for index in range(1, 4):
+            self.store.save_task(
+                role="TOP",
+                clean_frame=frame,
+                marks=[{
+                    "shape": "bbox",
+                    "yolo_class": "shells",
+                    "points": [[0.2, 0.2], [0.4, 0.4]],
+                }],
+                comment=f"Кадр {index}",
+                part_id=100 + index,
+            )
+
+        zip_bytes, count, _filename = self.store.build_export_zip(
+            only_pending=True, mark_exported=False,
+        )
+        self.assertEqual(count, 3)
+
+        with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+            names = set(zf.namelist())
+            for index in (1, 2, 3):
+                prefix = f"datasets/4__sinks_v.1_m/{index:03d}_"
+                self.assertIn(f"{prefix}image.jpg", names)
+                self.assertIn(f"{prefix}hint.jpg", names)
+            self.assertFalse(
+                any(
+                    n.endswith("frames.txt") or n.endswith("classes.txt")
+                    for n in names
+                ),
+                names,
+            )
 
     def test_part_archive_compress_preserves_yolo_tasks(self):
         archive = PartArchive(root_folder=self.tmp.name, batch_id="batch_1")
@@ -506,7 +549,7 @@ class YoloServerRoutesTest(unittest.TestCase):
         self.assertTrue(os.path.isfile(target_zip))
         with zipfile.ZipFile(target_zip, "r") as zf:
             self.assertIn(
-                "datasets/3_5__black_spots_omission/classes.txt",
+                "datasets/3_5__black_spots_omission/001_image.jpg",
                 zf.namelist(),
             )
 

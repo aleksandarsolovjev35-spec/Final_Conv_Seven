@@ -123,6 +123,10 @@ const state = {
     pendingAnalysisVersion: null,
     pendingFlushTimer:      null,
     lastLineStatus:         null,
+
+    operatorName:           '',
+    operatorEditable:       true,
+    batchSelected:          false,
 };
 
 // ─── Gallery state ───────────────────────────────────────────
@@ -196,6 +200,26 @@ const els = {
     archiveBatchGood: $('archive-batch-good'),
     archiveBatchBad: $('archive-batch-bad'),
     archiveBatchCleanup: $('archive-batch-cleanup'),
+    archiveBatchOperator: $('archive-batch-operator'),
+    archiveBatchRetained: $('archive-batch-retained'),
+
+    operatorStatusGroup:  $('operator-status-group'),
+    operatorChip:         $('operator-chip'),
+    operatorCurrentName:  $('operator-current-name'),
+    operatorChangeBtn:    $('operator-change-btn'),
+    operatorModal:        $('operator-modal'),
+    operatorModalBackdrop: $('operator-modal-backdrop'),
+    operatorModalTitle:   $('operator-modal-title'),
+    operatorModalSubtitle: $('operator-modal-subtitle'),
+    operatorModalClose:   $('operator-modal-close'),
+    operatorForm:         $('operator-form'),
+    operatorFioInput:     $('operator-fio-input'),
+    operatorSavedSection: $('operator-saved-section'),
+    operatorSavedList:    $('operator-saved-list'),
+    operatorError:        $('operator-error'),
+    operatorExitBtn:      $('operator-exit-btn'),
+    operatorCancelBtn:    $('operator-cancel-btn'),
+    operatorSubmitBtn:    $('operator-submit-btn'),
 
     btnStart:         $('btn-start'),
     btnPause:         $('btn-pause'),
@@ -206,8 +230,6 @@ const els = {
     thresholdsPanel:      $('thresholds-panel'),
     thresholdsBody:       $('thresholds-body'),
     thresholdsStatus:     $('thresholds-status'),
-    thresholdsSave:       $('thresholds-save'),
-    thresholdsReset:      $('thresholds-reset'),
 
     galleryModal:     $('gallery-modal'),
     galleryGrid:      $('gallery-grid'),
@@ -216,6 +238,7 @@ const els = {
     galleryDecision:  $('gallery-decision'),
     galleryTime:      $('gallery-time'),
     galleryBatch:     $('gallery-batch'),
+    galleryOperator:  $('gallery-operator'),
     galleryDefects:   $('gallery-defects-list'),
     galleryClose:     $('gallery-close'),
     galleryModeDebug: $('gallery-mode-debug'),

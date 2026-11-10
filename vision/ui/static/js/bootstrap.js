@@ -8,6 +8,16 @@ function setupHotkeys() {
         const tag = (e.target && e.target.tagName) || '';
         const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
+        if (typeof isOperatorModalOpen === 'function' && isOperatorModalOpen()) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                if (typeof isOperatorModalMandatory === 'function' && !isOperatorModalMandatory()) {
+                    closeOperatorModal(false);
+                }
+            }
+            return;
+        }
+
         if (e.key === 'Escape') {
             const fullscreen = document.querySelector('.gallery-fullscreen');
             if (fullscreen) {
@@ -174,6 +184,7 @@ function init() {
     setupButtons();
     setupHotkeys();
     setupGallery();
+    if (typeof setupOperatorControls === 'function') setupOperatorControls();
     if (typeof setupArchiveSettings === 'function') setupArchiveSettings();
     if (typeof setupYoloFeedback === 'function') setupYoloFeedback();
     setupCameraHover();

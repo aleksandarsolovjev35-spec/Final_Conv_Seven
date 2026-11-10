@@ -147,6 +147,9 @@ class ShutdownManager:
     def _shutdown_compress(self, archive) -> None:
         if not archive:
             return
+        if getattr(archive, "keep_open_on_shutdown", False) is True:
+            print("[SHUTDOWN] Активная партия сохранена открытой для продолжения")
+            return
 
         try:
             worker = self._thread_factory(

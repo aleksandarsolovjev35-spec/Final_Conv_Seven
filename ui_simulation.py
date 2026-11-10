@@ -188,7 +188,20 @@ class LineSimulation:
         self._await_initial_inspection = False
         self.recent: list[dict] = []
         self.counts = {"total": 0, "good": 0, "bad": 0, "cleanup": 0}
+        self.server.on_archive_changed = self._replace_archive
         self.thread = threading.Thread(target=self._run, name="ui-simulation", daemon=True)
+
+    def _replace_archive(self, archive):
+        """Keep simulator numbering and visible totals aligned with selection."""
+        with self._lock:
+            self.next_id = getattr(archive, "next_part_id", 1) if archive else 1
+            counts = getattr(archive, "_batch_stats", {}) if archive else {}
+            self.counts = {
+                key: int(counts.get(key, 0) or 0)
+                for key in ("total", "good", "bad", "cleanup")
+            }
+            self.recent = []
+            self.step = 0
 
     def _open_next_archive_batch(self) -> None:
         """A new production launch must never append to a closed ZIP batch."""
@@ -197,8 +210,22 @@ class LineSimulation:
             return
         self.server.archive = PartArchive(
             root_folder=archive.root_folder,
+            operator=self.server.operator_name,
         )
         self.archive_compressed = False
+
+    def can_switch_operator(self) -> bool:
+        with self._lock:
+            return self.state in ("IDLE", "STOPPED") and (
+                self.archive_compressed
+                or self.server.archive is None
+                or self.server.archive.can_reconfigure()
+            )
+
+    def on_operator_changed(self, _operator: str) -> None:
+        with self._lock:
+            if self.state in ("IDLE", "STOPPED") and self.archive_compressed:
+                self._open_next_archive_batch()
 
     def start(self) -> bool:
         with self._lock:
@@ -481,7 +508,7 @@ class LineSimulation:
         return result
 
     def _finalize_archive_batch(self) -> None:
-        """Apply the real archive shutdown policy after graceful line drain."""
+        """Explicitly compress an archive; normal belt STOP never calls this."""
         if self.archive_compressed:
             return
         archive = self.server.archive
@@ -499,7 +526,10 @@ class LineSimulation:
         """
         batches: list[tuple[SimPart, tuple[str, ...]]] = []
         input_part = next((part for part in self.parts if part.position == 0), None)
-        control = next((part for part in self.parts if part.position == 4 and not part.inspected), None)
+        control = next(
+            (part for part in self.parts if part.position == 4 and not part.inspected),
+            None,
+        )
         if input_part is not None:
             batches.append((input_part, self.INPUT_STAGES))
         if control is not None:
@@ -594,7 +624,6 @@ class LineSimulation:
             })
         return raw, [SimRule(drawings=drawings)]
 
-
     def _publish(self, phase: str, inspection_roles: list[str] | None = None) -> None:
         with self._lock:
             state = self.state
@@ -628,20 +657,40 @@ class LineSimulation:
                 "cleanup": self.counts["cleanup"],
                 "empty": self.empty_count,
                 "dist1_state": self.dist1_state,
-                "dist1_position": self.dist1_position, "dist1_max": 340,
-                "dist2_state": self.dist2_state, "dist2_position": self.dist2_position, "dist2_max": 340,
+                "dist1_position": self.dist1_position,
+                "dist1_max": 340,
+                "dist2_state": self.dist2_state,
+                "dist2_position": self.dist2_position,
+                "dist2_max": 340,
                 "dist2_target": "CLEANUP" if self.dist2_position else "BAD",
                 "last_distributor_action": self.last_distributor_action,
                 # Production start is available while JOG is open: issuing
                 # start closes JOG and transfers control to the cycle.
-                "controls": {"start": state in ("IDLE", "STOPPED") and self.selected_role is None,
-                             "stop": state in ("RUNNING", "PAUSED"), "pause": state == "RUNNING",
-                             "resume": state == "PAUSED", "exit": True,
-                             "jog_hold": self.jog_active and state in JOG_ALLOWED_STATES and self.selected_role is None,
-                             "selected_model_analysis": state in ("IDLE", "STOPPED") and self.selected_role is None,
-                             "selected_model_release": self.selected_role is not None,
-                             "camera_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None,
-                             "vision_rule_diagnostic": state in ("IDLE", "STOPPED") and self.selected_role is None},
+                "controls": {
+                    "start": state in ("IDLE", "STOPPED") and self.selected_role is None,
+                    "stop": state in ("RUNNING", "PAUSED"),
+                    "pause": state == "RUNNING",
+                    "resume": state == "PAUSED",
+                    "exit": True,
+                    "jog_hold": (
+                        self.jog_active
+                        and state in JOG_ALLOWED_STATES
+                        and self.selected_role is None
+                    ),
+                    "selected_model_analysis": (
+                        state in ("IDLE", "STOPPED")
+                        and self.selected_role is None
+                    ),
+                    "selected_model_release": self.selected_role is not None,
+                    "camera_diagnostic": (
+                        state in ("IDLE", "STOPPED")
+                        and self.selected_role is None
+                    ),
+                    "vision_rule_diagnostic": (
+                        state in ("IDLE", "STOPPED")
+                        and self.selected_role is None
+                    ),
+                },
                 "conveyor_speed": self.conveyor_speed,
                 "conveyor_speed_percent": round(
                     self.conveyor_speed / CONVEYOR_SPEED_MAX * 100,
@@ -658,32 +707,52 @@ class LineSimulation:
                 "timings_allowed": (
                     state in ("IDLE", "STOPPED") and not self.jog_busy
                 ),
-                "process": {"phase": phase,
-                            "label": PROCESS_LABELS.get(phase, phase.replace("_", " ")),
-                            "step": self.step,
-                            "part_id": self.egress.id if self.egress else None,
-                            "capture_roles": capture_roles,
-                            "inspection_roles": active_roles,
-                            "conveyor": {"speed": self.conveyor_speed,
-                                         "position": self.conveyor_position,
-                                         "max": self.conveyor_max}},
-                "selected_analysis": {"active": self.selected_role is not None, "role": self.selected_role},
+                "process": {
+                    "phase": phase,
+                    "label": PROCESS_LABELS.get(phase, phase.replace("_", " ")),
+                    "step": self.step,
+                    "part_id": self.egress.id if self.egress else None,
+                    "capture_roles": capture_roles,
+                    "inspection_roles": active_roles,
+                    "conveyor": {
+                        "speed": self.conveyor_speed,
+                        "position": self.conveyor_position,
+                        "max": self.conveyor_max,
+                    },
+                },
+                "selected_analysis": {
+                    "active": self.selected_role is not None,
+                    "role": self.selected_role,
+                },
                 "diagnostic_allowed": state in ("IDLE", "STOPPED") and self.selected_role is None,
                 "diagnostic_busy": False,
-                "live": {"running": True,
-                         "static": self.selected_role is not None or inspection_static,
-                         "streaming": self.selected_role is None and not inspection_static,
-                         "static_roles": [self.selected_role] if self.selected_role else (active_roles if inspection_static else []),
-                         "all_roles_static": False, "fps": 25},
-                "jog": {"active": self.jog_active, "busy": self.jog_busy, "can_enter": state in JOG_ALLOWED_STATES,
-                        "live_fps": 25},
+                "live": {
+                    "running": True,
+                    "static": self.selected_role is not None or inspection_static,
+                    "streaming": self.selected_role is None and not inspection_static,
+                    "static_roles": (
+                        [self.selected_role]
+                        if self.selected_role
+                        else (active_roles if inspection_static else [])
+                    ),
+                    "all_roles_static": False,
+                    "fps": 25,
+                },
+                "jog": {
+                    "active": self.jog_active,
+                    "busy": self.jog_busy,
+                    "can_enter": state in JOG_ALLOWED_STATES,
+                    "live_fps": 25,
+                },
             }
             conveyor_pos = self.conveyor_position
             recent = list(self.recent)
         # Publish fresh virtual camera frames on every production state change.
         # The regular UI therefore exercises its real frame versioning, RAW/
         # RULES source switching and thumbnail refresh paths.
-        vision_results, rule_results = self._virtual_overlay_data(active_roles, line_parts, conveyor_pos)
+        vision_results, rule_results = self._virtual_overlay_data(
+            active_roles, line_parts, conveyor_pos,
+        )
         self.server.update(
             frames=demo_frames(self.step, phase, line_parts, belt_offset=conveyor_pos),
             vision_results=vision_results,
@@ -741,7 +810,6 @@ class LineSimulation:
                 self._wake.clear()
                 continue
             if current == "STOPPING" and not self.parts and self.egress is None:
-                self._finalize_archive_batch()
                 with self._lock:
                     self.state = "STOPPED"
                 self._publish("STOPPED")
@@ -850,18 +918,34 @@ def demo_frames(
     for index, role in enumerate(CAMERA_ORDER):
         frame = np.zeros((FRAME_HEIGHT, FRAME_WIDTH, 3), dtype=np.uint8)
         frame[:] = (20 + index * 3, 27 + index * 2, 33 + index * 2)
-        cv2.putText(frame, "UI SIMULATION · VIRTUAL CAMERA", (67, 81), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (105, 205, 170), 3)
-        cv2.putText(frame, role, (67, 135), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (205, 214, 224), 3)
-        cv2.putText(frame, f"STEP {step:04d} · {phase}", (67, 183), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (142, 165, 185), 2)
+        cv2.putText(
+            frame, "UI SIMULATION · VIRTUAL CAMERA", (67, 81),
+            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (105, 205, 170), 3,
+        )
+        cv2.putText(
+            frame, role, (67, 135), cv2.FONT_HERSHEY_SIMPLEX, 1.0,
+            (205, 214, 224), 3,
+        )
+        cv2.putText(
+            frame, f"STEP {step:04d} · {phase}", (67, 183),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.75, (142, 165, 185), 2,
+        )
         cv2.rectangle(frame, (67, 232), (1213, 630), (72, 94, 110), 3)
         # A moving virtual case lets the preview strip and main viewport show
         # actual image updates during every conveyor step.
         category = next((p.get("category") for p in line_parts if p.get("category")), "")
-        color = {"GOOD": (80, 205, 105), "BAD": (85, 85, 225), "CLEANUP": (70, 190, 230)}.get(category, (110, 125, 135))
+        color = {
+            "GOOD": (80, 205, 105),
+            "BAD": (85, 85, 225),
+            "CLEANUP": (70, 190, 230),
+        }.get(category, (110, 125, 135))
         x = moving_x + (index % 3) * 19
         cv2.rectangle(frame, (x, 368), (x + 264, 510), color, -1)
         cv2.rectangle(frame, (x, 368), (x + 264, 510), (220, 230, 235), 3)
-        cv2.putText(frame, "VIRTUAL PART", (x + 29, 447), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (15, 20, 24), 2)
+        cv2.putText(
+            frame, "VIRTUAL PART", (x + 29, 447), cv2.FONT_HERSHEY_SIMPLEX,
+            0.7, (15, 20, 24), 2,
+        )
         frames[role] = frame
     return frames
 
@@ -876,7 +960,10 @@ def main() -> None:
     # The real archive implementation writes only into ignored sandbox data.
     # Its settings dialog and validation therefore behave exactly as in the app.
     server.archive = PartArchive(root_folder="archive/ui_simulation")
+    server.configure_operator_store(server.archive.root_folder)
     simulation = LineSimulation(server, settings_path=LINE_SETTINGS_PATH)
+    server.can_switch_operator = simulation.can_switch_operator
+    server.on_operator_changed = simulation.on_operator_changed
     server.on_start = simulation.start
     server.on_stop = simulation.stop
     server.on_pause = simulation.pause
@@ -911,6 +998,7 @@ def main() -> None:
     print(f"[SIMULATION] Open http://{args.host}:{args.port}; press ПУСК to begin")
 
     stopping = threading.Event()
+
     def stop_signal(*_args):
         stopping.set()
         simulation.close()

@@ -102,6 +102,9 @@ function revealUi() {
     if (state.uiRevealed) return;
     state.uiRevealed = true;
     setIfChanged(els.splashMessage, 'Готово');
+    if (typeof ensureOperatorLoginBeforeWork === 'function') {
+        ensureOperatorLoginBeforeWork();
+    }
     setTimeout(() => {
         if (els.splash) els.splash.classList.add('splash-fadeout');
         setTimeout(() => {
@@ -109,6 +112,15 @@ function revealUi() {
             if (els.main) els.main.classList.remove('is-hidden');
             state.splashActive = false;
             applyMainCameraSource();
+            if (typeof updateOperatorStatus === 'function') {
+                updateOperatorStatus({
+                    name: state.operatorName,
+                    editable: state.operatorEditable,
+                });
+            }
+            if (typeof focusOperatorInputIfOpen === 'function') {
+                focusOperatorInputIfOpen();
+            }
             // После показа UI — сразу синхронизируем скролл порогов
             if (typeof thresholdsSyncScroll === 'function') requestAnimationFrame(() => thresholdsSyncScroll());
         }, 400);

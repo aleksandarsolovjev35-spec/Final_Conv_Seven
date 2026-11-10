@@ -25,12 +25,27 @@ function applyButtonsForState(lineState, exitRequested, controls = {}) {
 
     if (els.btnStart) {
         els.btnStart.classList.toggle('is-hidden', !startVisible);
+        const batchLocked = (
+            !state.batchSelected && startVisible && !pending && !offline
+        );
         els.btnStart.disabled = (
             !startVisible
-            || controls.start !== true
             || pending
             || offline
+            || (!batchLocked && (
+                controls.start !== true
+                || !state.operatorName
+                || !state.batchSelected
+            ))
         );
+        els.btnStart.setAttribute(
+            'aria-disabled', String(els.btnStart.disabled || batchLocked),
+        );
+        els.btnStart.classList.toggle('is-batch-locked', batchLocked);
+        const lockIcon = document.getElementById('start-lock-icon');
+        if (lockIcon) lockIcon.classList.toggle('is-hidden', !batchLocked);
+        const startLabel = document.getElementById('start-label');
+        if (startLabel) startLabel.classList.toggle('is-hidden', batchLocked);
     }
 
     if (els.btnPause) {
@@ -296,8 +311,19 @@ function setupButtons() {
     }
 
     els.btnStart.addEventListener('click', async () => {
-        if (els.btnStart.classList.contains('is-hidden')
-            || els.btnStart.disabled) return;
+        if (els.btnStart.classList.contains('is-hidden')) return;
+        if (els.btnStart.classList.contains('is-batch-locked')) {
+            els.btnStart.classList.remove('is-lock-shake');
+            void els.btnStart.offsetWidth;
+            els.btnStart.classList.add('is-lock-shake');
+            clearTimeout(els.btnStart._lockShakeTimer);
+            els.btnStart._lockShakeTimer = setTimeout(
+                () => els.btnStart.classList.remove('is-lock-shake'),
+                280,
+            );
+            return;
+        }
+        if (els.btnStart.disabled) return;
         flashButton(els.btnStart);
         await submitControl('/api/start');
     });
