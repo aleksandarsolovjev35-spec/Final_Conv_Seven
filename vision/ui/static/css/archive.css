@@ -130,6 +130,15 @@
 .archive-settings-batch b { color: var(--text); margin-left: 3px; }
 .archive-settings-batch span:nth-child(3) b { color: var(--bad); }
 .archive-settings-batch span:nth-child(4) b { color: var(--warn); }
+.archive-settings-batch .archive-settings-operator {
+    grid-column: 1 / -1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.archive-settings-batch .archive-settings-retention {
+    grid-column: 1 / -1;
+    color: var(--text-muted);
+}
 
 .archive-settings-actions {
     display: flex;

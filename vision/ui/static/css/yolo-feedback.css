@@ -430,6 +430,22 @@
     gap: 12px;
 }
 
+/* Ползунок скроллбара очереди кадров — в тёмной industrial-теме,
+   как у batch-list/gallery-grid/jog-panel. */
+.yolo-export-body {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+}
+.yolo-export-body::-webkit-scrollbar { width: 5px; }
+.yolo-export-body::-webkit-scrollbar-track { background: transparent; }
+.yolo-export-body::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 4px;
+    border: 1px solid var(--panel);
+}
+.yolo-export-body::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+
 .yolo-export-stats {
     display: flex;
     flex-wrap: wrap;

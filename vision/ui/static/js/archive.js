@@ -72,6 +72,16 @@ function renderArchiveSettings(data, preserveForm = false) {
     setIfChanged(els.archiveBatchGood, stats.good || 0);
     setIfChanged(els.archiveBatchBad, stats.bad || 0);
     setIfChanged(els.archiveBatchCleanup, stats.cleanup || 0);
+    setIfChanged(
+        els.archiveBatchOperator,
+        data.operator || state.operatorName || '—',
+    );
+    // В открытой партии изображения хранятся только для последних
+    // корпусов; картинки старших корпусов удаляются при появлении нового.
+    setIfChanged(
+        els.archiveBatchRetained,
+        data.retained_parts || 10,
+    );
 }
 
 function updateArchiveStatus(data) {

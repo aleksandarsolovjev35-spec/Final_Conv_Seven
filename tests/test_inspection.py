@@ -332,6 +332,84 @@ class PartArchiveTest(unittest.TestCase):
         self.assertIsNone(archive.get_part_info(99))
         self.assertEqual(archive.get_part_images(99), {})
 
+    def _part_folders(self, archive):
+        found = []
+        for category in PartArchive.CATEGORY_DIRS.values():
+            category_root = os.path.join(archive.batch_folder, category)
+            if not os.path.isdir(category_root):
+                continue
+            for name in os.listdir(category_root):
+                if name.startswith("part_"):
+                    found.append(os.path.join(category_root, name))
+        return sorted(found)
+
+    def _load_manifest(self, archive):
+        path = os.path.join(archive.batch_folder, "batch.json")
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_retention_keeps_only_last_images(self):
+        archive = self.make_archive()
+        for part_id in range(1, 13):
+            self.store_and_finalize(archive, part_id=part_id)
+
+        # Папки и метаданные остаются для всех корпусов партии.
+        self.assertEqual(len(self._part_folders(archive)), 12)
+        for part_id in (1, 2, 12):
+            info = archive.get_part_info(part_id)
+            self.assertIsNotNone(info)
+            self.assertTrue(os.path.exists(
+                os.path.join(info["folder"], "meta.json"),
+            ))
+
+        # Изображения остаются только для последних десяти корпусов.
+        for part_id in (1, 2):
+            self.assertEqual(archive.get_part_images(part_id), {})
+        images = archive.get_part_images(12)
+        self.assertEqual(set(images["TOP"]), {"raw", "raw_overlay", "debug"})
+
+        # Статистика партии и манифест не трогаются.
+        self.assertEqual(archive.stats["total"], 12)
+        self.assertEqual(archive._batch_stats["total"], 12)
+        manifest = self._load_manifest(archive)
+        self.assertEqual(
+            [item["part_id"] for item in manifest["parts"]],
+            list(range(1, 13)),
+        )
+        self.assertEqual(manifest["counts"]["total"], 12)
+
+    def test_retention_limit_is_configurable(self):
+        archive = self.make_archive(retained_parts=3)
+        for part_id in range(1, 5):
+            self.store_and_finalize(archive, part_id=part_id)
+
+        self.assertEqual(len(self._part_folders(archive)), 4)
+        self.assertIsNotNone(archive.get_part_info(1))
+        self.assertEqual(archive.get_part_images(1), {})
+        self.assertIsNotNone(archive.get_part_info(4))
+        self.assertTrue(os.path.exists(
+            os.path.join(archive.get_part_info(4)["folder"], "TOP.jpg"),
+        ))
+
+    def test_retention_applies_on_resume(self):
+        archive = self.make_archive()
+        for part_id in range(1, 13):
+            self.store_and_finalize(archive, part_id=part_id)
+
+        resumed = PartArchive.resume(self.root, "batch_test")
+        # Метаданные всех корпусов перечитаны, изображения — последних десяти.
+        self.assertEqual(len(self._part_folders(resumed)), 12)
+        for part_id in (1, 2):
+            self.assertIsNotNone(resumed.get_part_info(part_id))
+            self.assertEqual(resumed.get_part_images(part_id), {})
+        self.assertIsNotNone(resumed.get_part_info(12))
+        self.assertTrue(os.path.exists(
+            os.path.join(resumed.get_part_info(12)["folder"], "TOP.jpg"),
+        ))
+        # Накопительные счётчики партии переносятся из манифеста.
+        self.assertEqual(resumed._batch_stats["total"], 12)
+        self.assertEqual(resumed.next_part_id, 13)
+
     def test_can_reconfigure_root_before_start(self):
         archive = self.make_archive()
         self.assertTrue(archive.can_reconfigure())
@@ -378,6 +456,39 @@ class PartArchiveTest(unittest.TestCase):
     def test_compress_empty_batch(self):
         archive = self.make_archive()
         self.assertIsNone(archive.compress())
+
+    def test_compress_strips_images(self):
+        archive = self.make_archive()
+        self.store_and_finalize(archive)
+        zip_path = archive.compress()
+        self.assertTrue(zip_path)
+        # В закрытый архив идут метаданные, а изображения удаляются.
+        self.assertTrue(zipfile_has(zip_path, "GOOD/part_0001/meta.json"))
+        for member in (
+            "GOOD/part_0001/TOP.jpg",
+            "GOOD/part_0001/TOP_raw.jpg",
+            "GOOD/part_0001/TOP_debug.jpg",
+        ):
+            self.assertFalse(zipfile_has(zip_path, member))
+
+    def test_close_batch_strips_images_from_zip(self):
+        archive = self.make_archive()
+        for part_id in range(1, 13):
+            self.store_and_finalize(archive, part_id=part_id)
+        zip_path = archive.close_batch()
+        self.assertTrue(zip_path)
+        # Метаданные всех корпусов и статистика остаются, картинок нет.
+        for part_id in (1, 2, 12):
+            self.assertTrue(zipfile_has(
+                zip_path, f"GOOD/part_{part_id:04d}/meta.json",
+            ))
+        self.assertFalse(zipfile_has(zip_path, "GOOD/part_0012/TOP.jpg"))
+        self.assertFalse(zipfile_has(zip_path, "GOOD/part_0001/TOP_debug.jpg"))
+        with open(os.path.join(self.root, "stats.json"),
+                  encoding="utf-8") as f:
+            stats = json.load(f)
+        self.assertEqual(stats["total"], 12)
+        self.assertEqual(stats["good"], 12)
 
     def test_batch_folder_uses_date_and_batch(self):
         archive = self.make_archive(batch_id="партия 1")

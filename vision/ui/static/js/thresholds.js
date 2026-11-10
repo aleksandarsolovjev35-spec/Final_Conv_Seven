@@ -6,7 +6,7 @@ const THRESHOLD_EDITABLE_STATES = ['IDLE', 'STOPPED'];
 
 let thresholdsData = null;
 let thresholdsBusy = false;
-let thresholdsSaveBusy = false;
+let thresholdsAutoSaveBusy = false;
 let thresholdsBodyKey = null;
 let thresholdsDirty = false;
 let thresholdsCardIndex = 0;
@@ -108,8 +108,7 @@ function renderThresholdsPanel() {
         thresholdsBodyKey = key;
         renderThresholdsBody();
     }
-    setThresholdInputsEditable(editable);
-    updateThresholdsActions();
+    setThresholdInputsEditable(editable && !thresholdsAutoSaveBusy);
 }
 
 function buildThresholdItem(param) {
@@ -395,85 +394,87 @@ function thresholdsScrollActiveTabIntoView() {
     else if (right > tabs.scrollLeft + tabs.clientWidth) tabs.scrollLeft = right - tabs.clientWidth;
 }
 
-function collectThresholdValues() {
-    const values = {};
-    if (els.thresholdsBody) {
-        els.thresholdsBody.querySelectorAll('input.thresholds-input').forEach(input => {
-            const raw = String(input.value).trim();
-            if (raw === '') return;
-            const number = Number(raw);
-            if (Number.isNaN(number)) return;
-            values[input.dataset.key] = number;
-        });
-    }
-    return values;
+function restoreThresholdInput(input, message) {
+    const previous = thresholdsData && thresholdsData.values
+        ? thresholdsData.values[input.dataset.key]
+        : undefined;
+    if (previous !== undefined) input.value = String(previous);
+    thresholdsDirty = false;
+    setThresholdsStatus(message || '', message ? 'error' : '');
 }
 
-function hasChangedThresholds() {
-    if (!thresholdsData || !thresholdsData.values) return false;
-    if (els.thresholdsBody) {
-        const hasEmpty = [...els.thresholdsBody.querySelectorAll('input.thresholds-input')].some(input => String(input.value).trim() === '');
-        if (hasEmpty) return true;
+async function autoSaveThreshold(input) {
+    if (!thresholdsData || !input || thresholdsAutoSaveBusy) return;
+    if (!thresholdsEditableNow()) {
+        restoreThresholdInput(input, '');
+        return;
     }
-    const current = collectThresholdValues();
-    return Object.entries(current).some(([key, value]) => thresholdsData.values[key] !== value);
-}
 
-function updateThresholdsActions() {
-    if (!els.thresholdsSave || !els.thresholdsReset) return;
-    const editable = thresholdsEditableNow() && !!thresholdsData && thresholdsData.editable !== false;
-    const changed = thresholdsDirty || hasChangedThresholds();
-    els.thresholdsReset.disabled = !editable || thresholdsSaveBusy;
-    els.thresholdsSave.disabled = !editable || thresholdsSaveBusy || !changed;
-}
-
-async function saveThresholds() {
-    if (!thresholdsEditableNow() || thresholdsSaveBusy || !thresholdsData) return;
-    if (els.thresholdsBody) {
-        const hasEmpty = [...els.thresholdsBody.querySelectorAll('input.thresholds-input')].some(input => String(input.value).trim() === '');
-        if (hasEmpty) { setThresholdsStatus('Заполните все поля', 'error'); return; }
+    const key = input.dataset.key;
+    const raw = String(input.value).trim();
+    const previous = Number(thresholdsData.values[key]);
+    const value = raw === '' ? NaN : Number(raw);
+    if (
+        raw === ''
+        || !Number.isFinite(value)
+        || !input.checkValidity()
+    ) {
+        restoreThresholdInput(input, 'Некорректное значение — восстановлено прежнее');
+        return;
     }
-    const values = collectThresholdValues();
-    if (!Object.keys(values).length) return;
-    thresholdsSaveBusy = true;
-    updateThresholdsActions();
+    if (value === previous) {
+        input.value = String(previous);
+        thresholdsDirty = false;
+        setThresholdsStatus('', '');
+        return;
+    }
+
+    thresholdsAutoSaveBusy = true;
+    setThresholdInputsEditable(false);
     setThresholdsStatus('Сохранение...', '');
     try {
-        const result = await apiPostJson('/api/thresholds', {role: state.currentCamera, values}, true);
-        if (!result || !result.thresholds) { setThresholdsStatus('Не удалось сохранить пороги', 'error'); return; }
-        thresholdsData = result.thresholds;
-        thresholdsDirty = false;
-        if (typeof result.thresholds.revision === 'number') state.thresholdsRevision = result.thresholds.revision;
-        setThresholdsStatus('Сохранено', '');
-        renderThresholdsPanel();
-    } finally {
-        thresholdsSaveBusy = false;
-        updateThresholdsActions();
-    }
-}
+        const result = await apiPostJson(
+            '/api/thresholds',
+            {role: state.currentCamera, values: {[key]: value}},
+            true,
+        );
+        if (!result || !result.thresholds) {
+            restoreThresholdInput(
+                input, 'Не сохранено — восстановлено прежнее значение',
+            );
+            return;
+        }
 
-async function resetThresholds() {
-    if (!thresholdsEditableNow() || thresholdsSaveBusy) return;
-    setThresholdsStatus('', '');
-    thresholdsDirty = false;
-    thresholdsBodyKey = null;
-    thresholdsData = null;
-    await fetchThresholds(state.currentCamera);
+        thresholdsData = result.thresholds;
+        thresholdsBodyKey = `${thresholdsData.role}|${thresholdsData.revision}`;
+        const savedValue = thresholdsData.values[key];
+        if (savedValue !== undefined) input.value = String(savedValue);
+        thresholdsDirty = false;
+        if (typeof thresholdsData.revision === 'number') {
+            state.thresholdsRevision = thresholdsData.revision;
+        }
+        setThresholdsStatus('Сохранено', '');
+    } finally {
+        thresholdsAutoSaveBusy = false;
+        renderThresholdsPanel();
+    }
 }
 
 function setupThresholdsControls() {
-    if (els.thresholdsSave) els.thresholdsSave.addEventListener('click', saveThresholds);
-    if (els.thresholdsReset) els.thresholdsReset.addEventListener('click', resetThresholds);
     if (els.thresholdsBody) {
-        const markThresholdsChanged = event => {
+        els.thresholdsBody.addEventListener('input', event => {
             if (!event.target.matches('input.thresholds-input')) return;
             thresholdsDirty = true;
-            if (!hasChangedThresholds()) thresholdsDirty = false;
-            updateThresholdsActions();
-        };
-        els.thresholdsBody.addEventListener('input', markThresholdsChanged);
-        els.thresholdsBody.addEventListener('change', markThresholdsChanged);
+            setThresholdsStatus('', '');
+        });
+        els.thresholdsBody.addEventListener('change', event => {
+            if (!event.target.matches('input.thresholds-input')) return;
+            autoSaveThreshold(event.target);
+        });
     }
-    window.addEventListener('resize', () => { thresholdsSyncScroll(); thresholdsScrollActiveTabIntoView(); });
+    window.addEventListener('resize', () => {
+        thresholdsSyncScroll();
+        thresholdsScrollActiveTabIntoView();
+    });
     updateThresholdsPanel();
 }

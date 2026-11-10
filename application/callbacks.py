@@ -227,7 +227,21 @@ def bind_inspection_callbacks(runtime, services) -> ThresholdCallbacks:
 
     monitor = runtime.monitor
     monitor.server.archive = services.archive
+    monitor.server.batch_root_folder = getattr(services.archive, "root_folder", None)
     monitor.server.archive_config_path = "archive_config.json"
+    configure_operators = getattr(
+        monitor.server, "configure_operator_store", None
+    )
+    root_folder = getattr(services.archive, "root_folder", None)
+    if (
+        callable(configure_operators)
+        and isinstance(root_folder, str)
+        and root_folder.strip()
+    ):
+        configure_operators(root_folder)
+    operator_name = getattr(monitor.server, "operator_name", "")
+    if operator_name and hasattr(services.archive, "set_operator"):
+        services.archive.set_operator(operator_name)
     monitor.server.thresholds = dict(services.thresholds)
     monitor.server.threshold_labels = dict(
         services.threshold_loader.labels or {}

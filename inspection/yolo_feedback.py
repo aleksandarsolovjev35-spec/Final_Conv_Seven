@@ -14,19 +14,20 @@
   статус выгрузки.
 
 При выгрузке формируется ZIP-архив, разложенный по целевым ``.pt``-моделям:
-внутри каждой папки модели лежат ``images/`` (только чистые ``.jpg``),
-``hints/`` (шпаргалки с тем же именем), ``draft_labels/`` (черновики YOLO-seg),
-``classes.txt`` и ``meta/``.
+каждая модель — отдельная папка ``datasets/<модель>/``, внутри неё все кадры
+этой модели в одной папке, а каждый кадр — два файла с общим префиксом
+``<NNN>_`` (``001_image.jpg``, ``001_hint.jpg``). ZIP собирается прямо в файл,
+чтобы при 50–100 кадрах на модель не держать всё в памяти.
 """
 
 from __future__ import annotations
 
 import contextlib
-import io
 import json
 import math
 import os
 import shutil
+import tempfile
 import threading
 import time
 import zipfile
@@ -543,6 +544,7 @@ class YoloFeedbackStore:
         source_kind: str = "live",
         part_id: int | None = None,
         step: int | None = None,
+        operator: str = "",
     ) -> dict:
         """Сохранить чистый кадр (.jpg), шпаргалку (.jpg) и метаданные (.json)."""
         role = str(role or "").strip().upper()
@@ -627,6 +629,7 @@ class YoloFeedbackStore:
                 if isinstance(step, int) and not isinstance(step, bool)
                 else None
             ),
+            "operator": " ".join(str(operator or "").split()),
             "comment": safe_comment,
             "target_models": target_models,
             "yolo_classes": yolo_classes,
@@ -702,6 +705,7 @@ class YoloFeedbackStore:
             "labels_ru": labels_ru,
             "target_models": list(meta.get("target_models") or []),
             "comment": meta.get("comment") or "",
+            "operator": meta.get("operator") or "",
             "part_id": meta.get("part_id"),
             "step": meta.get("step"),
             "exported": bool(meta.get("exported")),
@@ -812,23 +816,19 @@ class YoloFeedbackStore:
             f"Сформирован: {generated_at}\n"
             f"Количество кейсов: {exported_count}\n\n"
             "Структура архива:\n"
-            "  datasets/<папка_модели>/\n"
-            "    images/        — ЧИСТЫЕ кадры 1280x720 (.jpg, качество 98)\n"
-            "                     без рамок, сетки и надписей.\n"
-            "                     Загружайте эту папку напрямую в CVAT,\n"
-            "                     Label Studio, Roboflow или X-AnyLabeling.\n"
-            "    hints/         — КАДРЫ-ПОДСКАЗКИ (.jpg) с тем же именем файла:\n"
-            "                     показано, какие именно пропущенные дефекты\n"
-            "                     обвёл оператор и какие объекты уже нашла\n"
-            "                     текущая нейросеть.\n"
-            "    draft_labels/  — Черновые полигоны оператора в формате YOLO-seg\n"
-            "                     (<class_id> x1 y1 x2 y2 ... в координатах 0..1).\n"
-            "                     Используйте только как ориентир/предразметку:\n"
-            "                     контур оператора грубый и требует точной обводки.\n"
-            "    classes.txt    — Точный порядок классов целевой .pt-модели\n"
-            "                     (совпадает с vision/model_config.py).\n"
-            "    meta/          — Полные JSON-карточки (комментарий оператора,\n"
-            "                     роль камеры, путь к .pt-весам, время, шаг).\n"
+            "  datasets/<папка_модели>/    — кадры для одной модели\n"
+            "    001_image.jpg              — ЧИСТЫЙ кадр 1280x720 (.jpg,\n"
+            "                                  качество 98): без рамок, сетки\n"
+            "                                  и надписей. Обводите именно его.\n"
+            "    001_hint.jpg               — шпаргалка: показано, какие\n"
+            "                                  дефекты обвёл оператор и какие\n"
+            "                                  объекты уже нашла нейросеть.\n"
+            "                                  Откройте вместе с image.jpg,\n"
+            "                                  чтобы быстро сориентироваться.\n"
+            "    002_image.jpg, 002_hint.jpg, ...\n\n"
+            "Как разметить: откройте datasets/<модель>/, поставьте side-by-side\n"
+            "001_image.jpg и 001_hint.jpg, обведите объекты в image.jpg,\n"
+            "сохраните разметку в YOLO-формате (класс и normalized-координаты).\n"
         )
 
     def ensure_exportable(self, *, only_pending: bool = True) -> int:
@@ -864,9 +864,14 @@ class YoloFeedbackStore:
 
     def _build_zip_unlocked(
         self,
+        sink,
         *,
         only_pending: bool,
-    ) -> tuple[bytes, list[tuple[str, dict]], str, str]:
+    ) -> tuple[list[tuple[str, dict]], str, str]:
+        """Собрать ZIP в ``sink`` (путь или файл) без удержания в памяти.
+
+        Возвращает ``(selected, filename, now_iso)``.
+        """
         metas = self._iter_metas()
         selected = [
             (folder, meta)
@@ -885,17 +890,17 @@ class YoloFeedbackStore:
         now_iso = now.isoformat(timespec="seconds")
         filename = f"yolo_tasks_{now.strftime('%Y%m%d_%H%M%S')}.zip"
 
-        buf = io.BytesIO()
-        written_classes_files: set[str] = set()
         manifest_items = []
 
         with zipfile.ZipFile(
-            buf, "w", zipfile.ZIP_DEFLATED, compresslevel=6,
+            sink, "w", zipfile.ZIP_DEFLATED, compresslevel=6,
         ) as zf:
             zf.writestr(
                 "README_YOLO.txt",
                 self._readme_text(len(selected), now_iso),
             )
+
+            frame_counters: dict[str, int] = {}
 
             for folder, meta in selected:
                 task_id = str(meta["task_id"])
@@ -918,47 +923,25 @@ class YoloFeedbackStore:
 
                 for slug, slug_marks in grouped_marks.items():
                     base = f"datasets/{slug}"
+                    frame_no = frame_counters.get(slug, 0) + 1
+                    frame_counters[slug] = frame_no
+                    # Один кадр — два файла с общим префиксом №:
+                    # разметчику не нужно открывать вложенные папки,
+                    # все кадры модели в одной папке, номер в имени.
+                    prefix = f"{frame_no:03d}_"
+
                     # JPEG уже сжаты: ZIP_STORED бережёт CPU во время цикла.
                     zf.write(
                         clean_path,
-                        f"{base}/images/{task_id}.jpg",
+                        f"{base}/{prefix}image.jpg",
                         compress_type=zipfile.ZIP_STORED,
                     )
                     if os.path.isfile(hint_path):
                         zf.write(
                             hint_path,
-                            f"{base}/hints/{task_id}.jpg",
+                            f"{base}/{prefix}hint.jpg",
                             compress_type=zipfile.ZIP_STORED,
                         )
-
-                    model_classes = []
-                    for m in slug_marks:
-                        if m.get("model_classes"):
-                            model_classes = list(m["model_classes"])
-                            break
-                    if model_classes and slug not in written_classes_files:
-                        zf.writestr(
-                            f"{base}/classes.txt",
-                            "\n".join(model_classes) + "\n",
-                        )
-                        written_classes_files.add(slug)
-
-                    draft_lines = [
-                        line
-                        for m in slug_marks
-                        for line in (self._format_yolo_draft_line(m),)
-                        if line
-                    ]
-                    if draft_lines:
-                        zf.writestr(
-                            f"{base}/draft_labels/{task_id}.txt",
-                            "\n".join(draft_lines) + "\n",
-                        )
-
-                    zf.writestr(
-                        f"{base}/meta/{task_id}.json",
-                        json.dumps(meta, indent=2, ensure_ascii=False),
-                    )
 
                 manifest_items.append(self._public_item(meta))
 
@@ -974,7 +957,7 @@ class YoloFeedbackStore:
                 json.dumps(manifest, indent=2, ensure_ascii=False),
             )
 
-        return buf.getvalue(), selected, filename, now_iso
+        return selected, filename, now_iso
 
     def build_export_zip(
         self,
@@ -982,18 +965,27 @@ class YoloFeedbackStore:
         only_pending: bool = True,
         mark_exported: bool = True,
     ) -> tuple[bytes, int, str]:
-        """Собрать ZIP в памяти и при необходимости пометить задачи выгруженными.
+        """Собрать ZIP на временном файле и при необходимости пометить
+        задачи выгруженными.
 
         Возвращает ``(zip_bytes, count, suggested_filename)``.
         Если подходящих задач нет, выбрасывает ``ValueError``.
         """
         with self._lock:
-            zip_bytes, selected, filename, now_iso = self._build_zip_unlocked(
-                only_pending=only_pending,
-            )
-            if mark_exported:
-                self._mark_selected_exported_unlocked(selected, now_iso)
-            return zip_bytes, len(selected), filename
+            fd, temp_path = tempfile.mkstemp(suffix=".zip")
+            os.close(fd)
+            try:
+                selected, filename, now_iso = self._build_zip_unlocked(
+                    temp_path, only_pending=only_pending,
+                )
+                with open(temp_path, "rb") as stream:
+                    zip_bytes = stream.read()
+                if mark_exported:
+                    self._mark_selected_exported_unlocked(selected, now_iso)
+                return zip_bytes, len(selected), filename
+            finally:
+                with contextlib.suppress(OSError):
+                    os.remove(temp_path)
 
     def export_zip_to_path(
         self,
@@ -1010,11 +1002,21 @@ class YoloFeedbackStore:
             target += ".zip"
 
         with self._lock:
-            zip_bytes, selected, _filename, now_iso = self._build_zip_unlocked(
-                only_pending=only_pending,
+            folder = os.path.dirname(target) or "."
+            os.makedirs(folder, exist_ok=True)
+            fd, temp_path = tempfile.mkstemp(
+                dir=folder, suffix=".zip.tmp",
             )
-            os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
-            self._save_bytes(zip_bytes, target)
+            os.close(fd)
+            try:
+                selected, _filename, now_iso = self._build_zip_unlocked(
+                    temp_path, only_pending=only_pending,
+                )
+                os.replace(temp_path, target)
+            except Exception:
+                with contextlib.suppress(OSError):
+                    os.remove(temp_path)
+                raise
             if mark_exported:
                 self._mark_selected_exported_unlocked(selected, now_iso)
 

@@ -72,6 +72,9 @@ async function fetchStatus() {
         }
     }
 
+    if (typeof updateBatchStatus === 'function') {
+        updateBatchStatus(status.batch || null);
+    }
     if (typeof updateArchiveStatus === 'function') {
         updateArchiveStatus(status.archive || null);
     }
@@ -107,6 +110,9 @@ async function fetchStatus() {
 
     const oldState = state.lineState;
     updateLineStatus(lineStatusPayload);
+    if (typeof updateOperatorStatus === 'function') {
+        updateOperatorStatus(status.operator || null);
+    }
     updateRecentParts(status.recent_parts || []);
     updateMode(status.mode || 'RULES');
 
@@ -140,6 +146,7 @@ function markUiOffline() {
     }
     if (typeof updateThresholdsPanel === 'function') updateThresholdsPanel();
     if (typeof updateArchiveStatus === 'function') updateArchiveStatus(null);
+    if (typeof updateOperatorStatus === 'function') updateOperatorStatus(null);
     if (typeof updateYoloFeedbackStatus === 'function') updateYoloFeedbackStatus(null);
     updateStateOverlay({state: 'OFFLINE', in_line: 0});
 }

@@ -336,8 +336,9 @@
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: flex-start;
     gap: 6px;
+    min-height: 14px;
 }
 
 .thresholds-status {
@@ -354,8 +355,3 @@
 .thresholds-status.is-error {
     color: var(--bad);
 }
-
-/* Кнопки «СОХРАНИТЬ» / «ОТМЕНИТЬ» порогов — .btn.btn-sm: сохранение
-   зелёным вариантом .btn-thresholds-save, отмена — акцентным
-   .btn-accent, стандартные цвета «АНАЛИЗ КАДРА»; всё задано
-   единообразно в controls.css. */
