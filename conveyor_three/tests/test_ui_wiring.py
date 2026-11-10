@@ -149,3 +149,38 @@ def test_three_camera_geometry_stays_own():
 def test_css_braces_balanced():
     for name, source in CSS_FILES.items():
         assert source.count("{") == source.count("}"), name
+
+
+def test_all_markup_classes_have_styles():
+    """Каждый класс из разметки описан в CSS — иначе блок выглядит «сырым»."""
+    classes = set()
+    for attr in re.findall(r'class="([^"]+)"', INDEX_HTML):
+        classes |= set(attr.split())
+
+    css = "\n".join(CSS_FILES.values())
+    # Классы-переключатели состояний и служебные маркеры стилей не требуют.
+    state_only = {
+        "is-hidden", "is-active", "is-on", "is-collapsed", "is-open",
+        "is-empty", "is-faded", "is-locked", "is-bad", "is-pending",
+        "is-batch-locked", "is-lock-shake", "is-loading", "is-disabled",
+        "controls-collapsed", "jog-inactive", "jog-pause-handoff",
+        "pending", "active", "good", "bad", "warn", "splash-fadeout",
+        "ui-collapse", "btn-sm", "btn-ok", "btn-bad", "btn-accent",
+        "btn-warn", "btn-icon", "btn-icon-lg", "btn-overlay", "btn-grid",
+        "jog-dpad-hold",
+        # Служебные маркеры строки пути: раскладку задаёт
+        # .archive-settings-row, отдельный стиль не нужен.
+        "archive-settings-path-row",
+    }
+    missing = sorted(
+        name for name in classes
+        if name and name not in state_only and name not in css
+    )
+    assert missing == [], f"Классы без стилей: {missing}"
+
+
+def test_jog_mode_switch_is_styled():
+    """Переключатель режима на ленте не должен быть голым текстом."""
+    jog_css = CSS_FILES["jog"]
+    for token in (".jog-mode-switch", ".jog-mode-btn", ".jog-mode-btn.is-active"):
+        assert token in jog_css, token
