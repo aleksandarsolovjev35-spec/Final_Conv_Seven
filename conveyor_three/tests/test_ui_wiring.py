@@ -230,3 +230,35 @@ def test_no_fault_banner_leftovers():
     assert "fault-banner" not in INDEX_HTML
     assert "fault-face" in INDEX_HTML
     assert "faultBanner" not in "".join(JS_FILES.values())
+
+
+def test_static_versions_are_present():
+    """У каждого подключаемого файла есть ?v= — иначе браузер съест кэш."""
+    refs = re.findall(r'(?:href|src)="/static/[^"]+"', INDEX_HTML)
+    assert refs, "в разметке нет подключений статики"
+    without_version = [
+        ref for ref in refs if not re.search(r"\?v=\d+", ref)
+    ]
+    assert without_version == [], (
+        f"Без параметра версии: {without_version}"
+    )
+
+
+def test_yolo_hotkeys_wired():
+    """Разметчик YOLO управляется с клавиатуры: Ctrl+Z, 1…9 и «M»."""
+    bootstrap = JS_FILES["bootstrap"]
+    for token in (
+        "isYoloModalOpen", "undoLastYoloMark",
+        "selectYoloClassByIndex", "mark-yolo-defect",
+    ):
+        assert token in bootstrap, f"горячая клавиша не подключена: {token}"
+
+
+def test_jog_keys_respect_step_mode():
+    """Стрелки JOG в режиме шага не должны запускать второй шаг."""
+    bootstrap = JS_FILES["bootstrap"]
+    assert "triggerJogPress" in bootstrap
+    assert "jogStepPending" in bootstrap
+    jog = JS_FILES["jog"]
+    assert "jogControlMode === 'step'" in jog
+    assert "jogStepDirection" in jog

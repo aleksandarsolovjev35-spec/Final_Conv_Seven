@@ -62,7 +62,37 @@ function setupHotkeys() {
             return;
         }
 
+        // Разметчик YOLO: Ctrl+Z — отменить метку, 1…9 — выбрать класс.
+        // Пока модалка открыта, остальные горячие клавиши не работают,
+        // иначе F5/стрелки уводили бы фокус из разметки.
+        if (typeof isYoloModalOpen === 'function' && isYoloModalOpen()) {
+            if (!inInput && (e.ctrlKey || e.metaKey)
+                && (e.key === 'z' || e.key === 'Z' || e.key === 'я' || e.key === 'Я')) {
+                e.preventDefault();
+                if (typeof undoLastYoloMark === 'function') undoLastYoloMark();
+                return;
+            }
+            if (!inInput && e.key >= '1' && e.key <= '9') {
+                e.preventDefault();
+                if (typeof selectYoloClassByIndex === 'function') {
+                    selectYoloClassByIndex(parseInt(e.key, 10) - 1);
+                }
+                return;
+            }
+            return;
+        }
+
         if (inInput) return;
+
+        // «M» — отметить дефект вручную, не мышью.
+        if (e.key === 'm' || e.key === 'M' || e.key === 'ь' || e.key === 'Ь') {
+            const markBtn = document.getElementById('mark-yolo-defect');
+            if (markBtn && !markBtn.disabled) {
+                e.preventDefault();
+                markBtn.click();
+            }
+            return;
+        }
 
         if (e.key === 'F5') {
             e.preventDefault();
@@ -105,12 +135,12 @@ function setupHotkeys() {
         if (state.jogActive) {
             if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
                 e.preventDefault();
-                if (!e.repeat && !state.jogHoldDirection) {
+                if (!e.repeat && !state.jogHoldDirection && !state.jogStepPending) {
                     const direction = e.key === 'ArrowLeft' ? '-' : '+';
                     const button = els.jogPanel.querySelector(
                         `.jog-hold-btn[data-direction="${direction}"]`
                     );
-                    if (button) beginJogHold(direction, button);
+                    if (button) triggerJogPress(direction, button);
                 }
                 return;
             }

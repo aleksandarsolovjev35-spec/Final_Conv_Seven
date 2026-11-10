@@ -207,11 +207,13 @@ const PROCESS_PHASE_LABELS = {
     STOPPED: 'ОСТАНОВЛЕНО · ЛИНИЯ ПУСТА',
     JOG: 'JOG · РУЧНОЕ ПЕРЕМЕЩЕНИЕ',
     JOG_HOLD: 'JOG · УДЕРЖИВАЕМОЕ ДВИЖЕНИЕ',
+    JOG_STEP: 'JOG · ПЕРЕМЕЩЕНИЕ НА 1 ШАГ',
     JOG_STOPPED: 'JOG · ДВИЖЕНИЕ ОСТАНОВЛЕНО',
     SELECTED_ANALYSIS: 'ДИАГНОСТИКА · АНАЛИЗ КАДРА',
     SELECTED_MODEL_ANALYSIS: 'ДИАГНОСТИКА · МОДЕЛИ И ПРАВИЛА',
     SELECTED_MODEL_READY: 'ДИАГНОСТИКА · РЕЗУЛЬТАТ ГОТОВ',
     CAMERA_DIAGNOSTIC: 'ДИАГНОСТИКА · КАМЕРЫ',
+    LIVE_SELECTED_CAMERA: 'ДИАГНОСТИКА · ВОЗВРАТ К ЖИВОМУ ПОТОКУ',
     VISION_RULE_DIAGNOSTIC: 'ДИАГНОСТИКА · МОДЕЛИ И ПРАВИЛА',
     DISTRIBUTOR_DIAGNOSTIC: 'ДИАГНОСТИКА · РАСПРЕДЕЛИТЕЛЬ',
     DIAGNOSTIC_DONE: 'ДИАГНОСТИКА · ПРОВЕРКА ЗАВЕРШЕНА',
@@ -222,7 +224,11 @@ const PROCESS_PHASE_LABELS = {
 const PROCESS_STAGE_ORDER = ['START', 'MOTION', 'SETTLE', 'CAPTURE', 'ANALYSIS', 'REVIEW', 'PUBLISH'];
 const PROCESS_STAGE_PHASES = {
     START: new Set(['START_POSITIONING', 'READY', 'INITIAL_INSPECTION']),
-    MOTION: new Set(['ROUTE_PREPARE', 'CONVEYOR_COMMAND', 'CONVEYOR_MOVING', 'MOTION']),
+    MOTION: new Set([
+        'ROUTE_PREPARE', 'CONVEYOR_COMMAND', 'CONVEYOR_MOVING', 'MOTION',
+        // Ручной шаг ленты — тоже движение, этап «ДВИЖЕНИЕ» должен гореть.
+        'JOG_STEP', 'JOG_HOLD', 'JOG',
+    ]),
     SETTLE: new Set(['CONVEYOR_CONFIRMED', 'PART_TRANSFER', 'SETTLE']),
     CAPTURE: new Set(['CAMERA_CAPTURE', 'CAPTURE']),
     ANALYSIS: new Set([

@@ -106,20 +106,33 @@ function updateJogState(jog) {
     showJogPanel(state.jogActive);
     applyLiveBadge(state.jogActive);
 
+    // Направление, которое сейчас отрабатывает. В режиме «1 ШАГ» это
+    // jogStepDirection, в режиме «ЗАЖАТИЕ» — jogHoldDirection.
+    const activeDir = (
+        jog.direction || state.jogHoldDirection || state.jogStepDirection
+    );
+    const isStepMode = state.jogControlMode === 'step';
+
     if (els.jogPanel) {
         els.jogPanel.querySelectorAll('.jog-hold-btn').forEach(btn => {
-            const sameDirection =
-                btn.dataset.direction === state.jogHoldDirection;
+            const sameDirection = btn.dataset.direction === activeDir;
+            // В режиме шага занята вся панель: второй шаг поверх первого
+            // недопустим. В режиме зажатия блокируется только встречное
+            // направление — удержание позволяет реверсировать на ходу.
+            const busyBlocked = isStepMode
+                ? (state.jogBusy || state.jogStepPending)
+                : (state.jogBusy && !sameDirection);
             btn.disabled = (
-                !state.jogActive
+                !jogUiAvailable()
+                || !state.jogActive
                 || state.backendControls.jog_hold !== true
                 || state.distributorDiagnosticBackendBusy
                 || state.distributorDiagnosticPending
-                || (state.jogBusy && !sameDirection)
+                || busyBlocked
             );
             btn.classList.toggle(
                 'jog-active',
-                !!jog.busy && sameDirection,
+                (!!jog.busy || state.jogStepPending) && sameDirection,
             );
         });
     }
@@ -131,6 +144,12 @@ function updateJogState(jog) {
         && !state.jogStartPromise
     ) {
         clearJogHoldLocalState();
+    }
+
+    // Шаг отработан: снимаем признак ожидания и подсветку направления.
+    if (!state.jogBusy && !jog.busy && state.jogStepPending) {
+        state.jogStepPending = false;
+        state.jogStepDirection = null;
     }
 
     if (state.jogTogglePending && wasActive !== state.jogActive) {

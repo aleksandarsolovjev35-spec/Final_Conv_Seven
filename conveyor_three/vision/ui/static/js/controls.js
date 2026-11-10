@@ -30,13 +30,18 @@ function applyButtonsForState(lineState, exitRequested, controls = {}) {
         const batchLocked = (
             !state.batchSelected && startVisible && !pending && !offline
         );
+        // Без партии кнопка остаётся кликабельной (is-batch-locked):
+        // клик по замку даёт отклик-подсказку, а disabled-кнопка
+        // события не получает вовсе.
         els.btnStart.disabled = (
             !startVisible
-            || controls.start !== true
             || pending
             || offline
-            || !state.operatorName
-            || !state.batchSelected
+            || (!batchLocked && (
+                controls.start !== true
+                || !state.operatorName
+                || !state.batchSelected
+            ))
         );
         els.btnStart.setAttribute(
             'aria-disabled', String(els.btnStart.disabled || batchLocked),
@@ -317,8 +322,21 @@ function setupButtons() {
     }
 
     els.btnStart.addEventListener('click', async () => {
-        if (els.btnStart.classList.contains('is-hidden')
-            || els.btnStart.disabled) return;
+        if (els.btnStart.classList.contains('is-hidden')) return;
+        // Партия не выбрана: кнопка заблокирована замком, но нажатие
+        // должно быть замечено — иначе кажется, что интерфейс завис.
+        if (els.btnStart.classList.contains('is-batch-locked')) {
+            els.btnStart.classList.remove('is-lock-shake');
+            void els.btnStart.offsetWidth;
+            els.btnStart.classList.add('is-lock-shake');
+            clearTimeout(els.btnStart._lockShakeTimer);
+            els.btnStart._lockShakeTimer = setTimeout(
+                () => els.btnStart.classList.remove('is-lock-shake'),
+                280,
+            );
+            return;
+        }
+        if (els.btnStart.disabled) return;
         flashButton(els.btnStart);
         await submitControl('/api/start');
     });
