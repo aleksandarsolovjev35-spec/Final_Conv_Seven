@@ -609,18 +609,14 @@ class UIServer:
         """Нормализованный ключ ФИО: регистр и пробелы не важны."""
         return " ".join(str(value or "").split()).casefold()
 
-    def _same_operator(self, left, right) -> bool:
-        key = self._operator_key(left)
-        return bool(key) and key == self._operator_key(right)
-
     def list_batches(self):
         """Return every batch of the archive, including foreign ones.
 
-        Партии общие для всех операторов линии: список показывает и партии,
-        созданные другим пользователем, чтобы их можно было продолжить.
-        Для каждой партии добавляются признаки ``owner`` (создатель партии),
-        ``owned`` (партия создана текущим оператором) и ``shared`` (в партии
-        работали несколько операторов).
+        Партии общие для всех операторов линии: разделения на «мои» и
+        «чужие» нет, список показывает все партии, включая созданные другим
+        пользователем, чтобы их можно было продолжить. Для каждой партии
+        возвращается ``owner`` (создатель партии) и ``operator_stats`` —
+        сколько деталей провёл каждый оператор.
         """
         from inspection.part_archive import PartArchive
 
@@ -630,15 +626,7 @@ class UIServer:
         result = []
         for batch in PartArchive.list_batches(root):
             item = dict(batch)
-            creator = item.get("created_by") or item.get("operator", "")
-            operators = [
-                str(value) for value in (item.get("operators") or []) if value
-            ]
-            item["owner"] = creator
-            item["owned"] = self._same_operator(creator, self.operator_name)
-            item["shared"] = len({
-                self._operator_key(value) for value in operators
-            }) > 1
+            item["owner"] = item.get("created_by") or item.get("operator", "")
             result.append(item)
         return result
 
@@ -657,7 +645,7 @@ class UIServer:
                 "operator": getattr(archive, "operator", ""),
                 "owner": owner,
                 "operators": list(getattr(archive, "operators", []) or []),
-                "owned": self._same_operator(owner, self.operator_name),
+                "operator_stats": archive.operator_stats(),
             })
         if include_list:
             payload["batches"] = self.list_batches()

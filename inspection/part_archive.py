@@ -232,8 +232,53 @@ class PartArchive:
         )
 
     @staticmethod
-    def _batch_listing(manifest, batch_id, path, zipped=False):
+    def operator_breakdown(parts, known_operators=(), fallback_operator=""):
+        """Посчитать, сколько деталей провёл каждый оператор партии.
+
+        ``parts`` — записи деталей (как в манифесте ``batch.json``); у каждой
+        записи берётся ``operator``. Записи без оператора (старые манифесты)
+        приписываются создателю партии ``fallback_operator``. Операторы из
+        ``known_operators`` попадают в отчёт, даже если не провели деталей.
+        Возвращается список словарей ``operator``/``parts``/``good``/``bad``/
+        ``cleanup``, отсортированный по числу деталей (убывание).
+        """
+        totals = {}
+
+        def bucket(name):
+            label = " ".join(str(name or "").split())
+            if not label:
+                label = " ".join(str(fallback_operator or "").split()) or "—"
+            return totals.setdefault(label.casefold(), {
+                "operator": label,
+                "parts": 0,
+                "good": 0,
+                "bad": 0,
+                "cleanup": 0,
+            })
+
+        for name in known_operators:
+            bucket(name)
+        for part in parts or []:
+            entry = bucket((part or {}).get("operator") or fallback_operator)
+            entry["parts"] += 1
+            category = str((part or {}).get("category") or "").lower()
+            if category in ("good", "bad", "cleanup"):
+                entry[category] += 1
+        return sorted(
+            totals.values(),
+            key=lambda entry: (-entry["parts"], entry["operator"]),
+        )
+
+    @classmethod
+    def _batch_listing(cls, manifest, batch_id, path, zipped=False):
         counts = manifest.get("counts") or {}
+        creator = manifest.get("created_by") or manifest.get("operator", "")
+        operators = manifest.get("operators") or (
+            [manifest["operator"]] if manifest.get("operator") else []
+        )
+        known = list(operators)
+        if creator:
+            known.append(creator)
         return {
             "batch_id": str(manifest.get("batch_id") or batch_id),
             "date": manifest.get("date", ""),
@@ -247,11 +292,10 @@ class PartArchive:
                 for key in ("total", "good", "bad", "cleanup")
             },
             "operator": manifest.get("operator", ""),
-            "created_by": (
-                manifest.get("created_by") or manifest.get("operator", "")
-            ),
-            "operators": manifest.get("operators") or (
-                [manifest["operator"]] if manifest.get("operator") else []
+            "created_by": creator,
+            "operators": operators,
+            "operator_stats": cls.operator_breakdown(
+                manifest.get("parts") or [], known, creator,
             ),
             "path": path,
             "zipped": zipped,
@@ -302,6 +346,7 @@ class PartArchive:
             item = {
                 "part_id": part_id, "category": category,
                 "decision": meta.get("decision", ""),
+                "operator": meta.get("operator", ""),
                 "folder": str(meta_path.parent),
                 "relative_folder": relative,
                 "roles": meta.get("roles", []),
@@ -481,6 +526,7 @@ class PartArchive:
             "part_id": part_id,
             "category": stored_category,
             "decision": decision,
+            "operator": self.operator,
             "folder": folder_path.replace("\\", "/"),
             "relative_folder": relative_folder,
             "roles": roles_saved,
@@ -611,6 +657,15 @@ class PartArchive:
 
     # ---------- статистика и манифест ----------
 
+    def operator_stats(self) -> list:
+        """Вклад каждого оператора в текущую партию (по записям деталей)."""
+        known = list(self.operators)
+        if self.created_by:
+            known.append(self.created_by)
+        return self.operator_breakdown(
+            self._batch_parts, known, self.created_by,
+        )
+
     def _load_stats(self) -> dict:
         stats = {"total": 0, "good": 0, "bad": 0, "cleanup": 0}
         path = os.path.join(self.root_folder, self.STATS_FILE)
@@ -651,6 +706,7 @@ class PartArchive:
                     "part_id": item["part_id"],
                     "category": item["category"],
                     "decision": item["decision"],
+                    "operator": item.get("operator", ""),
                     "folder": item["relative_folder"],
                     "time": item["time"],
                 }

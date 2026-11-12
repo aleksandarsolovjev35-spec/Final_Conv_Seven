@@ -135,12 +135,15 @@ class BatchManagementApiTest(unittest.TestCase):
             item["batch_id"]: item for item in payload["batches"]
         }
         self.assertEqual(set(listed), {"Mine", "OtherOperatorBatch"})
-        self.assertTrue(listed["Mine"]["owned"])
         self.assertEqual(listed["Mine"]["owner"], "Оператор Тестовый")
-        self.assertFalse(listed["OtherOperatorBatch"]["owned"])
         self.assertEqual(
             listed["OtherOperatorBatch"]["owner"], "Другой Оператор",
         )
+        # Партии просто общие: разделения на «мои» и «чужие» нет.
+        for item in listed.values():
+            self.assertNotIn("owned", item)
+            self.assertNotIn("shared", item)
+            self.assertIn("operator_stats", item)
 
         # Список виден тому же оператору и другому пользователю.
         self.server.operator_name = "Другой Оператор"
@@ -149,8 +152,10 @@ class BatchManagementApiTest(unittest.TestCase):
             item["batch_id"]: item for item in other_payload["batches"]
         }
         self.assertEqual(set(other_listed), {"Mine", "OtherOperatorBatch"})
-        self.assertTrue(other_listed["OtherOperatorBatch"]["owned"])
-        self.assertFalse(other_listed["Mine"]["owned"])
+        self.assertEqual(other_listed["Mine"]["owner"], "Оператор Тестовый")
+        self.assertEqual(
+            other_listed["OtherOperatorBatch"]["owner"], "Другой Оператор",
+        )
 
     def test_foreign_open_batch_can_be_resumed_and_keeps_its_creator(self):
         PartArchive(
@@ -177,12 +182,64 @@ class BatchManagementApiTest(unittest.TestCase):
 
         payload = self.client.get("/api/batches").json()
         self.assertEqual(payload["owner"], "Другой Оператор")
-        self.assertFalse(payload["owned"])
         shared = [
             item for item in payload["batches"]
             if item["batch_id"] == "OtherOperatorBatch"
         ][0]
-        self.assertTrue(shared["shared"])
+        # Оба оператора показаны во вкладе партии (деталей пока нет).
+        stats = {
+            entry["operator"]: entry for entry in shared["operator_stats"]
+        }
+        self.assertEqual(
+            set(stats), {"Другой Оператор", "Оператор Тестовый"},
+        )
+        self.assertEqual(stats["Оператор Тестовый"]["parts"], 0)
+
+    def test_batch_reports_parts_processed_per_operator(self):
+        archive = PartArchive(
+            self.tmp.name, "SharedLot", "Иванов Иван Иванович",
+            create_manifest=True,
+        )
+        archive.finalize(1, "GOOD", "accepted", [], 1)
+        archive.finalize(2, "BAD", "rejected", [], 2)
+
+        self.server.operator_name = "Сидоров Сидор Сидорович"
+        resumed = self.client.post(
+            "/api/batches/resume", json={"batch_id": "SharedLot"},
+        )
+        self.assertEqual(resumed.status_code, 200)
+        self.server.archive.finalize(3, "GOOD", "accepted", [], 3)
+
+        payload = self.client.get("/api/batches").json()
+        listed = [
+            item for item in payload["batches"]
+            if item["batch_id"] == "SharedLot"
+        ][0]
+        stats = {
+            entry["operator"]: entry for entry in listed["operator_stats"]
+        }
+        self.assertEqual(stats["Иванов Иван Иванович"]["parts"], 2)
+        self.assertEqual(stats["Иванов Иван Иванович"]["good"], 1)
+        self.assertEqual(stats["Иванов Иван Иванович"]["bad"], 1)
+        self.assertEqual(stats["Сидоров Сидор Сидорович"]["parts"], 1)
+        self.assertEqual(stats["Сидоров Сидор Сидорович"]["good"], 1)
+
+        # В активной партии вклад показан тем же списком.
+        active = {
+            entry["operator"]: entry for entry in payload["operator_stats"]
+        }
+        self.assertEqual(active["Иванов Иван Иванович"]["parts"], 2)
+        self.assertEqual(active["Сидоров Сидор Сидорович"]["parts"], 1)
+
+        # В манифесте каждая деталь закреплена за своим оператором.
+        with open(
+            os.path.join(self.server.archive.batch_folder, "batch.json"),
+            encoding="utf-8",
+        ) as stream:
+            manifest = json.load(stream)
+        by_part = {part["part_id"]: part for part in manifest["parts"]}
+        self.assertEqual(by_part[1]["operator"], "Иванов Иван Иванович")
+        self.assertEqual(by_part[3]["operator"], "Сидоров Сидор Сидорович")
 
     def test_closed_batch_cannot_be_resumed_by_another_operator(self):
         archive = PartArchive(
@@ -239,7 +296,7 @@ class BatchManagementApiTest(unittest.TestCase):
 
 
 class BatchPanelStaticContractTest(unittest.TestCase):
-    """Панель партий показывает создателя партии и общий доступ к ней."""
+    """Панель партий показывает создателя и вклад каждого оператора."""
 
     def test_panel_markup_and_static_assets_present(self):
         index_html = (
@@ -247,14 +304,17 @@ class BatchPanelStaticContractTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn('id="batch-list"', index_html)
         self.assertIn('id="active-batch-owner"', index_html)
+        self.assertIn('id="active-batch-operators"', index_html)
 
         batches_js = (
             ROOT / "vision" / "ui" / "static" / "js" / "batches.js"
         ).read_text(encoding="utf-8")
         self.assertIn("batchOwnerName", batches_js)
         self.assertIn("создал:", batches_js)
-        self.assertIn("МОЯ", batches_js)
-        self.assertIn("ОБЩАЯ", batches_js)
+        self.assertIn("operatorPartsText", batches_js)
+        # Разделения на «мои/чужие» больше нет.
+        self.assertNotIn("МОЯ", batches_js)
+        self.assertNotIn("ОБЩАЯ", batches_js)
 
     def test_static_assets_are_served(self):
         server = UIServer()
