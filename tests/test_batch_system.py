@@ -317,7 +317,7 @@ class BatchPanelStaticContractTest(unittest.TestCase):
         self.assertIn("batch-card-heading", batches_js)
         self.assertIn("СТАТИСТИКА", batches_js)
         self.assertIn("УЧАСТНИКИ", batches_js)
-        self.assertIn("batchCountsText", batches_js)
+        self.assertIn("batch-card-stat", batches_js)
         self.assertIn("всего деталей", batches_js)
         # Ни разделения «мои/чужие», ни лишних сведений в карточке.
         self.assertNotIn("МОЯ", batches_js)

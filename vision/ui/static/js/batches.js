@@ -2,10 +2,6 @@
 
 let batchActionPending = false;
 
-function batchCountsText(counts = {}) {
-    return `годных ${counts.good || 0} · брак ${counts.bad || 0} · зачистка ${counts.cleanup || 0}`;
-}
-
 function batchOperatorStats(item = {}) {
     return Array.isArray(item.operator_stats) ? item.operator_stats : [];
 }
@@ -44,10 +40,26 @@ function renderBatchList(items = [], activeId = null) {
         const statsHead = document.createElement('div');
         statsHead.className = 'batch-card-heading';
         statsHead.textContent = 'СТАТИСТИКА';
-        const statsLine = document.createElement('span');
-        statsLine.className = 'batch-card-meta';
-        statsLine.textContent = batchCountsText(item.counts);
-        statsSection.append(statsHead, statsLine);
+        const statsGrid = document.createElement('div');
+        statsGrid.className = 'batch-card-stats';
+        const counts = item.counts || {};
+        [
+            ['годных', counts.good, 'is-good'],
+            ['брак', counts.bad, 'is-bad'],
+            ['зачистка', counts.cleanup, 'is-cleanup'],
+        ].forEach(([label, value, cls]) => {
+            const tile = document.createElement('div');
+            tile.className = `batch-card-stat ${cls}`;
+            const tileLabel = document.createElement('span');
+            tileLabel.className = 'batch-card-stat-label';
+            tileLabel.textContent = label;
+            const tileValue = document.createElement('span');
+            tileValue.className = 'batch-card-stat-value';
+            tileValue.textContent = value || 0;
+            tile.append(tileLabel, tileValue);
+            statsGrid.appendChild(tile);
+        });
+        statsSection.append(statsHead, statsGrid);
         main.append(titleRow, statsSection);
         const opRows = batchOperatorStats(item);
         if (opRows.length) {
@@ -62,10 +74,21 @@ function renderBatchList(items = [], activeId = null) {
                 row.className = 'batch-card-op';
                 const name = document.createElement('div');
                 name.className = 'batch-card-op-name';
-                name.textContent = entry.operator || '—';
+                const dot = document.createElement('span');
+                dot.className = 'batch-card-op-dot';
+                const nameText = document.createElement('span');
+                nameText.className = 'batch-card-op-name-text';
+                nameText.textContent = entry.operator || '—';
+                nameText.title = entry.operator || '';
+                name.append(dot, nameText);
                 const count = document.createElement('div');
                 count.className = 'batch-card-op-count';
-                count.textContent = `всего деталей: ${entry.parts || 0}`;
+                const countLabel = document.createElement('span');
+                countLabel.textContent = 'всего деталей: ';
+                const countValue = document.createElement('span');
+                countValue.className = 'batch-card-op-count-value';
+                countValue.textContent = entry.parts || 0;
+                count.append(countLabel, countValue);
                 row.append(name, count);
                 ops.appendChild(row);
             });
