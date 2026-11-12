@@ -27,14 +27,22 @@ function renderBatchList(items = [], activeId = null) {
     items.forEach(item => {
         const card = document.createElement('div');
         card.className = 'batch-card';
-        const main = document.createElement('div');
-        main.className = 'batch-card-main';
-        const titleRow = document.createElement('div');
-        titleRow.className = 'batch-card-title';
+
+        // Шапка: название партии и чип статуса.
+        const head = document.createElement('div');
+        head.className = 'batch-card-head';
         const title = document.createElement('span');
         title.className = 'batch-card-id';
         title.textContent = item.batch_id;
-        titleRow.append(title);
+        const isOpen = item.status === 'OPEN' && !item.zipped;
+        const status = document.createElement('span');
+        status.className = `batch-card-status ${isOpen ? 'is-open' : 'is-closed'}`;
+        const statusDot = document.createElement('span');
+        statusDot.className = 'batch-card-status-dot';
+        status.append(statusDot, document.createTextNode(isOpen ? 'ОТКРЫТА' : 'ЗАКРЫТА'));
+        head.append(title, status);
+
+        // Блок «СТАТИСТИКА»: плитки счётчиков.
         const statsSection = document.createElement('div');
         statsSection.className = 'batch-card-section';
         const statsHead = document.createElement('div');
@@ -60,7 +68,9 @@ function renderBatchList(items = [], activeId = null) {
             statsGrid.appendChild(tile);
         });
         statsSection.append(statsHead, statsGrid);
-        main.append(titleRow, statsSection);
+        card.append(head, statsSection);
+
+        // Блок «УЧАСТНИКИ»: имя слева, личный итог справа.
         const opRows = batchOperatorStats(item);
         if (opRows.length) {
             const ops = document.createElement('div');
@@ -92,27 +102,24 @@ function renderBatchList(items = [], activeId = null) {
                 row.append(name, count);
                 ops.appendChild(row);
             });
-            main.append(ops);
+            card.appendChild(ops);
         }
-        const actions = document.createElement('div');
-        actions.className = 'batch-card-actions';
-        if (item.status === 'OPEN' && !item.zipped) {
+
+        // Подвал: широкая кнопка действия.
+        if (isOpen) {
+            const foot = document.createElement('div');
+            foot.className = 'batch-card-footer';
             const resume = document.createElement('button');
             resume.type = 'button';
-            resume.className = 'btn btn-sm btn-ok';
+            resume.className = 'btn btn-sm btn-ok batch-card-action';
             resume.textContent = item.batch_id === activeId ? 'ВЫБРАНА' : 'ПРОДОЛЖИТЬ';
             resume.disabled = batchActionPending || item.batch_id === activeId;
             resume.addEventListener('click', () => batchRequest(
                 '/api/batches/resume', {batch_id: item.batch_id},
             ));
-            actions.appendChild(resume);
-        } else {
-            const closed = document.createElement('span');
-            closed.className = 'batch-card-meta';
-            closed.textContent = 'ЗАКРЫТА';
-            actions.appendChild(closed);
+            foot.appendChild(resume);
+            card.appendChild(foot);
         }
-        card.append(main, actions);
         list.appendChild(card);
     });
 }
