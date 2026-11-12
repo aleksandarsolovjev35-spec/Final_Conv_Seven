@@ -224,8 +224,9 @@ def setup_api_routes(app, server):
         return await batch_action(server.resume_batch, data.get("batch_id"))
 
     @app.post("/api/batches/close")
-    async def api_close_batch():
-        return await batch_action(server.close_batch)
+    async def api_close_batch(payload: dict | None = None):
+        data = payload if isinstance(payload, dict) else {}
+        return await batch_action(server.close_batch, data.get("batch_id") or None)
 
     @app.post("/api/batches/detach")
     async def api_detach_batch():

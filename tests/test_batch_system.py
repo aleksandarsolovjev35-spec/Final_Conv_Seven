@@ -283,6 +283,35 @@ class BatchManagementApiTest(unittest.TestCase):
         self.assertFalse(self.server.batch_selected)
         self.assertTrue(os.path.isfile(expected_zip))
 
+    def test_batch_can_be_closed_from_the_list_by_id(self):
+        archive = PartArchive(
+            self.tmp.name, "CloseFromList", "Оператор Тестовый",
+            create_manifest=True,
+        )
+        archive.finalize(1, "GOOD", "accepted", [], 1)
+        expected_zip = archive.batch_folder + ".zip"
+
+        with mock.patch("json_sender.send_batch_json", return_value=False) as sender:
+            result = self.client.post(
+                "/api/batches/close", json={"batch_id": "CloseFromList"},
+            )
+        self.assertEqual(result.status_code, 200)
+        sender.assert_called_once()
+        self.assertFalse(self.server.batch_selected)
+        self.assertTrue(os.path.isfile(expected_zip))
+
+        listed = [
+            item for item in self.client.get("/api/batches").json()["batches"]
+            if item["batch_id"] == "CloseFromList"
+        ][0]
+        self.assertEqual(listed["status"], "CLOSED")
+
+        # Уже закрытую партию закрыть повторно нельзя.
+        again = self.client.post(
+            "/api/batches/close", json={"batch_id": "CloseFromList"},
+        )
+        self.assertEqual(again.status_code, 409)
+
     def test_custom_batch_id_validation_returns_400(self):
         response = self.client.post(
             "/api/batches/open", json={"batch_id": "../bad"},
@@ -305,9 +334,11 @@ class BatchPanelStaticContractTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn('id="batch-list"', index_html)
         self.assertIn('id="active-batch-name"', index_html)
-        # В панели активной партии — только имя: без создателя и вклада.
+        # В панели активной партии — только имя: без создателя, вклада
+        # и кнопки закрытия (партию закрывают из списка).
         self.assertNotIn('id="active-batch-owner"', index_html)
         self.assertNotIn('id="active-batch-operators"', index_html)
+        self.assertNotIn('id="active-batch-close"', index_html)
 
         batches_js = (
             ROOT / "vision" / "ui" / "static" / "js" / "batches.js"
@@ -319,6 +350,10 @@ class BatchPanelStaticContractTest(unittest.TestCase):
         self.assertIn("УЧАСТНИКИ", batches_js)
         self.assertIn("batch-card-stat", batches_js)
         self.assertIn("всего деталей", batches_js)
+        # Закрытие партии — прямо из списка, рядом с «ПРОДОЛЖИТЬ».
+        self.assertIn("ПРОДОЛЖИТЬ", batches_js)
+        self.assertIn("ЗАКРЫТЬ", batches_js)
+        self.assertNotIn("active-batch-close", batches_js)
         # Ни разделения «мои/чужие», ни лишних сведений в карточке.
         self.assertNotIn("МОЯ", batches_js)
         self.assertNotIn("ОБЩАЯ", batches_js)

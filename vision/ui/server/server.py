@@ -725,12 +725,34 @@ class UIServer:
         self._notify_archive_changed(None)
         return self.batch_status_payload()
 
-    def close_batch(self):
-        if not self.batch_selected or not self._batch_line_idle():
+    def close_batch(self, batch_id=None):
+        """Закрыть активную партию или партию из списка по её ID."""
+        from inspection.part_archive import PartArchive
+
+        if not self._batch_line_idle():
             raise RuntimeError("Закрыть партию можно только при остановленной линии")
-        archive = self.archive
-        if archive is None:
-            raise RuntimeError("Активная партия не найдена")
+        close_active = not batch_id or (
+            self.batch_selected
+            and self.archive is not None
+            and self.archive.batch_id == batch_id
+        )
+        if close_active:
+            if not self.batch_selected or self.archive is None:
+                raise RuntimeError("Активная партия не найдена")
+            archive = self.archive
+        else:
+            if self.batch_selected:
+                raise RuntimeError("Сначала отсоедините активную партию")
+            root = self.batch_root_folder or getattr(self.archive, "root_folder", None)
+            if not root:
+                raise RuntimeError("Папка архива не настроена")
+            open_batches = {
+                item["batch_id"] for item in PartArchive.list_batches(root)
+                if item.get("status") == "OPEN" and not item.get("zipped")
+            }
+            if batch_id not in open_batches:
+                raise RuntimeError("Партия не найдена или уже закрыта")
+            archive = PartArchive.resume(root, batch_id)
         from json_sender import send_batch_json
         archive.close_batch(sender=send_batch_json)
         self.batch_selected = False

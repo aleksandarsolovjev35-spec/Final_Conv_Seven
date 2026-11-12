@@ -74,7 +74,7 @@ function renderBatchList(items = [], activeId = null) {
         const opRows = batchOperatorStats(item);
         if (opRows.length) {
             const ops = document.createElement('div');
-            ops.className = 'batch-card-section';
+            ops.className = 'batch-card-section batch-card-ops';
             const opsHead = document.createElement('div');
             opsHead.className = 'batch-card-heading';
             opsHead.textContent = 'УЧАСТНИКИ';
@@ -84,13 +84,11 @@ function renderBatchList(items = [], activeId = null) {
                 row.className = 'batch-card-op';
                 const name = document.createElement('div');
                 name.className = 'batch-card-op-name';
-                const dot = document.createElement('span');
-                dot.className = 'batch-card-op-dot';
                 const nameText = document.createElement('span');
                 nameText.className = 'batch-card-op-name-text';
                 nameText.textContent = entry.operator || '—';
                 nameText.title = entry.operator || '';
-                name.append(dot, nameText);
+                name.append(nameText);
                 const count = document.createElement('div');
                 count.className = 'batch-card-op-count';
                 const countLabel = document.createElement('span');
@@ -105,7 +103,7 @@ function renderBatchList(items = [], activeId = null) {
             card.appendChild(ops);
         }
 
-        // Подвал: широкая кнопка действия.
+        // Подвал: ПРОДОЛЖИТЬ и рядом справа ЗАКРЫТЬ.
         if (isOpen) {
             const foot = document.createElement('div');
             foot.className = 'batch-card-footer';
@@ -117,7 +115,17 @@ function renderBatchList(items = [], activeId = null) {
             resume.addEventListener('click', () => batchRequest(
                 '/api/batches/resume', {batch_id: item.batch_id},
             ));
-            foot.appendChild(resume);
+            const close = document.createElement('button');
+            close.type = 'button';
+            close.className = 'btn btn-sm btn-bad batch-card-action';
+            close.textContent = 'ЗАКРЫТЬ';
+            close.disabled = batchActionPending;
+            close.addEventListener('click', () => {
+                if (window.confirm('Закрыть партию? После закрытия продолжить её будет нельзя.')) {
+                    batchRequest('/api/batches/close', {batch_id: item.batch_id});
+                }
+            });
+            foot.append(resume, close);
             card.appendChild(foot);
         }
         list.appendChild(card);
@@ -146,7 +154,7 @@ function updateBatchStatus(batch) {
     }
     const canManage = ['IDLE', 'STOPPED'].includes(state.lineState)
         && !batchActionPending && !state.offline;
-    ['batch-open', 'active-batch-detach', 'active-batch-close'].forEach(id => {
+    ['batch-open', 'active-batch-detach'].forEach(id => {
         const button = document.getElementById(id);
         if (button) button.disabled = !canManage;
     });
@@ -158,7 +166,7 @@ function updateBatchStatus(batch) {
 async function batchRequest(path, payload) {
     if (batchActionPending || state.offline) return;
     batchActionPending = true;
-    ['batch-open', 'active-batch-detach', 'active-batch-close', 'batch-list'].forEach(id => {
+    ['batch-open', 'active-batch-detach', 'batch-list'].forEach(id => {
         const node = document.getElementById(id);
         if (node) node.disabled = true;
     });
@@ -183,9 +191,6 @@ function setupBatchManagement() {
         batchRequest('/api/batches/open', {batch_id: input ? input.value.trim() : ''});
     });
     bind('active-batch-detach', () => batchRequest('/api/batches/detach'));
-    bind('active-batch-close', () => {
-        if (window.confirm('Закрыть партию? После закрытия продолжить её будет нельзя.')) batchRequest('/api/batches/close');
-    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
