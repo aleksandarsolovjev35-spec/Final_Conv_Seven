@@ -296,8 +296,8 @@ class BatchManagementApiTest(unittest.TestCase):
 
 
 class BatchPanelStaticContractTest(unittest.TestCase):
-    """Карточка партии: название, счётчики и участники с личными итогами;
-    панель активной партии показывает только имя партии."""
+    """Карточка партии разделена на блоки с заголовками: статистика и
+    участники с личными итогами; панель активной партии — только имя."""
 
     def test_panel_markup_and_static_assets_present(self):
         index_html = (
@@ -312,6 +312,11 @@ class BatchPanelStaticContractTest(unittest.TestCase):
         batches_js = (
             ROOT / "vision" / "ui" / "static" / "js" / "batches.js"
         ).read_text(encoding="utf-8")
+        # Карточка разбита на блоки с заголовками.
+        self.assertIn("batch-card-section", batches_js)
+        self.assertIn("batch-card-heading", batches_js)
+        self.assertIn("СТАТИСТИКА", batches_js)
+        self.assertIn("УЧАСТНИКИ", batches_js)
         self.assertIn("batchCountsText", batches_js)
         self.assertIn("всего деталей", batches_js)
         # Ни разделения «мои/чужие», ни лишних сведений в карточке.

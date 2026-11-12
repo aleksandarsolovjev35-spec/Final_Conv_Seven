@@ -39,14 +39,24 @@ function renderBatchList(items = [], activeId = null) {
         title.className = 'batch-card-id';
         title.textContent = item.batch_id;
         titleRow.append(title);
-        const meta = document.createElement('span');
-        meta.className = 'batch-card-meta';
-        meta.textContent = batchCountsText(item.counts);
-        main.append(titleRow, meta);
+        const statsSection = document.createElement('div');
+        statsSection.className = 'batch-card-section';
+        const statsHead = document.createElement('div');
+        statsHead.className = 'batch-card-heading';
+        statsHead.textContent = 'СТАТИСТИКА';
+        const statsLine = document.createElement('span');
+        statsLine.className = 'batch-card-meta';
+        statsLine.textContent = batchCountsText(item.counts);
+        statsSection.append(statsHead, statsLine);
+        main.append(titleRow, statsSection);
         const opRows = batchOperatorStats(item);
         if (opRows.length) {
             const ops = document.createElement('div');
-            ops.className = 'batch-card-ops';
+            ops.className = 'batch-card-section';
+            const opsHead = document.createElement('div');
+            opsHead.className = 'batch-card-heading';
+            opsHead.textContent = 'УЧАСТНИКИ';
+            ops.appendChild(opsHead);
             opRows.forEach(entry => {
                 const row = document.createElement('div');
                 row.className = 'batch-card-op';

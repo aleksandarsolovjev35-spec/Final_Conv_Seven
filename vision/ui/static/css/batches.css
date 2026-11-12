@@ -47,9 +47,28 @@
 .batch-list::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 .batch-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; align-items: center; padding: 8px; border: 1px solid var(--border, #35404c); border-radius: 7px; background: rgba(255,255,255,.025); }
 .batch-card-main { min-width: 0; display: grid; gap: 3px; }
-.batch-card-title { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.batch-card-title {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border, #35404c);
+}
 .batch-card-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 800; }
-.batch-card-ops { display: grid; gap: 3px; }
+.batch-card-section { display: grid; gap: 3px; min-width: 0; }
+.batch-card-section + .batch-card-section {
+    margin-top: 2px;
+    padding-top: 5px;
+    border-top: 1px solid var(--border, #35404c);
+}
+.batch-card-heading {
+    color: var(--text-dim, #b7c2cd);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
 .batch-card-op { display: grid; gap: 0; }
 .batch-card-op-name {
     overflow: hidden;
