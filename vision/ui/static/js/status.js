@@ -298,7 +298,6 @@ function updateLineStatus(ls) {
     if (!['IDLE', 'STOPPED'].includes(lineState)) state.startPending = false;
 
     updateProcessPhaseLabel(lineState, ls.process || {});
-    setIfChanged(els.metricStep, ls.step || 0);
 
     updateConveyorSpeed(ls);
     updateInspectionTimings(ls);

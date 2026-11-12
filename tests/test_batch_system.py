@@ -296,25 +296,29 @@ class BatchManagementApiTest(unittest.TestCase):
 
 
 class BatchPanelStaticContractTest(unittest.TestCase):
-    """Панель партий показывает создателя и вклад каждого оператора."""
+    """Карточка партии: название, счётчики и участники с личными итогами;
+    панель активной партии показывает только имя партии."""
 
     def test_panel_markup_and_static_assets_present(self):
         index_html = (
             ROOT / "vision" / "ui" / "templates" / "index.html"
         ).read_text(encoding="utf-8")
         self.assertIn('id="batch-list"', index_html)
-        self.assertIn('id="active-batch-owner"', index_html)
-        self.assertIn('id="active-batch-operators"', index_html)
+        self.assertIn('id="active-batch-name"', index_html)
+        # В панели активной партии — только имя: без создателя и вклада.
+        self.assertNotIn('id="active-batch-owner"', index_html)
+        self.assertNotIn('id="active-batch-operators"', index_html)
 
         batches_js = (
             ROOT / "vision" / "ui" / "static" / "js" / "batches.js"
         ).read_text(encoding="utf-8")
-        self.assertIn("batchOwnerName", batches_js)
-        self.assertIn("создал:", batches_js)
-        self.assertIn("operatorPartsText", batches_js)
-        # Разделения на «мои/чужие» больше нет.
+        self.assertIn("batchCountsText", batches_js)
+        self.assertIn("всего деталей", batches_js)
+        # Ни разделения «мои/чужие», ни лишних сведений в карточке.
         self.assertNotIn("МОЯ", batches_js)
         self.assertNotIn("ОБЩАЯ", batches_js)
+        self.assertNotIn("создал:", batches_js)
+        self.assertNotIn("batchOwnerName", batches_js)
 
     def test_static_assets_are_served(self):
         server = UIServer()

@@ -3,24 +3,11 @@
 let batchActionPending = false;
 
 function batchCountsText(counts = {}) {
-    return `Всего ${counts.total || 0} · годных ${counts.good || 0} · брак ${counts.bad || 0} · зачистка ${counts.cleanup || 0}`;
-}
-
-function batchOwnerName(item = {}) {
-    return item.owner || item.created_by || item.operator || '';
+    return `годных ${counts.good || 0} · брак ${counts.bad || 0} · зачистка ${counts.cleanup || 0}`;
 }
 
 function batchOperatorStats(item = {}) {
     return Array.isArray(item.operator_stats) ? item.operator_stats : [];
-}
-
-function operatorPartsText(entry = {}) {
-    const details = [];
-    if (entry.good) details.push(`${entry.good} годн.`);
-    if (entry.bad) details.push(`${entry.bad} брак.`);
-    if (entry.cleanup) details.push(`${entry.cleanup} зачистка`);
-    const tail = details.length ? ` (${details.join(' · ')})` : '';
-    return `${entry.operator || '—'} — ${entry.parts || 0} дет.${tail}`;
 }
 
 function setBatchSlot(selected) {
@@ -54,10 +41,7 @@ function renderBatchList(items = [], activeId = null) {
         titleRow.append(title);
         const meta = document.createElement('span');
         meta.className = 'batch-card-meta';
-        const owner = batchOwnerName(item);
-        const parts = [item.date || '', batchCountsText(item.counts)];
-        if (owner) parts.push(`создал: ${owner}`);
-        meta.textContent = parts.filter(Boolean).join(' · ');
+        meta.textContent = batchCountsText(item.counts);
         main.append(titleRow, meta);
         const opRows = batchOperatorStats(item);
         if (opRows.length) {
@@ -66,7 +50,13 @@ function renderBatchList(items = [], activeId = null) {
             opRows.forEach(entry => {
                 const row = document.createElement('div');
                 row.className = 'batch-card-op';
-                row.textContent = operatorPartsText(entry);
+                const name = document.createElement('div');
+                name.className = 'batch-card-op-name';
+                name.textContent = entry.operator || '—';
+                const count = document.createElement('div');
+                count.className = 'batch-card-op-count';
+                count.textContent = `всего деталей: ${entry.parts || 0}`;
+                row.append(name, count);
                 ops.appendChild(row);
             });
             main.append(ops);
@@ -111,20 +101,6 @@ function updateBatchStatus(batch) {
         const node = document.getElementById(id);
         if (node) node.textContent = activeName;
     });
-    const ownerNode = document.getElementById('active-batch-owner');
-    if (ownerNode) {
-        const owner = batch.owner || batch.created_by || batch.operator || '';
-        ownerNode.textContent = owner ? `создал: ${owner}` : '';
-        ownerNode.title = owner;
-    }
-    const opsNode = document.getElementById('active-batch-operators');
-    if (opsNode) {
-        const stats = batchOperatorStats(batch);
-        opsNode.textContent = stats
-            .map(entry => `${entry.operator}: ${entry.parts || 0}`)
-            .join(' · ');
-        opsNode.title = stats.map(operatorPartsText).join('\n');
-    }
     if (Array.isArray(batch.batches)) {
         renderBatchList(batch.batches, selected ? batch.batch_id : null);
     }

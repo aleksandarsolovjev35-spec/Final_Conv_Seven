@@ -49,13 +49,19 @@
 .batch-card-main { min-width: 0; display: grid; gap: 3px; }
 .batch-card-title { min-width: 0; display: flex; align-items: center; gap: 6px; }
 .batch-card-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 800; }
-.batch-card-ops { display: grid; gap: 1px; }
-.batch-card-op {
+.batch-card-ops { display: grid; gap: 3px; }
+.batch-card-op { display: grid; gap: 0; }
+.batch-card-op-name {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--text-dim, #b7c2cd);
     font-size: 10px;
+}
+.batch-card-op-count {
+    padding-left: 7px;
+    color: var(--muted, #9ca9b7);
+    font-size: 9px;
 }
 .batch-card-meta { color: var(--muted, #9ca9b7); font-size: 10px; }
 .batch-card-actions { display: flex; gap: 4px; }
@@ -86,24 +92,6 @@
     color: var(--text-dim);
     font-size: 11px;
     font-weight: 700;
-}
-.active-batch-owner {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--muted, #9ca9b7);
-    font-size: 10px;
-}
-.active-batch-operators {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--ok, #57b894);
-    font-size: 10px;
 }
 .active-batch-toolbar .btn {
     flex: 0 0 auto;
