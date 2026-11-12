@@ -6,6 +6,21 @@ function batchCountsText(counts = {}) {
     return `Всего ${counts.total || 0} · годных ${counts.good || 0} · брак ${counts.bad || 0} · зачистка ${counts.cleanup || 0}`;
 }
 
+function batchOwnerName(item = {}) {
+    return item.owner || item.created_by || item.operator || '';
+}
+
+function batchBadge(item = {}) {
+    const owner = batchOwnerName(item);
+    if (item.shared) {
+        return {text: 'ОБЩАЯ', className: 'is-shared', title: owner ? `Партия создана: ${owner}` : 'В партии работали несколько операторов'};
+    }
+    if (item.owned) {
+        return {text: 'МОЯ', className: 'is-own', title: owner ? `Партия создана: ${owner}` : 'Своя партия'};
+    }
+    return {text: 'ОБЩАЯ', className: 'is-shared', title: owner ? `Партия создана: ${owner}` : 'Партия другого оператора'};
+}
+
 function setBatchSlot(selected) {
     const panel = document.getElementById('thresholds-panel');
     if (!panel) return;
@@ -29,13 +44,24 @@ function renderBatchList(items = [], activeId = null) {
         card.className = 'batch-card';
         const main = document.createElement('div');
         main.className = 'batch-card-main';
+        const titleRow = document.createElement('div');
+        titleRow.className = 'batch-card-title';
         const title = document.createElement('span');
         title.className = 'batch-card-id';
         title.textContent = item.batch_id;
+        const badge = batchBadge(item);
+        const badgeNode = document.createElement('span');
+        badgeNode.className = `batch-card-badge ${badge.className}`;
+        badgeNode.textContent = badge.text;
+        badgeNode.title = badge.title;
+        titleRow.append(title, badgeNode);
         const meta = document.createElement('span');
         meta.className = 'batch-card-meta';
-        meta.textContent = `${item.date || ''} · ${batchCountsText(item.counts)}${item.operator ? ` · ${item.operator}` : ''}`;
-        main.append(title, meta);
+        const owner = batchOwnerName(item);
+        const parts = [item.date || '', batchCountsText(item.counts)];
+        if (owner) parts.push(`создал: ${owner}`);
+        meta.textContent = parts.filter(Boolean).join(' · ');
+        main.append(titleRow, meta);
         const actions = document.createElement('div');
         actions.className = 'batch-card-actions';
         if (item.status === 'OPEN' && !item.zipped) {
@@ -76,6 +102,12 @@ function updateBatchStatus(batch) {
         const node = document.getElementById(id);
         if (node) node.textContent = activeName;
     });
+    const ownerNode = document.getElementById('active-batch-owner');
+    if (ownerNode) {
+        const owner = batch.owner || batch.created_by || batch.operator || '';
+        ownerNode.textContent = owner ? `создал: ${owner}` : '';
+        ownerNode.title = owner;
+    }
     if (Array.isArray(batch.batches)) {
         renderBatchList(batch.batches, selected ? batch.batch_id : null);
     }

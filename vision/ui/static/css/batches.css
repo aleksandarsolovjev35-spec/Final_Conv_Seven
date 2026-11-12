@@ -47,7 +47,20 @@
 .batch-list::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 .batch-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; align-items: center; padding: 8px; border: 1px solid var(--border, #35404c); border-radius: 7px; background: rgba(255,255,255,.025); }
 .batch-card-main { min-width: 0; display: grid; gap: 3px; }
+.batch-card-title { min-width: 0; display: flex; align-items: center; gap: 6px; }
 .batch-card-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 800; }
+.batch-card-badge {
+    flex: 0 0 auto;
+    padding: 1px 5px;
+    border: 1px solid var(--border-strong, #46525f);
+    border-radius: 4px;
+    color: var(--text-dim, #b7c2cd);
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: .06em;
+}
+.batch-card-badge.is-own { border-color: var(--accent, #4aa3ff); color: var(--accent, #4aa3ff); }
+.batch-card-badge.is-shared { border-color: var(--ok, #57b894); color: var(--ok, #57b894); }
 .batch-card-meta { color: var(--muted, #9ca9b7); font-size: 10px; }
 .batch-card-actions { display: flex; gap: 4px; }
 .batch-create .btn,
@@ -77,6 +90,15 @@
     color: var(--text-dim);
     font-size: 11px;
     font-weight: 700;
+}
+.active-batch-owner {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted, #9ca9b7);
+    font-size: 10px;
 }
 .active-batch-toolbar .btn {
     flex: 0 0 auto;
