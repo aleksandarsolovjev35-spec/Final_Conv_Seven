@@ -474,3 +474,11 @@ function refreshPreviewStrip() {
     // с декодированными кадрами всех семи камер, а не с пустыми карточками.
     els.previewStrip.querySelectorAll('.preview-cam img').forEach(requestPreviewImage);
 }
+
+function updateUptime() {
+    const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
+    const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+    const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+    const s = String(elapsed % 60).padStart(2, '0');
+    setIfChanged(els.metricUptime, `${h}:${m}:${s}`, false);
+}

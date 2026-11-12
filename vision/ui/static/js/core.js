@@ -12,6 +12,7 @@ const STATUS_INTERVAL_MOTION = 60;
 const STATUS_INTERVAL_IDLE   = 500;
 const STATUS_OFFLINE_AFTER   = 1500;
 const PREVIEW_INTERVAL       = 180;
+const UPTIME_INTERVAL      = 1000;
 const MAIN_CAM_MIN_GAP     = 16;
 const LIVE_CAM_MIN_GAP     = 1000 / 30;
 
@@ -57,6 +58,7 @@ const state = {
     currentCamera:       null,
     mode:                'RULES',
     modePending:         false,
+    startTime:           Date.now(),
     splashActive:        true,
     lastFrameTime:       0,
     lineState:           'IDLE',
@@ -146,6 +148,9 @@ const els = {
     splashExit:       $('splash-exit'),
 
     main:             $('main'),
+
+    metricStep:       $('metric-step'),
+    metricUptime:     $('metric-uptime'),
 
     previewStrip:     $('preview-strip'),
     cameraLabel:      $('camera-label'),

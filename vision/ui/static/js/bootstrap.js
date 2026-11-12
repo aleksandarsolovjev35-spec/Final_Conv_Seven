@@ -201,6 +201,7 @@ function init() {
 
     setInterval(fetchCameras, 2000);
     setInterval(refreshPreviewStrip, PREVIEW_INTERVAL);
+    setInterval(updateUptime, UPTIME_INTERVAL);
 }
 
 if (document.readyState === 'loading') {
