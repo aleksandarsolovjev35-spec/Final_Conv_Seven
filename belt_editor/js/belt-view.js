@@ -15,7 +15,7 @@
 (function () {
 'use strict';
 
-var Z_MIN = 0.5;
+var Z_MIN = 0.75;
 var Z_MAX = 2.2;
 var PAD = 16;                      /* padding зоны */
 var MIN_VIS = 40;                  /* цепи видно минимум столько */

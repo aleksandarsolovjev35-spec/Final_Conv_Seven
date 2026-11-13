@@ -1118,10 +1118,10 @@ check('стабильность формы линий: прямые линии �
         const hasAdaptiveTol = builderSrc.includes('Math.max(5, 7 * z)');
         return hasAdaptiveTol;
     })());
-check('ограничение удаления масштаба: минимальный зум Z_MIN ограничен 0.5 (50%)',
+check('ограничение удаления масштаба: минимальный зум Z_MIN ограничен 0.75 (75%)',
     (function () {
         const viewSrc = fs.readFileSync(ROOT + '/js/belt-view.js', 'utf8');
-        const hasZMin = viewSrc.includes('var Z_MIN = 0.5;');
+        const hasZMin = viewSrc.includes('var Z_MIN = 0.75;');
         return hasZMin;
     })());
 
