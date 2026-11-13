@@ -724,11 +724,13 @@ function sockXY(node) {
 
 function wirePathOrtho(a, b) {
     const x1 = a[0], y1 = a[1], x2 = b[0], y2 = b[1], dx = x2 - x1, dy = y2 - y1;
-    if (Math.abs(dy) < 3) return `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
-    if (Math.abs(dx) < 3) return `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
+    const z = window.BeltView?.state().z || 1, tol = Math.max(5, 7 * z);
+    if (Math.abs(dy) <= tol) return `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
+    if (Math.abs(dx) <= tol) return `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
 
-    if (dx >= 20) {
-        const midX = x1 + dx * 0.5, r = Math.min(22, Math.abs(midX - x1) * 0.48, Math.abs(dy) * 0.48);
+    const thresh = 25 * z;
+    if (dx >= thresh) {
+        const midX = x1 + dx * 0.5, r = Math.min(22 * z, Math.abs(midX - x1) * 0.48, Math.abs(dy) * 0.48);
         const sy = dy > 0 ? 1 : -1;
         return `M${x1.toFixed(1)} ${y1.toFixed(1)}` +
                `L${(midX - r).toFixed(1)} ${y1.toFixed(1)}` +
@@ -738,7 +740,7 @@ function wirePathOrtho(a, b) {
                `L${x2.toFixed(1)} ${y2.toFixed(1)}`;
     }
 
-    const stub = 20, midY = y1 + dy * 0.5, r = Math.min(16, Math.abs(dy) * 0.35), sy = dy > 0 ? 1 : -1;
+    const stub = 20 * z, midY = y1 + dy * 0.5, r = Math.min(16 * z, Math.abs(dy) * 0.35), sy = dy > 0 ? 1 : -1;
     return `M${x1.toFixed(1)} ${y1.toFixed(1)}` +
            `L${(x1 + stub - r).toFixed(1)} ${y1.toFixed(1)}` +
            `Q${(x1 + stub).toFixed(1)} ${y1.toFixed(1)} ${(x1 + stub).toFixed(1)} ${(y1 + r * sy).toFixed(1)}` +

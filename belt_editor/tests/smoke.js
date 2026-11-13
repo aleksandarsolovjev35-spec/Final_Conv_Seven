@@ -1112,6 +1112,12 @@ check('соединения не масштабируются: толщина л
         const hasFixedStroke = builderSrc.includes("isChain ? '2.8px' : '2.2px'");
         return hasSvgPath && noSqrtZ && hasFixedStroke;
     })());
+check('стабильность формы линий: прямые линии остаются прямыми при масштабировании',
+    (function () {
+        const builderSrc = fs.readFileSync(ROOT + '/js/builder.js', 'utf8');
+        const hasAdaptiveTol = builderSrc.includes('Math.max(5, 7 * z)');
+        return hasAdaptiveTol;
+    })());
 
 console.log(failures === 0 ? 'SMOKE_PASS' : 'SMOKE_FAIL(' + failures + ')');
 process.exit(failures === 0 ? 0 : 1);
