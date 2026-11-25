@@ -28,19 +28,41 @@ function renderBatchList(items = [], activeId = null) {
         const card = document.createElement('div');
         card.className = 'batch-card';
 
-        // Шапка: название партии и чип статуса.
+        // Шапка: название партии и крестик закрытия для открытой партии.
         const head = document.createElement('div');
         head.className = 'batch-card-head';
         const title = document.createElement('span');
         title.className = 'batch-card-id';
         title.textContent = item.batch_id;
         const isOpen = item.status === 'OPEN' && !item.zipped;
-        const status = document.createElement('span');
-        status.className = `batch-card-status ${isOpen ? 'is-open' : 'is-closed'}`;
-        const statusDot = document.createElement('span');
-        statusDot.className = 'batch-card-status-dot';
-        status.append(statusDot, document.createTextNode(isOpen ? 'ОТКРЫТА' : 'ЗАКРЫТА'));
-        head.append(title, status);
+        head.append(title);
+        if (isOpen) {
+            card.classList.add('is-open-card');
+            if (item.batch_id === activeId) {
+                card.classList.add('is-active-card');
+            } else {
+                card.title = 'Нажмите, чтобы продолжить партию';
+                card.addEventListener('click', () => {
+                    if (!batchActionPending) {
+                        batchRequest('/api/batches/resume', {batch_id: item.batch_id});
+                    }
+                });
+            }
+            const close = document.createElement('button');
+            close.type = 'button';
+            close.className = 'batch-card-close';
+            close.textContent = '✕';
+            close.title = 'Закрыть партию';
+            close.setAttribute('aria-label', 'Закрыть партию');
+            close.disabled = batchActionPending;
+            close.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (window.confirm('Закрыть партию? После закрытия продолжить её будет нельзя.')) {
+                    batchRequest('/api/batches/close', {batch_id: item.batch_id});
+                }
+            });
+            head.append(close);
+        }
 
         // Блок «СТАТИСТИКА»: плитки счётчиков.
         const statsSection = document.createElement('div');
@@ -58,13 +80,11 @@ function renderBatchList(items = [], activeId = null) {
         ].forEach(([label, value, cls]) => {
             const tile = document.createElement('div');
             tile.className = `batch-card-stat ${cls}`;
-            const tileLabel = document.createElement('span');
-            tileLabel.className = 'batch-card-stat-label';
-            tileLabel.textContent = label;
+            tile.title = label;
             const tileValue = document.createElement('span');
             tileValue.className = 'batch-card-stat-value';
             tileValue.textContent = value || 0;
-            tile.append(tileLabel, tileValue);
+            tile.append(tileValue);
             statsGrid.appendChild(tile);
         });
         statsSection.append(statsHead, statsGrid);
@@ -90,43 +110,16 @@ function renderBatchList(items = [], activeId = null) {
                 nameText.title = entry.operator || '';
                 name.append(nameText);
                 const count = document.createElement('div');
-                count.className = 'batch-card-op-count';
-                const countLabel = document.createElement('span');
-                countLabel.textContent = 'всего деталей: ';
+                count.className = 'batch-card-stat is-accent batch-card-op-stat';
+                count.title = 'всего деталей';
                 const countValue = document.createElement('span');
-                countValue.className = 'batch-card-op-count-value';
+                countValue.className = 'batch-card-stat-value';
                 countValue.textContent = entry.parts || 0;
-                count.append(countLabel, countValue);
+                count.append(countValue);
                 row.append(name, count);
                 ops.appendChild(row);
             });
             card.appendChild(ops);
-        }
-
-        // Подвал: ПРОДОЛЖИТЬ и рядом справа ЗАКРЫТЬ.
-        if (isOpen) {
-            const foot = document.createElement('div');
-            foot.className = 'batch-card-footer';
-            const resume = document.createElement('button');
-            resume.type = 'button';
-            resume.className = 'btn btn-sm btn-ok batch-card-action';
-            resume.textContent = item.batch_id === activeId ? 'ВЫБРАНА' : 'ПРОДОЛЖИТЬ';
-            resume.disabled = batchActionPending || item.batch_id === activeId;
-            resume.addEventListener('click', () => batchRequest(
-                '/api/batches/resume', {batch_id: item.batch_id},
-            ));
-            const close = document.createElement('button');
-            close.type = 'button';
-            close.className = 'btn btn-sm btn-bad batch-card-action';
-            close.textContent = 'ЗАКРЫТЬ';
-            close.disabled = batchActionPending;
-            close.addEventListener('click', () => {
-                if (window.confirm('Закрыть партию? После закрытия продолжить её будет нельзя.')) {
-                    batchRequest('/api/batches/close', {batch_id: item.batch_id});
-                }
-            });
-            foot.append(resume, close);
-            card.appendChild(foot);
         }
         list.appendChild(card);
     });
@@ -163,22 +156,51 @@ function updateBatchStatus(batch) {
     }
 }
 
+function setBatchLoading(loading) {
+    const panel = document.getElementById('thresholds-panel');
+    if (!panel) return;
+    if (loading) {
+        panel.dataset.batchLoading = 'true';
+    } else {
+        delete panel.dataset.batchLoading;
+    }
+}
+
 async function batchRequest(path, payload) {
     if (batchActionPending || state.offline) return;
     batchActionPending = true;
-    ['batch-open', 'active-batch-detach', 'batch-list'].forEach(id => {
+    setBatchLoading(true);
+    ['batch-open', 'active-batch-detach'].forEach(id => {
         const node = document.getElementById(id);
         if (node) node.disabled = true;
     });
-    const result = await apiPostJson(path, payload, true);
-    batchActionPending = false;
-    if (result && result.batch) updateBatchStatus(result.batch);
-    await refreshBatches();
+    document.querySelectorAll('#batch-list .batch-card-close').forEach(btn => {
+        btn.disabled = true;
+    });
+    try {
+        const result = await apiPostJson(path, payload, true);
+        const tasks = [apiGet('/api/batches')];
+        if (typeof fetchStatus === 'function') {
+            tasks.push(fetchStatus());
+        }
+        const [batchesPayload] = await Promise.all(tasks);
+        batchActionPending = false;
+        const finalBatch = batchesPayload || (result && result.batch) || null;
+        if (finalBatch) updateBatchStatus(finalBatch);
+    } finally {
+        batchActionPending = false;
+        setBatchLoading(false);
+    }
 }
 
 async function refreshBatches() {
-    const payload = await apiGet('/api/batches');
-    if (payload) updateBatchStatus(payload);
+    setBatchLoading(true);
+    try {
+        const payload = await apiGet('/api/batches');
+        if (payload) updateBatchStatus(payload);
+    } finally {
+        setBatchLoading(false);
+    }
 }
 
 function setupBatchManagement() {

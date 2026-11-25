@@ -350,9 +350,9 @@ class BatchPanelStaticContractTest(unittest.TestCase):
         self.assertIn("УЧАСТНИКИ", batches_js)
         self.assertIn("batch-card-stat", batches_js)
         self.assertIn("всего деталей", batches_js)
-        # Закрытие партии — прямо из списка, рядом с «ПРОДОЛЖИТЬ».
-        self.assertIn("ПРОДОЛЖИТЬ", batches_js)
-        self.assertIn("ЗАКРЫТЬ", batches_js)
+        # Продолжение — по клику на карточку, закрытие — крестиком в шапке.
+        self.assertIn("is-open-card", batches_js)
+        self.assertIn("batch-card-close", batches_js)
         self.assertNotIn("active-batch-close", batches_js)
         # Ни разделения «мои/чужие», ни лишних сведений в карточке.
         self.assertNotIn("МОЯ", batches_js)

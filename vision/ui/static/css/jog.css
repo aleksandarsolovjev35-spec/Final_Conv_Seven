@@ -6,10 +6,10 @@
     background: var(--panel);
     border: 1px solid var(--border-accent);
     border-radius: var(--radius);
-    padding: 20px 20px 18px;
+    padding: 14px 12px 14px;
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 10px;
     min-height: 0;
     overflow-y: auto;
     box-shadow: none;
