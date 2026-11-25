@@ -26,7 +26,13 @@ function renderBatchList(items = [], activeId = null) {
     }
     items.forEach(item => {
         const card = document.createElement('div');
-        card.className = 'batch-card';
+        card.className = 'batch-card is-collapsed';
+        card.addEventListener('contextmenu', (e) => {
+            if (!card.classList.contains('is-collapsed')) {
+                e.preventDefault();
+                card.classList.add('is-collapsed');
+            }
+        });
 
         // Шапка: название партии и крестик закрытия для открытой партии.
         const head = document.createElement('div');
@@ -40,14 +46,21 @@ function renderBatchList(items = [], activeId = null) {
             card.classList.add('is-open-card');
             if (item.batch_id === activeId) {
                 card.classList.add('is-active-card');
-            } else {
-                card.title = 'Нажмите, чтобы продолжить партию';
-                card.addEventListener('click', () => {
-                    if (!batchActionPending) {
-                        batchRequest('/api/batches/resume', {batch_id: item.batch_id});
-                    }
-                });
             }
+            card.title = 'Нажмите, чтобы развернуть; повторно — продолжить партию';
+            card.addEventListener('click', () => {
+                if (batchActionPending) return;
+                if (card.classList.contains('is-collapsed')) {
+                    list.querySelectorAll('.batch-card:not(.is-collapsed)').forEach(other => {
+                        other.classList.add('is-collapsed');
+                    });
+                    card.classList.remove('is-collapsed');
+                    return;
+                }
+                if (item.batch_id !== activeId) {
+                    batchRequest('/api/batches/resume', {batch_id: item.batch_id});
+                }
+            });
             const close = document.createElement('button');
             close.type = 'button';
             close.className = 'batch-card-close';
@@ -62,6 +75,11 @@ function renderBatchList(items = [], activeId = null) {
                 }
             });
             head.append(close);
+        } else {
+            card.title = 'Нажмите, чтобы развернуть или свернуть';
+            card.addEventListener('click', () => {
+                card.classList.toggle('is-collapsed');
+            });
         }
 
         // Блок «СТАТИСТИКА»: плитки счётчиков.
@@ -87,8 +105,12 @@ function renderBatchList(items = [], activeId = null) {
             tile.append(tileValue);
             statsGrid.appendChild(tile);
         });
+        const body = document.createElement('div');
+        body.className = 'batch-card-body';
+        const bodyInner = document.createElement('div');
+        bodyInner.className = 'batch-card-body-inner';
         statsSection.append(statsHead, statsGrid);
-        card.append(head, statsSection);
+        bodyInner.append(statsSection);
 
         // Блок «УЧАСТНИКИ»: имя слева, личный итог справа.
         const opRows = batchOperatorStats(item);
@@ -119,8 +141,10 @@ function renderBatchList(items = [], activeId = null) {
                 row.append(name, count);
                 ops.appendChild(row);
             });
-            card.appendChild(ops);
+            bodyInner.appendChild(ops);
         }
+        body.appendChild(bodyInner);
+        card.append(head, body);
         list.appendChild(card);
     });
 }

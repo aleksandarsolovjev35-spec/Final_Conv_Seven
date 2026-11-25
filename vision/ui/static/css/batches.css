@@ -47,6 +47,7 @@
 .batch-list::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 .batch-card {
     flex: 0 0 auto;
+    cursor: pointer;
     display: grid;
     gap: 9px;
     padding: 9px;
@@ -54,6 +55,16 @@
     border-radius: var(--radius-lg, 5px);
     background: var(--panel-raised, #1c252d);
     transition: border-color .15s ease, background .15s ease;
+}
+.batch-card.is-collapsed {
+    gap: 0;
+}
+.batch-card.is-collapsed .batch-card-body {
+    display: none;
+}
+.batch-card-body-inner {
+    display: grid;
+    gap: 9px;
 }
 .batch-card:hover {
     border-color: var(--border-strong, #44515c);
