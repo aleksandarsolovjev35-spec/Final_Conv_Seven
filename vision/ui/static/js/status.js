@@ -274,6 +274,12 @@ function updateProcessPhaseLabel(lineState, process = {}) {
     }
     const detail = detailParts.join(' · ') || lineStateLabel(activeState);
     const processStep = process.step != null ? process.step : null;
+    if (phaseEl.dataset.slotText !== label) {
+        phaseEl.dataset.slotText = label;
+        phaseEl.classList.remove('is-slot-rolling');
+        void phaseEl.offsetWidth;
+        phaseEl.classList.add('is-slot-rolling');
+    }
     setIfChanged(phaseEl, label);
     if (els.processPhaseStep && processStep !== null) setIfChanged(els.processPhaseStep, `ШАГ ${processStep}`);
     phaseEl.dataset.lineState = activeState;
