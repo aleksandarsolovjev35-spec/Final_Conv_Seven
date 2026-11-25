@@ -74,3 +74,18 @@ def test_fault_banner_present_and_announced():
     assert 'aria-live="assertive"' in banner_tag
     assert "updateFaultBanner" in STATUS_JS
     assert ".fault-banner" in PROCESS_CSS
+
+
+def test_cycle_stats_shows_only_part_counters():
+    """Из статистики цикла убраны «Шаг» и «Время работы» — только счётчики деталей."""
+    sources = [INDEX_HTML, STATUS_JS]
+    for name in ("core.js", "cameras.js", "bootstrap.js"):
+        sources.append((UI / "static" / "js" / name).read_text(encoding="utf-8"))
+    for token in (
+        "Время работы", 'id="metric-uptime"', 'id="metric-step"',
+        "metricStep", "metricUptime", "updateUptime", "UPTIME_INTERVAL",
+    ):
+        for source in sources:
+            assert token not in source, token
+    assert "Всего корпусов" in INDEX_HTML
+    assert "Годные" in INDEX_HTML

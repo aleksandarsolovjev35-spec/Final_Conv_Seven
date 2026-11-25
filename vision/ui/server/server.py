@@ -604,27 +604,48 @@ class UIServer:
         if callable(callback):
             callback(archive)
 
+    @staticmethod
+    def _operator_key(value) -> str:
+        """Нормализованный ключ ФИО: регистр и пробелы не важны."""
+        return " ".join(str(value or "").split()).casefold()
+
     def list_batches(self):
+        """Return every batch of the archive, including foreign ones.
+
+        Партии общие для всех операторов линии: разделения на «мои» и
+        «чужие» нет, список показывает все партии, включая созданные другим
+        пользователем, чтобы их можно было продолжить. Для каждой партии
+        возвращается ``owner`` (создатель партии) и ``operator_stats`` —
+        сколько деталей провёл каждый оператор.
+        """
         from inspection.part_archive import PartArchive
 
         root = self.batch_root_folder or getattr(self.archive, "root_folder", None)
         if not root or not self.operator_name:
             return []
-        return [
-            batch for batch in PartArchive.list_batches(root)
-            if batch.get("created_by") == self.operator_name
-        ]
+        result = []
+        for batch in PartArchive.list_batches(root):
+            item = dict(batch)
+            item["owner"] = item.get("created_by") or item.get("operator", "")
+            result.append(item)
+        return result
 
     def batch_status_payload(self, include_list=False):
         archive = self.archive if self.batch_selected else None
         payload = {"selected": False}
         if archive is not None:
+            owner = getattr(archive, "created_by", "") or getattr(
+                archive, "operator", "",
+            )
             payload.update({
                 "selected": True,
                 "batch_id": archive.batch_id,
                 "status": getattr(archive, "status", "OPEN"),
                 "counts": dict(getattr(archive, "_batch_stats", {})),
                 "operator": getattr(archive, "operator", ""),
+                "owner": owner,
+                "operators": list(getattr(archive, "operators", []) or []),
+                "operator_stats": archive.operator_stats(),
             })
         if include_list:
             payload["batches"] = self.list_batches()
@@ -672,18 +693,21 @@ class UIServer:
         root = self.batch_root_folder or getattr(self.archive, "root_folder", None)
         if not root:
             raise RuntimeError("Папка архива не настроена")
-        owned_open_batches = {
-            item["batch_id"] for item in self.list_batches()
+        open_batches = {
+            item["batch_id"] for item in PartArchive.list_batches(root)
             if item.get("status") == "OPEN" and not item.get("zipped")
         }
-        if batch_id not in owned_open_batches:
+        if batch_id not in open_batches:
             raise RuntimeError(
-                "Партия не найдена или недоступна текущему оператору"
+                "Партия не найдена или уже закрыта"
             )
         archive = PartArchive.resume(root, batch_id)
         from config.operator_store import normalise_operator_fio
         archive.operator = normalise_operator_fio(self.operator_name)
-        if archive.operator and archive.operator not in archive.operators:
+        known = {
+            self._operator_key(value) for value in archive.operators
+        }
+        if archive.operator and self._operator_key(archive.operator) not in known:
             archive.operators.append(archive.operator)
         archive._save_batch_manifest(status="OPEN")
         archive.keep_open_on_shutdown = True
@@ -701,12 +725,34 @@ class UIServer:
         self._notify_archive_changed(None)
         return self.batch_status_payload()
 
-    def close_batch(self):
-        if not self.batch_selected or not self._batch_line_idle():
+    def close_batch(self, batch_id=None):
+        """Закрыть активную партию или партию из списка по её ID."""
+        from inspection.part_archive import PartArchive
+
+        if not self._batch_line_idle():
             raise RuntimeError("Закрыть партию можно только при остановленной линии")
-        archive = self.archive
-        if archive is None:
-            raise RuntimeError("Активная партия не найдена")
+        close_active = not batch_id or (
+            self.batch_selected
+            and self.archive is not None
+            and self.archive.batch_id == batch_id
+        )
+        if close_active:
+            if not self.batch_selected or self.archive is None:
+                raise RuntimeError("Активная партия не найдена")
+            archive = self.archive
+        else:
+            if self.batch_selected:
+                raise RuntimeError("Сначала отсоедините активную партию")
+            root = self.batch_root_folder or getattr(self.archive, "root_folder", None)
+            if not root:
+                raise RuntimeError("Папка архива не настроена")
+            open_batches = {
+                item["batch_id"] for item in PartArchive.list_batches(root)
+                if item.get("status") == "OPEN" and not item.get("zipped")
+            }
+            if batch_id not in open_batches:
+                raise RuntimeError("Партия не найдена или уже закрыта")
+            archive = PartArchive.resume(root, batch_id)
         from json_sender import send_batch_json
         archive.close_batch(sender=send_batch_json)
         self.batch_selected = False
